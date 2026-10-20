@@ -19,10 +19,10 @@ import {
   customisedKeys,
   resolveSettings,
   sanitizePatch,
-  type ApiError,
   type SettingDefinition,
   type SettingsApiResponse,
 } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 import { errorCode } from '../utils/errorCode.js';
 
 const TABLE = USER_SETTINGS_TABLE;
@@ -47,23 +47,24 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
   const putLimiter = createRateLimiter(PUT_WINDOW_MS, PUT_MAX_PER_WINDOW);
   const registry = (): readonly SettingDefinition[] => definitions ?? SETTING_DEFINITIONS;
 
-  /** Svaret efter läsning eller skrivning: upplösta värden för användar-scopet plus vilka nycklar som är anpassade. */
-  async function currentSettings(userId: string): Promise<SettingsApiResponse> {
+  /** Svaret efter läsning eller skrivning: upplösta värden för användar-scopet (`data`) plus vilka nycklar som är anpassade (`meta`). */
+  async function currentSettings(userId: string): Promise<{ data: SettingsApiResponse['data']; meta: NonNullable<SettingsApiResponse['meta']> }> {
     const stored = await readStored(userId);
     const defs = registry();
     const values = resolveSettings(stored, 'user', defs, ({ key, reason }) =>
       logger.warn(`⚠️ Lagrad inställning ignoreras (${reason}): ${key}`),
     );
-    return { success: true, data: { values }, meta: { customised: customisedKeys(stored, 'user', defs) } };
+    return { data: { values }, meta: { customised: customisedKeys(stored, 'user', defs) } };
   }
 
   // ─── GET /api/settings ──────────────────────────────────────────────────────
   router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     try {
-      res.json(await currentSettings(req.user!.user_id) satisfies SettingsApiResponse);
+      const { data, meta } = await currentSettings(req.user!.user_id);
+      ok<SettingsApiResponse>(res, data, meta);
     } catch (e) {
       logger.error(`❌ GET /api/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to fetch settings' } satisfies ApiError);
+      fail(res, 500, 'Failed to fetch settings');
     }
   });
 
@@ -74,7 +75,7 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
     const userId = req.user!.user_id;
     const patch = sanitizePatch(req.body, 'user', registry());
     if (!patch.ok) {
-      res.status(400).json({ error: patch.error } satisfies ApiError);
+      fail(res, 400, patch.error);
       return;
     }
 
@@ -91,10 +92,11 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
         const { error } = await supabase.from(TABLE).delete().eq('user_id', userId).in('key', patch.reset);
         if (error) throw error;
       }
-      res.json(await currentSettings(userId) satisfies SettingsApiResponse);
+      const { data, meta } = await currentSettings(userId);
+      ok<SettingsApiResponse>(res, data, meta);
     } catch (e) {
       logger.error(`❌ PUT /api/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to save settings' } satisfies ApiError);
+      fail(res, 500, 'Failed to save settings');
     }
   });
 

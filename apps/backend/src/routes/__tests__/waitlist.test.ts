@@ -50,7 +50,7 @@ describe('POST /api/waitlist', () => {
     for (const email of bad) {
       const res = await post({ email, consent: true });
       expect(res.status, JSON.stringify(email)).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     }
     for (const email of [undefined, null, 42, ['a@b.se'], { a: 1 }]) {
       const res = await post({ email, consent: true });
@@ -65,7 +65,7 @@ describe('POST /api/waitlist', () => {
     for (const consent of [undefined, false, 'true', 1, null]) {
       const res = await post({ email: 'alice@example.com', consent });
       expect(res.status, String(consent)).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'consent_required' });
     }
     expect(stored()).toEqual([]);
   });
@@ -74,7 +74,7 @@ describe('POST /api/waitlist', () => {
     useDb();
     const first = await post({ email: '  Alice.Smith@Example.COM ', consent: true, elapsedMs: 5000 });
     expect(first.status).toBe(200);
-    expect(first.body).toEqual({ success: true });
+    expect(first.body).toEqual({ success: true, data: null });
     expect(stored()).toHaveLength(1);
     expect(stored()[0]).toMatchObject({ email: 'alice.smith@example.com', source: 'landing', consent_version: WAITLIST_CONSENT_VERSION });
 
@@ -149,7 +149,7 @@ describe('POST /api/waitlist', () => {
     useDb();
     const res = await post({ email: 'big@example.com', consent: true, padding: 'x'.repeat(2000) });
     expect(res.status).toBe(413);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'payload_too_large' });
     expect(stored()).toEqual([]);
   });
 
@@ -157,7 +157,7 @@ describe('POST /api/waitlist', () => {
     useDb({ errors: { waitlist_signups: { message: 'Key (email)=(ivan@example.com) boom' } } });
     const res = await post({ email: 'ivan@example.com', consent: true });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('ivan@example.com');
   });
 
@@ -229,7 +229,7 @@ describe('POST /api/waitlist limits and edge cases', () => {
     });
     expect(raw.status).toBe(400);
     expect(raw.type).toMatch(/application\/json/);
-    expect(JSON.parse(raw.text)).toEqual({ error: 'Invalid JSON body' });
+    expect(JSON.parse(raw.text)).toEqual({ success: false, error: 'Invalid JSON body', code: 'invalid_json' });
     expect(raw.text).not.toMatch(/\bat\s+\S+\s+\(|node_modules|SyntaxError/);
     expect(stored()).toEqual([]);
   });
@@ -239,7 +239,7 @@ describe('POST /api/waitlist limits and edge cases', () => {
     tables.waitlist_signups.push({ ...existing });
     useDb();
     const res = await post({ email: ' DUP@example.com ', consent: true });
-    expect(res).toEqual({ status: 200, body: { success: true } });
+    expect(res).toEqual({ status: 200, body: { success: true, data: null } });
     expect(stored()).toEqual([existing]); // varken consent_version, created_at eller id skrevs över
   });
 });

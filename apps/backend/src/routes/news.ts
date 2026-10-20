@@ -16,7 +16,6 @@ import {
   NEWS_MAX_LIMIT,
   isActivityType,
   type ActivityType,
-  type ApiError,
   type NewsApiResponse,
   type NewsItem,
   type NewsMeta,
@@ -27,6 +26,7 @@ import {
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -110,7 +110,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (rawLimit !== undefined) {
       const n = parsePositiveInt(rawLimit);
       if (n === null || n > MAX_LIMIT) {
-        res.status(400).json({ error: `limit must be an integer between 1 and ${MAX_LIMIT}` } satisfies ApiError); return;
+        fail(res, 400, `limit must be an integer between 1 and ${MAX_LIMIT}`); return;
       }
       limit = n;
     }
@@ -119,14 +119,14 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     let after: number | null = null;
     if (rawBefore !== undefined) {
       before = parsePositiveInt(rawBefore);
-      if (before === null) { res.status(400).json({ error: 'before must be a positive integer' } satisfies ApiError); return; }
+      if (before === null) { fail(res, 400, 'before must be a positive integer'); return; }
     }
     if (rawAfter !== undefined) {
       after = parsePositiveInt(rawAfter);
-      if (after === null) { res.status(400).json({ error: 'after must be a positive integer' } satisfies ApiError); return; }
+      if (after === null) { fail(res, 400, 'after must be a positive integer'); return; }
     }
     if (before !== null && after !== null) {
-      res.status(400).json({ error: 'before and after cannot be combined' } satisfies ApiError); return;
+      fail(res, 400, 'before and after cannot be combined'); return;
     }
 
     let types: ActivityType[] | null = null;
@@ -134,14 +134,14 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       const parts = typeof rawType === 'string' ? rawType.split(',').map((t) => t.trim()) : null;
       const bad = parts === null ? ['type'] : parts.filter((t) => !isActivityType(t));
       if (parts === null || parts.length === 0 || bad.length > 0) {
-        res.status(400).json({ error: `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}` } satisfies ApiError); return;
+        fail(res, 400, `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}`); return;
       }
       types = [...new Set(parts as ActivityType[])];
     }
 
     // Exakt "me" (versalkänsligt); tomt, andra värden och upprepade parametrar (array) är 400.
     if (rawInvolves !== undefined && rawInvolves !== 'me') {
-      res.status(400).json({ error: 'involves must be "me"' } satisfies ApiError); return;
+      fail(res, 400, 'involves must be "me"'); return;
     }
     const involvesMe = rawInvolves === 'me';
 
@@ -151,17 +151,16 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     // Saknad grupp ger tom data, aldrig alla grupper (ADR 007 A6)
     if (!groupId) {
-      const empty: NewsApiResponse = { success: true, data: { items: [] }, meta: emptyMeta };
-      res.json(empty); return;
+      ok<NewsApiResponse>(res, { items: [] }, emptyMeta); return;
     }
 
     // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
     if (involvesMe && !isUuid(userId)) {
-      res.status(400).json({ error: 'involves requires a valid user id' } satisfies ApiError); return;
+      fail(res, 400, 'involves requires a valid user id'); return;
     }
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
+    if (!reader) { fail(res, 404, 'User not found'); return; }
 
     const supabase = getSupabaseClient();
     let query = supabase
@@ -201,20 +200,15 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       is_unread: isRowUnread(r, viewer),
     })) as NewsItem[];
 
-    const body: NewsApiResponse = {
-      success: true,
-      data: { items },
-      meta: {
-        unread_count: unreadCount,
-        last_seen_id: reader.news_last_seen_id,
-        has_more: hasMore,
-        next_before: hasMore && items.length > 0 ? items[items.length - 1].id : null,
-      },
-    };
-    res.json(body);
+    ok<NewsApiResponse>(res, { items }, {
+      unread_count: unreadCount,
+      last_seen_id: reader.news_last_seen_id,
+      has_more: hasMore,
+      next_before: hasMore && items.length > 0 ? items[items.length - 1].id : null,
+    });
   } catch (error) {
     logger.error(`❌ Error fetching news (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch news' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch news');
   }
 });
 
@@ -226,7 +220,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const body = (req.body ?? {}) as Partial<Record<keyof NewsSeenRequest, unknown>>;
     const upTo = body.up_to_id;
     if (upTo !== undefined && !(typeof upTo === 'number' && Number.isSafeInteger(upTo) && upTo > 0)) {
-      res.status(400).json({ error: 'up_to_id must be a positive integer' } satisfies ApiError); return;
+      fail(res, 400, 'up_to_id must be a positive integer'); return;
     }
 
     const userId = req.user!.user_id;
@@ -234,11 +228,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
+    if (!reader) { fail(res, 404, 'User not found'); return; }
 
     if (!groupId) {
-      const empty: NewsSeenApiResponse = { success: true, data: { last_seen_id: reader.news_last_seen_id, unread_count: 0 } };
-      res.json(empty); return;
+      ok<NewsSeenApiResponse>(res, { last_seen_id: reader.news_last_seen_id, unread_count: 0 }); return;
     }
 
     // Senaste raden i gruppen. up_to_id kläms till den: ett id bortom flödet får inte tysta framtida nyheter.
@@ -272,14 +265,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     await pruneReadReceipts(userId, current);
 
     const refreshed: Reader = { ...reader, news_last_seen_id: current };
-    const result: NewsSeenApiResponse = {
-      success: true,
-      data: { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount },
-    };
-    res.json(result);
+    ok<NewsSeenApiResponse>(res, { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount });
   } catch (error) {
     logger.error(`❌ Error marking news as seen (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update news state' } satisfies ApiError);
+    fail(res, 500, 'Failed to update news state');
   }
 });
 
@@ -318,28 +307,24 @@ export function createNewsRouter(): express.Router {
     try {
       const ids = parseReadIds(req.body);
       if (!ids) {
-        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' } satisfies ApiError); return;
+        fail(res, 400, 'ids must be 1 to 50 unique positive integers'); return;
       }
 
-      const empty: NewsReadApiResponse = { success: true, data: { unread_count: 0 } };
+      const empty = { success: true, data: { unread_count: 0 } } satisfies NewsReadApiResponse;
       const groupId = groupIdOrRespondEmpty(req, res, empty);
       if (!groupId) return;
 
       const userId = req.user!.user_id;
       const reader = await readReader(userId);
-      if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
+      if (!reader) { fail(res, 404, 'User not found'); return; }
 
       await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
       await pruneReadReceipts(userId, reader.news_last_seen_id);
 
-      const body: NewsReadApiResponse = {
-        success: true,
-        data: { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount },
-      };
-      res.json(body);
+      ok<NewsReadApiResponse>(res, { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount });
     } catch (error) {
       logger.error(`❌ Error marking news rows as read (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update news state' } satisfies ApiError);
+      fail(res, 500, 'Failed to update news state');
     }
   });
 

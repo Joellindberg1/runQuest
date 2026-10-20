@@ -753,22 +753,6 @@ export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT
   return errors;
 }
 
-// TILLFÄLLIGT (RUN-354, tas bort i den sista routecommiten): filer som ännu inte är omskrivna till fail. Varje domäncommit tar bort sina rader härifrån.
-const TEMPORARILY_UNCONVERTED = new Set([
-  'apps/backend/src/routes/admin.ts',
-  'apps/backend/src/routes/badges.ts',
-  'apps/backend/src/routes/config.ts',
-  'apps/backend/src/routes/groupSettings.ts',
-  'apps/backend/src/routes/groups.ts',
-  'apps/backend/src/routes/leaderboard.ts',
-  'apps/backend/src/routes/news.ts',
-  'apps/backend/src/routes/onboarding.ts',
-  'apps/backend/src/routes/publicStats.ts',
-  'apps/backend/src/routes/settings.ts',
-  'apps/backend/src/routes/users.ts',
-  'apps/backend/src/routes/waitlist.ts',
-]);
-
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -955,7 +939,7 @@ function runCli(argv = process.argv.slice(2)) {
       summary.push('varje route svarar mot en kontraktstyp ur shared');
     }
     if (mode === 'all' || mode === 'error-responses') {
-      errors.push(...checkErrorResponsesViaFail(files, new Set([...ERROR_RESPONSE_EXEMPT_FILES, ...TEMPORARILY_UNCONVERTED])));
+      errors.push(...checkErrorResponsesViaFail(files));
       summary.push('alla felsvar går via fail');
     }
     if (mode === 'all' || mode === 'group-filter') {

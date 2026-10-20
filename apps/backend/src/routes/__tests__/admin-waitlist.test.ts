@@ -90,7 +90,7 @@ describe('GET /api/admin/waitlist', () => {
     useDb([{ id: 'admin-1', is_admin: true }], signups(), { errors: { waitlist_signups: { message: 'secret detail first@example.com' } } });
     const res = await server.request('GET', '/api/admin/waitlist', { token: mintToken({ user_id: 'admin-1' }) });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('first@example.com');
   });
 });

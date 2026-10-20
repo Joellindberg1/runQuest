@@ -102,7 +102,7 @@ describe('POST /api/users/profile-picture', () => {
       const { uploads, users } = use();
       const res = await upload(type === 'application/json' ? Buffer.from('{}') : image(), type);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'Only jpeg, png, webp or gif images are allowed' });
+      expect(res.body).toEqual({ success: false, error: 'Only jpeg, png, webp or gif images are allowed', code: 'invalid_request' });
       expect(uploads).toEqual([]);
       expect(users[0].profile_picture).toBeNull();
     },
@@ -120,7 +120,7 @@ describe('POST /api/users/profile-picture', () => {
     expect(uploads).toHaveLength(1);
     const over = await upload(image(PROFILE_PICTURE_MAX_BYTES + 1), 'image/png');
     expect(over.status).toBe(413);
-    expect(over.body).toEqual({ error: 'Request body too large' });
+    expect(over.body).toEqual({ success: false, error: 'Request body too large', code: 'payload_too_large' });
     expect(uploads).toHaveLength(1);
   });
 

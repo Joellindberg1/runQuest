@@ -45,11 +45,11 @@ import {
   groupRoleCan,
   resolveSettings,
   sanitizePatch,
-  type ApiError,
   type GroupSettingsApiResponse,
   type SanitizedPatch,
   type SettingDefinition,
 } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 
 /** Samma gräns som PUT /api/settings: 60 skrivningar per minut och IP stoppar bara ett skript som hamrar på tabellen. */
 const PUT_WINDOW_MS = 60 * 1000;
@@ -103,20 +103,14 @@ export function createGroupSettingsRouter(
     try {
       const membership = await getActiveMembership(req.user!.user_id);
       if (!membership) {
-        const empty: GroupSettingsApiResponse = { success: true, data: { values: {} }, meta: { customised: [], can_edit: false } };
-        res.json(empty);
+        ok<GroupSettingsApiResponse>(res, { values: {} }, { customised: [], can_edit: false });
         return;
       }
       const stored = await readStoredGroupSettings(getSupabaseClient(), membership.group_id);
-      const body: GroupSettingsApiResponse = {
-        success: true,
-        data: { values: resolve(stored) },
-        meta: { customised: customisedKeys(stored, 'group', registry()), can_edit: groupRoleCan(membership.role, 'settings.write') },
-      };
-      res.json(body);
+      ok<GroupSettingsApiResponse>(res, { values: resolve(stored) }, { customised: customisedKeys(stored, 'group', registry()), can_edit: groupRoleCan(membership.role, 'settings.write') });
     } catch (e) {
       logger.error(`❌ GET /api/groups/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to fetch group settings' } satisfies ApiError);
+      fail(res, 500, 'Failed to fetch group settings');
     }
   });
 
@@ -130,7 +124,7 @@ export function createGroupSettingsRouter(
 
     const patch = sanitizePatch(req.body, 'group', registry());
     if (!patch.ok) {
-      res.status(400).json({ error: patch.error } satisfies ApiError);
+      fail(res, 400, patch.error);
       return;
     }
 
@@ -141,15 +135,10 @@ export function createGroupSettingsRouter(
     if (outcome.event) await announceWithTimeout(outcome.event);
 
     if (outcome.failed) {
-      res.status(500).json({ error: 'Failed to save group settings' } satisfies ApiError);
+      fail(res, 500, 'Failed to save group settings');
       return;
     }
-    const body: GroupSettingsApiResponse = {
-      success: true,
-      data: { values: resolve(outcome.after) },
-      meta: { customised: customisedKeys(outcome.after, 'group', registry()), can_edit: true },
-    };
-    res.json(body);
+    ok<GroupSettingsApiResponse>(res, { values: resolve(outcome.after) }, { customised: customisedKeys(outcome.after, 'group', registry()), can_edit: true });
   });
 
   /** Det en skrivning ger: nuläget efter den, om något gick fel, och händelsen som ska meddelas (om värden ändrats). */

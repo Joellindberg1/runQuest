@@ -1,29 +1,33 @@
-// API-kontrakt (ADR 007): gemensamma former för NYA endpoints.
-// Endast typer — ingen runtime-kod. Importeras av backend-routes och frontendens API-klient.
+// API-kontrakt (ADR 007 och Addendum 2026-10-20): gemensamma former för svar och fel.
+// Endast typer — ingen runtime-kod (felkoderna som konstanter ligger i errors.ts). Importeras av backend-routes och frontendens API-klient.
+import type { ApiErrorCode } from './errors.js';
 
-/** Framgångssvar för nya endpoints: { success: true, data, meta? }. */
+/** Framgångssvar: { success: true, data, meta? }. `data` finns alltid (`null` när åtgärden inte har någon nyttolast). */
 export interface ApiSuccess<TData, TMeta = undefined> {
   success: true;
   data: TData;
   meta?: TMeta;
 }
 
-/** Felsvar: HTTP-status + { error }. */
-export interface ApiError {
-  error: string;
-}
-
-/** Felsvar med success-flagga: { success: false, error }. Äldre endpoints (titles, recalculate-totals) skickar den formen; nya använder `ApiError`. */
-export interface ApiFailure {
+/**
+ * Felsvar: HTTP-status + { success: false, error, code }. `error` är en fast engelsk text för visning och loggar, aldrig för logik; `code` är det klienten och
+ * supporten grenar på (katalogen i errors.ts). `data` bär bara räknare, i de två felsvaren från POST /titles/reprocess-all.
+ * `written` finns kvar under dubbelsvarsfönstret (steg 1) bredvid koden `recalc_failed_after_write` och tas bort i steg 2.
+ */
+export interface ApiError<TData = undefined> {
   success: false;
   error: string;
+  code: ApiErrorCode;
+  data?: TData;
+  written?: true;
 }
 
 /**
- * Felsvar från POST/PUT/DELETE /api/runs när servern skrev ändringen men XP-omräkningen föll (500). `written` låter klienten hålla cachen i takt:
- * cachen är inaktuell och ett nytt försök kan dubblera.
+ * Felsvar från POST/PUT/DELETE /api/runs när servern skrev ändringen men XP-omräkningen föll (500, kod `recalc_failed_after_write`). `written` låter en klient från
+ * före steg 1 hålla cachen i takt: cachen är inaktuell och ett nytt försök kan dubblera. Tas bort i steg 2 (RUN-364).
  */
 export interface WrittenApiError extends ApiError {
+  code: 'recalc_failed_after_write';
   written: true;
 }
 

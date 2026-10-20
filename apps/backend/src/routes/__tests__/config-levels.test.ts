@@ -96,7 +96,7 @@ describe('GET /api/config/levels', () => {
     );
     const res = await server.request('GET', '/api/config/levels', { token: mintToken() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to fetch level requirements' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to fetch level requirements', code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('ECONNREFUSED');
     expect(JSON.stringify(res.body)).not.toContain('hunter2');
   });

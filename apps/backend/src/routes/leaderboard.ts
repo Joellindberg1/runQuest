@@ -16,12 +16,12 @@ import {
   percentOfBest,
   zoneDay,
   zoneMidnightIso,
-  type ApiError,
   type LedgerEventEntry,
   type RankDeltaApiResponse,
   type WeekLeaderboardApiResponse,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -71,13 +71,13 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     const requested = req.query.week_start;
     if (requested !== undefined) {
       if (typeof requested !== 'string' || !isCalendarDay(requested)) {
-        res.status(400).json({ error: 'week_start must be a date in the format YYYY-MM-DD' } satisfies ApiError); return;
+        fail(res, 400, 'week_start must be a date in the format YYYY-MM-DD'); return;
       }
       if (mondayOf(requested) !== requested) {
-        res.status(400).json({ error: 'week_start must be a Monday' } satisfies ApiError); return;
+        fail(res, 400, 'week_start must be a Monday'); return;
       }
       if (requested > currentStart) {
-        res.status(400).json({ error: 'week_start must not be in the future' } satisfies ApiError); return;
+        fail(res, 400, 'week_start must not be in the future'); return;
       }
       weekStart = requested;
     }
@@ -87,16 +87,12 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
 
     const groupId = req.user!.group_id;
     if (!groupId) {
-      const empty: WeekLeaderboardApiResponse = {
-        success: true,
-        data: {
-          week,
-          users: [],
-          totals: { km: 0, runs: 0, xp: 0, active_runners: 0, members: 0, best_week_km: 0, pct_of_best_week: null },
-          mover: null,
-        },
-      };
-      res.json(empty); return;
+      ok<WeekLeaderboardApiResponse>(res, {
+        week,
+        users: [],
+        totals: { km: 0, runs: 0, xp: 0, active_runners: 0, members: 0, best_week_km: 0, pct_of_best_week: null },
+        mover: null,
+      }); return;
     }
 
     const supabase = getSupabaseClient();
@@ -136,19 +132,15 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     }
     const bestKm = Math.max(historicalBest, computed.totals.km);
 
-    const body: WeekLeaderboardApiResponse = {
-      success: true,
-      data: {
-        week,
-        users: computed.users,
-        totals: { ...computed.totals, best_week_km: bestKm, pct_of_best_week: percentOfBest(computed.totals.km, bestKm) },
-        mover: computed.mover,
-      },
-    };
-    res.json(body);
+    ok<WeekLeaderboardApiResponse>(res, {
+      week,
+      users: computed.users,
+      totals: { ...computed.totals, best_week_km: bestKm, pct_of_best_week: percentOfBest(computed.totals.km, bestKm) },
+      mover: computed.mover,
+    });
   } catch (error) {
     logger.error(`❌ Error fetching week leaderboard (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch week leaderboard' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch week leaderboard');
   }
 });
 
@@ -159,8 +151,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
     const timeZone = groupTimeZone(groupId);
     const asOf = mondayOf(zoneDay(new Date(), timeZone));
     if (!groupId) {
-      const empty: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users: [] } };
-      res.json(empty); return;
+      ok<RankDeltaApiResponse>(res, { as_of: asOf, users: [] }); return;
     }
 
     const supabase = getSupabaseClient();
@@ -212,11 +203,10 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
       logger.warn(`⚠️ rank-delta: XP-liggaren överstiger total_xp för ${diverged.length} användare (${diverged.join(', ')}) — previous_xp klampad till 0`);
     }
 
-    const body: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users } };
-    res.json(body);
+    ok<RankDeltaApiResponse>(res, { as_of: asOf, users });
   } catch (error) {
     logger.error(`❌ Error fetching rank delta (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch rank delta' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch rank delta');
   }
 });
 

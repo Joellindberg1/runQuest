@@ -12,7 +12,6 @@ import {
   MAX_SHOWCASE,
   countHolders,
   resolveShowcase,
-  type ApiError,
   type BadgeGroupApiResponse,
   type BadgeUserApiResponse,
   type BadgeUserItem,
@@ -21,6 +20,7 @@ import {
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -53,10 +53,10 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
   try {
     const me = req.user!.user_id;
     const targetId = req.params.userId;
-    if (!isUuid(targetId)) { res.status(400).json({ error: 'userId must be a valid uuid' } satisfies ApiError); return; }
+    if (!isUuid(targetId)) { fail(res, 400, 'userId must be a valid uuid'); return; }
 
     // Samma svar för "finns inte" och "annan grupp".
-    const notFound = () => res.status(404).json({ error: 'User not found' } satisfies ApiError);
+    const notFound = () => fail(res, 404, 'User not found');
     const groupId = req.user!.group_id;
     const isSelf = targetId === me;
 
@@ -89,11 +89,10 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
     const showcase = resolveShowcase(target.displayed_badge_series, new Map(owned.map((r) => [r.series, r.tier])))
       .map((entry) => entry.series);
 
-    const body: BadgeUserApiResponse = { success: true, data: { items, showcase } };
-    res.json(body);
+    ok<BadgeUserApiResponse>(res, { items, showcase });
   } catch (error) {
     logger.error(`❌ Error fetching user badges (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch badges' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch badges');
   }
 });
 
@@ -104,12 +103,7 @@ router.get('/group', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const groupId = req.user!.group_id;
     if (!groupId) {
-      const empty: BadgeGroupApiResponse = {
-        success: true,
-        data: { members: [], holders: countHolders([]) },
-        meta: { member_count: 0 },
-      };
-      res.json(empty); return;
+      ok<BadgeGroupApiResponse>(res, { members: [], holders: countHolders([]) }, { member_count: 0 }); return;
     }
 
     const supabase = getSupabaseClient();
@@ -138,21 +132,16 @@ router.get('/group', authenticateJWT, async (req, res): Promise<void> => {
       ownedByUser.set(row.user_id, owned);
     }
 
-    const body: BadgeGroupApiResponse = {
-      success: true,
-      data: {
-        members: members.map((m: any) => ({
-          user_id: m.id,
-          showcase: resolveShowcase(m.displayed_badge_series, ownedByUser.get(m.id) ?? new Map()),
-        })),
-        holders: countHolders(rows),
-      },
-      meta: { member_count: members.length },
-    };
-    res.json(body);
+    ok<BadgeGroupApiResponse>(res, {
+      members: members.map((m: any) => ({
+        user_id: m.id,
+        showcase: resolveShowcase(m.displayed_badge_series, ownedByUser.get(m.id) ?? new Map()),
+      })),
+      holders: countHolders(rows),
+    }, { member_count: members.length });
   } catch (error) {
     logger.error(`❌ Error fetching group badges (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch badges' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch badges');
   }
 });
 
@@ -171,12 +160,12 @@ router.put('/showcase', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const me = req.user!.user_id;
     const series = parseSeriesList(req.body?.series);
-    if (!series) { res.status(400).json({ error: 'series must be an array of badge series keys' } satisfies ApiError); return; }
+    if (!series) { fail(res, 400, 'series must be an array of badge series keys'); return; }
     if (series.length > MAX_SHOWCASE) {
-      res.status(400).json({ error: `series may contain at most ${MAX_SHOWCASE} entries` } satisfies ApiError); return;
+      fail(res, 400, `series may contain at most ${MAX_SHOWCASE} entries`); return;
     }
-    if (new Set(series).size !== series.length) { res.status(400).json({ error: 'series must be unique' } satisfies ApiError); return; }
-    if (!series.every((s) => getSeriesOrder().has(s))) { res.status(400).json({ error: 'series contains an unknown badge series' } satisfies ApiError); return; }
+    if (new Set(series).size !== series.length) { fail(res, 400, 'series must be unique'); return; }
+    if (!series.every((s) => getSeriesOrder().has(s))) { fail(res, 400, 'series contains an unknown badge series'); return; }
 
     const supabase = getSupabaseClient();
     if (series.length > 0) {
@@ -187,7 +176,7 @@ router.put('/showcase', authenticateJWT, async (req, res): Promise<void> => {
       if (ownedError) throw ownedError;
       const owned = new Set(((rows ?? []) as BadgeRow[]).filter((r) => r.tier >= 1).map((r) => r.series));
       if (!series.every((s) => owned.has(s))) {
-        res.status(400).json({ error: 'series contains a badge series you have not earned' } satisfies ApiError); return;
+        fail(res, 400, 'series contains a badge series you have not earned'); return;
       }
     }
 
@@ -197,11 +186,10 @@ router.put('/showcase', authenticateJWT, async (req, res): Promise<void> => {
       .eq('id', me);
     if (updateError) throw updateError;
 
-    const body: ShowcaseApiResponse = { success: true, data: { showcase: series } };
-    res.json(body);
+    ok<ShowcaseApiResponse>(res, { showcase: series });
   } catch (error) {
     logger.error(`❌ Error saving badge showcase (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to save showcase' } satisfies ApiError);
+    fail(res, 500, 'Failed to save showcase');
   }
 });
 
@@ -214,14 +202,13 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const me = req.user!.user_id;
     const requested = req.body?.series === undefined ? null : parseSeriesList(req.body.series);
     if (req.body?.series !== undefined && !requested) {
-      res.status(400).json({ error: 'series must be an array of badge series keys' } satisfies ApiError); return;
+      fail(res, 400, 'series must be an array of badge series keys'); return;
     }
     if (requested && !requested.every((s) => getSeriesOrder().has(s))) {
-      res.status(400).json({ error: 'series contains an unknown badge series' } satisfies ApiError); return;
+      fail(res, 400, 'series contains an unknown badge series'); return;
     }
     if (requested && requested.length === 0) {
-      const none: SeenApiResponse = { success: true, data: { updated: [] } };
-      res.json(none); return;
+      ok<SeenApiResponse>(res, { updated: [] }); return;
     }
 
     const supabase = getSupabaseClient();
@@ -248,11 +235,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
       if ((changed ?? []).length > 0) updated.push(row.series);
     }
 
-    const body: SeenApiResponse = { success: true, data: { updated } };
-    res.json(body);
+    ok<SeenApiResponse>(res, { updated });
   } catch (error) {
     logger.error(`❌ Error marking badges as seen (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to mark badges as seen' } satisfies ApiError);
+    fail(res, 500, 'Failed to mark badges as seen');
   }
 });
 

@@ -130,7 +130,7 @@ describe('GET /api/settings', () => {
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
     const res = await get();
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(res.body.error).not.toContain('user_settings');
     expect(error).toHaveBeenCalled();
   });
@@ -199,7 +199,7 @@ describe('PUT /api/settings', () => {
     const { db } = use();
     const res = await put({ values: { user_id: OTHER, [KEY_A]: false } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
   });
 
@@ -253,7 +253,7 @@ describe('PUT /api/settings', () => {
     // Allt eller inget: den giltiga nyckeln i samma patch skrivs inte heller.
     const res = await put({ values: { [KEY_A]: false, 'notify.does_not_exist': true } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining('notify.does_not_exist') });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining('notify.does_not_exist'), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
     expect(tables.user_settings).toEqual([stored(ME, KEY_B, false)]);
   });
@@ -262,7 +262,7 @@ describe('PUT /api/settings', () => {
     const { db } = use();
     const res = await put({ values: { [KEY_A]: 'yes' } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining(KEY_A) });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining(KEY_A), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
   });
 
@@ -271,7 +271,7 @@ describe('PUT /api/settings', () => {
     for (const body of [{}, { values: [KEY_A] }, { values: 'x' }, { [KEY_A]: false }]) {
       const res = await put(body);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     }
     expect(mutations(db)).toEqual([]);
   });
@@ -333,7 +333,7 @@ describe('PUT /api/settings', () => {
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
     const res = await put({ values: { [KEY_A]: false } });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('secret-detail-42');
     expect(error).toHaveBeenCalled();
   });
@@ -374,7 +374,7 @@ describe('PUT /api/settings med ett annat register än det riktiga', () => {
     const { db, tables } = use();
     const res = await factoryServer.request('PUT', '/api/settings', { token: token(), body: { values: { [KEY_A]: false, [groupKey.key]: true } } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining(groupKey.key) });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining(groupKey.key), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
     expect(tables.user_settings).toEqual([]);
   });

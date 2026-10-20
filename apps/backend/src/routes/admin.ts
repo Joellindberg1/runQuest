@@ -6,7 +6,8 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
 import { errorCode } from '../utils/errorCode.js';
-import type { AdminWaitlistApiResponse, AdminWaitlistEntry, ApiError } from '@runquest/shared';
+import type { AdminWaitlistApiResponse, AdminWaitlistEntry } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -24,13 +25,12 @@ router.get('/waitlist', authenticateJWT, requireAdmin, async (_req, res): Promis
 
   if (error) {
     logger.error(`❌ Admin waitlist read failed (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to load the waitlist' } satisfies ApiError);
+    fail(res, 500, 'Failed to load the waitlist');
     return;
   }
 
   const entries = ((data ?? []) as AdminWaitlistEntry[]).map((row) => ({ id: row.id, email: row.email, created_at: row.created_at, source: row.source }));
-  const response: AdminWaitlistApiResponse = { success: true, data: { entries, total: count ?? entries.length } };
-  res.json(response);
+  ok<AdminWaitlistApiResponse>(res, { entries, total: count ?? entries.length });
 });
 
 export default router;
