@@ -96,7 +96,10 @@ export interface CreateRunResponse {
   run: RunRow;
 }
 
-/** Brödtext till PUT /api/runs/:id. `date` utelämnas när datumet inte ändrats; servern kräver `distance`, och ignorerar allt annat. */
+/**
+ * Brödtext till PUT /api/runs/:id. `date` utelämnas när datumet inte ändrats — en ren distansändring ska inte falla på serverns datumvalidering
+ * (UTC-"idag"). Servern kräver `distance` och ignorerar alla andra nycklar.
+ */
 export interface UpdateRunRequest {
   date?: string;
   distance: number;

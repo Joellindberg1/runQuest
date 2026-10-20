@@ -1,7 +1,8 @@
 // 🔗 Backend API Service - Production Ready
-import type { Run, Challenge, ChallengeToken, UserBoost } from '@runquest/types';
+import type { Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
-  AdminSettingsResponse, AdminUsersResponse, ApiError, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, CreateUserResponse,
+  AdminSettingsResponse, AdminUsersResponse, ApiError, ChangePasswordRequest, ChangePasswordResponse, CreateRunRequest, CreateRunResponse,
+  CreateUserRequest, CreateUserResponse, UpdateRunRequest, UpdateRunResponse,
   LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse,
   TitlesRefreshResponse, UpdateAdminSettingsRequest, UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse,
   UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse, UploadProfilePictureResponse, UsersWithRunsResponse,
@@ -761,13 +762,7 @@ class BackendApiService {
     }
   }
 
-  async updateRun(runId: string, updates: {
-    distance?: number;
-    date?: string;
-    duration?: number;
-    title?: string;
-    description?: string;
-  }): Promise<ApiResponse<Run>> {
+  async updateRun(runId: string, updates: UpdateRunRequest): Promise<ApiResponse<UpdateRunResponse['run']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/runs/${runId}`, {
         method: 'PUT',
@@ -1072,8 +1067,9 @@ class BackendApiService {
    * `idempotencyKey` (uuid v4, en per inskick) skickas som headern Idempotency-Key: servern skapar då aldrig en andra
    * runda för samma nyckel, så ett omförsök efter ett svar som aldrig kom fram blir ingen dubblett.
    */
-  async createRun(date: string, distance: number, isTreadmill?: boolean, idempotencyKey?: string): Promise<ApiResponse<Run>> {
+  async createRun(date: string, distance: number, isTreadmill?: boolean, idempotencyKey?: string): Promise<ApiResponse<CreateRunResponse['run']>> {
     try {
+      const body: CreateRunRequest = { date, distance, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) };
       const response = await fetch(`${API_BASE_URL}/runs`, {
         method: 'POST',
         headers: {
@@ -1081,7 +1077,7 @@ class BackendApiService {
           'Content-Type': 'application/json',
           ...(idempotencyKey && { 'Idempotency-Key': idempotencyKey }),
         },
-        body: JSON.stringify({ date, distance, ...(isTreadmill !== undefined && { is_treadmill: isTreadmill }) }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();

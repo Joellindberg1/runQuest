@@ -2,7 +2,7 @@ import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDay, formatInt, formatKm, formatMultiplier } from './profileFormat';
-import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UserTitleEntry } from '@runquest/shared';
+import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
 // (en definition i runnerModel — samma siffror på båda korten); resten är profilens egen. Ren logik, ingen DOM.
@@ -112,13 +112,7 @@ export function validateEdit(form: EditForm, today: string, original?: Pick<Run,
   return errors;
 }
 
-export interface RunUpdate {
-  /** Utelämnas när datumet inte ändrats — en ren distansändring ska inte falla på serverns datumvalidering (UTC-"idag"). */
-  date?: string;
-  distance: number;
-}
-
-export function buildUpdate(form: EditForm, today: string, original: Pick<Run, 'date'>): { ok: true; update: RunUpdate } | { ok: false; errors: FieldErrors } {
+export function buildUpdate(form: EditForm, today: string, original: Pick<Run, 'date'>): { ok: true; update: UpdateRunRequest } | { ok: false; errors: FieldErrors } {
   const errors = validateEdit(form, today, original);
   const km = parseKm(form.distance);
   if (Object.keys(errors).length > 0 || km === null) return { ok: false, errors };
