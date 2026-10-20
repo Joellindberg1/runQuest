@@ -27,21 +27,7 @@
 	}
 }
 
-:{$PORT:80} {
-	log {
-		format json
-	}
-
-	# Appen har EN adress: www.runquest.dev. API:ets CORS tillåter bara den, och inloggningen
-	# (localStorage) är per adress — därför skickas apex-domänen vidare i stället för att servera appen.
-	@apex host runquest.dev
-	redir @apex https://www.runquest.dev{uri} 308
-
-	# Egen handle: ett toppnivå-respond sorteras efter handle och skulle skuggas av SPA-blocket.
-	handle /health {
-		respond 200
-	}
-
+(security_headers) {
 	# Säkerhetshuvuden (RUN-344) på ALLA svar, också 404, omdirigeringar och /health (header körs före handle/route). Samma Caddyfile i prod och staging.
 	#   - HSTS: ett år, utan includeSubDomains och utan preload. Underdomänerna är inte inventerade, och preload går inte att ångra snabbt (docs/release.md, "Säkerhetshuvuden").
 	#   - X-Frame-Options: DENY gäller skarpt även medan CSP går som Report-Only (frame-ancestors i en Report-Only-policy blockerar inget). Båda finns kvar när CSP blir skarp.
@@ -62,8 +48,31 @@
 		Strict-Transport-Security "max-age=31536000"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Frame-Options "DENY"
-		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'sha256-1yYJuvj582gVqQR/dSkeTdHfAS0wEZ/XUOH2vBttgR4=' 'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ=' 'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw=' 'sha256-ENgRl/chRPaOunHsdSJWIrmZCfT35J163c/mCMMs+kQ='; style-src 'self' 'unsafe-inline'; img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-1yYJuvj582gVqQR/dSkeTdHfAS0wEZ/XUOH2vBttgR4=' 'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ=' 'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw=' 'sha256-ENgRl/chRPaOunHsdSJWIrmZCfT35J163c/mCMMs+kQ='; style-src 'self' 'unsafe-inline'; img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	# Appen har EN adress: www.runquest.dev. API:ets CORS tillåter bara den, och inloggningen
+	# (localStorage) är per adress — därför skickas apex-domänen vidare i stället för att servera appen.
+	@apex host runquest.dev
+	redir @apex https://www.runquest.dev{uri} 308
+
+	# Egen handle: ett toppnivå-respond sorteras efter handle och skulle skuggas av SPA-blocket.
+	handle /health {
+		respond 200
+	}
+
+	# Säkerhetshuvudena (snippet security_headers ovan) på alla svar, också de som file_server svarar med fel: handle_errors importerar samma snippet.
+	import security_headers
+
+	handle_errors {
+		import security_headers
 	}
 
 	root * {{.DIST_DIR}}

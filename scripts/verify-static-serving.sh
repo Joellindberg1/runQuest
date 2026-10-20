@@ -9,7 +9,7 @@ CADDY_VERSION="2.11.4"
 PORT="18080"
 # Rubriken som Caddyfilen ska bära CSP i (RUN-344): först Report-Only i staging, sedan skarp. Det här är enda raden som byts när CSP blir skarp
 # (Caddyfilens rubrik byts samtidigt); den andra rubriken får då inte finnas alls.
-CSP_HEADER="content-security-policy-report-only"
+CSP_HEADER="content-security-policy"
 if [[ "$CSP_HEADER" == "content-security-policy" ]]; then CSP_OTHER="content-security-policy-report-only"; else CSP_OTHER="content-security-policy"; fi
 WORK="$(mktemp -d)"
 # Windows (Git Bash): en inbyggd Caddy vill ha C:/-sökvägar i Caddyfilen, inte /tmp/…; på Linux är sökvägen oförändrad.
@@ -180,6 +180,15 @@ check_with() {
   fi
   echo "ok   $desc"
 }
+
+# Fel som file_server själv svarar med (405 på POST/OPTIONS) rensade huvudena tills Caddyfilen fick handle_errors med samma snippet. Statusen prövas också, så att provet visar att felet verkligen uppstod.
+check_with "POST / ger 405 med Allow, utan Server-header"      "/" 405 "^allow: GET, HEAD" "^server:" -X POST
+security_headers "säkerhetshuvuden på ett 405-svar (POST /)"   "/" -X POST
+check_with "OPTIONS / ger 405, utan Server-header"            "/" 405 "^allow: GET, HEAD" "^server:" -X OPTIONS
+security_headers "säkerhetshuvuden på ett 405-svar (OPTIONS /)" "/" -X OPTIONS
+# En felformad adress (/%zz) avvisas av Go:s http-server innan Caddy hunnit läsa den: 400 med fast kropp, och Caddyfilen kan inte sätta huvuden på det svaret (inga säkerhetshuvuden är möjliga
+# här; det är ett protokollfel utan innehåll att skydda). Provet låser det som går: statusen och att ingen Server-header avslöjar programvaran.
+check_with "felformad adress (/%zz) ger 400, utan Server-header" "/%zz" 400 "" "^server:" --path-as-is
 
 films=("$DIST"/media/landing-film-720.v*.mp4)
 film="media/$(basename "${films[0]}")"

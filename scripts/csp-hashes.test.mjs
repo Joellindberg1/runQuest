@@ -50,6 +50,10 @@ describe('parseCsp', () => {
     assert.deepEqual(parsed.get('script-src'), ["'self'", "'sha256-abc='"]);
     assert.deepEqual(parsed.get('object-src'), ["'none'"]);
   });
+
+  it('keeps the first of a repeated directive, as browsers do', () => {
+    assert.deepEqual(parseCsp("script-src 'self'; script-src 'unsafe-inline'").get('script-src'), ["'self'"]);
+  });
 });
 
 describe('cspFromCaddyfile', () => {
@@ -97,6 +101,49 @@ describe('checkCsp', () => {
       const base = POLICY_BASE.replace("script-src 'self'", `script-src 'self' ${token}`);
       const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
       assert.match(problems.join('\n'), new RegExp(`script-src must not contain ${token}`));
+    }
+  });
+
+  it('fails on script-src-elem and script-src-attr, which override script-src for their own kind of script', () => {
+    for (const directive of ['script-src-elem', 'script-src-attr']) {
+      const base = `${POLICY_BASE}; ${directive} 'self' 'unsafe-inline'`;
+      const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+      assert.deepEqual(problems, [`${directive} must not be set: it overrides script-src, so the hashes would no longer be what decides`]);
+    }
+  });
+
+  it('fails on a wildcard or a bare scheme in connect-src and img-src, but accepts a host with a wildcard label', () => {
+    for (const directive of ['connect-src', 'img-src']) {
+      for (const token of ['*', 'https:', 'http:', 'data:', 'blob:', 'wss:']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+        assert.ok(problems.includes(`${directive} must not contain ${token}: list the hosts instead`), `${directive} ${token}: ${problems.join(' | ')}`);
+      }
+    }
+    assert.deepEqual(checkCsp({ csp: policy({ scripts: [script] }), pages }), []); // https://*.ingest.de.sentry.io i POLICY_BASE
+  });
+
+  it('reads directive names case-insensitively, as browsers do', () => {
+    const elem = `${POLICY_BASE}; SCRIPT-SRC-ELEM 'unsafe-inline'`;
+    assert.deepEqual(checkCsp({ csp: policy({ scripts: [script], base: elem }), pages }), [
+      'script-src-elem must not be set: it overrides script-src, so the hashes would no longer be what decides',
+    ]);
+    const connect = POLICY_BASE.replace("connect-src 'self'", "CONNECT-SRC 'self' *");
+    assert.ok(checkCsp({ csp: policy({ scripts: [script], base: connect }), pages }).includes('connect-src must not contain *: list the hosts instead'));
+    assert.deepEqual(parseCsp("Script-Src 'self'").get('script-src'), ["'self'"]);
+  });
+
+  it('fails on a host wildcard that covers whole top-level domains, but accepts one under a named domain', () => {
+    for (const directive of ['connect-src', 'img-src']) {
+      for (const token of ['http://*', 'https://*', 'https://*.com', '*.com', 'https://*:443', 'wss://*.org']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+        assert.ok(problems.includes(`${directive} must not contain ${token}: list the hosts instead`), `${directive} ${token}: ${problems.join(' | ')}`);
+      }
+      for (const token of ['https://*.ingest.de.sentry.io', 'https://*.example.com:8443', '*.example.com']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        assert.deepEqual(checkCsp({ csp: policy({ scripts: [script], base }), pages }), [], `${directive} ${token}`);
+      }
     }
   });
 
