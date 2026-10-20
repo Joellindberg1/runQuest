@@ -105,7 +105,7 @@ describe('useStravaActions web analytics', () => {
   it('reports nothing when the server refuses the connection, throws, or the authorisation fails', async () => {
     const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
 
-    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required' });
+    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required', code: 'consent_required' });
     await callback({ stravaCode: CODE });
     await waitFor(() => expect(result.current.error).not.toBeNull());
 

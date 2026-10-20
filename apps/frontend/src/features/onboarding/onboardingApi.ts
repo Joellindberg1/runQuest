@@ -12,7 +12,8 @@ export async function fetchOnboardingStatus(): Promise<string[]> {
   if (!backendApi.getToken()) throw new Error('Onboarding status needs a signed-in user');
   const res = await backendApi.authenticatedRequest<Partial<OnboardingStatusResponse>>(`${BASE}/status`);
   if (!res.success) throw new Error(`Onboarding status failed: ${res.error}`);
-  return res.data.seen ?? [];
+  // Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): `data.seen` först, den gamla toppnivånyckeln `seen` som reserv (en backend före steg 1).
+  return res.data.data?.seen ?? res.data.seen ?? [];
 }
 
 export async function markOnboardingSeen(slug: string): Promise<void> {

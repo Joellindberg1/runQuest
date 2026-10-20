@@ -17,7 +17,7 @@ interface SecurityPanelProps {
 /** Säkerhet: adminlösenordet (ännu inte kopplat till backend — som tidigare) och Strava-backfillen av utökad data. */
 export function SecurityPanel({ newAdminPassword, setNewAdminPassword, onChangeAdminPassword, notice }: SecurityPanelProps) {
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<StravaBackfillDoneResponse | null>(null);
+  const [result, setResult] = useState<StravaBackfillDoneResponse['data'] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const runBackfill = async () => {
@@ -27,7 +27,7 @@ export function SecurityPanel({ newAdminPassword, setNewAdminPassword, onChangeA
     try {
       const res = await backendApi.backfillStravaExtendedData();
       // Utan kopplade användare svarar servern bara med ett meddelande (inga rundor uppdaterades): visas som noll.
-      if (res.success && res.data) setResult('summary' in res.data ? res.data : { success: true, totalUpdated: 0, summary: [] });
+      if (res.success && res.data) setResult('summary' in res.data ? res.data : { totalUpdated: 0, summary: [] });
       else setError(res.error || 'The backfill did not finish. Runs that were already updated stay updated.');
     } catch {
       setError('The backfill did not finish. Runs that were already updated stay updated.');

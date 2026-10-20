@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EventItem, EventsHistoryResponse, EventsResponse } from '@runquest/shared';
-import { backendApi } from '@/shared/services/backendApi';
+import type { EventItem, EventsResponse } from '@runquest/shared';
+import { backendApi, type EventsHistoryPage } from '@/shared/services/backendApi';
 import { HISTORY_PAGE_SIZE, RECORD_MAX_PAGES, RECORD_PAGE_SIZE } from '../eventsModel';
 
 const STALE_MS = 60_000;
@@ -26,8 +26,8 @@ export function useOpenEvents(enabled = true) {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: EVENTS_QUERY_KEYS.open,
-    queryFn: async (): Promise<EventsResponse> => {
-      const previous = queryClient.getQueryData<EventsResponse>(EVENTS_QUERY_KEYS.open);
+    queryFn: async (): Promise<EventsResponse['data']> => {
+      const previous = queryClient.getQueryData<EventsResponse['data']>(EVENTS_QUERY_KEYS.open);
       const res = await backendApi.getEventList();
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load events');
       const current = new Set(res.data.events.map((event) => event.id));
@@ -47,7 +47,7 @@ export function useOpenEvents(enabled = true) {
 export function useEventHistoryPage(page: number, enabled = true) {
   return useQuery({
     queryKey: EVENTS_QUERY_KEYS.historyPage(page),
-    queryFn: async (): Promise<EventsHistoryResponse> => {
+    queryFn: async (): Promise<EventsHistoryPage> => {
       const res = await backendApi.getEventHistoryPage(HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE);
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load the event history');
       return res.data;

@@ -35,7 +35,19 @@ afterEach(() => {
 });
 
 describe('en 401-väg', () => {
-  it.each(rows)('$name: 401 loggar ut sessionen och ger samma text', async ({ call }) => {
+  // Steg 1 (ADR 007 Addendum 2026-10-20 punkt 7): sessionen avslutas av 401 med koden token_invalid eller unauthorized. Ett fel nuvarande lösenord (changePassword) är ett 401
+  // som INTE avslutar sessionen, så kodlösa 401 (en backend från före steg 1) och kodbärande 401 prövas för alla metoder, och changePassword har sitt eget fall nedan.
+  it.each(rows)('$name: 401 token_invalid loggar ut sessionen och ger samma text', async ({ call }) => {
+    fetchMock.mockResolvedValue(reply(401, { success: false, error: 'Invalid token', code: 'token_invalid' }));
+
+    expect(await call()).toEqual({ success: false, error: SESSION_EXPIRED, code: 'token_invalid' });
+
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+    expect(localStorage.getItem(SESSION_USER_KEY)).toBeNull();
+  });
+
+  it.each(rows)('$name: ett 401 utan kod (en backend från före steg 1) loggar ut sessionen och ger samma text', async ({ call }) => {
     fetchMock.mockResolvedValue(reply(401, { error: 'Invalid token' }));
 
     expect(await call()).toEqual({ success: false, error: SESSION_EXPIRED });
@@ -43,6 +55,16 @@ describe('en 401-väg', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(SESSION_USER_KEY)).toBeNull();
+  });
+
+  it('changePassword: fel nuvarande lösenord (401 current_password_incorrect) loggar inte ut sessionen och felet står kvar', async () => {
+    fetchMock.mockResolvedValue(reply(401, { success: false, error: 'Current password is incorrect', code: 'current_password_incorrect' }));
+
+    expect(await backendApi.changePassword('fel', 'nytt-lösenord')).toEqual({ success: false, error: 'Current password is incorrect', code: 'current_password_incorrect' });
+
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBe(TOKEN);
+    expect(localStorage.getItem(SESSION_USER_KEY)).not.toBeNull();
   });
 
   it('uploadProfilePicture: 401 loggar ut sessionen och ger samma text', async () => {
@@ -117,10 +139,10 @@ describe('läser JSON tåligt', () => {
     expect(await backendApi.joinWaitlist({ email: 'a@example.com', consent: true, website: '', elapsedMs: 5000 })).toEqual({ status: 502 });
   });
 
-  it('serverns text och written följer med trots att resten av svaret är oläsligt eller saknas', async () => {
-    fetchMock.mockResolvedValue(reply(500, { error: 'Run was created but XP recalculation failed', written: true }));
+  it('serverns text, koden och written följer med trots att resten av svaret är oläsligt eller saknas', async () => {
+    fetchMock.mockResolvedValue(reply(500, { success: false, error: 'Run was created but XP recalculation failed', code: 'recalc_failed_after_write', written: true }));
 
-    expect(await backendApi.createRun('2026-10-11', 5)).toEqual({ success: false, error: 'Run was created but XP recalculation failed', written: true });
+    expect(await backendApi.createRun('2026-10-11', 5)).toEqual({ success: false, error: 'Run was created but XP recalculation failed', code: 'recalc_failed_after_write', written: true });
   });
 });
 

@@ -1,5 +1,5 @@
 import { formatAgo, formatLongDate } from '@/features/log/logFormat';
-import { stockholmDay, stravaPollIntervalLabel, type StravaStatusResponse } from '@runquest/shared';
+import { stockholmDay, stravaPollIntervalLabel, type StravaStatus } from '@runquest/shared';
 import type { Run } from '@runquest/types';
 import { validatePassword } from '@/shared/utils/validation';
 import { STRAVA_RUN_TYPES_LABEL } from '@/features/playbook/playbookFacts';
@@ -8,7 +8,7 @@ import { STILL_REMOVED_SENTENCE } from './stravaConnectionCopy';
 // Settings-skärmens vymodeller: Strava-kortet ur /strava/status, den senaste importen som en rad, och
 // lösenordsbytets validering (samma regler som tidigare: alla fält, lika lösenord, minst 6 tecken). Ren logik — ingen DOM.
 
-export type StravaStatusInput = StravaStatusResponse;
+export type StravaStatusInput = StravaStatus;
 
 export type StravaCardState = 'connected' | 'paused' | 'expired' | 'disconnected';
 /** `paused` är en neutral bläcktoning (inte silver: silver är placering 2) för en pausad synk. */
