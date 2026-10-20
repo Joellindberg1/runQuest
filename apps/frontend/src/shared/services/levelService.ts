@@ -6,9 +6,9 @@
 // verifierad identisk med prod. Tabellen är statisk, så en lyckad hämtning gäller för sessionen.
 import { backendApi } from '@/shared/services/backendApi';
 import {
-  levelFromXP, xpForLevel,
+  levelFromXP, levelProgress, xpForLevel,
   FALLBACK_LEVEL_REQUIREMENTS,
-  type LevelRequirement, type LevelsApiResponse,
+  type LevelProgress, type LevelRequirement, type LevelsApiResponse,
 } from '@runquest/shared';
 
 const LEVELS_ENDPOINT = '/config/levels';
@@ -50,6 +50,10 @@ export class FrontendLevelService {
   getXPForLevelSync(level: number): number {
     return xpForLevel(level, this.requirements());
   }
+
+  getLevelProgressSync(totalXP: number): LevelProgress {
+    return levelProgress(totalXP, this.requirements());
+  }
 }
 
 // Export singleton instance
@@ -64,4 +68,9 @@ export function getLevelFromXP(totalXP: number): number {
 
 export function getXPForLevel(level: number): number {
   return frontendLevelService.getXPForLevelSync(level);
+}
+
+/** Nivå, procent och XP kvar mot nästa nivå ur tabellen i bruk: shared:s `levelProgress`, ingen egen räkning. */
+export function getLevelProgress(totalXP: number): LevelProgress {
+  return frontendLevelService.getLevelProgressSync(totalXP);
 }

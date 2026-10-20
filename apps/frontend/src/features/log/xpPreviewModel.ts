@@ -111,16 +111,17 @@ function journeyEffect(me: User, km: number): EffectRow {
   return { key: 'journey', label, value: `+${formatKm(km)} km toward ${next.name}`, tone: 'default' };
 }
 
-/** Rankingen före/efter rundan med samma sortering som Board (nivå, sedan XP). Utan plats på tavlan → inget. */
+/** Rankingen före/efter rundan med samma ordning som Board och rank_passed (XP, sedan namn). Utan plats på tavlan → inget. */
 function boardEffect(input: PreviewInput, estimated: number): EffectRow | null {
   const { me, users } = input;
-  const before = leaderboardUtils.filterAndSortUsers(users);
-  if (!before.some((user) => user.id === me.id)) return null;
+  const rankBefore = leaderboardUtils.rankOfUser(me, users);
+  if (rankBefore === null) return null;
 
+  const before = leaderboardUtils.rankedUsers(users);
   const projectedMe = { ...me, total_xp: me.total_xp + estimated };
-  const after = leaderboardUtils.filterAndSortUsers(users.map((user) => (user.id === me.id ? projectedMe : user)));
-  const rankBefore = leaderboardUtils.getUserPosition(me, before);
-  const rankAfter = leaderboardUtils.getUserPosition(projectedMe, after);
+  const projectedUsers = users.map((user) => (user.id === me.id ? projectedMe : user));
+  const after = leaderboardUtils.rankedUsers(projectedUsers);
+  const rankAfter = leaderboardUtils.rankOfUser(projectedMe, projectedUsers) ?? rankBefore;
   const label = 'Leaderboard';
 
   if (rankAfter < rankBefore) {

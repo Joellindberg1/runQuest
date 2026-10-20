@@ -88,7 +88,6 @@ export function buildStreakRow(user: User, now: Date, ladder: LadderStep[], meId
 
 export function buildStreakRows(users: User[], now: Date, ladder: LadderStep[], meId?: string): StreakRow[] {
   return users
-    .filter((user) => user.name.toLowerCase() !== 'admin')
     .map((user) => buildStreakRow(user, now, ladder, meId))
     .sort((a, b) => b.days - a.days || b.best - a.best || a.name.localeCompare(b.name));
 }

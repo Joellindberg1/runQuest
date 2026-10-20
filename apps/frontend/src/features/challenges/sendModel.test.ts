@@ -70,6 +70,11 @@ describe('buildOpponents', () => {
     expect(karl.initials).toBe('KP');
   });
 
+  it('initialer: första och sista namnets, så Anna Maria Lindqvist är AL', () => {
+    const [anna] = buildOpponents({ members: [stat(KARL, { name: 'Anna Maria Lindqvist' })], users, meId: ME, headToHead: {} });
+    expect(anna.initials).toBe('AL');
+  });
+
   it('utan användardata: bara nivån ur group-stats', () => {
     const [first] = buildOpponents({ members, users: undefined, meId: ME, headToHead: {} });
     expect(first.note).toBe('Level 20');

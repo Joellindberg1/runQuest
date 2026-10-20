@@ -36,7 +36,7 @@ describe('buildHero', () => {
     const level = getLevelFromXP(5539);
     const from = getXPForLevel(level);
     const to = getXPForLevel(level + 1);
-    const hero = buildHero(karl, [joel, karl, admin]);
+    const hero = buildHero(karl, [joel, karl]);
 
     expect(hero).toMatchObject({ id: 'k', name: 'Karl Persson', level, rank: 1, runs: 2, nextLevel: level + 1 });
     expect(hero.ringTurn).toBeCloseTo(Math.round(((5539 - from) / (to - from)) * 100) / 100, 5);
@@ -56,11 +56,14 @@ describe('buildHero', () => {
     expect(xpToNextText(hero)).toBe('Max level reached');
   });
 
-  it('en löpare som inte finns i listan (eller admin) får ingen rank i stället för en påhittad', () => {
+  it('en löpare som inte finns i listan får ingen rank i stället för en påhittad', () => {
     expect(buildHero(karl, []).rank).toBeNull();
-    expect(buildHero(admin, [admin, karl]).rank).toBeNull();
   });
 
+  it('ett namn är ingen särbehandling: en löpare vid namnet Admin rankas som alla andra', () => {
+    expect(buildHero(admin, [admin, karl]).rank).toBe(1);
+    expect(buildHero(karl, [admin, karl]).rank).toBe(2);
+  });
 });
 
 describe('buildStatCells', () => {

@@ -85,13 +85,13 @@ export interface PreviewRow {
 
 const toneOf = (rank: number): PreviewTone => (rank === 1 ? '1' : rank === 2 ? '2' : rank === 3 ? '3' : 'rest');
 
-/** Topp fem ur exempelflocken: samma sortering som Board (nivå, sedan XP) och samma rank-pilar. */
+/** Topp fem ur exempelflocken: samma sortering som Board (XP, sedan namn) och samma rank-pilar. */
 export function buildPreviewRows(users: User[], rankDeltaByUser: Record<string, number | null>): PreviewRow[] {
-  const sorted = leaderboardUtils.filterAndSortUsers(users).slice(0, PREVIEW_SIZE);
+  const sorted = leaderboardUtils.rankedUsers(users).slice(0, PREVIEW_SIZE);
   const topXp = sorted[0]?.total_xp ?? 0;
 
   return sorted.map((user) => {
-    const rank = leaderboardUtils.getUserPosition(user, sorted);
+    const rank = sorted.indexOf(user) + 1;
     return {
       id: user.id,
       rank,

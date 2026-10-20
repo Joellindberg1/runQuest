@@ -1,9 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import type { Run, User } from '@runquest/types';
-import { groupTimeZone } from '@runquest/shared';
+import { groupTimeZone, levelProgress } from '@runquest/shared';
 import { leaderboardUtils } from './leaderboardUtils';
 
 const userWithRuns = (runs: Array<Pick<Run, 'date' | 'xp_gained'>>): User => ({ runs } as unknown as User);
+const person = (id: string, name: string, total_xp: number): User => ({ id, name, total_xp, runs: [], total_km: 0 } as unknown as User);
+
+describe('all-time ranking — one order, the same as rank_passed', () => {
+  it('ranks a user named Joel Lindberg (is_admin) in the standings like everyone else', () => {
+    const users = [person('a', 'Anna Berg', 4000), person('j', 'Joel Lindberg', 5000), person('b', 'Bo Ek', 3000)];
+    expect(leaderboardUtils.rankedUsers(users).map((user) => user.name)).toEqual(['Joel Lindberg', 'Anna Berg', 'Bo Ek']);
+    expect(leaderboardUtils.rankOfUser(users[1], users)).toBe(1);
+  });
+
+  it('keeps a user who is simply named Admin in the standings too, since no name is special', () => {
+    const users = [person('a', 'Admin', 100), person('b', 'Bo Ek', 50)];
+    expect(leaderboardUtils.rankedUsers(users).map((user) => user.name)).toEqual(['Admin', 'Bo Ek']);
+  });
+
+  it('places two users with equal XP in name order, then id, never sharing a place', () => {
+    const users = [person('z-2', 'Cleo', 1000), person('z-1', 'cleo', 1000), person('a-1', 'Adam', 1000), person('top', 'Zed', 2000)];
+    expect(leaderboardUtils.rankedUsers(users).map((user) => user.id)).toEqual(['top', 'a-1', 'z-1', 'z-2']);
+    expect(users.map((user) => leaderboardUtils.rankOfUser(user, users))).toEqual([4, 3, 2, 1]);
+  });
+
+  it('does not reorder by level first: more XP is always ahead', () => {
+    const users = [person('a', 'Anna', 5242), person('b', 'Bea', 5243)];
+    expect(leaderboardUtils.rankedUsers(users).map((user) => user.id)).toEqual(['b', 'a']);
+  });
+
+  it('gives no place to a user who is not in the list', () => {
+    expect(leaderboardUtils.rankOfUser(person('x', 'Xena', 1), [person('a', 'Anna', 5)])).toBeNull();
+  });
+});
+
+describe('calculateUserStats — level progress from the shared levelProgress', () => {
+  it('takes percent and XP left as shared computes them, with no rounding of its own', () => {
+    const totalXp = 5243.45;
+    const shared = levelProgress(totalXp);
+    const stats = leaderboardUtils.calculateUserStats(person('a', 'Anna', totalXp));
+    expect(stats.level).toBe(shared.currentLevel);
+    expect(stats.xpProgress).toBe(shared.progress);
+    expect(stats.xpLeftForNextLevel).toBe(shared.xpToNext);
+    expect(stats.xpInLevel).toBe(Math.round(totalXp - shared.currentLevelXP));
+    expect(stats.xpLevelRange).toBe(Math.round(shared.nextLevelXP - shared.currentLevelXP));
+  });
+
+  it('is full with nothing left on the max level, and never has negative XP left', () => {
+    const max = leaderboardUtils.calculateUserStats(person('a', 'Anna', 9_999_999));
+    expect(max).toMatchObject({ xpProgress: 100, xpLeftForNextLevel: 0, xpInLevel: 0, xpLevelRange: 0 });
+    expect(leaderboardUtils.calculateUserStats(person('b', 'Bo', -50)).xpLeftForNextLevel).toBeGreaterThanOrEqual(0);
+  });
+});
 
 describe('calculateLast14DaysXP — kalenderdagar, inte ögonblick', () => {
   const now = new Date('2026-10-20T15:00:00Z'); // 17:00 svensk tid, tisdag
