@@ -1,21 +1,29 @@
 // 🔗 Backend API Service - Production Ready
 import type {
-  AdminSettingsResponse, AdminUsersResponse, ApiError, ChallengeGroupStatsResponse, ChallengeProgressResponse, ChallengeResponseAction,
-  ChangePasswordRequest, ChangePasswordResponse, CreateRunRequest, CreateRunResponse, MyChallengesResponse, RespondChallengeRequest,
-  SendChallengeRequest, SendChallengeResponse,
-  CreateUserRequest, CreateUserResponse, UpdateRunRequest, UpdateRunResponse,
-  LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse,
-  TitlesRefreshResponse, UpdateAdminSettingsRequest, UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse,
-  UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse, UploadProfilePictureResponse, UsersWithRunsResponse,
-  WeekLeaderboardResponse, RankDeltaResponse, XpConfigResponse, HeadToHeadResponse,
-  PublicStatsData, PublicStatsApiResponse,
-  ChallengeGroupHistoryResponse, OffsetPageMeta, EventsResponse, EventsHistoryResponse, GroupRunHistoryResponse,
-  NewsApiResponse, NewsMeta, NewsQuery, NewsReadApiResponse, NewsReadRequest, NewsReadResponse, NewsResponse, NewsSeenApiResponse, NewsSeenResponse,
-  SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
-  AdminWaitlistData,
-  WaitlistSignupRequest,
-  StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse, StravaSyncResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
-  GroupEligibilityEntry, TitleLeaderboardEntry, UserTitleEntry,
+  // auth, användare och adminens inställningar
+  AdminSettingsResponse, AdminUsersResponse, ApiError, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, CreateUserResponse,
+  LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsRequest,
+  UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse,
+  UploadProfilePictureResponse, UsersWithRunsResponse,
+  // rundor
+  CreateRunRequest, CreateRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse,
+  // utmaningar
+  ChallengeGroupHistoryResponse, ChallengeGroupStatsResponse, ChallengeProgressResponse, ChallengeResponseAction, HeadToHeadResponse, MyChallengesResponse,
+  RespondChallengeRequest, SendChallengeRequest, SendChallengeResponse,
+  // grupper
+  JoinGroupRequest, JoinGroupResponse, MyGroupResponse,
+  // topplistor, konfiguration och landning
+  PublicStatsApiResponse, PublicStatsData, RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse,
+  // events, nyheter och inställningar
+  EventsHistoryResponse, EventsResponse, NewsApiResponse, NewsMeta, NewsQuery, NewsReadApiResponse, NewsReadRequest, NewsReadResponse, NewsResponse,
+  NewsSeenApiResponse, NewsSeenRequest, NewsSeenResponse, OffsetPageMeta, SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
+  // väntelista
+  AdminWaitlistData, WaitlistSignupRequest,
+  // Strava
+  StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse,
+  StravaSyncPausedRequest, StravaSyncPausedResponse, StravaSyncResponse,
+  // titlar
+  GroupEligibilityEntry, TitleLeaderboardEntry, TitlesRefreshResponse, UserTitleEntry,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 import { SESSION_TOKEN_KEY, SESSION_USER_KEY } from './sessionStorageKeys';
@@ -827,10 +835,8 @@ class BackendApiService {
 
   // ─── Groups ──────────────────────────────────────────────────────────────
 
-  async getGroupInfo(): Promise<ApiResponse<{
-    id: string; name: string; is_owner: boolean; invite_code?: string;
-    members: { id: string; name: string; current_level: number; total_xp: number; profile_picture?: string; challenge_active?: boolean }[];
-  }>> {
+  /** GET /groups/my — anroparens grupp med medlemmar, roll (my_role) och antal. 404 när användaren inte är med i någon grupp. */
+  async getGroupInfo(): Promise<ApiResponse<MyGroupResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/groups/my`, {
         headers: { 'Authorization': `Bearer ${this.getToken()}` },
@@ -844,6 +850,15 @@ class BackendApiService {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
+  }
+
+  /**
+   * POST /groups/join — går med i en grupp med inbjudningskod (ADR 012). 409 när användaren redan har ett aktivt medlemskap (man flyttas inte tyst),
+   * 404 för en kod som inte finns. Svaret är hela kroppen ({ success, message, group }).
+   */
+  async joinGroup(inviteCode: JoinGroupRequest['invite_code']): Promise<ApiResponse<JoinGroupResponse>> {
+    const body: JoinGroupRequest = { invite_code: inviteCode };
+    return this.authenticatedRequest<JoinGroupResponse>('/groups/join', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // ─── Challenges ──────────────────────────────────────────────────────────
@@ -987,7 +1002,7 @@ class BackendApiService {
 
   /** POST /news/seen — höjer vattenmärket monotont (utelämnat `upToId` = senaste raden i gruppen). */
   async markNewsSeen(upToId?: number): Promise<ApiResponse<NewsSeenResponse>> {
-    const result = await this.newsRequest<NewsSeenApiResponse>('POST', '/news/seen', upToId === undefined ? {} : { up_to_id: upToId }, 'Failed to mark the news as read');
+    const result = await this.newsRequest<NewsSeenApiResponse>('POST', '/news/seen', upToId === undefined ? {} : { up_to_id: upToId } satisfies NewsSeenRequest, 'Failed to mark the news as read');
     if (!result.ok) return { success: false, error: result.error };
     return { success: true, data: result.body.data };
   }

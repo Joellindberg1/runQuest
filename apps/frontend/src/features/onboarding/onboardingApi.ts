@@ -1,5 +1,5 @@
 // 🎓 Onboarding API — thin wrappers around /api/onboarding
-import type { OnboardingStatusResponse } from '@runquest/shared';
+import type { OnboardingMarkSeenRequest, OnboardingStatusResponse } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 
 const BASE = '/onboarding';
@@ -30,7 +30,7 @@ export async function markOnboardingSeen(slug: string): Promise<void> {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ slug }),
+      body: JSON.stringify({ slug } satisfies OnboardingMarkSeenRequest),
     }
   );
   if (!res.ok) throw new Error(`Marking onboarding item as seen failed (${res.status})`);
