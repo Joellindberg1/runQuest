@@ -10,6 +10,10 @@
 #   DIST_DIR     katalogen som serveras (standard apps/frontend/dist). Används för att prova en planterad regression i en kopia.
 #   CADDY_BIN    sökväg till en redan hämtad Caddy (CI hämtar den i ett eget steg med install-caddy.sh); saknas den hämtas den här.
 #   CHROME_PATH  webbläsaren som Lighthouse startar (standard: den som chrome-launcher hittar).
+# Bara för verktygstestet (scripts/lighthouse-ci.test.mjs), så att det tål last och en upptagen maskin; CI och lokala körningar ska inte sätta dem:
+#   LHCI_SERVE_PORT     porten Caddy lyssnar på (standard 18090, den som lighthouserc.json pekar på).
+#   PORT_PROBE_SECONDS  hur länge portkollen av API-porten väntar på svar (standard 1).
+#   CADDY_WAIT_TRIES    antal försök (à 0,2 s plus anropet) att nå Caddys /health (standard 50).
 # Rapporterna (JSON + HTML per körning) skriver lhci i .lighthouseci i repo-roten (kan inte ändras); skriptet kopierar dem till
 # lighthouse-reports/<STATS_MODE>/ så att de två lägena kan köras efter varandra och laddas upp tillsammans.
 set -euo pipefail
@@ -18,7 +22,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATS_MODE="${STATS_MODE:-error}"
 DIST_DIR="${DIST_DIR:-apps/frontend/dist}"
 OUT_DIR=".lighthouseci"
-PORT="18090" # samma port som urlerna i lighthouserc.json
+PORT="${LHCI_SERVE_PORT:-18090}" # standardvärdet är porten urlerna i lighthouserc.json pekar på; LHCI_SERVE_PORT är bara till för verktygstestet (låtsas-Caddy på ledig port)
 API_PORT="${API_PORT:-3001}" # måste vara porten bygget pekar på (VITE_API_URL, annars localhost:3001)
 LHCI="$HERE/node_modules/.bin/lhci"
 
@@ -30,7 +34,7 @@ case "$STATS_MODE" in error|mock) ;; *) echo "FAIL STATS_MODE ska vara error ell
 
 # Frontend-bygget pekar på http://localhost:3001/api när VITE_API_URL saknas. Något som redan svarar där är ett riktigt backend, inte
 # vårt falska: i läget "error" avbryter vi hellre än att mäta mot det (och i "mock" kan porten inte bindas).
-if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$API_PORT/"; then
+if curl -s -o /dev/null --max-time "${PORT_PROBE_SECONDS:-1}" "http://127.0.0.1:$API_PORT/"; then
   echo "FAIL något svarar redan på port $API_PORT; stoppa det innan Lighthouse körs"; exit 1
 fi
 if [[ ! -x "$LHCI" ]]; then echo "FAIL lhci saknas: kör npm ci i scripts/lighthouse"; exit 1; fi
@@ -67,7 +71,7 @@ if [[ "$STATS_MODE" == "mock" ]]; then
 fi
 
 up=0
-for _ in $(seq 1 50); do
+for _ in $(seq 1 "${CADDY_WAIT_TRIES:-50}"); do
   if curl -fs "http://127.0.0.1:$PORT/health" > /dev/null; then up=1; break; fi
   sleep 0.2
 done
