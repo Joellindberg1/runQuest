@@ -45,7 +45,7 @@ const weekly = () => event({
   participantCount: 3,
   leaderboard: [
     row({ userId: KARL, userName: 'Karl Persson', totalValue: 48.3, rank: 1 }),
-    row({ userId: ME, userName: 'Du', totalValue: 41.2, rank: 2, isMe: true }),
+    row({ userId: ME, userName: 'Joel Lindberg', totalValue: 41.2, rank: 2, isMe: true }),
     row({ userId: ADAM, userName: 'Adam Einstein', totalValue: 12, rank: 3 }),
   ],
 });
@@ -149,7 +149,7 @@ describe('Events — rubrik, öppna event och nedräkning (mobil)', () => {
     expect(five.getByText('6h 30m')).toBeInTheDocument();
   });
 
-  it('tävlingskortet: tabell med plats, namn ("You", inte "Du"), värde och pris för topp tre', async () => {
+  it('tävlingskortet: tabell med plats, namn ("You" utifrån isMe, inte det riktiga namnet), värde och pris för topp tre', async () => {
     renderEvents();
     await screen.findByRole('heading', { name: 'Weekly km', level: 2 });
     const board = within(card('Weekly km')).getByRole('list', { name: 'Standings' });

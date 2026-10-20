@@ -1,4 +1,4 @@
-import { zoneDay, type EventItem } from '@runquest/shared';
+import { prizeForRank, zoneDay, type EventItem } from '@runquest/shared';
 import {
   dateRangeText, dayLabel, formatClock, formatCountdown, formatEventValue, formatMinKm, weekdayOf, windowText,
 } from './eventsFormat';
@@ -124,7 +124,8 @@ function rewardLabel(event: EventItem): string | null {
 }
 
 function prizeFor(event: EventItem, rank: number): string | null {
-  const xp = [event.template.rewardXp1st, event.template.rewardXp2nd, event.template.rewardXp3rd][rank - 1] ?? 0;
+  const { rewardXp1st, rewardXp2nd, rewardXp3rd } = event.template;
+  const xp = prizeForRank(rank, [rewardXp1st, rewardXp2nd, rewardXp3rd]);
   return xp > 0 ? `+${xp} XP` : null;
 }
 
@@ -135,7 +136,7 @@ function buildBoard(event: EventItem): BoardRow[] {
     .map(({ row, rank }) => ({
       userId: row.userId,
       rank,
-      // Backend skickar "Du" för mig — UI:t är engelskt.
+      // Servern skickar det riktiga namnet och flaggan isMe; UI:t är engelskt och skriver "You" själv.
       name: row.isMe ? 'You' : row.userName,
       mine: row.isMe,
       value: formatEventValue(event.metric, row.totalValue),
