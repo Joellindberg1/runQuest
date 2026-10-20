@@ -127,11 +127,6 @@ export interface LoaderRect {
   height: number;
   /** Sant om dokumentet är bredare än fönstret. */
   overflowsX: boolean;
-  /**
-   * Stagingbannerns höjd (0 i prod och i index.html: bannern ritas av React). I ett stagingbygge reserverar den sin höjd ur laddningsvyns 100dvh, så ovalen hamnar
-   * en halv bannerhöjd lägre i gaten än i index.html. Det är miljöns marginal, inte en hoppande bild i prod.
-   */
-  stagingBannerHeight: number;
 }
 
 /**
@@ -144,14 +139,12 @@ export async function measureLoader(page: Page): Promise<LoaderRect | null> {
     const status = document.querySelector('#root .rq-shell__pending [role="status"]');
     if (!status) return null;
     const { x, y, width, height } = status.getBoundingClientRect();
-    const banner = document.querySelector('[aria-label="Staging environment"]');
     return {
       x,
       y,
       width,
       height,
       overflowsX: document.documentElement.scrollWidth > window.innerWidth,
-      stagingBannerHeight: banner ? banner.getBoundingClientRect().height : 0,
     };
   });
 }

@@ -19,12 +19,6 @@ const FRAME_RECT_TOLERANCE_PX = 1;
 const landingHeadline = (page: Page) => page.locator('h1#landing-title');
 const shellOf = (page: Page) => page.locator('.rq-shell[data-shell]');
 
-/** Stagingbannern (0 i ett prodbygge) flyttar ovalen en halv bannerhöjd i höjdled när React ritat den: det är miljöns marginal, inte en hoppande bild. */
-async function stagingBannerHeight(page: Page): Promise<number> {
-  const banner = page.locator('[aria-label="Staging environment"]');
-  return (await banner.count()) > 0 ? ((await banner.first().boundingBox())?.height ?? 0) : 0;
-}
-
 /**
  * Bildrutor där #root är tom, eller där en ritad bildruta inte visar något: Suspense gömmer det gamla innehållet med display: none medan fallbacken laddar, och det gömda
  * räknas som text i `isBlankFrame`. En ritad ruta ska alltså visa en laddare med storlek, landningen eller skalet. Nedkokade till det som provet visar när det fäller.
@@ -37,16 +31,15 @@ function blankFramesOf(log: FrameLog) {
 }
 
 /** Laddarens rektangel i varje ritad bildruta har sin storlek och står på samma plats: inget hopp mellan övergångens vyer (jämfört med den första ritade laddaren). */
-async function expectLoaderRectStill(page: Page, frames: FrameSample[]): Promise<void> {
+function expectLoaderRectStill(frames: FrameSample[]): void {
   const drawn = frames.filter((frame) => frame.painted && frame.loaderRect);
   expect(drawn.length, 'painted frames with the loader').toBeGreaterThan(0);
   const first = drawn[0]!.loaderRect!;
-  const yMargin = FRAME_RECT_TOLERANCE_PX + (await stagingBannerHeight(page)) / 2;
-  const near = (a: number, b: number, margin = FRAME_RECT_TOLERANCE_PX) => Math.abs(a - b) <= margin;
+  const near = (a: number, b: number) => Math.abs(a - b) <= FRAME_RECT_TOLERANCE_PX;
   expect(near(first.width, LOADER_WIDTH_PX) && near(first.height, LOADER_HEIGHT_PX), `the loader is ${first.width} x ${first.height} px`).toBe(true);
   const moved = drawn.filter(({ loaderRect }) => {
     const rect = loaderRect!;
-    return !(near(rect.x, first.x) && near(rect.y, first.y, yMargin) && near(rect.width, first.width) && near(rect.height, first.height));
+    return !(near(rect.x, first.x) && near(rect.y, first.y) && near(rect.width, first.width) && near(rect.height, first.height));
   });
   expect(moved.map(({ loaderRect, path }) => ({ ...loaderRect, path })), 'painted frames with the loader outside the first loader rectangle').toEqual([]);
 }
@@ -63,7 +56,7 @@ test.describe('moving between signed out and signed in inside the app', () => {
     expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
     // Överlämningen mellan landningen och skalet är laddningsvyn, inte ett tomt rum.
     expect(log.frames().some((frame) => frame.path === '/login' && frame.loader), 'the loader was never drawn between the landing page and the app').toBe(true);
-    await expectLoaderRectStill(page, log.frames());
+    expectLoaderRectStill(log.frames());
   });
 
   test('a signed-out direct load of /titles never draws an empty #root', async ({ page }) => {
@@ -74,7 +67,7 @@ test.describe('moving between signed out and signed in inside the app', () => {
     await expect(landingHeadline(page)).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible();
     expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
-    await expectLoaderRectStill(page, log.frames());
+    expectLoaderRectStill(log.frames());
   });
 
   test('a signed-out direct load of /challenges?x=1 never draws an empty #root on its way to the sign-in page', async ({ page }) => {
@@ -86,7 +79,7 @@ test.describe('moving between signed out and signed in inside the app', () => {
     await expect(landingHeadline(page)).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible();
     expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
-    await expectLoaderRectStill(page, log.frames());
+    expectLoaderRectStill(log.frames());
   });
 
   test.describe('with a saved session', () => {
@@ -99,7 +92,7 @@ test.describe('moving between signed out and signed in inside the app', () => {
       await expect(page).toHaveURL(/\/duels\?x=1$/);
       await expect(shellOf(page)).toBeVisible();
       expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
-      await expectLoaderRectStill(page, log.frames());
+      expectLoaderRectStill(log.frames());
     });
   });
 });
