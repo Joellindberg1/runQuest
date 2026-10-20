@@ -83,7 +83,7 @@ describe('POST /api/titles/reprocess-all', () => {
     const res = await post();
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to reprocess titles' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to reprocess titles', code: 'internal_error' });
   });
 
   it('kräver admin', async () => {

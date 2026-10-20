@@ -121,6 +121,22 @@ export function failWithData<TData>(res: Response, status: 207 | 500, text: stri
 }
 
 /**
+ * Steg 1 (dubbelsvar): som `failWithData`, men de gamla toppnivåfälten (`message`, `total`, `processed`, `failed`) finns kvar bredvid `data` (punkt 4:
+ * "de nuvarande toppnivåfälten finns kvar under dubbelsvarsfönstret"). Tas bort i steg 2 (RUN-364): sök på `failWithLegacy`.
+ */
+export function failWithLegacy<TData, TLegacy extends object>(
+  res: Response, status: 207 | 500, text: string, code: ApiErrorCode, data: TData, legacy: TLegacy & { success?: never; error?: never; code?: never; data?: never },
+): void {
+  res.status(status).json({
+    ...legacy,
+    success: false,
+    error: typeof text === 'string' ? text : fixedErrorText(500),
+    code,
+    data,
+  });
+}
+
+/**
  * Steg 1 (dubbelsvar): raden skrevs men XP-omräkningen föll. Koden `recalc_failed_after_write` bär betydelsen "skrivet, försök inte igen"; `written: true`
  * finns kvar för klienter från före steg 1 och tas bort i steg 2 (RUN-364).
  */

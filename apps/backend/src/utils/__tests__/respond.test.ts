@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Response } from 'express';
 import { API_ERROR_CODES, type ApiErrorCode, type DualEnvelope } from '@runquest/shared';
-import { defaultErrorCode, fail, failWithData, failWritten, fixedErrorText, ok, okWithLegacy, type ErrorStatus } from '../respond.js';
+import { defaultErrorCode, fail, failWithData, failWithLegacy, failWritten, fixedErrorText, ok, okWithLegacy, type ErrorStatus } from '../respond.js';
 
 /** Ett res som bara minns status och kropp. `status()` sätter, `json()` skickar, som Express. */
 function fakeRes(initialStatus = 200) {
@@ -137,6 +137,25 @@ describe('failWithData', () => {
     expect(sent.status).toBe(207);
     expect(sent.body).toEqual({
       success: false, error: '1 of 3 users failed; the rest were recalculated', code: 'partial_failure', data: { total: 3, processed: 2, failed: 1 },
+    });
+  });
+});
+
+describe('failWithLegacy', () => {
+  it('keeps the old top-level fields next to data during the double-answer window (207 and 500 of reprocess-all)', () => {
+    const { res, sent } = fakeRes();
+    const counts = { total: 3, processed: 2, failed: 1 };
+    failWithLegacy(res, 207, '1 of 3 users failed; the rest were recalculated', 'partial_failure', counts, { message: '1 of 3 users failed; the rest were recalculated', ...counts });
+    expect(sent.status).toBe(207);
+    expect(sent.body).toEqual({
+      success: false,
+      error: '1 of 3 users failed; the rest were recalculated',
+      code: 'partial_failure',
+      data: counts,
+      message: '1 of 3 users failed; the rest were recalculated',
+      total: 3,
+      processed: 2,
+      failed: 1,
     });
   });
 });

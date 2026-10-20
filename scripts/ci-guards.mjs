@@ -766,7 +766,6 @@ const TEMPORARILY_UNCONVERTED = new Set([
   'apps/backend/src/routes/onboarding.ts',
   'apps/backend/src/routes/publicStats.ts',
   'apps/backend/src/routes/settings.ts',
-  'apps/backend/src/routes/titles.ts',
   'apps/backend/src/routes/users.ts',
   'apps/backend/src/routes/waitlist.ts',
 ]);
