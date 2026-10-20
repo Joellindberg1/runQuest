@@ -363,8 +363,10 @@ export async function scoreCompetitionEntries<E extends { user_id: string }>(
  * Rankar deltagarna efter total_value (lika totaler: namn, sedan id, som live-tabellen; scoreCompetition) och delar ut XP per plats
  * ur mallen via prizeForRank (reward_xp_1st/2nd/3rd,
  * seed 40/30/20 XP — absoluta belopp, ingen pool). Färre än 3 deltagare: saknade placeringar delas
- * inte ut. Entries, rundor och namn läses och placeringarna räknas fram före claimen (ett läsfel lämnar eventet active och försöks igen
- * nästa körning); eventet claimas före utbetalning (idempotens, bugg #6).
+ * inte ut. Entries, rundor och namn läses och placeringarna räknas fram före claimen. Ett läsfel lämnar eventet active och ger ett fel
+ * efter loopen; nästa försök är timtickens (cron '35 * * * *', COMPETITION_RETRY_CRON), högst en timme senare, inte nästa måndag. Funktionen
+ * tar bara active-tävlingar vars ends_at passerat och eventet claimas före utbetalning, så fler körningar än en betalar aldrig dubbelt
+ * (idempotens, bugg #6).
  */
 export async function settleCompetitionEvents(): Promise<void> {
   const supabase = getSupabaseClient();
