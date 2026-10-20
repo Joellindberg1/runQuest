@@ -146,7 +146,7 @@ describe('POST /api/runs — skrivfel i omräkningen ger 500, inte 201', () => {
 
     expect(res.status).toBe(500);
     // Uttrycklig signal till klienten: raden skrevs, så cachen måste invalideras och ett nytt försök vore en dubblett.
-    expect(res.body).toEqual({ error: 'Run was created but XP recalculation failed', written: true });
+    expect(res.body).toEqual({ success: false, error: 'Run was created but XP recalculation failed', code: 'recalc_failed_after_write', written: true });
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 
@@ -156,7 +156,7 @@ describe('POST /api/runs — skrivfel i omräkningen ger 500, inte 201', () => {
     const res = await server.request('POST', '/api/runs', { token: token(), body: { date: '2026-10-01', distance: 5 } });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create run', code: 'internal_error' });
   });
 
   it('lyckad POST oförändrad: 200 och totaler räknade', async () => {
@@ -180,7 +180,7 @@ describe('PUT /api/runs/:id — reprocess-fel', () => {
     const res = await server.request('PUT', '/api/runs/run-1', { token: token(), body: { distance: 9, date: '2026-10-01' } });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Run was updated but XP recalculation failed', written: true });
+    expect(res.body).toEqual({ success: false, error: 'Run was updated but XP recalculation failed', code: 'recalc_failed_after_write', written: true });
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });
 
@@ -202,7 +202,7 @@ describe('DELETE /api/runs/:id — reprocess-fel', () => {
     const res = await server.request('DELETE', '/api/runs/run-1', { token: token() });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Run was deleted but XP recalculation failed', written: true });
+    expect(res.body).toEqual({ success: false, error: 'Run was deleted but XP recalculation failed', code: 'recalc_failed_after_write', written: true });
     expect(tables.runs.map((r) => r.id)).toEqual(['run-2']); // raderingen skedde — därför ska totalerna ändå räknas om
     expect(calculateUserTotals).toHaveBeenCalledWith('user-1');
   });

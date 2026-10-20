@@ -78,7 +78,8 @@ describe('GET /api/runs/group-history', () => {
     expect(res.status).toBe(200);
     expect(res.body.runs).toHaveLength(100);
     expect(res.body.meta).toEqual({ total: 105, limit: 100, offset: 0, has_more: true });
-    expect(res.body.success).toBeUndefined(); // befintlig svarsform bevaras (ADR 007 A2)
+    expect(res.body.success).toBe(true); // steg 1 (ADR 007 Addendum 2026-10-20): kuvertet bredvid den gamla formen
+    expect(res.body.data).toEqual({ runs: res.body.runs });
   });
 
   it('befintliga fält bevaras och start_time/created_at tillkommer', async () => {
@@ -195,14 +196,14 @@ describe('GET /api/runs/group-history', () => {
     useDb({ runs: [] });
     const res = await server.request('GET', `/api/runs/group-history?${qs}`, { token: token() });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('DB-fel ger 500 med { error }', async () => {
     useDb({ runs: [] }, { errors: { runs: { message: 'boom' } } });
     const res = await server.request('GET', '/api/runs/group-history', { token: token() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
   });
 });
 
@@ -250,7 +251,7 @@ describe('POST /api/runs — is_treadmill', () => {
     useDb(tables, { autoIds: true });
     const res = await post({ date: '2026-09-01', distance: 5, is_treadmill: value });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining('is_treadmill') });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining('is_treadmill'), code: 'invalid_request' });
     expect(tables.runs).toHaveLength(0);
   });
 

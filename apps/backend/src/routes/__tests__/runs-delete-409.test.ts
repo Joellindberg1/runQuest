@@ -75,9 +75,9 @@ describe('DELETE /api/runs/:id', () => {
     const qualified = await server.request('DELETE', '/api/runs/run-manual', { token });
 
     expect(strava.status).toBe(409);
-    expect(strava.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(strava.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(qualified.status).toBe(409);
-    expect(qualified.body).toEqual({ error: "This run qualified an event and can't be deleted — edit it instead" });
+    expect(qualified.body).toEqual({ success: false, error: "This run qualified an event and can't be deleted — edit it instead", code: 'run_qualified_event' });
     // Nothing moved: both runs are there, the entry still points at its run, the XP is intact, and nothing was recalculated.
     expect(tables.runs.map((r) => r.id)).toEqual(['run-strava', 'run-manual', 'run-free']);
     expect(tables.event_entries).toEqual([entry]);

@@ -766,7 +766,6 @@ const TEMPORARILY_UNCONVERTED = new Set([
   'apps/backend/src/routes/news.ts',
   'apps/backend/src/routes/onboarding.ts',
   'apps/backend/src/routes/publicStats.ts',
-  'apps/backend/src/routes/runs.ts',
   'apps/backend/src/routes/settings.ts',
   'apps/backend/src/routes/strava.ts',
   'apps/backend/src/routes/titles.ts',

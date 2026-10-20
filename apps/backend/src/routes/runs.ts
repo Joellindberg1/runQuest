@@ -14,7 +14,8 @@ import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
-import type { ApiError, CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse, WrittenApiError } from '@runquest/shared';
+import type { CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse } from '@runquest/shared';
+import { fail, failWritten, okWithLegacy } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -184,15 +185,14 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
 
     const page = parseOffsetPage(req.query, GROUP_RUNS_PAGE);
     if (!page.ok) {
-      res.status(400).json({ error: page.error } satisfies ApiError); return;
+      fail(res, 400, page.error); return;
     }
     const { limit, offset } = page;
 
     // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
     const groupId = req.user!.group_id;
     if (!groupId) {
-      const empty: GroupRunHistoryResponse = { runs: [], meta: buildPageMeta(0, limit, offset) };
-      res.json(empty); return;
+      okWithLegacy<GroupRunHistoryResponse>(res, { runs: [] }, { runs: [] }, buildPageMeta(0, limit, offset)); return;
     }
 
     const supabase = getSupabaseClient();
@@ -220,7 +220,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       ));
     } catch (runsError) {
       logger.error(`❌ Error fetching group runs (${errorCode(runsError)})`);
-      res.status(500).json({ error: 'Failed to fetch group run history' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch group run history'); return;
     }
 
     logger.info(`✅ Fetched ${runsData.length} runs for group history`);
@@ -249,11 +249,10 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       created_at: run.created_at ?? null,
     })) || [];
 
-    const body: GroupRunHistoryResponse = { runs, meta: buildPageMeta(total, limit, offset) };
-    res.json(body);
+    okWithLegacy<GroupRunHistoryResponse>(res, { runs }, { runs }, buildPageMeta(total, limit, offset));
   } catch (error) {
     logger.error(`❌ Error in group history endpoint (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
+    fail(res, 500, 'Internal server error');
   }
 });
 
@@ -316,23 +315,23 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     const keyParse = parseIdempotencyKey(req.headers[IDEMPOTENCY_KEY_HEADER.toLowerCase()]);
     if (!keyParse.ok) {
-      res.status(400).json({ error: keyParse.error } satisfies ApiError); return;
+      fail(res, 400, keyParse.error); return;
     }
     const idempotencyKey = keyParse.key;
 
     if (!date || !distance) {
-      res.status(400).json({ error: 'Date and distance are required' } satisfies ApiError); return;
+      fail(res, 400, 'Date and distance are required'); return;
     }
 
     const timeZone = groupTimeZone(req.user!.group_id);
     const { error: invalidInput, distanceNum } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
-      res.status(400).json({ error: invalidInput } satisfies ApiError); return;
+      fail(res, 400, invalidInput); return;
     }
 
     // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
     if (is_treadmill !== undefined && typeof is_treadmill !== 'boolean') {
-      res.status(400).json({ error: 'is_treadmill must be a boolean' } satisfies ApiError); return;
+      fail(res, 400, 'is_treadmill must be a boolean'); return;
     }
 
     logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
@@ -350,14 +349,14 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .maybeSingle();
     const replayExisting = (existing: CreateRunResponse['run'], how: string): void => {
       logger.info(`♻️ Idempotent replay (${how}) — returning existing run, no new write`, { userId });
-      res.json({ success: true, message: 'Run created successfully', run: existing } satisfies CreateRunResponse);
+      okWithLegacy<CreateRunResponse>(res, { run: existing }, { message: 'Run created successfully', run: existing });
     };
 
     if (idempotencyKey) {
       const { data: existing, error: lookupError } = await findRunByKey(idempotencyKey);
       if (lookupError) {
         logger.error(`❌ Error looking up run by idempotency key for user ${userId} (${errorCode(lookupError)})`);
-        res.status(500).json({ error: 'Failed to create run' } satisfies ApiError); return;
+        fail(res, 500, 'Failed to create run'); return;
       }
       if (existing) { replayExisting(existing, 'sequential'); return; }
     }
@@ -394,7 +393,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       } else {
         logger.error(`❌ Error inserting run for user ${userId} (${errorCode(insertError)})`);
       }
-      res.status(500).json({ error: 'Failed to create run' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to create run'); return;
     }
 
     logger.info(`✅ Run created, reprocessing from ${date}...`);
@@ -415,7 +414,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was created but XP recalculation failed', written: true } satisfies WrittenApiError); return;
+      failWritten(res, 'Run was created but XP recalculation failed'); return;
     }
 
     // Fetch the fully processed run
@@ -431,15 +430,12 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
 
-    res.json({
-      success: true,
-      message: 'Run created successfully',
-      run: processedRun || newRun
-    } satisfies CreateRunResponse);
+    const created = processedRun || newRun;
+    okWithLegacy<CreateRunResponse>(res, { run: created }, { message: 'Run created successfully', run: created });
 
   } catch (error) {
     logger.error(`❌ Error creating run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -453,13 +449,13 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     logger.info('📝 Update request:', { id, distance, date, userId });
 
     if (!distance) {
-      res.status(400).json({ error: 'Distance is required' } satisfies ApiError); return;
+      fail(res, 400, 'Distance is required'); return;
     }
 
     const timeZone = groupTimeZone(req.user!.group_id);
     const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
-      res.status(400).json({ error: invalidInput } satisfies ApiError); return;
+      fail(res, 400, invalidInput); return;
     }
 
     logger.info(`🔄 Updating run ${id} for user ${userId}`);
@@ -474,11 +470,11 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError || !existingRun) {
-      res.status(404).json({ error: 'Run not found' } satisfies ApiError); return;
+      fail(res, 404, 'Run not found'); return;
     }
 
     if (existingRun.user_id !== userId) {
-      res.status(403).json({ error: 'Not authorized to update this run' } satisfies ApiError); return;
+      fail(res, 403, 'Not authorized to update this run'); return;
     }
 
     // Strava är sanningskällan för distans och datum (ägarbeslut 2026-10-11, RUN-139). PUT redigerar bara just de två
@@ -486,7 +482,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // event-kvalificerande rundor) — inte 403, som här betyder "inte din runda". Kontrollen ligger EFTER ägarskapet
     // (404/403 oförändrade) och FÖRE all skrivning och omräkning.
     if (existingRun.source === 'strava') {
-      res.status(409).json({ error: 'Strava runs are read-only' } satisfies ApiError); return;
+      fail(res, 409, 'Strava runs are read-only', 'strava_read_only'); return;
     }
 
     // Check if date changed (requires full reprocess)
@@ -506,7 +502,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (updateError) {
       logger.error(`❌ Error updating run for user ${userId} (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update run' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update run'); return;
     }
 
     let reprocessed = true;
@@ -543,7 +539,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was updated but XP recalculation failed', written: true } satisfies WrittenApiError); return;
+      failWritten(res, 'Run was updated but XP recalculation failed'); return;
     }
 
     logger.info('\n' + '='.repeat(80));
@@ -563,15 +559,11 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run ${id} updated and all runs reprocessed successfully`);
 
-    res.json({
-      success: true,
-      message: 'Run updated successfully',
-      run: updatedRun
-    } satisfies UpdateRunResponse);
+    okWithLegacy<UpdateRunResponse>(res, { run: updatedRun }, { message: 'Run updated successfully', run: updatedRun });
 
   } catch (error) {
     logger.error(`❌ Error updating run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -593,11 +585,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError || !existingRun) {
-      res.status(404).json({ error: 'Run not found' } satisfies ApiError); return;
+      fail(res, 404, 'Run not found'); return;
     }
 
     if (existingRun.user_id !== userId) {
-      res.status(403).json({ error: 'Not authorized to delete this run' } satisfies ApiError); return;
+      fail(res, 403, 'Not authorized to delete this run'); return;
     }
 
     // Strava-rundor är skrivskyddade (RUN-139): spärren som förut bara satt i UI:t sitter nu även i API:t — annars raderas
@@ -605,7 +597,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // (404/403 oförändrade), före all skrivning/omräkning och FÖRE event-409:an nedan: den är permanent och billig (ingen
     // query), och event-meddelandet ("edit it instead") vore fel för en Strava-runda, som inte går att redigera.
     if (existingRun.source === 'strava') {
-      res.status(409).json({ error: 'Strava runs are read-only' } satisfies ApiError); return;
+      fail(res, 409, 'Strava runs are read-only', 'strava_read_only'); return;
     }
 
     const deletedDate = existingRun.date;
@@ -622,10 +614,10 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .limit(1);
     if (entriesError) {
       logger.error(`❌ Error checking event entries for a run of user ${userId} (${errorCode(entriesError)})`);
-      res.status(500).json({ error: 'Failed to delete run' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to delete run'); return;
     }
     if (qualifiedEntries && qualifiedEntries.length > 0) {
-      res.status(409).json({ error: "This run qualified an event and can't be deleted — edit it instead" } satisfies ApiError); return;
+      fail(res, 409, "This run qualified an event and can't be deleted — edit it instead", 'run_qualified_event'); return;
     }
 
     // Delete the run
@@ -636,7 +628,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (deleteError) {
       logger.error(`❌ Error deleting run for user ${userId} (${errorCode(deleteError)})`);
-      res.status(500).json({ error: 'Failed to delete run' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to delete run'); return;
     }
 
     logger.info(`✅ Run deleted, reprocessing from ${deletedDate}...`);
@@ -648,7 +640,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     await calculateUserTotals(userId);
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was deleted but XP recalculation failed', written: true } satisfies WrittenApiError); return;
+      failWritten(res, 'Run was deleted but XP recalculation failed'); return;
     }
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
@@ -658,14 +650,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 
-    res.json({
-      success: true,
-      message: 'Run deleted successfully'
-    } satisfies DeleteRunResponse);
+    okWithLegacy<DeleteRunResponse>(res, null, { message: 'Run deleted successfully' });
 
   } catch (error) {
     logger.error(`❌ Error deleting run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
