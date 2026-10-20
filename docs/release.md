@@ -324,6 +324,9 @@ Frontend-tjänstens Caddy (repo-rotens `Caddyfile`, ett `header`-block) sätter 
 | `X-Content-Type-Options` | `nosniff` | Fanns sedan tidigare. |
 | `Content-Security-Policy-Report-Only`, sedan `Content-Security-Policy` | se nedan | Två steg, se "Införandet". |
 
+Huvudena ligger i en Caddy-snippet (`security_headers`) som importeras både i sajtblocket och i `handle_errors`, så att också fel som `file_server` själv svarar med (405 på `POST`/`OPTIONS`) får dem och inte visar `Server`. Policysträngen står alltså på ett ställe och steg 2 nedan är fortfarande en rad.
+Ett undantag går inte att täcka i Caddyfilen: en felformad adress som `/%zz` avvisas av Go:s http-server (400, fast kropp) innan Caddy läst den. Svaret har inga säkerhetshuvuden men inte heller någon `Server`-header; `verify-static-serving.sh` låser det.
+
 **CSP-strängen** (en rad i `Caddyfile`; samma fil i prod och staging, så listorna täcker båda miljöerna):
 
 ```
@@ -341,7 +344,7 @@ object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   `strava-popup.html` (OAuth-återkopplingen när Strava kopplas) har ett inline-skript som inte stod i underlaget; utan dess hash hade Strava-kopplingen slutat fungera.
 - **Hasharna prövas mot bygget.** `scripts/csp-hashes.mjs` läser Caddyfilens CSP-rad och räknar sha256 över varje inline `<script>` i `dist/**/*.html` (radbrytningar normaliserade som webbläsaren gör).
   Den fäller på tre saker: ett inline-skript utan hash (`FAIL index.html: inline script 'sha256-…' is missing from script-src`), en hash som inget längre matchar
-  (`stale hash`), och en policy som släppt på ett grunddirektiv (`unsafe-inline` i `script-src`, `frame-ancestors` som inte är `'none'`, Umami-värden borta ur `connect-src`). Den körs av `scripts/verify-static-serving.sh`
+  (`stale hash`), och en policy som släppt på ett grunddirektiv (`unsafe-inline` i `script-src`, `frame-ancestors` som inte är `'none'`, Umami-värden borta ur `connect-src`, `script-src-elem`/`script-src-attr` satta (de går före `script-src`), eller `*` eller ett bart schema som `https:` i `connect-src`/`img-src`). Den körs av `scripts/verify-static-serving.sh`
   (CI-steget "Static serving (Caddy)") och logiken har enhetstester i `scripts/csp-hashes.test.mjs`. Laddarens hash (`index.html`) kommer ur `alignRunnersWithClock.toString()` via esbuild: ändras funktionen eller byts esbuild-version ändras hashen
   och CI fäller bygget. Åtgärd: kopiera den nya hashen ur FAIL-raden till Caddyfilen (och ta bort den gamla) i samma PR.
 - **style-src är `'self' 'unsafe-inline'`, inga hashar, medvetet.** Det prövades i Report-Only mot e2e-sviten: `react-remove-scroll` (Radix-dialogerna, bland annat inloggningsrutan) lägger in en `<style>` vars text bär uppmätta marginaler och scrollistens bredd och därför inte går att fästa, `sonner` lägger in sin CSS som `<style>` vid import, och den förrenderade markupen har 28 `style`-attribut (24 på landningen, 4 i laddaren) som webbläsaren läser före hydrering.

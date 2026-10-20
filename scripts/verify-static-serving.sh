@@ -181,6 +181,15 @@ check_with() {
   echo "ok   $desc"
 }
 
+# Fel som file_server själv svarar med (405 på POST/OPTIONS) rensade huvudena tills Caddyfilen fick handle_errors med samma snippet. Statusen prövas också, så att provet visar att felet verkligen uppstod.
+check_with "POST / ger 405 med Allow, utan Server-header"      "/" 405 "^allow: GET, HEAD" "^server:" -X POST
+security_headers "säkerhetshuvuden på ett 405-svar (POST /)"   "/" -X POST
+check_with "OPTIONS / ger 405, utan Server-header"            "/" 405 "^allow: GET, HEAD" "^server:" -X OPTIONS
+security_headers "säkerhetshuvuden på ett 405-svar (OPTIONS /)" "/" -X OPTIONS
+# En felformad adress (/%zz) avvisas av Go:s http-server innan Caddy hunnit läsa den: 400 med fast kropp, och Caddyfilen kan inte sätta huvuden på det svaret (inga säkerhetshuvuden är möjliga
+# här; det är ett protokollfel utan innehåll att skydda). Provet låser det som går: statusen och att ingen Server-header avslöjar programvaran.
+check_with "felformad adress (/%zz) ger 400, utan Server-header" "/%zz" 400 "" "^server:" --path-as-is
+
 films=("$DIST"/media/landing-film-720.v*.mp4)
 film="media/$(basename "${films[0]}")"
 accept=(-H "Accept-Encoding: gzip, zstd")
