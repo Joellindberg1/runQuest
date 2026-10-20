@@ -9,6 +9,7 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   checkConditionalGroupFilter,
+  checkDocPaths,
   checkEmptySuites,
   checkErrorResponsesViaFail,
   checkFontFiles,
@@ -30,6 +31,7 @@ import {
   checkTestNames,
   checkTodos,
   checkUsersGroupIdWrites,
+  DOC_PATH_EXEMPT,
   ERROR_RESPONSE_EXEMPT_ROUTES,
   GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
@@ -1257,6 +1259,73 @@ describe('checkGitignoreForVideo', () => {
   });
 });
 
+describe('checkDocPaths', () => {
+  const tracked = [
+    'README.md',
+    'apps/backend/src/routes/runs.ts',
+    'apps/frontend/src/features/badges/badges.css',
+    'apps/frontend/src/features/badges/README.md',
+    'docs/release.md',
+    'docs/archive/roadmap.md',
+    'scripts/ci-guards.mjs',
+  ];
+  const doc = (path, content) => ({ path, content });
+  const check = (docs, exempt = []) => checkDocPaths(docs, tracked, exempt);
+
+  it('accepts a full path, a path from a subfolder and a bare file name that exist', () => {
+    const content = 'See `scripts/ci-guards.mjs`, `routes/runs.ts`, `badges.css` and `docs/release.md`.\n';
+    assert.deepEqual(check([doc('README.md', content)]), []);
+  });
+
+  it('names the document, the line and the path of a reference to a file that does not exist', () => {
+    const errors = check([doc('docs/release.md', 'Intro\nThe check lives in `scripts/gone.mjs:12`.\n')]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^docs\/release\.md:2: scripts\/gone\.mjs finns inte/);
+  });
+
+  it('rejects a reference to a document that was moved to docs/archive', () => {
+    assert.equal(check([doc('README.md', 'See `docs/roadmap.md`.\n')]).length, 1);
+    assert.deepEqual(check([doc('README.md', 'See `docs/archive/roadmap.md`.\n')]), []);
+  });
+
+  it('checks directories by their name and rejects one that holds no tracked file', () => {
+    assert.deepEqual(check([doc('README.md', '`docs/archive/` and `features/badges/`\n')]), []);
+    assert.equal(check([doc('README.md', '`docs/nowhere/`\n')]).length, 1);
+  });
+
+  it('skips spans that are not file paths: URLs, absolute URL paths, globs, placeholders, calls and bare extensions', () => {
+    const content = ['`https://runquest.dev/a.html`', '`/api/runs.json`', '`src/**/*.test.ts`', '`<name>.ts`', '`run(x).ts`', '`.js`', '`a b.ts`', '`~/.config/x.json`', '`../up.md`'].join(' ');
+    assert.deepEqual(check([doc('README.md', content)]), []);
+  });
+
+  it('reads README.md, STATE.md, docs/*.md and a feature README, and nothing else', () => {
+    const bad = 'See `missing.ts`.\n';
+    for (const path of ['README.md', 'STATE.md', 'docs/e2e.md', 'apps/frontend/src/features/badges/README.md']) {
+      assert.equal(check([doc(path, bad)]).length, 1, path);
+    }
+    for (const path of ['docs/adr/001-teststrategi.md', 'docs/archive/old.md', 'docs/design/x.md', 'CHANGELOG.md', 'apps/backend/README.md']) {
+      assert.deepEqual(check([doc(path, bad)]), [], path);
+    }
+  });
+
+  it('lets an exempt reference through, only in the document the exemption names', () => {
+    const exempt = [{ doc: 'docs/release.md', pattern: /^dist\/landing\.html$/, reason: 'build output' }];
+    const content = 'The page is `dist/landing.html`.\n';
+    assert.deepEqual(check([doc('docs/release.md', content)], exempt), []);
+    assert.equal(check([doc('README.md', content)], exempt).length, 2); // the missing path, and the exemption that no longer matches
+  });
+
+  it('fails an exemption that no longer matches any reference, so the list cannot grow stale', () => {
+    const errors = check([doc('README.md', 'Nothing to see.\n')], [{ pattern: /^old\.ts$/, reason: 'a file that was removed' }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /träffar ingen hänvisning längre/);
+  });
+
+  it('keeps every exemption in DOC_PATH_EXEMPT explained', () => {
+    for (const entry of DOC_PATH_EXEMPT) assert.ok(entry.reason.length > 10, String(entry.pattern));
+  });
+});
+
 describe('walkFiles / listWorkspaces', () => {
   it('skips node_modules and dist, and returns slash-separated relative paths', () => {
     const fs = { '/r/p': ['src', 'node_modules', 'dist'], '/r/p/src': ['a.ts', 'sub'], '/r/p/src/sub': ['b.ts'] };
@@ -1786,6 +1855,25 @@ describe('CLI', () => {
     }
     const good = makeRepoWithRoute('contract-good', "router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true } satisfies ThingResponse);\n});\n");
     assert.equal(runCli('route-contracts', good).status, 0);
+  });
+
+  it('exits 0 on the current repo for doc-paths: no document refers to a file that is not tracked', () => {
+    const result = runCli('doc-paths');
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  it('exits 1 on a temp repo whose README names a file that is not tracked (also under all)', () => {
+    const root = join(temp, 'doc-paths-bad');
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r' }));
+    writeFileSync(join(root, 'README.md'), 'See `scripts/gone.mjs`.\n');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['add', 'package.json', 'README.md'], { cwd: root });
+    for (const mode of ['doc-paths', 'all']) {
+      const result = runCli(mode, root);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /README\.md:1: scripts\/gone\.mjs finns inte/);
+    }
   });
 
   it('rejects an unknown mode', () => {

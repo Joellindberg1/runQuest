@@ -24,7 +24,7 @@ Schemat lever i produktionsdatabasen (Supabase-projekt
   committas i samma veva). 030 och 031 (anon-policyer) är de första som
   hanterats så.
 - Enda DB-miljön är prod. Ett öppet vägval om staging-/preview-databas
-  (STATE-proposal, ägarens beslut) är obeslutat och **låses inte av denna
+  (`docs/archive/STATE-proposal.md`, ägarens beslut) är obeslutat och **låses inte av denna
   ADR**. Denna ADR gör det genomförbart: en staging- eller lokal databas kan
   inte byggas utan en baslinje.
 - Befintliga ADR:er: ingen berör migrationer (001 är teststrategi och
