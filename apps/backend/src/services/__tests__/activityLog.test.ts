@@ -246,4 +246,17 @@ describe('läsfel på users.group_id (fail-closed: ett läsfel är inte "ingen g
     expect(logged()).toContain('57014');
     expect(logged()).not.toContain('secret-4711');
   });
+
+  it.each([
+    ['recordLevelUps', () => recordLevelUps('ghost', 1, 3)],
+    ['recordRunMilestones', () => recordRunMilestones('ghost', 90, 120)],
+  ])('%s for a user who does not exist writes no row and logs nothing', async (_name, call) => {
+    const tables: Record<string, Row[]> = { activity_log: [], users: [{ id: 'u1', group_id: 'g1' }] };
+    setup(tables);
+
+    await expect(call()).resolves.toBeUndefined();
+
+    expect(tables.activity_log).toHaveLength(0);
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
 });

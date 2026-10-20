@@ -73,6 +73,17 @@ describe('checkEventQualification — gruppen läses ur users.group_id', () => {
     expect(data.event_entries).toHaveLength(0);
   });
 
+  it('a user who does not exist qualifies for nothing: it resolves quietly, reads no events and logs nothing', async () => {
+    const data = tables('g1');
+    const db = setup(data);
+
+    await expect(checkEventQualification({ ...params, userId: 'ghost' })).resolves.toBeUndefined();
+
+    expect(db.queries.some((q) => q.table === 'events')).toBe(false);
+    expect(data.event_entries).toHaveLength(0);
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
   it('a group id in the call is used as it is, without reading users', async () => {
     const data = tables(null);
     const db = setup(data);
