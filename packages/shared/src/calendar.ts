@@ -94,22 +94,37 @@ export function zoneOffsetMs(instantMs: number, timeZone = STOCKHOLM_TZ): number
   return wallClockMsAt(floored, timeZone) - floored;
 }
 
-/** Stockholm-kalenderdagen (YYYY-MM-DD) för ett ögonblick — oberoende av processens tidszon. */
-export function stockholmDay(at: Date): string {
-  return new Date(wallClockMsAt(at.getTime())).toISOString().slice(0, 10);
+/**
+ * Kalenderdagen (YYYY-MM-DD) i `timeZone` för ett ögonblick — oberoende av processens tidszon. DEN funktion som svarar på "vilken dag
+ * är det hos gruppen": zonen är gruppens (groupTimeZone), så en boost, en eventgräns eller ett 14-dagarssnitt flyttar med gruppen.
+ */
+export function zoneDay(at: Date, timeZone = STOCKHOLM_TZ): string {
+  return new Date(wallClockMsAt(at.getTime(), timeZone)).toISOString().slice(0, 10);
 }
 
-export interface StockholmClock {
-  /** Stockholm-kalenderdagen (YYYY-MM-DD). */
+/** Stockholm-kalenderdagen för ett ögonblick: `zoneDay` med standardzonen. Används bara där ingen grupp är känd. */
+export function stockholmDay(at: Date): string {
+  return zoneDay(at);
+}
+
+export interface ZoneClock {
+  /** Kalenderdagen (YYYY-MM-DD) i zonen. */
   date: string;
-  /** Millisekunder sedan Stockholm-midnatt (sekundupplösning). */
+  /** Millisekunder sedan midnatt i zonen (sekundupplösning). */
   msIntoDay: number;
 }
 
-/** Stockholm-datum + ms in i dygnet för ett ögonblick. */
-export function stockholmClock(at: Date): StockholmClock {
-  const wall = wallClockMsAt(at.getTime());
+/** Datum + ms in i dygnet i `timeZone` för ett ögonblick. */
+export function zoneClock(at: Date, timeZone = STOCKHOLM_TZ): ZoneClock {
+  const wall = wallClockMsAt(at.getTime(), timeZone);
   return { date: new Date(wall).toISOString().slice(0, 10), msIntoDay: ((wall % MS_DAY) + MS_DAY) % MS_DAY };
+}
+
+export type StockholmClock = ZoneClock;
+
+/** Stockholm-datum + ms in i dygnet för ett ögonblick: `zoneClock` med standardzonen. Används bara där ingen grupp är känd. */
+export function stockholmClock(at: Date): StockholmClock {
+  return zoneClock(at);
 }
 
 const WALL_CLOCK_PATTERN =
@@ -164,14 +179,24 @@ const pad2 = (n: number): string => String(n).padStart(2, '0');
  * saknade klockslag följer `wallClockToInstantMs`. RangeError för ogiltig dag eller ogiltigt klockslag.
  */
 export function stockholmWallClockToInstant(day: string, hour: number, minute = 0): Date {
-  const ms = wallClockToInstantMs(`${day}T${pad2(hour)}:${pad2(minute)}:00Z`);
-  if (Number.isNaN(ms)) throw new RangeError(`Ogiltig Stockholm-tid: ${day} ${hour}:${minute}`);
+  return zoneWallClockToInstant(day, hour, minute);
+}
+
+/** Som `stockholmWallClockToInstant`, men i valfri zon (gruppens). RangeError för ogiltig dag, ogiltigt klockslag eller ogiltig zon. */
+export function zoneWallClockToInstant(day: string, hour: number, minute = 0, timeZone = STOCKHOLM_TZ): Date {
+  const ms = wallClockToInstantMs(`${day}T${pad2(hour)}:${pad2(minute)}:00Z`, timeZone);
+  if (Number.isNaN(ms)) throw new RangeError(`Ogiltig tid i ${timeZone}: ${day} ${hour}:${minute}`);
   return new Date(ms);
 }
 
-/** ISO-ögonblicket (UTC) då Stockholm-dagen `day` (YYYY-MM-DD) börjar, kl 00:00 lokal tid. DST-säker. */
+/** ISO-ögonblicket (UTC) då dagen `day` (YYYY-MM-DD) börjar i `timeZone`, kl 00:00 lokal tid. DST-säker. Eventgränser och fönster går hit. */
+export function zoneMidnightIso(day: string, timeZone = STOCKHOLM_TZ): string {
+  return zoneWallClockToInstant(day, 0, 0, timeZone).toISOString();
+}
+
+/** ISO-ögonblicket (UTC) då Stockholm-dagen `day` börjar: `zoneMidnightIso` med standardzonen. Används bara där ingen grupp är känd. */
 export function stockholmMidnightIso(day: string): string {
-  return stockholmWallClockToInstant(day, 0).toISOString();
+  return zoneMidnightIso(day);
 }
 
 export interface GroupMidnight {
