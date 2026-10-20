@@ -36,6 +36,7 @@ vi.mock('../../services/recalculationMarks/defaultRecovery.js', () => ({ createD
 vi.mock('../../services/stravaReconcile/defaultReconciler.js', () => ({ createDefaultReconciler: vi.fn() }));
 
 import { logger } from '../../utils/logger.js';
+import { installCronLogger } from '../cronLogger.js';
 import { startChallengeScheduler } from '../challengeScheduler.js';
 import { startEventScheduler } from '../eventScheduler.js';
 import { startStreakScheduler } from '../streakScheduler.js';
@@ -125,6 +126,7 @@ describe('what the installed node-cron does with those schedules', () => {
   });
   afterEach(async () => {
     await Promise.all(tasks.splice(0).map((task) => task.stop()));
+    real.setLogger(undefined as never);
     vi.useRealTimers();
   });
 
@@ -153,5 +155,78 @@ describe('what the installed node-cron does with those schedules', () => {
       expect(run.mock.results[0].value, from).toMatch(new RegExp(`T${firstUtcHour}:00:0\\d`));
       await Promise.all(tasks.splice(0).map((task) => task.stop()));
     }
+  });
+
+  it('starts the next tick while a long job is still running, as before (no overlap prevention)', async () => {
+    vi.setSystemTime(new Date('2026-10-20T10:00:30.000Z'));
+    const warn = vi.spyOn(logger, 'warn');
+    installCronLogger();
+    const run = vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 10 * 60 * 1000)));
+
+    schedule('* * * * *', run);
+    await vi.advanceTimersByTimeAsync(3 * 60 * 1000);
+
+    expect(run).toHaveBeenCalledTimes(3);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  // node-cron 4 runs a tick only if it fires less than 2 s after its slot: the clock is cut to whole seconds and the tolerance is 1 s.
+  describe('a tick that fires late', () => {
+    const lateTick = async (lateMs: number) => {
+      vi.setSystemTime(new Date('2026-10-20T10:00:30.000Z'));
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      installCronLogger();
+      const run = vi.fn();
+      schedule('* * * * *', run);
+      // The clock jumps ahead while the timer waits for the 10:01:00 slot, as if the event loop had been blocked.
+      vi.setSystemTime(new Date(Date.parse('2026-10-20T10:00:30.000Z') + lateMs));
+      await vi.advanceTimersByTimeAsync(30 * 1000);
+      return { run, warn };
+    };
+
+    it('still runs when it is less than 2 s late', async () => {
+      const { run, warn } = await lateTick(1500);
+
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('is not run when it is 2 s or more late, and is reported as a warning through the app logger', async () => {
+      const { run, warn } = await lateTick(2500);
+
+      expect(run).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('node-cron: missed an execution at 2026-10-20T10:01:00.000Z');
+    });
+  });
+
+  // Known in node-cron 4.6.0 (checked with getNextRuns): in the night the clocks go back (last Sunday of October) the hour 02:xx happens twice
+  // in Stockholm, and a minute pattern skips its first occurrence (CEST). A job for a fixed hour is not affected. If a later node-cron
+  // fixes this, this test fails and the comments at the two schedules (eventScheduler, stravaSync) can go.
+  describe('the night the clocks go back in Stockholm', () => {
+    const nextRuns = (expression: string, count: number): string[] => {
+      vi.setSystemTime(new Date('2026-10-24T22:50:00.000Z')); // Sunday 25 October 00:50 CEST; 02:00 CEST becomes 02:00 CET at 01:00 UTC
+      const task = real.createTask(expression, () => {}, STOCKHOLM);
+      const runs = task.getNextRuns(count).map((date) => date.toISOString());
+      void task.destroy();
+      return runs;
+    };
+
+    it('skips the first 02:35 for the hourly settlement retry', () => {
+      // 23:35Z = 01:35 CEST, then 01:35Z = 02:35 CET. 00:35Z (the first 02:35, CEST) is missing.
+      expect(nextRuns('35 * * * *', 3)).toEqual(['2026-10-24T23:35:00.000Z', '2026-10-25T01:35:00.000Z', '2026-10-25T02:35:00.000Z']);
+    });
+
+    it('skips the first 02:00 and 02:30 for the 30-minute weather and catch-up tick', () => {
+      expect(nextRuns('*/30 * * * *', 5)).toEqual([
+        '2026-10-24T23:00:00.000Z', '2026-10-24T23:30:00.000Z', '2026-10-25T01:00:00.000Z', '2026-10-25T01:30:00.000Z', '2026-10-25T02:00:00.000Z',
+      ]);
+    });
+
+    it('runs the jobs for a fixed hour once, at their Stockholm time', () => {
+      expect(nextRuns('0 3 * * *', 1)).toEqual(['2026-10-25T02:00:00.000Z']);
+      expect(nextRuns('5 4 * * *', 1)).toEqual(['2026-10-25T03:05:00.000Z']);
+      expect(nextRuns('0 19 * * *', 1)).toEqual(['2026-10-25T18:00:00.000Z']);
+    });
   });
 });

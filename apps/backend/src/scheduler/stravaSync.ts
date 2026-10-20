@@ -28,12 +28,18 @@ const syncState: SyncState = {
 
 // The weather backfill is not tied to the poll: webhooks import runs between polls, and their weather (and the weather titles) should
 // not wait for the next backup check. It reads the same tables the poll's backfill always did, so the load is unchanged.
+//
+// Known in node-cron 4.6.0 (pinned in cronSchedules.test.ts): in the night the clocks go back (last Sunday of October) the hour 02:xx happens
+// twice in Stockholm, and a minute pattern skips its first occurrence (CEST). This tick then does not run at 02:00 and 02:30 CEST that night,
+// which leaves 90 minutes instead of 30 between two backfills and catch-up checks; the next tick at 02:00 CET runs both. The poll itself (0 */12) is not affected.
+// Never set TZ on the backend service: the process runs in UTC (docs/release.md).
 const WEATHER_BACKFILL_CRON = '*/30 * * * *';
 
 // node-cron can skip a tick. node-cron 3 skipped a whole second window now and then (about 0.8 % of the ticks measured, on version 3).
-// node-cron 4 arms one timer for the next slot and runs the tick only if the timer fires within 1 s of the slot (missedExecutionTolerance);
-// a later tick, such as a blocked event loop causes, is reported as a missed execution and not run (read in its source; the skip rate
-// is not measured on version 4). With a 12-hour interval a skipped tick would leave half a day without the backup check, so the
+// node-cron 4 arms one timer for the next slot and cuts the clock to whole seconds when the timer fires; it runs the tick only if that
+// is at most 1 s after the slot (missedExecutionTolerance), so a timer that fires less than 2 s late still runs. A later tick, such as a
+// blocked event loop causes, is reported as a missed execution (a warning through cronLogger) and not run (read in its source and pinned in
+// cronSchedules.test.ts; the skip rate is not measured on version 4). With a 12-hour interval a skipped tick would leave half a day without the backup check, so the
 // 30-minute tick runs the poll once if the estimated slot is this much overdue. A poll that is due is not "late" until this has passed:
 // the slot's own tick may still be about to run. This covers a skipped tick while the process lives.
 // A restart estimates the NEXT slot, so a slot missed during a deploy is not caught up; webhooks carry that time.
