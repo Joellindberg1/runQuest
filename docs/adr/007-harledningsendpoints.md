@@ -553,3 +553,6 @@ Startkatalogen:
 - Katalogen passerar ca 50 koder, eller en kod får två betydelser i praktiken: gruppera per domän eller släpp "en kod per utfall".
 - Supporten behöver koppla en användares felrapport till en loggrad: lägg ett `request_id` i kuvertet (och i loggraden), inte i detta steg.
 - Någon vill ha ett fel som kastas (`throw`) i stället för `fail`: gör det ovanpå samma katalog, rutt för rutt.
+
+### Notering 2026-10-20 (RUN-357, Lead): tävlingstabellens namn
+`GET /api/events` och `/history` skickade för anroparens egen rad `userName: 'Du'` (ett lokaliserat namn från servern). Sedan RUN-357 skickas det riktiga namnet och `isMe: true` markerar raden; klienten visar "You". Fältet `userName` finns kvar, bara värdet för en rad har bytts. Ingen utgiven bundle har läst strängen `'Du'` (alla läser `isMe`, kontrollerat i taggarna v0.5.0–v0.8.0 och före v0.5.0), så bytet bryter ingen klient trots att det inte är strikt additivt enligt A2. Kontraktet: `packages/shared/src/contracts/events.ts`.
