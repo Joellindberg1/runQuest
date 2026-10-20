@@ -1,52 +1,35 @@
 
-import type { Run, User } from '@runquest/types'
-import { STOCKHOLM_TZ, addDays, weekendAverageKm, zoneDay } from '@runquest/shared';
-import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
+import type { Run, User } from '@runquest/types';
+import { STOCKHOLM_TZ, addDays, compareXpStandings, rankOf, weekendAverageKm, zoneDay, type XpStanding } from '@runquest/shared';
+import { getLevelProgress } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 export { getInitials } from '@/shared/utils/formatters';
 
+const standingOf = (user: User): XpStanding => ({ id: user.id, name: user.name, xp: user.total_xp });
+
 export const leaderboardUtils = {
-  filterAndSortUsers(users: User[]): User[] {
-    const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
-    return [...filteredUsers].sort((a, b) => {
-      const aLevel = getLevelFromXP(a.total_xp);
-      const bLevel = getLevelFromXP(b.total_xp);
-      if (aLevel !== bLevel) {
-        return bLevel - aLevel; // Higher level first
-      }
-      return b.total_xp - a.total_xp; // Higher XP first if same level
-    });
+  /** All-time-ordningen: samma som backendens användarlista och rank_passed (XP, namn, id). Ingen filtreras bort. */
+  rankedUsers<T extends User>(users: readonly T[]): T[] {
+    return [...users].sort((a, b) => compareXpStandings(standingOf(a), standingOf(b)));
   },
 
-  getUserPosition(user: User, sortedUsers: User[]): number {
-    let position = 1;
-    const userLevel = getLevelFromXP(user.total_xp);
-    
-    for (const sortedUser of sortedUsers) {
-      if (sortedUser.id === user.id) break;
-      
-      const sortedUserLevel = getLevelFromXP(sortedUser.total_xp);
-      if (sortedUserLevel > userLevel || 
-          (sortedUserLevel === userLevel && sortedUser.total_xp > user.total_xp)) {
-        position++;
-      }
-    }
-    return position;
+  /** Placeringen (1-baserad, aldrig delad) i `users`, eller null om användaren inte finns där. */
+  rankOfUser(user: User, users: readonly User[]): number | null {
+    return rankOf(user.id, users.map(standingOf));
   },
 
   calculateUserStats(user: User) {
-    const level = getLevelFromXP(user.total_xp);
-    const currentLevelXP = getXPForLevel(level);
-    const nextLevelXP = getXPForLevel(level + 1);
-    const xpProgress = level < MAX_LEVEL ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
-    const xpLeftForNextLevel = level < MAX_LEVEL ? Math.round((nextLevelXP - user.total_xp) * 10) / 10 : 0;
+    const progress = getLevelProgress(user.total_xp);
+    const level = progress.currentLevel;
+    const atMax = level >= MAX_LEVEL;
+    const xpLeftForNextLevel = progress.xpToNext;
 
     const numberOfRuns = user.runs?.length || 0;
     const longestRun = numberOfRuns > 0 ? Math.max(...(user.runs?.map(run => run.distance) || [0])) : 0;
     const averageKmPerRun = numberOfRuns > 0 ? (user.total_km / numberOfRuns) : 0;
     const weekendAverage = this.calculateWeekendAverage(user.runs || []);
     const last14DaysXP = this.calculateLast14DaysXP(user);
-    const daysToNextLevel = last14DaysXP > 0 && level < MAX_LEVEL ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
+    const daysToNextLevel = last14DaysXP > 0 && !atMax ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
 
     // Get latest run
     const latestRun = user.runs && user.runs.length > 0 
@@ -57,10 +40,10 @@ export const leaderboardUtils = {
 
     return {
       level,
-      xpProgress: Math.max(0, Math.min(100, xpProgress)),
+      xpProgress: progress.progress,
       xpLeftForNextLevel,
-      xpInLevel: level < MAX_LEVEL ? Math.round(user.total_xp - currentLevelXP) : 0,
-      xpLevelRange: level < MAX_LEVEL ? Math.round(nextLevelXP - currentLevelXP) : 0,
+      xpInLevel: atMax ? 0 : Math.round(user.total_xp - progress.currentLevelXP),
+      xpLevelRange: atMax ? 0 : Math.round(progress.nextLevelXP - progress.currentLevelXP),
       numberOfRuns,
       longestRun,
       averageKmPerRun,

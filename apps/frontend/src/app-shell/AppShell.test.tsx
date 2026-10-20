@@ -273,6 +273,11 @@ describe('AvatarMenu', () => {
     expect(screen.getByRole('button', { name: /Admin/ })).toBeInTheDocument();
   });
 
+  it('avataren visar första och sista namnets initial, så Anna Maria Lindqvist är AL', async () => {
+    renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH, user: { id: 'u-anna', name: 'Anna Maria Lindqvist', email: 'anna@example.com' } });
+    expect(await screen.findByRole('button', { name: 'Account menu for Anna Maria Lindqvist' })).toHaveTextContent('AL');
+  });
+
   it('mobil: Playbook, Feature & Version och Settings; level och placering ur leaderboard-datan', async () => {
     renderWithApp(<Tree />, { entry: '/board', width: MOBILE_WIDTH });
     await openMenu();

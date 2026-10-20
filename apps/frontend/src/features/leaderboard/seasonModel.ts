@@ -70,7 +70,7 @@ export function titleLine(names: string[], heldCount: number): string {
 }
 
 export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] {
-  const sorted = leaderboardUtils.filterAndSortUsers(users);
+  const sorted = leaderboardUtils.rankedUsers(users);
 
   const partial = sorted.map((user) => {
     const stats = leaderboardUtils.calculateUserStats(user);
@@ -83,9 +83,9 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
     return {
       id: user.id,
       name: user.name,
-      rank: leaderboardUtils.getUserPosition(user, sorted),
+      rank: sorted.indexOf(user) + 1,
       level: stats.level,
-      initials: getInitials(user.name).slice(0, 2),
+      initials: getInitials(user.name),
       pictureUrl: user.profile_picture || null,
       delta: deltaView(input.rankDeltaByUser[user.id]),
       titleNames: names,

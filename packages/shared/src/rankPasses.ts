@@ -57,6 +57,17 @@ export function compareXpStandings(a: XpStanding, b: XpStanding): number {
   return compareByNameThenId(a, b);
 }
 
+/**
+ * Medlemmens 1-baserade placering i all-time-tabellen, eller null om hen inte finns i den. Tabellens ordning spelar ingen roll: placeringen
+ * är antalet som ligger före enligt compareXpStandings, plus ett. Ordningen är total (namn och id avgör lika XP), så ingen delar plats,
+ * och den är samma som rank_passed rankar med och som backendens användarlista sorteras med.
+ */
+export function rankOf(id: string, standings: ReadonlyArray<XpStanding>): number | null {
+  const self = standings.find((standing) => standing.id === id);
+  if (!self) return null;
+  return 1 + standings.filter((other) => compareXpStandings(other, self) < 0).length;
+}
+
 // ─── Detektion ───────────────────────────────────────────────────────────────────────────────────
 
 /**

@@ -71,7 +71,6 @@ export function buildOpponents(input: {
   meId: string;
   headToHead: Record<string, HeadToHeadRecord | undefined>;
 }): OpponentOption[] {
-  const sortedUsers = input.users ? leaderboardUtils.filterAndSortUsers([...input.users]) : [];
   const userOf = (id: string) => input.users?.find((user) => user.id === id);
 
   const entries = input.members
@@ -79,12 +78,12 @@ export function buildOpponents(input: {
     .map((member) => {
       const user = userOf(member.user_id);
       const stats = user ? leaderboardUtils.calculateUserStats(user) : null;
-      const rank = user ? leaderboardUtils.getUserPosition(user, sortedUsers) : Number.MAX_SAFE_INTEGER;
+      const rank = (user && input.users ? leaderboardUtils.rankOfUser(user, input.users) : null) ?? Number.MAX_SAFE_INTEGER;
       const busy = member.challenge_active ? 'In a duel' : member.has_pending_challenge ? 'Waiting on a reply' : null;
       const option: OpponentOption = {
         userId: member.user_id,
         name: member.name,
-        initials: getInitials(member.name).slice(0, 2),
+        initials: getInitials(member.name),
         pictureUrl: member.profile_picture ?? user?.profile_picture ?? null,
         note: stats
           ? `Level ${stats.level} · #${rank} · ${stats.avgXpPer14Days} XP / day`

@@ -100,14 +100,13 @@ describe('multiplikator och trappa läses ur configen', () => {
 });
 
 describe('buildStreakRows', () => {
-  it('sorterar på effektiv streak, döljer admin och röd accent bara för mig i riskzonen', () => {
+  it('sorterar på effektiv streak och röd accent bara för mig i riskzonen', () => {
     const rows = buildStreakRows(
       [
         user('bo', 2, [run('2026-10-03')]), // at risk, inte jag
         user('me', 3, [run('2026-10-03')]), // at risk, jag
         user('cy', 7, [run('2026-10-04')]), // safe
         user('dd', 6, [run('2026-09-20')], 20), // bruten trots 6 i raden
-        { ...user('admin', 9, [run('2026-10-04')]), name: 'Admin' },
       ],
       NOW,
       LADDER,
@@ -118,6 +117,15 @@ describe('buildStreakRows', () => {
     ]);
     expect(rows.find((r) => r.id === 'me')?.accent).toBe('down');
     expect(rows.find((r) => r.id === 'bo')?.accent).not.toBe('down');
+  });
+
+  it('tar med en löpare vid namnet Joel Lindberg (is_admin) som alla andra', () => {
+    const rows = buildStreakRows(
+      [{ ...user('joel', 9, [run('2026-10-04')]), name: 'Joel Lindberg' }, user('cy', 7, [run('2026-10-04')])],
+      NOW,
+      LADDER,
+    );
+    expect(rows.map((r) => r.name)).toEqual(['Joel Lindberg', 'CY']);
   });
 });
 

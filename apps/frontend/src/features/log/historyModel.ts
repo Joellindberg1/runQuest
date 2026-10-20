@@ -59,7 +59,7 @@ export function buildHistoryRow(item: GroupRunHistoryItem, meId: string | undefi
     id: item.id,
     userId: item.user_id,
     name: item.user_name,
-    initials: getInitials(item.user_name).slice(0, 2),
+    initials: getInitials(item.user_name),
     pictureUrl: item.user_profile_picture ?? null,
     date: item.date.slice(0, 10),
     surface: item.is_treadmill === null ? null : item.is_treadmill ? 'treadmill' : 'outdoor',

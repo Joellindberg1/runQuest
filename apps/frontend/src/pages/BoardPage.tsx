@@ -14,7 +14,6 @@ import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
-import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import '@/features/leaderboard/board.css';
 
 // "Season" finns inte i datamodellen än (ägarbeslut 2): fliken heter All-time, adressen ?view=season (ADR 006).
@@ -35,7 +34,7 @@ const BoardPage: React.FC = () => {
   const usersQuery = useUsersWithRuns(!!user);
 
   const weekNumber = isoWeekNumber(stockholmClock(now).date);
-  const runnerCount = usersQuery.data ? leaderboardUtils.filterAndSortUsers(usersQuery.data).length : null;
+  const runnerCount = usersQuery.data ? usersQuery.data.length : null;
   const sub = isDesktop && runnerCount ? `Week ${weekNumber} · ${runnerCount} runners` : `Week ${weekNumber}`;
 
   const tabs = (

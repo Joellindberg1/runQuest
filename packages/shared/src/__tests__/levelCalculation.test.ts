@@ -59,5 +59,13 @@ describe('levelCalculation', () => {
       expect(p.progress).toBe(100);
       expect(p.xpToNext).toBe(0);
     });
+
+    it('golvar XP kvar vid 0 och procenten vid 0 när nästa nivå saknas i en kort tabell', () => {
+      const short = [{ level: 1, xp_required: 0 }, { level: 2, xp_required: 100 }];
+      const p = levelProgress(150, short); // nivå 3 saknas: nästa nivås XP blir 0, utan golv -150 kvar
+      expect(p.currentLevel).toBe(2);
+      expect(p.xpToNext).toBe(0);
+      expect(p.progress).toBe(0);
+    });
   });
 });

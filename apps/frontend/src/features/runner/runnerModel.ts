@@ -28,8 +28,6 @@ export interface RunnerHero {
 
 export function buildHero(user: User, allUsers: User[]): RunnerHero {
   const stats = leaderboardUtils.calculateUserStats(user);
-  const sorted = leaderboardUtils.filterAndSortUsers(allUsers);
-  const ranked = sorted.some((candidate) => candidate.id === user.id);
   const atMax = stats.xpLevelRange === 0;
 
   return {
@@ -37,7 +35,7 @@ export function buildHero(user: User, allUsers: User[]): RunnerHero {
     name: user.name,
     level: stats.level,
     ringTurn: atMax ? 1 : Math.round(stats.xpProgress) / 100,
-    rank: ranked ? leaderboardUtils.getUserPosition(user, sorted) : null,
+    rank: leaderboardUtils.rankOfUser(user, allUsers),
     runs: stats.numberOfRuns,
     xpToNext: atMax ? null : stats.xpLeftForNextLevel,
     nextLevel: atMax ? null : stats.level + 1,
