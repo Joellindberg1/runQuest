@@ -6,7 +6,7 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, boostWindow, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, boostWindow, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay, zoneDay,
   type AdminSettings, type StreakMultiplier, type BoostSpec, type BoostRow, type PreviousRunDay,
 } from '@runquest/shared';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
@@ -14,7 +14,6 @@ import { getActiveMembership } from '../utils/membership.js';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
 import type { ApiError, CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse, WrittenApiError } from '@runquest/shared';
 
@@ -266,21 +265,21 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
 
 const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-/** Rundans kalenderdag (Stockholm): en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
-function toRunDay(date: string): string {
-  return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
+/** Rundans kalenderdag i gruppens tidszon: en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
+function toRunDay(date: string, timeZone: string): string {
+  return isDateOnly(date) ? date : zoneDay(new Date(date), timeZone);
 }
 
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
  *
- * Datum jämförs som KALENDERDAGAR i Stockholm-tid (open-assumptions backend-fråga 0): "idag" är
- * todayStockholm(), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
+ * Datum jämförs som KALENDERDAGAR i gruppens tidszon (open-assumptions backend-fråga 0): "idag" är
+ * zoneDay(new Date(), timeZone), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
  * ~02:00 svensk tid. En ren YYYY-MM-DD-sträng är dagen i sig; en tidpunkt (ISO med klockslag) omräknas
- * till sin Stockholm-dag.
+ * till sin dag i gruppens zon.
  */
-function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
+function validateRunInput(date: string | undefined, distance: unknown, timeZone: string): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
   if (isNaN(distanceNum) || distanceNum < MANUAL_RUN_MIN_DISTANCE_KM) {
     return { error: `Distance must be at least ${MANUAL_RUN_MIN_DISTANCE_KM.toFixed(1)} km`, distanceNum };
@@ -290,9 +289,9 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
     // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
     if (isDateOnly(date) && !isCalendarDay(date)) return { error: 'Invalid date', distanceNum };
-    const runDay = toRunDay(date);
+    const runDay = toRunDay(date, timeZone);
     if (runDay < MIN_RUN_DATE) return { error: `Cannot log runs before ${MIN_RUN_DATE_LABEL}`, distanceNum };
-    if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
+    if (runDay > zoneDay(new Date(), timeZone)) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };
 }
@@ -331,7 +330,8 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Date and distance are required' } satisfies ApiError); return;
     }
 
-    const { error: invalidInput, distanceNum } = validateRunInput(date, distance);
+    const timeZone = groupTimeZone(req.user!.group_id);
+    const { error: invalidInput, distanceNum } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       res.status(400).json({ error: invalidInput } satisfies ApiError); return;
     }
@@ -415,7 +415,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     checkEventQualification({
       userId,
       runId: newRun.id,
-      runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
+      runDate: toRunDay(date, timeZone), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
@@ -462,7 +462,8 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Distance is required' } satisfies ApiError); return;
     }
 
-    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance);
+    const timeZone = groupTimeZone(req.user!.group_id);
+    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       res.status(400).json({ error: invalidInput } satisfies ApiError); return;
     }
@@ -538,7 +539,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       checkEventQualification({
         userId,
         runId: id,
-        runDate: toRunDay(date || existingRun.date),
+        runDate: toRunDay(date || existingRun.date, timeZone),
         distanceKm: newDistance,
         groupId: req.user!.group_id,
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av

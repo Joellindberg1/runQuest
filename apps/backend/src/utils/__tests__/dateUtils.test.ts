@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mondayOf } from '@runquest/shared';
-import { weekRange, todayStockholm } from '../dateUtils.js';
+import { mondayOf, zoneDay } from '@runquest/shared';
+import { weekRange } from '../dateUtils.js';
+import { groupTimeZone } from '../groupTimeZone.js';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -40,11 +41,11 @@ describe('weekRange', () => {
   });
 });
 
-describe('veckogräns i Stockholm-tid (todayStockholm → weekRange)', () => {
+describe('veckogräns i Stockholm-tid (zoneDay → weekRange)', () => {
   function weekStartAt(iso: string): string {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(iso));
-    return weekRange(todayStockholm()).start;
+    return weekRange(zoneDay(new Date(), groupTimeZone(null))).start;
   }
 
   it('vinter: söndag 23:30 Stockholm (22:30 UTC) är fortfarande föregående vecka', () => {

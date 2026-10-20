@@ -5,10 +5,10 @@
 // Felhygien (ADR 010 beslut 8.6): databasens text lämnar aldrig det här lagret. Ett 23505 för groups_invite_code_key bär inbjudningskoden
 // i sin DETAIL, så vi läser aldrig `details`, och felet vi kastar har ett fast meddelande och bara databasens kod (errorCode).
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { GROUP_ROLES, type GroupRole } from '@runquest/shared';
+import { GROUP_ROLES, stockholmDay, zoneDay, type GroupRole } from '@runquest/shared';
 import { getSupabaseClient } from '../config/database.js';
 import { errorCode } from './errorCode.js';
-import { todayStockholm } from './dateUtils.js';
+import { groupTimeZone } from './groupTimeZone.js';
 
 export type MembershipErrorKind =
   | 'already_member'
@@ -95,7 +95,7 @@ export async function joinGroup(input: JoinGroupInput, db: SupabaseClient = getS
     p_user_id: input.userId,
     p_group_id: input.groupId,
     p_role: input.role,
-    p_today: input.today ?? todayStockholm(),
+    p_today: input.today ?? zoneDay(new Date(), groupTimeZone(input.groupId)),
   });
   if (error) throw failure(error);
   return (Array.isArray(data) ? data[0] : data) as GroupMembership;
@@ -122,7 +122,7 @@ export async function createGroupWithAdmin(input: CreateGroupInput, db: Supabase
     p_name: input.name,
     p_invite_code: input.inviteCode,
     p_owner_id: input.ownerId,
-    p_today: input.today ?? todayStockholm(),
+    p_today: input.today ?? stockholmDay(new Date()),
   });
   if (error) throw failure(error);
   return (Array.isArray(data) ? data[0] : data) as CreatedGroup;

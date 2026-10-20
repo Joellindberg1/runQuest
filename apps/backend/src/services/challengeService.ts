@@ -4,9 +4,8 @@ import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
-import { boostExpiresAt, type ChallengeProgressEntry } from '@runquest/shared';
+import { boostExpiresAt, zoneDay, type ChallengeProgressEntry } from '@runquest/shared';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
-import { todayStockholm } from '../utils/dateUtils.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
@@ -164,7 +163,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Chal
 
   const { data: challenge, error } = await supabase
     .from('challenges')
-    .select('challenger_id, opponent_id, metric, start_date, end_date, status')
+    .select('challenger_id, opponent_id, metric, start_date, end_date, status, group_id')
     .eq('id', challengeId)
     .single();
 
@@ -174,7 +173,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Chal
   if (!challenge || !challenge.start_date) return null;
 
   const startDate = challenge.start_date;
-  const endDate = challenge.end_date ?? todayStockholm();
+  const endDate = challenge.end_date ?? zoneDay(new Date(), groupTimeZone(challenge.group_id));
 
   const fetchValue = async (userId: string): Promise<number> => {
     // Läsfel kastas: ett fel som blev 0 skulle annars avgöra utmaningen på ofullständig data (0–0 = oavgjort).

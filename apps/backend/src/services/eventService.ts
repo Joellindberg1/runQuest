@@ -2,10 +2,10 @@
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { getLevelFromXP } from './levelService.js';
-import { toStockholmDate, tomorrowStockholm } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
-import { STORM_EVENT_GUST_MS, buildEventClosedDraft, buildEventOpenDraft, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
+import { STORM_EVENT_GUST_MS, addDays, buildEventClosedDraft, buildEventOpenDraft, stockholmDay, zoneDay, zoneMidnightIso, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 /** A failure that is collected and thrown after the loop: what failed (ids written by us) and its code, never the database text. */
@@ -170,6 +170,8 @@ export async function checkEventQualification(params: {
   }
   if (!groupId) return;
 
+  // Eventets dygn räknas i gruppens tidszon: rundans dag (runDate) börjar vid gruppens midnatt, inte vid UTC-midnatt.
+  const timeZone = groupTimeZone(groupId);
   const now = new Date().toISOString();
 
   // Hämta alla aktiva/schemalagda events för gruppen som passet faller inom.
@@ -188,7 +190,7 @@ export async function checkEventQualification(params: {
     .eq('group_id', groupId)
     .in('status', ['active', 'scheduled'])
     .lte('starts_at', now)
-    .gte('ends_at', `${params.runDate}T00:00:00Z`);
+    .gte('ends_at', zoneMidnightIso(params.runDate, timeZone));
 
   if (error || !events?.length) return;
 
@@ -197,8 +199,8 @@ export async function checkEventQualification(params: {
   for (const event of events) {
     try {
       if (params.enforceRunDateWindow) {
-        const startDay = toStockholmDate(event.starts_at);
-        const endDay = toStockholmDate(event.ends_at);
+        const startDay = zoneDay(new Date(event.starts_at), timeZone);
+        const endDay = zoneDay(new Date(event.ends_at), timeZone);
         if (params.runDate < startDay || params.runDate > endDay) continue;
       }
 
@@ -374,13 +376,14 @@ export async function settleCompetitionEvents(): Promise<void> {
       const isKm = event.metric === 'km';
       const scored: Array<{ entryId: string; userId: string; totalValue: number }> = [];
 
+      const timeZone = groupTimeZone(event.group_id);
       for (const entry of participants) {
         let runsQuery = supabase
           .from('runs')
           .select(isKm ? 'distance' : 'total_elevation_gain')
           .eq('user_id', entry.user_id)
-          .gte('date', toStockholmDate(event.starts_at))
-          .lte('date', toStockholmDate(event.ends_at));
+          .gte('date', zoneDay(new Date(event.starts_at), timeZone))
+          .lte('date', zoneDay(new Date(event.ends_at), timeZone));
 
         if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
 
@@ -652,7 +655,8 @@ export async function checkStormChaserForecast(): Promise<boolean> {
 
     // Hitta imorgondatumets timmar (index 24–47 vid 2-dagars forecast). Open-Meteo svarar i Stockholm-tid, så
     // "imorgon" är Stockholm-dagen + 1 — inte UTC-dagen.
-    const tomorrowStr = tomorrowStockholm(); // "YYYY-MM-DD"
+    // Prognosen gäller de fasta Stockholm-koordinaterna ovan, inte en grupp: dygnet är Stockholms med avsikt.
+    const tomorrowStr = addDays(stockholmDay(new Date()), 1); // "YYYY-MM-DD"
 
     let stormyHours = 0;
     let gustyHours = 0;

@@ -5,9 +5,9 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
-import { toStockholmDate } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import type { ApiError, DailyDrawResponse, EventsHistoryResponse, EventsResponse, OffsetPageMeta } from '@runquest/shared';
+import { zoneDay, type ApiError, type DailyDrawResponse, type EventsHistoryResponse, type EventsResponse, type OffsetPageMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
@@ -128,7 +128,8 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
       const userNameMap = new Map((userRows ?? []).map((u: any) => [u.id, u.name]));
 
-      // Beräkna live-total per användare per event
+      // Beräkna live-total per användare per event (eventets dagar i gruppens tidszon)
+      const timeZone = groupTimeZone(groupId);
       for (const event of events.filter((e: any) => e.type === 'competition')) {
         const isKm = event.metric === 'km';
         const participants = (allEntries ?? []).filter((e: any) => e.event_id === event.id);
@@ -139,8 +140,8 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
             .from('runs')
             .select(isKm ? 'distance' : 'total_elevation_gain')
             .eq('user_id', p.user_id)
-            .gte('date', toStockholmDate(event.starts_at))
-            .lte('date', toStockholmDate(event.ends_at));
+            .gte('date', zoneDay(new Date(event.starts_at), timeZone))
+            .lte('date', zoneDay(new Date(event.ends_at), timeZone));
 
           if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
 

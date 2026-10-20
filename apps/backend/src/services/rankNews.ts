@@ -17,14 +17,14 @@ import {
   buildRankPassedDraft,
   buildXpLedger,
   detectRankPasses,
-  stockholmDay,
-  stockholmMidnightIso,
+  zoneDay,
+  zoneMidnightIso,
   type ChallengeRecord,
   type LedgerEventEntry,
   type RankDeltaInput,
 } from '@runquest/shared';
 import { getSupabaseClient } from '../config/database.js';
-import { toStockholmDate } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
 import { recordActivities, retractActivity } from './activityLog.js';
@@ -58,7 +58,8 @@ export async function recordRankPassesForXp(
     // kunde ge olika dagar i nyckeln och i detektionen vid Stockholms midnatt.
     const now = new Date();
     const occurredAt = now.toISOString();
-    const today = stockholmDay(now);
+    const timeZone = groupTimeZone(groupId);
+    const today = zoneDay(now, timeZone);
 
     const supabase = getSupabaseClient();
     const membersResult = await supabase.from('users').select('id, name, total_xp, created_at').eq('group_id', groupId);
@@ -73,7 +74,7 @@ export async function recordRankPassesForXp(
       id: u.id,
       name: u.name,
       total_xp: Number(u.total_xp ?? 0),
-      created_date: u.created_at ? toStockholmDate(u.created_at) : null,
+      created_date: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
     }));
     const passer = members.find((m) => m.id === userId);
     if (!passer || passer.total_xp === prevXp) return;
@@ -89,7 +90,7 @@ export async function recordRankPassesForXp(
         .from('event_entries')
         .select('id, user_id, event_id, xp_awarded, qualified_at, events!inner(type, ends_at, settled_at, group_id)')
         .eq('events.group_id', groupId)
-        .gte('events.ends_at', `${addDays(today, -EVENT_ENTRY_WINDOW_DAYS)}T00:00:00Z`)
+        .gte('events.ends_at', zoneMidnightIso(addDays(today, -EVENT_ENTRY_WINDOW_DAYS), timeZone))
         .gt('xp_awarded', 0),
     ]);
     if (runsResult.error || entriesResult.error) {
@@ -187,8 +188,6 @@ export async function recordRankPassesForChallenge(challengeId: string): Promise
     // ETT ögonblick för dagen, gränsen och occurred_at (se recordRankPassesForXp).
     const now = new Date();
     const occurredAt = now.toISOString();
-    const today = stockholmDay(now);
-    const dayStart = stockholmMidnightIso(today);
 
     const supabase = getSupabaseClient();
     const challengeResult = await supabase
@@ -203,6 +202,9 @@ export async function recordRankPassesForChallenge(challengeId: string): Promise
     const challenge = challengeResult.data as { group_id: string | null; status: string; challenger_id: string; opponent_id: string } | null;
     if (!challenge?.group_id || challenge.status !== 'completed') return;
     const groupId = challenge.group_id;
+    const timeZone = groupTimeZone(groupId);
+    const today = zoneDay(now, timeZone);
+    const dayStart = zoneMidnightIso(today, timeZone);
 
     const [membersResult, settledResult] = await Promise.all([
       supabase.from('users').select('id, name, wins, draws, losses, created_at').eq('group_id', groupId),
@@ -265,7 +267,7 @@ export async function recordRankPassesForChallenge(challengeId: string): Promise
       members.push({
         id: u.id,
         name: u.name,
-        createdDate: u.created_at ? toStockholmDate(u.created_at) : null,
+        createdDate: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
         midnight,
         before,
         after,

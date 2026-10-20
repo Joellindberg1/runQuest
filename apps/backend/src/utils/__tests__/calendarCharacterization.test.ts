@@ -6,8 +6,8 @@
  * pekar de på delade funktioner och tabellerna ska vara oförändrade.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { addDays, dayOfWeek, daysBetween, mondayOf } from '@runquest/shared';
-import { todayStockholm, toStockholmDate, tomorrowStockholm, weekRange } from '../dateUtils.js';
+import { addDays, dayOfWeek, daysBetween, mondayOf, zoneDay } from '@runquest/shared';
+import { weekRange } from '../dateUtils.js';
 import { wallClockMinutes as utcMinutes } from '@runquest/shared';
 import { earlyRunCountEngine } from '../../titleEngines/earlyRunCount.js';
 import { lunchRunCountEngine } from '../../titleEngines/lunchRunCount.js';
@@ -142,7 +142,7 @@ describe('utcMinutes (was titleEngines/_utils) — klockslag ur siffrorna i star
   });
 });
 
-describe('todayStockholm / tomorrowStockholm / toStockholmDate (dateUtils)', () => {
+describe('zoneDay (the day of an instant in the default zone)', () => {
   it.each([
     ['2026-10-04T22:30:00Z', '2026-10-05'],
     ['2026-10-04T21:59:59Z', '2026-10-04'],
@@ -155,11 +155,11 @@ describe('todayStockholm / tomorrowStockholm / toStockholmDate (dateUtils)', () 
     ['2026-10-25T22:59:59Z', '2026-10-25'],
     ['2026-10-25T23:00:00Z', '2026-10-26'],
     ['2028-02-28T23:30:00Z', '2028-02-29'],
-  ])('%s -> idag %s (och toStockholmDate ger samma)', (iso, today) => {
+  ])('%s -> idag %s (dagen och morgondagen)', (iso, today) => {
     atInstant(iso);
-    expect(todayStockholm()).toBe(today);
-    expect(toStockholmDate(iso)).toBe(today);
-    expect(tomorrowStockholm()).toBe(addDays(today, 1));
+    expect(zoneDay(new Date())).toBe(today);
+    expect(zoneDay(new Date(iso))).toBe(today);
+    expect(addDays(zoneDay(new Date()), 1)).toBe(addDays(today, 1));
   });
 });
 

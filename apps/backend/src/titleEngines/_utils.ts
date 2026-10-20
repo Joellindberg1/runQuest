@@ -1,5 +1,5 @@
 import type { RunData } from './types';
-import { toStockholmDate } from '../utils/dateUtils';
+import { STOCKHOLM_TZ, zoneDay } from '@runquest/shared';
 
 /** Antal rundor som uppfyller villkoret (gemensam för räknande motorer). */
 export function countRunsWhere(runs: RunData[], predicate: (run: RunData) => boolean): number {
@@ -42,8 +42,8 @@ export function toRunData(row: Record<string, unknown>): RunData {
  * föregående december — så mars–nov blir senast avslutade vinter. Fönstret byter alltså först vid nästa
  * omräkning efter 1 dec (ingen cron). `runs.date` är en kalenderdag, så jämförelsen görs som sträng.
  */
-export function winterWindow(now: Date): { start: string; end: string } {
-  const [year, month] = toStockholmDate(now.toISOString()).split('-').map(Number);
+export function winterWindow(now: Date, timeZone = STOCKHOLM_TZ): { start: string; end: string } {
+  const [year, month] = zoneDay(now, timeZone).split('-').map(Number);
   const winterStartYear = month === 12 ? year : year - 1;
   return { start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01` };
 }

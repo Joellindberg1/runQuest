@@ -104,7 +104,7 @@ describe('Run — minimidistans (konstanterna i shared)', () => {
 describe('Titles — säsongstitlar och när titlarna räknas om', () => {
   it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
     const utils = backend('src/titleEngines/_utils.ts');
-    expect(utils).toContain('toStockholmDate(now.toISOString())');
+    expect(utils).toContain('zoneDay(now, timeZone)');
     expect(utils).toContain('const winterStartYear = month === 12 ? year : year - 1;');
     expect(utils).toContain('start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01`');
     expect(backend('src/titleEngines/winterKm.ts')).toContain('r.date >= start && r.date < end');
@@ -235,7 +235,7 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(put).toContain('enforceRunDateWindow: true');
     expect(post).not.toContain('enforceRunDateWindow');
     // Utan flaggan räcker det att eventet startat och att rundans datum inte ligger efter slutet.
-    expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', `\$\{params\.runDate\}T00:00:00Z`\)/);
+    expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', zoneMidnightIso\(params\.runDate, timeZone\)\)/);
     expect(service).toMatch(/if \(params\.enforceRunDateWindow\) \{/);
   });
 

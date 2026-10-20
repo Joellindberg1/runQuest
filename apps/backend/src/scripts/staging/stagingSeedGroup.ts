@@ -17,7 +17,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { chmodSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { todayStockholm } from '../../utils/dateUtils.js';
+import { stockholmDay } from '@runquest/shared';
 import {
   MissingEnvError,
   STAGING_PROJECT_REF,
@@ -211,7 +211,7 @@ export async function runSeedGroup(input: RunSeedGroupInput): Promise<SeedGroupR
     userIds: TEST_PEOPLE.map(() => randomUUID()),
     inviteCode: `STG${randomBytes(3).toString('hex').toUpperCase()}`,
     passwordHash,
-    today: input.today ?? todayStockholm(),
+    today: input.today ?? stockholmDay(new Date()),
   };
   // The file is written first so that the password cannot be lost after the rows exist; it is removed again if the insert fails.
   try {

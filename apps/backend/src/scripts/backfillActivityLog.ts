@@ -30,7 +30,6 @@
 import { pathToFileURL } from 'node:url';
 import { getSupabaseClient } from '../config/database.js';
 import { ACTIVITY_LOG_TABLE, toActivityRow } from '../services/activityLog.js';
-import { todayStockholm } from '../utils/dateUtils.js';
 import { supabaseHost } from './lib/supabaseHost.js';
 import {
   ACTIVITY_TYPES,
@@ -45,6 +44,7 @@ import {
   filterSince,
   isCalendarDay,
   sortChronologically,
+  stockholmDay,
   streakBrokenThreshold,
   type ActivityDraft,
   type ActivityType,
@@ -210,7 +210,7 @@ export async function collectDrafts(supabase: Client, options: BackfillOptions):
     ...backfillEvents(events, entries, membersByGroup),
     ...backfillLevelUps(buildXpLedger(runs, ledgerEntries), requirements, groupByUser),
     ...backfillRunMilestones(runs, groupByUser),
-    ...backfillStreakBroken(runs, groupByUser, threshold, todayStockholm()),
+    ...backfillStreakBroken(runs, groupByUser, threshold, stockholmDay(new Date())),
   ];
   return sortChronologically(filterSince(drafts, options.since));
 }
@@ -263,7 +263,7 @@ export async function runBackfill(supabase: Client, options: BackfillOptions): P
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
 
-export function parseArgs(argv: string[], today: string = todayStockholm()): BackfillOptions {
+export function parseArgs(argv: string[], today: string = stockholmDay(new Date())): BackfillOptions {
   const options: BackfillOptions = { apply: false, since: defaultSinceDay(today) };
   for (const arg of argv) {
     if (arg === '--apply') options.apply = true;

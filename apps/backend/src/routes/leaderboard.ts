@@ -3,7 +3,8 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
-import { todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
+import { weekRange } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import {
   addDays,
   bestWeekKm,
@@ -13,6 +14,8 @@ import {
   isCalendarDay,
   mondayOf,
   percentOfBest,
+  zoneDay,
+  zoneMidnightIso,
   type ApiError,
   type LedgerEventEntry,
   type RankDeltaApiResponse,
@@ -60,7 +63,8 @@ async function fetchGroupBestWeekKm(groupId: string): Promise<number> {
 // GET /api/leaderboard/week[?week_start=YYYY-MM-DD]
 router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const today = todayStockholm();
+    const timeZone = groupTimeZone(req.user!.group_id);
+    const today = zoneDay(new Date(), timeZone);
     const currentStart = mondayOf(today);
 
     let weekStart = currentStart;
@@ -117,7 +121,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
       name: u.name,
       profile_picture: u.profile_picture ?? null,
       level: u.current_level ?? 1,
-      created_date: u.created_at ? toStockholmDate(u.created_at) : null,
+      created_date: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
     }));
 
     const computed = buildWeekLeaderboard(members, runsResult.data ?? [], weekStart);
@@ -151,8 +155,9 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
 // GET /api/leaderboard/rank-delta
 router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const asOf = mondayOf(todayStockholm());
     const groupId = req.user!.group_id;
+    const timeZone = groupTimeZone(groupId);
+    const asOf = mondayOf(zoneDay(new Date(), timeZone));
     if (!groupId) {
       const empty: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users: [] } };
       res.json(empty); return;
@@ -176,7 +181,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
         .from('event_entries')
         .select('id, user_id, event_id, xp_awarded, qualified_at, events!inner(type, ends_at, settled_at, group_id)')
         .eq('events.group_id', groupId)
-        .gte('events.ends_at', `${addDays(asOf, -14)}T00:00:00Z`)
+        .gte('events.ends_at', zoneMidnightIso(addDays(asOf, -14), timeZone))
         .gt('xp_awarded', 0),
     ]);
     if (usersResult.error) throw usersResult.error;
@@ -199,7 +204,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
       id: u.id,
       name: u.name,
       total_xp: u.total_xp ?? 0,
-      created_date: u.created_at ? toStockholmDate(u.created_at) : null,
+      created_date: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
     }));
 
     const { users, diverged } = buildRankDelta(members, ledger, asOf);
