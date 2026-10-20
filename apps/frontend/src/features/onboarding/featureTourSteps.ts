@@ -93,7 +93,6 @@ export const TOUR_TITLES_V2: TourStep[] = [
 // Läs-gesten (ägarbeslut 2): mus efter rörelse, tryck, eller Enter. FOKUS markerar aldrig läst, så ordet får inte stå i copyn (featureTourSteps.test.ts).
 // Klockan i headern (header-news) har ingen egen tourstep. Turen monteras bara när flödet har rader, och news-mark-read-steget bara när något är
 // oläst (NewsScreen). news-settings är kortet i sidokolumnen på desktop och kugghjulsknappen på mobil (en och samma attribut).
-// Våg 2 (Ranks, RUN-191) ingår i v0.7.0. Bryts den ut: stryk "ranks" ur filtersteget.
 export const TOUR_NEWS_V2: TourStep[] = [
   {
     element: '[data-tour="news-feed"]',

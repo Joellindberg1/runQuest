@@ -34,6 +34,7 @@ Verifierat i koden/schemat 2026-10-04:
     `POST /titles/reprocess-all`) skriver `user_titles` (insert/update/
     delete = återkallelse, issue #10); holder = `position = 1` i
     `title_leaderboard`, som är GLOBAL (ej gruppavgränsad — STATE zon 8);
+    Senare ändrat: ADR 012 (processGroupTitles). `processAllUsersTitles` ersattes av `processGroupTitles(groupId, { emitNews })` (och `processAllGroupsTitles` för alla grupper) i v0.8.0, och `title_leaderboard` är per grupp, inte global. Beskrivningen ovan är historiken från när beslutet togs.
   - **level skrivs på tre ställen:** `calculateUserTotals` (efter `users`-
     uppdateringen, `reconcileTokensForLevel` för tokens),
     `eventService.checkEventQualification` (participation-XP) och
@@ -220,6 +221,8 @@ Titelhändelser loggas **endast framåt** (se beslut 7). Eftersom
 `title_leaderboard` är global men loggen är gruppavgränsad förutsätter
 detektionen en grupp (som i dag); multi-grupp kräver gruppavgränsad
 titelranking först (revisit-trigger).
+
+Senare ändrat: ADR 012 (processGroupTitles). `processAllUsersTitles` ersattes av `processGroupTitles(groupId, { emitNews })` (och `processAllGroupsTitles` för alla grupper) i v0.8.0, och `title_leaderboard` är per grupp, inte global. Beskrivningen ovan är historiken från när beslutet togs.
 
 ### 7. Retroaktiv backfill (härledbara typer)
 Engångs-/repareringsskript `apps/backend/src/scripts/backfillActivityLog.ts`
