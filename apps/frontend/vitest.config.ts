@@ -11,6 +11,7 @@ const NEEDS_DOM = [
   "src/app-shell/legacyRedirects.test.ts",
   "src/features/badges/api.test.ts",
   "src/features/onboarding/onboardingApi.test.ts",
+  "src/landing-entry/deferredEntry.test.ts",
   "src/landing-entry/sessionHint.test.ts",
   "src/landing-entry/signedInTarget.test.ts",
   "src/shared/analytics/track.test.ts",
