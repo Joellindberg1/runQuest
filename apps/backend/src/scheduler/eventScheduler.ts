@@ -209,7 +209,12 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
 
 // ─── Scheduler entry point ───────────────────────────────────────────────────
 
-/** Timtick som försöker avräkna tävlingar som fortfarande är active efter sitt slut (se startEventScheduler). */
+/**
+ * Timtick som försöker avräkna tävlingar som fortfarande är active efter sitt slut (se startEventScheduler).
+ * Känt i node-cron 4.6.0 (fastlåst i cronSchedules.test.ts): natten då klockan ställs tillbaka (sista söndagen i oktober) infaller timmen 02:xx två
+ * gånger i Stockholm, och ett minutmönster hoppar över den första (CEST). Ticken 02:35 CEST uteblir alltså den natten; nästa tick 02:35 CET tar
+ * samma tävlingar, så retryn försenas som mest en timme. Sätt aldrig TZ på backendtjänsten: processen kör i UTC (docs/release.md).
+ */
 export const COMPETITION_RETRY_CRON = '35 * * * *';
 
 export function startEventScheduler(): void {

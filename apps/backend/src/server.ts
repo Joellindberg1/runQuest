@@ -6,6 +6,8 @@ import { errorCode } from './utils/errorCode.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { installCronLogger } from './scheduler/cronLogger.js';
+import { warnIfProcessTimezoneIsNotUtc } from './scheduler/timezoneCheck.js';
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
@@ -97,6 +99,8 @@ server.on('listening', () => {
   // 🕐 Schedulers — endast i produktion
   if (process.env.NODE_ENV === 'production') {
     logger.info('🕐 Starting schedulers (production)...');
+    installCronLogger();
+    warnIfProcessTimezoneIsNotUtc();
     startStravaScheduler();
     startChallengeScheduler();
     startEventScheduler();

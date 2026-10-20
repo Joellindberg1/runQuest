@@ -22,6 +22,7 @@ import {
   checkRateBudgetHook,
   checkReconcileSchedulerStart,
   checkRecoverySchedulerStart,
+  checkCronLoggerInstall,
   checkStravaTokenPath,
   checkTokenKeyStartupCheck,
   checkDummyHashWarmup,
@@ -638,6 +639,35 @@ describe('checkRecoverySchedulerStart', () => {
   it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
     assert.equal(checkRecoverySchedulerStart([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
     assert.deepEqual(checkRecoverySchedulerStart([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
+describe('checkCronLoggerInstall', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+  const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  }\n});\n`;
+
+  it('passes when the logger is installed directly in the production block, before the schedulers', () => {
+    assert.deepEqual(checkCronLoggerInstall(server(prod('    installCronLogger();\n    startStravaScheduler();'))), []);
+  });
+
+  it('flags a server.ts where the install line is removed', () => {
+    const errors = checkCronLoggerInstall(server(prod('    startStravaScheduler();')));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: installCronLogger\(\) måste anropas direkt i produktionsblocket/);
+  });
+
+  it('flags a call outside the production block, in a nested callback, or only in a comment or string', () => {
+    const cases = [
+      "installCronLogger();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  setTimeout(() => {\n    installCronLogger();\n  }, 1);\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  // installCronLogger();\n  logger.info('installCronLogger()');\n}\n",
+    ];
+    for (const code of cases) assert.equal(checkCronLoggerInstall(server(code)).length, 1, code);
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkCronLoggerInstall([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkCronLoggerInstall([{ path: 'apps/one/src/a.ts', content: '' }]), []);
   });
 });
 
@@ -1719,6 +1749,33 @@ describe('CLI', () => {
     }
     const good = makeBackend('recovery-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaReconcileScheduler();\n  startRecalculationRecoveryScheduler();\n}\n");
     assert.equal(runCli('recovery-scheduler-start', good).status, 0);
+  });
+
+  it('exits 1 when server.ts does not install the node-cron logger in the production block (also under all) and 0 once it does', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('cron-logger-bad', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n");
+    for (const mode of ['cron-logger-install', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /installCronLogger\(\) måste anropas direkt i produktionsblocket/);
+    }
+    const good = makeBackend('cron-logger-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  installCronLogger();\n  startStravaScheduler();\n}\n");
+    assert.equal(runCli('cron-logger-install', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in cron-logger-install mode', () => {
+    const result = runCli('cron-logger-install');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /node-cron/);
   });
 
   it('exits 0 on the current repo in recovery-scheduler-start mode', () => {
