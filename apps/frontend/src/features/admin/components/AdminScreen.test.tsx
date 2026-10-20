@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import AdminPage from '@/pages/AdminPage';
-import type { AdminUser } from '@runquest/shared';
+import type { AdminUser, CreatedUser } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import type { TitleLeaderboardEntry } from '@runquest/shared';
@@ -238,7 +238,9 @@ describe('Admin — members', () => {
   });
 
   it('Add member: alla fält krävs, lösenordet minst 6 tecken, och en ny medlem hamnar i listan', async () => {
-    const create = vi.fn().mockResolvedValue({ success: true, data: member('u-new', 'Anna Berg') });
+    // Serverns form: POST /auth/users svarar med sju kolumner (CreatedUser), inte ett helt AdminUser.
+    const created: CreatedUser = { id: 'u-new', name: 'Anna Berg', email: 'anna@wolfpack.se', total_xp: 0, current_level: 1, current_streak: 0, created_at: '2026-10-20T08:00:00Z' };
+    const create = vi.fn().mockResolvedValue({ success: true, data: created });
     handlers.createUser = create;
     openUsers();
     await screen.findByRole('list', { name: 'Members' });
@@ -257,6 +259,8 @@ describe('Admin — members', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(create).toHaveBeenCalledWith('Anna Berg', 'anna@wolfpack.se', 'secret-1'));
     expect(await screen.findByText('Anna Berg')).toBeInTheDocument();
+    // Kontot har inga rundor än: raden visar 0 rundor, inte NaN
+    expect(screen.getByRole('list', { name: 'Members' })).toHaveTextContent('Level 1 · 0 XP · 0 runs · 0 streak');
     expect(screen.getByRole('status', { name: 'Members status' })).toHaveTextContent('Member added.');
     expect(screen.getByLabelText('Name')).toHaveValue('');
   });
