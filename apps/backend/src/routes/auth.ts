@@ -17,6 +17,7 @@ import type {
   ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsResponse, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersResponse,
   UsersWithRunsResponse,
 } from '@runquest/shared';
+import { BCRYPT_COST, getDummyPasswordHash } from '../utils/passwordHash.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { joinGroup } from '../utils/membership.js';
@@ -60,15 +61,17 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       user = byName?.[0] ?? null;
     }
 
+    // bcrypt-arbetet görs i alla fall (okänt konto, databasfel, fel lösenord) så att svarstiden inte avslöjar
+    // vilka konton som finns. Mot dummy-hashen kan jämförelsen aldrig lyckas, och `user` styr utfallet.
+    const passwordMatch = await bcrypt.compare(password, !error && user ? user.password_hash : await getDummyPasswordHash());
+
     if (error || !user) {
       logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
       res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
     }
 
-    logger.info(`🔑 User found, verifying password for user ${user.id}`);
+    logger.info(`🔑 User found, password checked for user ${user.id}`);
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
       logger.info('❌ Password mismatch');
       res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
@@ -170,7 +173,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     logger.info('✅ Current password verified, hashing new password');
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
@@ -282,7 +285,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     }
 
     // Hash password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create new user. Gruppen sätts inte här: join_group ger medlemskapet och sätter pekaren users.group_id (ADR 012 beslut 2.2).
@@ -391,7 +394,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     logger.info(`✅ User ${user.id} found, hashing new password`);
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
