@@ -157,7 +157,7 @@ describe('GET /api/leaderboard/rank-delta', () => {
     useDb(tables(), { errors: { event_entries: { message: 'boom internal' } } });
     const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to fetch rank delta' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to fetch rank delta', code: 'internal_error' });
   });
 });
 

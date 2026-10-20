@@ -3,7 +3,7 @@
 // Strava signerar inte händelserna, så skyddet är lager på lager, och det som bär är ADR 010 beslut 1: händelsen är bara en signal, handlern bygger aldrig på dess innehåll.
 //
 // Svarsformen dikteras av Strava ({"hub.challenge": …} och ett tomt 200), så ADR 007:s `{ success, data }` gäller INTE här.
-// Felsvar använder ändå `{ error }` utan detaljer.
+// Felsvar använder ändå `{ error }` utan detaljer. Undantaget är GET /health (JWT + admin), som svarar i kuvertet (ADR 007 Addendum 2026-10-20 punkt 4).
 //
 // POST, stegen i ordning (billiga kontroller först; databasen läses först för en giltig händelse, högst två läsningar och en
 // skrivning inom Stravas 2 s, inga Strava-anrop och inget som väntar på bearbetningen):
@@ -43,7 +43,8 @@ import { buildWebhookDedupeKey, pickWhitelistedUpdates } from '../services/strav
 import { readWebhookHealth } from '../services/stravaWebhook/health.js';
 import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
-import type { ApiFailure, StravaWebhookHealthResponse } from '@runquest/shared';
+import type { StravaWebhookHealthResponse } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 
 const EVENTS_TABLE = 'strava_webhook_events';
 const UNPROCESSED_STATUSES = ['pending', 'processing'];
@@ -115,11 +116,11 @@ export function createStravaWebhookRouter({ onEventStored }: StravaWebhookOption
   // räknare, inte gruppdata: flytta den till supportrollen när RUN-267 landar.
   router.get('/health', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
     try {
-      res.json({ success: true, data: await readWebhookHealth(configuredSubscriptionId() !== null) } satisfies StravaWebhookHealthResponse);
+      ok<StravaWebhookHealthResponse>(res, await readWebhookHealth(configuredSubscriptionId() !== null));
     } catch (error) {
       // Synligt fel i stället för nollor: en hälsokontroll som säger 0 vid databasfel ljuger. Bara felkoden loggas.
       logger.error(`❌ Strava webhook health: could not read the queue (${errorCode(error)})`);
-      res.status(500).json({ success: false, error: 'Failed to read webhook health' } satisfies ApiFailure);
+      fail(res, 500, 'Failed to read webhook health');
     }
   });
 

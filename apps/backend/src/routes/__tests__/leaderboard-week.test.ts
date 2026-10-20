@@ -162,7 +162,7 @@ describe('GET /api/leaderboard/week', () => {
     useDb(baseTables());
     const res = await server.request('GET', `/api/leaderboard/week?week_start=${value}`, { token: mintToken({ group_id: G1 }) });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('gör en enda runs-query för veckorna (ingen N+1) filtrerad på grupp via join', async () => {
@@ -212,6 +212,6 @@ describe('GET /api/leaderboard/week', () => {
     useDb(baseTables(), { errors: { runs: { message: 'relation "runs" secret detail' } } });
     const res = await server.request('GET', '/api/leaderboard/week', { token: mintToken({ group_id: G1 }) });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to fetch week leaderboard' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to fetch week leaderboard', code: 'internal_error' });
   });
 });

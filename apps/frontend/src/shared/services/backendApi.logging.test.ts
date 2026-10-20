@@ -62,6 +62,26 @@ describe('backendApi: expected and unexpected failures', () => {
   });
 });
 
+describe('backendApi: what a failed answer puts in the log', () => {
+  beforeEach(() => {
+    localStorage.setItem('runquest_token', 'tok');
+  });
+
+  it.each([
+    [409, 'sync_paused', 'warn'],
+    [500, 'internal_error', 'error'],
+  ] as const)('a %d answer logs the call, the status and the code, and nothing of the text or the body', async (status, code, level) => {
+    respondWith(status, { success: false, error: 'Secret text for activity 12345678901', code, data: { total: 3 }, extra: 'lat 57.70887' });
+
+    await backendApi.syncStrava();
+
+    const logged = JSON.stringify(vi.mocked(logger[level]).mock.calls);
+    expect(logged).toContain(`HTTP ${status}`);
+    expect(logged).toContain(code);
+    expect(logged).not.toMatch(/12345678901|57\.70887|Secret text/);
+  });
+});
+
 describe('backendApi logging', () => {
   it('fel loggas via logger.error, inte console.error', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});

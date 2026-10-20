@@ -19,8 +19,6 @@ export const RESUME_FOLLOW_UP_MS = 8_000;
 /** Vilken av de tre åtgärderna som pågår. `disconnect` och `pause` körs i dialogen, `resume` på kortet. */
 export type ConnectionAction = 'pause' | 'resume' | 'disconnect';
 
-/** Serverns svar när samtycket saknas eller är för gammalt (en gammal flik): en omladdad sida har den aktuella texten och rutan. */
-const CONSENT_REQUIRED_ERROR = 'Consent required';
 const CONSENT_RELOAD_HINT = 'The privacy text has been updated. Reload the page and approve it again to connect Strava.';
 
 /**
@@ -61,7 +59,8 @@ export function useStravaActions({ clientId }: UseStravaActionsInput) {
             void refreshStrava();
           } else {
             setStatus(null);
-            setError(result.error === CONSENT_REQUIRED_ERROR ? CONSENT_RELOAD_HINT : 'Could not connect Strava');
+            // Koden consent_required: samtycket saknas eller är för gammalt (en gammal flik). En omladdad sida har den aktuella texten och rutan (ADR 007 Addendum 2026-10-20 punkt 7).
+            setError(result.code === 'consent_required' ? CONSENT_RELOAD_HINT : 'Could not connect Strava');
           }
         } catch {
           setStatus(null);

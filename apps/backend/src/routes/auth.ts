@@ -13,10 +13,11 @@ import {
   DEFAULT_ADMIN_SETTINGS, MAX_DISPLAYED_TITLES, MULTIPLIER_MAX, MULTIPLIER_MIN, PASSWORD_MIN_LENGTH, compareXpStandings, multiplierProblem,
 } from '@runquest/shared';
 import type {
-  AdminSettingsResponse, AdminSettingsRow, AdminUsersResponse, ApiError, ApiFailure, ChangePasswordResponse, CreateUserResponse, LoginResponse, RecalculateTotalsResponse,
+  AdminSettingsResponse, AdminSettingsRow, AdminUsersResponse, ChangePasswordResponse, CreateUserResponse, LoginResponse, RecalculateTotalsResponse,
   ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsResponse, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersResponse,
   UsersWithRunsResponse,
 } from '@runquest/shared';
+import { fail, ok, okWithLegacy } from '../utils/respond.js';
 import { BCRYPT_COST, getDummyPasswordHash } from '../utils/passwordHash.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
@@ -34,7 +35,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
 
     if (!nameOrEmail || !password) {
       logger.info('❌ Missing name/email or password');
-      res.status(400).json({ error: 'Name/email and password required' } satisfies ApiError); return;
+      fail(res, 400, 'Name/email and password required'); return;
     }
 
     // Inloggningsfältet kan vara en e-postadress — det får inte hamna i loggen.
@@ -73,14 +74,14 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
 
     if (error || !user) {
       logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
-      res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
+      fail(res, 401, 'Invalid credentials', 'invalid_credentials'); return;
     }
 
     logger.info(`🔑 User found, password checked for user ${user.id}`);
 
     if (!passwordMatch) {
       logger.info('❌ Password mismatch');
-      res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
+      fail(res, 401, 'Invalid credentials', 'invalid_credentials'); return;
     }
 
     logger.info('✅ Password verified, creating JWT token');
@@ -91,7 +92,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     
     if (!jwtSecret) {
       logger.error('❌ JWT_SECRET not configured');
-      res.status(500).json({ error: 'Server configuration error' } satisfies ApiError); return;
+      fail(res, 500, 'Server configuration error'); return;
     }
 
     const token = jwt.sign(
@@ -110,9 +111,8 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
 
     logger.info(`🎉 Login successful for user ${user.id} (Admin: ${user.is_admin})`);
 
-    // Return token and user info
-    res.json({
-      success: true,
+    // Return token and user info. Steg 1 (dubbelsvar): token och user ligger kvar på toppnivå för en klient från före kuvertet, och i data för den nya.
+    const login = {
       token,
       user: {
         id: user.id,
@@ -120,11 +120,12 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
         email: user.email,
         is_admin: user.is_admin || false
       }
-    } satisfies LoginResponse);
+    };
+    okWithLegacy<LoginResponse>(res, login, login);
 
   } catch (error) {
     logger.error(`❌ Login error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -137,12 +138,12 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 
     if (!currentPassword || !newPassword) {
       logger.info('❌ Missing current or new password');
-      res.status(400).json({ error: 'Current password and new password required' } satisfies ApiError); return;
+      fail(res, 400, 'Current password and new password required'); return;
     }
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters long` } satisfies ApiError); return;
+      fail(res, 400, `New password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     logger.info(`🔍 Looking up user for password change: ${userId}`);
@@ -160,11 +161,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     // databasen som felar: 500 och en felhändelse med koden, aldrig ett 404 som döljer avbrottet.
     if (error && error.code !== 'PGRST116') {
       logger.error(`❌ Could not read the user for a password change (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to change password' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to change password'); return;
     }
     if (!user) {
       logger.info('❌ User not found for password change');
-      res.status(404).json({ error: 'User not found' } satisfies ApiError); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🔑 User found, verifying current password for user ${user.id}`);
@@ -173,7 +174,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!passwordMatch) {
       logger.info('❌ Current password is incorrect');
-      res.status(401).json({ error: 'Current password is incorrect' } satisfies ApiError); return;
+      fail(res, 401, 'Current password is incorrect', 'current_password_incorrect'); return;
     }
 
     logger.info('✅ Current password verified, hashing new password');
@@ -190,19 +191,16 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 
     if (updateError) {
       logger.error(`❌ Error updating password (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update password' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update password'); return;
     }
 
     logger.info(`🎉 Password successfully changed for user ${user.id}`);
 
-    res.json({
-      success: true,
-      message: 'Password changed successfully'
-    } satisfies ChangePasswordResponse);
+    okWithLegacy<ChangePasswordResponse>(res, null, { message: 'Password changed successfully' });
 
   } catch (error) {
     logger.error(`❌ Password change error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -227,7 +225,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 
     if (error) {
       logger.error(`❌ Error fetching users (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch users' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch users'); return;
     }
 
     const usersWithRunCount = (users ?? []).map((u: any) => {
@@ -237,14 +235,11 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 
     logger.info(`✅ Successfully fetched ${usersWithRunCount.length} users`);
 
-    res.json({
-      success: true,
-      data: usersWithRunCount
-    } satisfies AdminUsersResponse);
+    ok<AdminUsersResponse>(res, usersWithRunCount);
 
   } catch (error) {
     logger.error(`❌ Error fetching users (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -261,12 +256,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       logger.info('❌ Missing required fields');
-      res.status(400).json({ error: 'Name, email, and password are required' } satisfies ApiError); return;
+      fail(res, 400, 'Name, email, and password are required'); return;
     }
 
     if (password.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ Password too short');
-      res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long` } satisfies ApiError); return;
+      fail(res, 400, `Password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     logger.info('🔍 Creating a new user');
@@ -282,12 +277,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     if (byName.error || byEmail.error) {
       // Bara felkoden: PostgREST-meddelandet kan bära radvärden och går via Sentry-kopplingen vidare som log_detail.
       logger.error(`❌ Error checking for existing user (${errorCode(byName.error ?? byEmail.error)})`);
-      res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+      fail(res, 500, 'Internal server error'); return;
     }
 
     if ((byName.data?.length ?? 0) > 0 || (byEmail.data?.length ?? 0) > 0) {
       logger.info('❌ User already exists');
-      res.status(409).json({ error: 'User with this name or email already exists' } satisfies ApiError); return;
+      fail(res, 409, 'User with this name or email already exists', 'user_exists'); return;
     }
 
     // Hash password
@@ -312,7 +307,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     if (error) {
       logger.error(`❌ Error creating user (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to create user' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to create user'); return;
     }
 
     // Medlemskapet i adminens grupp (rollen member; första medlemskapet räknar hela historiken). Misslyckas det tas kontot bort igen:
@@ -326,7 +321,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     } catch (joinError) {
       const { error: cleanupError } = await supabase.from('users').delete().eq('id', newUser.id);
       logger.error(`❌ Error adding new user ${newUser.id} to the group (${errorCode(joinError)})${cleanupError ? `; the user could not be removed again (${errorCode(cleanupError)})` : ''}`);
-      res.status(500).json({ error: 'Failed to create user' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to create user'); return;
     }
 
     // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte kontot: medlemskapet är sparat.
@@ -334,14 +329,11 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     logger.info(`🎉 Successfully created user ${newUser.id}`);
 
-    res.json({
-      success: true,
-      data: newUser
-    } satisfies CreateUserResponse);
+    ok<CreateUserResponse>(res, newUser);
 
   } catch (error) {
     logger.error(`❌ Error creating user (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -360,18 +352,18 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (!newPassword) {
       logger.info('❌ Missing new password');
-      res.status(400).json({ error: 'New password is required' } satisfies ApiError); return;
+      fail(res, 400, 'New password is required'); return;
     }
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters long` } satisfies ApiError); return;
+      fail(res, 400, `New password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
     if (!isUuid(id)) {
       logger.info('❌ User not found (id is not a uuid)');
-      res.status(404).json({ error: 'User not found' } satisfies ApiError); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🔍 Resetting password for user ID: ${id}`);
@@ -389,12 +381,12 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (findError) {
       logger.error(`❌ Error looking up the user for a password reset (${errorCode(findError)})`);
-      res.status(500).json({ error: 'Failed to look up the user' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to look up the user'); return;
     }
 
     if (!user) {
       logger.info('❌ User not found');
-      res.status(404).json({ error: 'User not found' } satisfies ApiError); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`✅ User ${user.id} found, hashing new password`);
@@ -415,24 +407,21 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (updateError) {
       logger.error(`❌ Error updating password (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update password' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update password'); return;
     }
 
     if (!updated?.length) {
       logger.info('❌ User not found when updating the password (moved or removed since the lookup)');
-      res.status(404).json({ error: 'User not found' } satisfies ApiError); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🎉 Password successfully reset for user ${user.id}`);
 
-    res.json({
-      success: true,
-      message: 'Password reset successfully'
-    } satisfies ResetUserPasswordResponse);
+    okWithLegacy<ResetUserPasswordResponse>(res, null, { message: 'Password reset successfully' });
 
   } catch (error) {
     logger.error(`❌ Password reset error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -448,19 +437,12 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
     const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
     await calculateUserTotals(userId);
     
-    res.json({
-      success: true,
-      message: 'User totals recalculated successfully',
-      userId: userId,
-      timestamp: new Date().toISOString()
-    } satisfies RecalculateTotalsResponse);
+    const recalculated = { userId, timestamp: new Date().toISOString() };
+    okWithLegacy<RecalculateTotalsResponse>(res, recalculated, { message: 'User totals recalculated successfully', ...recalculated });
   } catch (error) {
     logger.error(`❌ Error recalculating user totals (${errorCode(error)})`);
     // Aldrig error.message i svaret: det kan bära databasvärden. Detaljerna finns i loggen som felkod.
-    res.status(500).json({
-      success: false,
-      error: 'Failed to recalculate user totals'
-    } satisfies ApiFailure);
+    fail(res, 500, 'Failed to recalculate user totals');
   }
 });
 
@@ -513,15 +495,15 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
 
     if (error || !settings) {
       logger.error(`❌ Failed to fetch admin settings (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch admin settings' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch admin settings'); return;
     }
 
     logger.info('✅ Admin settings fetched successfully');
-    res.json({ success: true, data: toAdminSettingsResponse(settings) } satisfies AdminSettingsResponse);
+    ok<AdminSettingsResponse>(res, toAdminSettingsResponse(settings));
     
   } catch (error) {
     logger.error(`❌ Error fetching admin settings (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch admin settings' } satisfies ApiError); return;
+    fail(res, 500, 'Failed to fetch admin settings'); return;
   }
 });
 
@@ -541,7 +523,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     
     // Validate required fields
     if (base_xp === undefined || xp_per_km === undefined) {
-      res.status(400).json({ error: 'base_xp and xp_per_km are required' } satisfies ApiError); return;
+      fail(res, 400, 'base_xp and xp_per_km are required'); return;
     }
     
     const supabase = getSupabaseClient();
@@ -553,7 +535,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .single();
     if (findError || !current) {
       logger.error(`❌ Failed to find admin settings row (${errorCode(findError)})`);
-      res.status(500).json({ error: 'Failed to update admin settings' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update admin settings'); return;
     }
 
     const { data: updatedSettings, error } = await supabase
@@ -575,20 +557,16 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     if (error || !updatedSettings) {
       invalidateXpConfigCache(); // släng cachen oavsett utfall — raden kan ha ändrats
       logger.error(`❌ Failed to update admin settings (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update admin settings' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update admin settings'); return;
     }
     
     invalidateXpConfigCache();
     logger.info('✅ Admin settings updated successfully');
-    res.json({
-      success: true,
-      data: toAdminSettingsResponse(updatedSettings),
-      message: 'Admin settings updated successfully'
-    } satisfies UpdateAdminSettingsResponse);
+    okWithLegacy<UpdateAdminSettingsResponse>(res, toAdminSettingsResponse(updatedSettings), { message: 'Admin settings updated successfully' });
     
   } catch (error) {
     logger.error(`❌ Error updating admin settings (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update admin settings' } satisfies ApiError); return;
+    fail(res, 500, 'Failed to update admin settings'); return;
   }
 });
 
@@ -605,15 +583,15 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
     
     if (error) {
       logger.error(`❌ Failed to fetch streak multipliers (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch streak multipliers' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch streak multipliers'); return;
     }
     
     logger.info('✅ Streak multipliers fetched successfully');
-    res.json({ success: true, data: multipliers } satisfies StreakMultipliersResponse);
+    ok<StreakMultipliersResponse>(res, multipliers);
     
   } catch (error) {
     logger.error(`❌ Error fetching streak multipliers (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch streak multipliers' } satisfies ApiError); return;
+    fail(res, 500, 'Failed to fetch streak multipliers'); return;
   }
 });
 
@@ -625,7 +603,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     
     const invalid = validateMultipliers(multipliers);
     if (invalid) {
-      res.status(400).json({ error: invalid } satisfies ApiError); return;
+      fail(res, 400, invalid); return;
     }
     const ladder = (multipliers as Array<{ days: number; multiplier: number }>).map(({ days, multiplier }) => ({ days, multiplier }));
 
@@ -641,7 +619,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     if (error) {
       invalidateXpConfigCache();
       logger.error(`❌ Failed to update streak multipliers (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update streak multipliers' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update streak multipliers'); return;
     }
 
     const { error: pruneError } = await supabase
@@ -652,19 +630,15 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     invalidateXpConfigCache();
     if (pruneError) {
       logger.error(`❌ Failed to remove old streak multipliers (new steps were saved) (${errorCode(pruneError)})`);
-      res.status(500).json({ error: 'Saved the new steps but could not remove old ones — try saving again' } satisfies ApiError); return;
+      fail(res, 500, 'Saved the new steps but could not remove old ones — try saving again'); return;
     }
 
     logger.info('✅ Streak multipliers updated successfully');
-    res.json({ 
-      success: true, 
-      data: insertedMultipliers,
-      message: 'Streak multipliers updated successfully'
-    } satisfies UpdateStreakMultipliersResponse);
+    okWithLegacy<UpdateStreakMultipliersResponse>(res, insertedMultipliers, { message: 'Streak multipliers updated successfully' });
     
   } catch (error) {
     logger.error(`❌ Error updating streak multipliers (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update streak multipliers' } satisfies ApiError); return;
+    fail(res, 500, 'Failed to update streak multipliers'); return;
   }
 });
 
@@ -675,7 +649,7 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
     const { title_ids } = req.body;
 
     if (!Array.isArray(title_ids) || title_ids.length > MAX_DISPLAYED_TITLES) {
-      res.status(400).json({ error: `title_ids must be an array of up to ${MAX_DISPLAYED_TITLES} IDs` } satisfies ApiError); return;
+      fail(res, 400, `title_ids must be an array of up to ${MAX_DISPLAYED_TITLES} IDs`); return;
     }
 
     const supabase = getSupabaseClient();
@@ -686,14 +660,14 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
 
     if (error) {
       logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update displayed titles' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to update displayed titles'); return;
     }
 
     logger.info(`✅ Updated displayed titles for user ${userId} (${title_ids.length} selected)`);
-    res.json({ success: true } satisfies UpdateDisplayedTitlesResponse);
+    ok<UpdateDisplayedTitlesResponse>(res, null);
   } catch (error) {
     logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -722,7 +696,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
 
     if (error) {
       logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch users' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch users'); return;
     }
 
     // Boardens All-time-ordning = rank_passed-komparatorn (ADR 011 beslut 6): xp fallande, namn (skiftlägesokänsligt), id. Sorteras i TS
@@ -754,14 +728,11 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
 
     logger.info(`✅ Successfully fetched ${data.length} users with runs`);
 
-    res.json({
-      success: true,
-      data,
-    } satisfies UsersWithRunsResponse);
+    ok<UsersWithRunsResponse>(res, data);
 
   } catch (error) {
     logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 

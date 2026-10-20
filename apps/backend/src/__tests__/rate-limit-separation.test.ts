@@ -53,7 +53,7 @@ describe('login rate limit (oförändrat beteende)', () => {
     for (let i = 1; i <= 20; i++) expect((await login(ip)).status, `försök ${i}`).toBe(400);
     const blocked = await login(ip);
     expect(blocked.status).toBe(429);
-    expect(blocked.body).toEqual({ error: 'Too many attempts, try again later' });
+    expect(blocked.body).toEqual({ success: false, error: 'Too many attempts, try again later', code: 'rate_limited' });
     // en annan IP påverkas inte
     expect((await login('203.0.113.11')).status).toBe(400);
   });

@@ -92,7 +92,7 @@ it('POST /news/read utan token ger 401', async () => {
   const db = use(world([row(1)]));
   const res = await server.request('POST', '/api/news/read', { body: { ids: [1] } });
   expect(res.status).toBe(401);
-  expect(res.body).toEqual({ error: expect.any(String) });
+  expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   expect(db.queries).toEqual([]);
 });
 
@@ -182,7 +182,7 @@ it('tom lista, dubblerade id, icke-heltal, noll eller negativa och fler än 50 i
   for (const [label, body] of bad) {
     const res = await read(body);
     expect(res.status, label).toBe(400);
-    expect(res.body, label).toEqual({ error: expect.any(String) });
+    expect(res.body, label).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   }
   expect(db.queries.filter((q) => q.mutation)).toEqual([]);
 
@@ -374,7 +374,7 @@ describe('POST /api/news/read: kvittering och rensning', () => {
     const db = use(t);
     const res = await read({ ids: [1] }, 'ghost');
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'User not found' });
+    expect(res.body).toEqual({ success: false, error: 'User not found', code: 'not_found' });
     expect(db.queries.filter((q) => q.mutation)).toEqual([]);
   });
 
@@ -397,7 +397,7 @@ describe('POST /api/news/read: kvittering och rensning', () => {
     const res = await read({ ids: [2] });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to update news state' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to update news state', code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('secret');
     expect(db.queries.filter((q) => q.mutation === 'delete')).toEqual([]);
     expect(error).toHaveBeenCalled();

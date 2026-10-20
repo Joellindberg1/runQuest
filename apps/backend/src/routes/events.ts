@@ -7,8 +7,9 @@ import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { zoneDay, type ApiError, type DailyDrawResponse, type EventsHistoryResponse, type EventsResponse, type OffsetPageMeta } from '@runquest/shared';
+import { zoneDay, type DailyDrawResponse, type EventsHistoryResponse, type EventsResponse, type OffsetPageMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { fail, okWithLegacy } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -47,7 +48,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     const groupId = req.user!.group_id;
 
     if (!groupId) {
-      res.json({ events: [] } satisfies EventsResponse);
+      okWithLegacy<EventsResponse>(res, { events: [] }, { events: [] });
       return;
     }
 
@@ -81,12 +82,12 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) {
       logger.error(`❌ [EventsRoute] Fetch events error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch events' } satisfies ApiError);
+      fail(res, 500, 'Failed to fetch events');
       return;
     }
 
     if (!events?.length) {
-      res.json({ events: [] } satisfies EventsResponse);
+      okWithLegacy<EventsResponse>(res, { events: [] }, { events: [] });
       return;
     }
 
@@ -206,11 +207,10 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
-    const body: EventsResponse = { events: result };
-    res.json(body);
+    okWithLegacy<EventsResponse>(res, { events: result }, { events: result });
   } catch (err) {
     logger.error(`❌ [EventsRoute] Unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
+    fail(res, 500, 'Internal server error');
   }
 });
 
@@ -226,13 +226,13 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
 
     const page = parseOffsetPage(req.query, HISTORY_PAGE);
     if (!page.ok) {
-      res.status(400).json({ error: page.error } satisfies ApiError);
+      fail(res, 400, page.error);
       return;
     }
     const { limit, offset } = page;
 
     if (!groupId) {
-      res.json({ events: [], meta: buildPageMeta(0, limit, offset) } satisfies EventsHistoryResponse);
+      okWithLegacy<EventsHistoryResponse>(res, { events: [] }, { events: [] }, buildPageMeta(0, limit, offset));
       return;
     }
 
@@ -264,11 +264,11 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       meta = buildPageMeta(paged.total, limit, offset);
     } catch (error) {
       logger.error(`❌ [EventsRoute] History fetch error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch history' } satisfies ApiError);
+      fail(res, 500, 'Failed to fetch history');
       return;
     }
     if (!events.length) {
-      res.json({ events: [], meta } satisfies EventsHistoryResponse);
+      okWithLegacy<EventsHistoryResponse>(res, { events: [] }, { events: [] }, meta);
       return;
     }
 
@@ -360,11 +360,10 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
-    const body: EventsHistoryResponse = { events: result, meta };
-    res.json(body);
+    okWithLegacy<EventsHistoryResponse>(res, { events: result }, { events: result }, meta);
   } catch (err) {
     logger.error(`❌ [EventsRoute] History unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
+    fail(res, 500, 'Internal server error');
   }
 });
 
@@ -375,10 +374,10 @@ router.post('/admin/trigger-daily-draw', authenticateJWT, requireAdmin, async (_
   try {
     logger.info('🎲 [EventsRoute] Manual daily draw triggered by admin');
     const result = await scheduleDailyParticipationEventTest();
-    res.json(result satisfies DailyDrawResponse);
+    okWithLegacy<DailyDrawResponse>(res, result, result);
   } catch (err) {
     logger.error(`❌ [EventsRoute] Manual daily draw error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
+    fail(res, 500, 'Internal server error');
   }
 });
 

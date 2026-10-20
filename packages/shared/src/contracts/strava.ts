@@ -1,9 +1,10 @@
 // API-kontrakt för Strava-kopplingen (nivå 1): GET /api/strava/config, GET /api/strava/status, POST /api/strava/callback, PUT /api/strava/sync-paused,
 // DELETE /api/strava/disconnect, POST /api/strava/sync, de två adminrutterna (backfill-extended och sync-all) och GET /api/strava/webhook/health.
 // Stravas eget protokoll (GET och POST /api/strava/webhook) bestäms av Strava och har ingen kontraktstyp här.
-// Endast typer och konstanter.
+// Endast typer och konstanter. Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): `success` och `data` ligger bredvid de gamla nycklarna (dubbelsvar, DualEnvelope)
+// tills steg 2 (RUN-364) tar bort dem.
 import { DATA_POLICY_VERSION } from '../legal/dataPolicy.js';
-import type { ApiSuccess } from './common.js';
+import type { ApiSuccess, DualEnvelope } from './common.js';
 
 /**
  * Vilken samtyckestext användaren godkände när Strava anslöts; sparas i strava_tokens.consent_version.
@@ -17,11 +18,8 @@ export interface StravaCallbackRequest {
   consent_version: string;
 }
 
-/** Svar från POST /api/strava/callback. Ingen profildata från Strava skickas vidare till klienten. */
-export interface StravaCallbackResponse {
-  success: true;
-  message: string;
-}
+/** Svar från POST /api/strava/callback: `{ success, message, data: null }`. Ingen profildata från Strava skickas vidare till klienten. Saknat samtycke är 400 `consent_required`. */
+export type StravaCallbackResponse = DualEnvelope<{ message: string }, null>;
 
 /**
  * Svar från GET /api/strava/status. Fälten utöver connected/expired finns bara när kopplingen finns.
@@ -30,7 +28,7 @@ export interface StravaCallbackResponse {
  * när pausen började och null när synken är på. PostgREST ger tiden som `…+00:00`, inte `…Z`: tolka den med `new Date(...)`
  * och jämför aldrig strängar.
  */
-export interface StravaStatusResponse {
+export interface StravaStatus {
   connected: boolean;
   expired: boolean;
   expires_at?: number;
@@ -44,24 +42,17 @@ export interface StravaStatusResponse {
   paused_at?: string | null;
 }
 
+/** Svar från GET /api/strava/status: statusfälten på toppnivå (gammal klient) och i `data` (ny klient). */
+export type StravaStatusResponse = DualEnvelope<StravaStatus>;
+
 /** Svar från GET /api/strava/config (publik, ingen JWT): Strava-appens client_id, som klienten behöver för att öppna auktoriseringsfönstret. */
-export interface StravaConfigResponse {
-  client_id: string;
-}
+export type StravaConfigResponse = DualEnvelope<{ client_id: string }>;
 
 /** Svar från DELETE /api/strava/disconnect (ADR 010 beslut 7.4): kopplingen är återkallad och Stravarundorna raderade. Idempotent. */
-export interface StravaDisconnectResponse {
-  success: true;
-  message: string;
-}
+export type StravaDisconnectResponse = DualEnvelope<{ message: string }, null>;
 
 /** Svar från POST /api/strava/sync: antalet nya rundor och aktiviteter som hämtades. 409 om synken är pausad, 503 om tokennyckeln inte går att använda. */
-export interface StravaSyncResponse {
-  success: true;
-  message: string;
-  newRuns: number;
-  totalActivities: number;
-}
+export type StravaSyncResponse = DualEnvelope<{ message: string; newRuns: number; totalActivities: number }, { newRuns: number; totalActivities: number }>;
 
 /** En rad per användare i summeringen av POST /api/strava/backfill-extended; `error` är satt när användarens backfill föll. */
 export interface StravaBackfillUserResult {
@@ -71,18 +62,10 @@ export interface StravaBackfillUserResult {
 }
 
 /** Svar från POST /api/strava/backfill-extended (admin) när det fanns kopplade användare. */
-export interface StravaBackfillDoneResponse {
-  success: true;
-  totalUpdated: number;
-  summary: StravaBackfillUserResult[];
-}
+export type StravaBackfillDoneResponse = DualEnvelope<{ totalUpdated: number; summary: StravaBackfillUserResult[] }>;
 
 /** Svar från POST /api/strava/backfill-extended (admin) när ingen användare är kopplad (eller kopplingarna inte gick att läsa): inget gjordes. */
-export interface StravaBackfillNoUsersResponse {
-  success: true;
-  message: string;
-  updated: 0;
-}
+export type StravaBackfillNoUsersResponse = DualEnvelope<{ message: string; updated: 0 }, { updated: 0 }>;
 
 export type StravaBackfillExtendedResponse = StravaBackfillDoneResponse | StravaBackfillNoUsersResponse;
 
@@ -96,10 +79,10 @@ export interface StravaSyncAllUserResult {
 }
 
 /**
- * Svar från GET /api/strava/sync-all (admin) och det synkjobbet själv returnerar. `unavailable` är satt när tokennyckeln saknas eller nekas (ADR 013):
- * hela körningen hoppades över och ingen användare provades. Routen svarar då 503 `ApiError` i stället.
+ * Det synkjobbet själv returnerar (och schedulern läser). `unavailable` är satt när tokennyckeln saknas eller nekas (ADR 013): hela körningen hoppades över och
+ * ingen användare provades. Routen svarar då 503 `strava_unavailable` i stället. Inte ett HTTP-svar: se `StravaSyncAllResponse`.
  */
-export interface StravaSyncAllResponse {
+export interface StravaSyncAllResult {
   success: boolean;
   message: string;
   syncedUsers: number;
@@ -108,6 +91,12 @@ export interface StravaSyncAllResponse {
   results: StravaSyncAllUserResult[];
   unavailable?: true;
 }
+
+/** Svar från GET /api/strava/sync-all (admin): räknarna på toppnivå (gammal klient) och i `data` (ny klient), vid en körning som gjordes. */
+export type StravaSyncAllResponse = DualEnvelope<
+  Pick<StravaSyncAllResult, 'message' | 'syncedUsers' | 'totalUsers' | 'totalNewRuns' | 'results'>,
+  Pick<StravaSyncAllResult, 'syncedUsers' | 'totalUsers' | 'totalNewRuns' | 'results'>
+>;
 
 /** Varför tokennyckeln inte går att använda (ADR 013). */
 export type StravaTokenKeyProblem = 'key_missing' | 'key_invalid' | 'kid_not_allowed';
@@ -159,10 +148,7 @@ export interface StravaSyncPausedRequest {
 }
 
 /** Svar från PUT /api/strava/sync-paused (ADR 007): läget efter anropet. */
-export interface StravaSyncPausedResponse {
-  success: true;
-  data: {
-    sync_paused: boolean;
-    paused_at: string | null;
-  };
-}
+export type StravaSyncPausedResponse = ApiSuccess<{
+  sync_paused: boolean;
+  paused_at: string | null;
+}>;

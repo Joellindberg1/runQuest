@@ -1,11 +1,11 @@
 // 🔗 Backend API Service - Production Ready
 import type {
   // gemensamma svarsformer
-  ApiError, ApiSuccess,
+  ApiError, ApiErrorCode, ApiSuccess,
   // auth, användare och adminens inställningar
-  AdminSettingsResponse, AdminUsersResponse, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, CreateUserResponse,
-  LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsRequest,
-  UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse,
+  AdminSettingsResponse, AdminUsersResponse, ChangePasswordRequest, CreateUserRequest, CreateUserResponse,
+  LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, StreakMultipliersResponse, UpdateAdminSettingsRequest,
+  UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateStreakMultipliersRequest, UpdateStreakMultipliersResponse,
   UploadProfilePictureResponse, UsersWithRunsResponse,
   // rundor
   CreateRunRequest, CreateRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse,
@@ -22,11 +22,11 @@ import type {
   // väntelista
   AdminWaitlistData, WaitlistSignupRequest,
   // Strava
-  StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse,
-  StravaSyncPausedRequest, StravaSyncPausedResponse, StravaSyncResponse,
+  StravaBackfillExtendedResponse, StravaCallbackRequest, StravaConfigResponse, StravaStatus, StravaSyncPausedRequest, StravaSyncPausedResponse, StravaSyncResponse,
   // titlar
   GroupEligibilityEntry, TitleLeaderboardEntry, TitleLeaderboardMeta, UserTitleEntry,
 } from '@runquest/shared';
+import { isApiErrorCode } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
 import { SESSION_TOKEN_KEY, SESSION_USER_KEY } from './sessionStorageKeys';
 
@@ -51,38 +51,66 @@ const NO_AUTHENTICATION_TOKEN = 'No authentication token';
 const UNEXPECTED_RESPONSE = 'Unexpected response from the server';
 const NETWORK_ERROR = 'Network error';
 
-/** Utfallet av login() hos klienten: serverns svar (LoginResponse) eller ett fel. Aldrig serverns `{ error }` rått. */
-export type LoginResult = LoginResponse | { success: false; error: string };
+/** Utfallet av login() hos klienten: token och användare (serverns `data`, eller den gamla toppnivån) eller ett fel. Aldrig serverns kropp rått. */
+export type LoginResult = { success: true; token: string; user: LoginUser } | { success: false; error: string };
 
 /**
- * Felsvaret hos klienten: shared:s `ApiError` med `success: false`. `written` följer med när POST/PUT/DELETE /runs skrev ändringen men XP-omräkningen
- * föll (500): cachen är inaktuell och ett nytt försök kan dubblera. De frånvarande fälten är typade så att anroparen kan läsa `data` och `meta`
- * utan att först avgöra utfallet.
+ * Felsvaret hos klienten: shared:s `ApiError` med `success: false`. `code` är serverns maskinkod ur katalogen (ADR 007 Addendum 2026-10-20) och saknas för ett lokalt fel
+ * ("Not authenticated"), för ett fel från en backend före steg 1 och för en kod klienten inte känner (en nyare server): då gäller statusens klass.
+ * `written` följer med när POST/PUT/DELETE /runs skrev ändringen men XP-omräkningen föll (500, koden `recalc_failed_after_write`, med eller utan fältet): cachen är
+ * inaktuell och ett nytt försök kan dubblera. De frånvarande fälten är typade så att anroparen kan läsa `data` och `meta` utan att först avgöra utfallet.
  */
-export type ApiFailureResult = ApiError & { success: false; data?: undefined; meta?: undefined; message?: undefined; written?: true };
+export type ApiFailureResult = Omit<ApiError, 'code' | 'data'> & { code?: ApiErrorCode; data?: undefined; meta?: undefined; message?: undefined };
 
 /** Det klienten lämnar till anroparen: shared:s `ApiSuccess` (med `meta` när metoden bär det) plus serverns text om den behövs, eller ett fel. */
 export type ApiResult<T = unknown, M = undefined> =
   | (ApiSuccess<T, M> & { message?: string; error?: undefined; written?: undefined })
   | ApiFailureResult;
 
+/** En sida av gruppens rundor: `runs` och `meta` (paginering). Sidans form är densamma före och efter steg 1 av kuvertbytet. */
+export type GroupRunHistoryPage = GroupRunHistoryResponse['data'] & { meta: OffsetPageMeta };
+/** En sida av avslutade events: `events` och `meta` (paginering). */
+export type EventsHistoryPage = EventsHistoryResponse['data'] & { meta: OffsetPageMeta };
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type JsonObject = Record<string, unknown>;
 
 /**
- * Det en metod plockar ur ett lyckat svar. Alla former svaren har i dag bor i läsarna nedan, ingen annanstans: ADR 007 Addendum 2026-10-20 punkt 7-8
- * (RUN-354) lägger här till att `data` läses först och den gamla nyckeln (`run`, `runs`, `events`, `seen`, hela kroppen) är reserv.
+ * Det en metod plockar ur ett lyckat svar. Alla former svaren har i dag bor i läsarna nedan, ingen annanstans. Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20 punkt 7-8,
+ * RUN-354): `data` läses först och den gamla nyckeln (`run`, `runs`, `events`, `seen`, hela kroppen) är reserv. Reservläsningen tas bort i steg 2 (RUN-364), då backend
+ * inte längre skickar de gamla nycklarna: sök på "Steg 1" och "reserv" i den här filen.
  */
 type Reader<T, M> = (body: JsonObject) => { data: T; meta?: M; message?: string };
+
+const isJsonObject = (value: unknown): value is JsonObject => typeof value === 'object' && value !== null && !Array.isArray(value);
+/** Har svaret `data`? (`data: null` räknas: en åtgärd utan nyttolast.) */
+const hasData = (body: JsonObject): boolean => body.data !== undefined;
 
 /** `{ success, data }`: nyttolasten ligger i `data`. */
 const readData = <T>(body: JsonObject) => ({ data: body.data as T });
 /** `{ success, data, meta }`: som `readData`, och `meta` (paginering, olästa, diagnostik) når anroparen. */
 const readDataAndMeta = <T, M>(body: JsonObject) => ({ data: body.data as T, meta: body.meta as M });
-/** Äldre svar utan `data`-nyckel: hela kroppen är nyttolasten. */
+/** Hela kroppen är nyttolasten: för anrop som äger sin egen uppackning (`authenticatedRequest`). */
 const readBody = <T>(body: JsonObject) => ({ data: body as T });
-/** POST/PUT /runs: rundan ligger i `run`, serverns text i `message`. */
-const readRun = <T>(body: JsonObject) => ({ data: body.run as T, message: body.message as string | undefined });
+/**
+ * Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20 punkt 7-8): `data` först; saknas den (en backend från före steg 1) är hela den gamla kroppen nyttolasten.
+ * För svar som var nakna eller hade nyttolasten på toppnivå (`{ events }`, `{ connected, … }`, `{ token, user }`, `{ client_id }`).
+ */
+const readEnveloped = <T>(body: JsonObject) => ({ data: (hasData(body) ? body.data : body) as T });
+/** Som `readEnveloped`, och serverns text följer med (`join`, `sync`). */
+const readEnvelopedAndMessage = <T>(body: JsonObject) => ({ ...readEnveloped<T>(body), message: typeof body.message === 'string' ? body.message : undefined });
+/**
+ * En sida med `meta`: nyttolasten (`data` först, annars den gamla kroppen) och `meta`, som ligger på toppnivå i båda formerna. Anroparna läser `data.meta` som förut.
+ */
+const readPage = <T>(body: JsonObject) => {
+  const payload = hasData(body) && isJsonObject(body.data) ? body.data : body;
+  return { data: { ...payload, meta: body.meta } as T };
+};
+/** POST/PUT /runs: rundan ligger i `data.run` (steg 1), annars i den gamla toppnivånyckeln `run`; serverns text i `message`. */
+const readRun = <T>(body: JsonObject) => ({
+  data: (isJsonObject(body.data) && 'run' in body.data ? body.data.run : body.run) as T,
+  message: body.message as string | undefined,
+});
 /** `{ success, data, message }`: som `readData`, och serverns text följer med. */
 const readDataAndMessage = <T>(body: JsonObject) => ({ data: body.data as T, message: body.message as string | undefined });
 /** Svar där bara utfallet räknas. */
@@ -127,17 +155,34 @@ function errorTextOf(body: JsonObject | undefined): string | undefined {
   return typeof body?.error === 'string' && body.error ? body.error : undefined;
 }
 
-function failed(error: string, written?: true): ApiFailureResult {
-  return written ? { success: false, error, written } : { success: false, error };
+/** Serverns kod ur ett felsvar, om den är en kod klienten känner. En okänd kod (en nyare server) och ingen kod (en äldre) är samma sak: statusens klass avgör. */
+function errorCodeOf(body: JsonObject | undefined): ApiErrorCode | undefined {
+  return isApiErrorCode(body?.code) ? body.code : undefined;
+}
+
+function failed(error: string, extra: { code?: ApiErrorCode; written?: true } = {}): ApiFailureResult {
+  return { success: false, error, ...(extra.code !== undefined && { code: extra.code }), ...(extra.written && { written: true as const }) };
+}
+
+/**
+ * Ett 401 med token avslutar sessionen bara när koden säger det (`unauthorized`, `token_invalid`) eller när det inte finns någon känd kod (en backend före steg 1 och en kod
+ * klienten inte känner: statusens klass, 401). `invalid_credentials` och `current_password_incorrect` är ett svar på ett lösenord, inte en utgången session.
+ */
+// Vitlista, inte spärrlista: bara de två koderna, eller ingen känd kod, avslutar sessionen. En känd kod av annat slag på ett 401 (till exempel `forbidden`, som servern inte skickar med 401
+// men som katalogen har) är ett svar på något annat än token och lämnar sessionen. En okänd kod filtreras bort av isApiErrorCode och är därför "ingen kod": statusens klass, alltså utloggning.
+function endsSession(code: ApiErrorCode | undefined): boolean {
+  return code === undefined || code === 'unauthorized' || code === 'token_invalid';
 }
 
 /**
  * Svar som inte gick igenom loggas efter vad de betyder. 4xx är väntat (fel lösenord, saknad post, dubblett, spärr) och är inget fel i appen,
  * så de är en varning och blir ingen felhändelse. 5xx är oväntat och rapporteras. Nätverksfel loggas som fel i `request`.
  */
-function logHttpFailure(message: string, status: number, detail: unknown): void {
-  if (status >= HTTP_SERVER_ERROR) logger.error(message, detail);
-  else logger.warn(message, detail);
+function logHttpFailure(message: string, status: number, code: ApiErrorCode | undefined): void {
+  // Bara texten på anropet, statusen och koden: aldrig kroppen och aldrig serverns text (ADR 007 Addendum 2026-10-20 punkt 7).
+  const line = `${message} (HTTP ${status}${code ? `, ${code}` : ''})`;
+  if (status >= HTTP_SERVER_ERROR) logger.error(line);
+  else logger.warn(line);
 }
 
 class BackendApiService {
@@ -184,19 +229,25 @@ class BackendApiService {
         ...(body !== undefined && { body: body instanceof Blob ? body : JSON.stringify(body) }),
       });
 
-      // Varje 401 med token loggar ut. ADR 007 Addendum 2026-10-20 punkt 7 (RUN-354) begränsar det till koderna unauthorized och token_invalid: villkoret ändras här.
-      if (token && reply.status === 401) {
+      const code = errorCodeOf(reply.body);
+
+      // Ett 401 med token avslutar sessionen bara när koden säger det eller saknas (se endsSession): ett fel nuvarande lösenord loggar inte ut.
+      if (token && reply.status === 401 && endsSession(code)) {
         this.handleUnauthorized();
-        return failed(SESSION_EXPIRED);
+        return failed(SESSION_EXPIRED, { code });
       }
 
-      if (!reply.ok) {
+      // Ett fel är ett utanför 2xx, eller ett 2xx som själv säger success: false (207 partial_failure är kuvertets enda sådant svar).
+      if (!reply.ok || reply.body?.success === false) {
         if (reply.status === HTTP_NOT_FOUND && notFoundData !== undefined) return { success: true, data: notFoundData };
         const error = errorTextOf(reply.body);
-        // Addendum punkt 6 (RUN-354): `written` eller koden recalc_failed_after_write betyder "skrivet, försök inte igen".
-        if (reply.body?.written === true) return failed(error ?? failure, true);
-        logHttpFailure(failure, reply.status, error);
-        return failed(error ?? failure);
+        // Addendum punkt 6: koden recalc_failed_after_write (eller fältet written, kvar under dubbelsvarsfönstret) betyder "skrivet, försök inte igen".
+        if (code === 'recalc_failed_after_write' || reply.body?.written === true) {
+          logHttpFailure(failure, reply.status, code);
+          return failed(error ?? failure, { code, written: true });
+        }
+        logHttpFailure(failure, reply.status, code);
+        return failed(error ?? failure, { code });
       }
 
       if (!reply.body) {
@@ -213,7 +264,7 @@ class BackendApiService {
   // 🔐 Authentication methods
   async login(name: string, password: string): Promise<LoginResult> {
     const body: LoginRequest = { name, password };
-    const result = await this.request<LoginResponse>('POST', '/auth/login', body, { auth: false, failure: 'Login failed', read: readBody });
+    const result = await this.request<LoginResponse['data']>('POST', '/auth/login', body, { auth: false, failure: 'Login failed', read: readEnveloped });
     if (!result.success) return { success: false, error: result.error };
 
     const login = result.data;
@@ -226,9 +277,9 @@ class BackendApiService {
   }
 
   // 🔐 Change password
-  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResult<ChangePasswordResponse>> {
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResult<void>> {
     const body: ChangePasswordRequest = { currentPassword, newPassword };
-    return this.request<ChangePasswordResponse>('POST', '/auth/change-password', body, { failure: 'Password change failed', read: readBody });
+    return this.request<void>('POST', '/auth/change-password', body, { failure: 'Password change failed', read: readMessage });
   }
 
   // 👥 Admin: Get all users
@@ -317,9 +368,9 @@ class BackendApiService {
   }
 
   // 🔐 Admin: Reset user password
-  async resetUserPassword(userId: string, newPassword: string): Promise<ApiResult<ResetUserPasswordResponse>> {
+  async resetUserPassword(userId: string, newPassword: string): Promise<ApiResult<void>> {
     const body: ResetUserPasswordRequest = { newPassword };
-    return this.request<ResetUserPasswordResponse>('PUT', `/auth/users/${userId}/password`, body, { failure: 'Failed to reset password', read: readBody });
+    return this.request<void>('PUT', `/auth/users/${userId}/password`, body, { failure: 'Failed to reset password', read: readMessage });
   }
 
   // 🚪 Logout
@@ -360,26 +411,27 @@ class BackendApiService {
     endpoint: string,
     options: { method?: HttpMethod; body?: unknown; headers?: Record<string, string> } = {},
   ): Promise<ApiResult<T>> {
-    return this.request<T>(options.method ?? 'GET', endpoint, options.body, { read: readBody, headers: options.headers, noTokenError: NO_AUTHENTICATION_TOKEN });
+    // Texten med vägen: Sentry-loggen visar då vilket anrop som föll (en metod med eget anrop har en egen text).
+    return this.request<T>(options.method ?? 'GET', endpoint, options.body, { failure: `Request failed: ${endpoint}`, read: readBody, headers: options.headers, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   // 🔗 Strava Integration Methods
-  async getStravaConfig(): Promise<ApiResult<StravaConfigResponse>> {
-    return this.request<StravaConfigResponse>('GET', '/strava/config', undefined, { auth: false, contentType: null, failure: 'Failed to get Strava config', read: readBody });
+  async getStravaConfig(): Promise<ApiResult<StravaConfigResponse['data']>> {
+    return this.request<StravaConfigResponse['data']>('GET', '/strava/config', undefined, { auth: false, contentType: null, failure: 'Failed to get Strava config', read: readEnveloped });
   }
 
-  async getStravaStatus(): Promise<ApiResult<StravaStatusResponse>> {
-    return this.authenticatedRequest('/strava/status');
+  async getStravaStatus(): Promise<ApiResult<StravaStatus>> {
+    return this.request<StravaStatus>('GET', '/strava/status', undefined, { failure: 'Failed to fetch Strava status', read: readEnveloped, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   /** `consentVersion` är versionen användaren godkände före OAuth-omdirigeringen; saknas den utelämnas nyckeln och servern svarar 400 "Consent required". */
-  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResult<StravaCallbackResponse>> {
+  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResult<void>> {
     const body: Pick<StravaCallbackRequest, 'code'> & Partial<StravaCallbackRequest> = { code, consent_version: consentVersion };
-    return this.authenticatedRequest('/strava/callback', { method: 'POST', body });
+    return this.request<void>('POST', '/strava/callback', body, { failure: 'Failed to connect Strava', read: readMessage, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
-  async syncStrava(): Promise<ApiResult<StravaSyncResponse>> {
-    return this.authenticatedRequest('/strava/sync', { method: 'POST' });
+  async syncStrava(): Promise<ApiResult<StravaSyncResponse['data']>> {
+    return this.request<StravaSyncResponse['data']>('POST', '/strava/sync', undefined, { failure: 'Failed to sync Strava', read: readEnveloped, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   /** PUT /strava/sync-paused: pausar eller slår på synken. Svaret är läget efter anropet (ADR 007-formen packas upp här). */
@@ -389,15 +441,15 @@ class BackendApiService {
   }
 
   /**
-   * DELETE /strava/disconnect. Kontraktet är `{ success, message }` och ändras inte av bortkopplingen i backend (ADR 010 beslut 7.4): den
+   * DELETE /strava/disconnect. Kontraktet är `{ success, message, data: null }` och ändras inte av bortkopplingen i backend (ADR 010 beslut 7.4): den
    * ber Strava återkalla åtkomsten och raderar Stravarundorna. Klienten utgår aldrig från att rundorna är borta förrän den läst om dem.
    */
-  async disconnectStrava(): Promise<ApiResult<StravaDisconnectResponse>> {
-    return this.authenticatedRequest('/strava/disconnect', { method: 'DELETE' });
+  async disconnectStrava(): Promise<ApiResult<void>> {
+    return this.request<void>('DELETE', '/strava/disconnect', undefined, { failure: 'Failed to disconnect Strava', read: readMessage, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
-  async backfillStravaExtendedData(): Promise<ApiResult<StravaBackfillExtendedResponse>> {
-    return this.authenticatedRequest('/strava/backfill-extended', { method: 'POST' });
+  async backfillStravaExtendedData(): Promise<ApiResult<StravaBackfillExtendedResponse['data']>> {
+    return this.request<StravaBackfillExtendedResponse['data']>('POST', '/strava/backfill-extended', undefined, { failure: 'Failed to run the Strava backfill', read: readEnveloped, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   // 👤 User Methods
@@ -428,9 +480,9 @@ class BackendApiService {
     return this.request<GroupEligibilityEntry[]>('GET', '/titles/group-eligibility', undefined, { failure: 'Failed to fetch title progress' });
   }
 
-  async updateDisplayedTitles(titleIds: string[]): Promise<ApiResult<UpdateDisplayedTitlesResponse>> {
+  async updateDisplayedTitles(titleIds: string[]): Promise<ApiResult<void>> {
     const body: UpdateDisplayedTitlesRequest = { title_ids: titleIds };
-    return this.authenticatedRequest<UpdateDisplayedTitlesResponse>('/auth/me/displayed-titles', { method: 'PUT', body });
+    return this.request<void>('PUT', '/auth/me/displayed-titles', body, { failure: 'Failed to update the displayed titles', read: readNothing, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   // 🔄 Refresh title leaderboards after data changes. Servern svarar { success, message, timestamp } (ingen räknare); klienten använder bara utfallet.
@@ -468,8 +520,10 @@ class BackendApiService {
    * GET /runs/group-history — gruppens rundor, nyast först (ADR 007 B9). Offset-sidor: `meta.has_more` säger om det finns fler
    * (sidstorlek default 100, max 200). Svaret behåller nyckeln `runs` + additivt `meta`.
    */
-  async getGroupRunHistoryPage(limit: number, offset: number): Promise<ApiResult<GroupRunHistoryResponse>> {
-    return this.authenticatedRequest<GroupRunHistoryResponse>(`/runs/group-history?limit=${limit}&offset=${offset}`);
+  async getGroupRunHistoryPage(limit: number, offset: number): Promise<ApiResult<GroupRunHistoryPage>> {
+    return this.request<GroupRunHistoryPage>('GET', `/runs/group-history?limit=${limit}&offset=${offset}`, undefined, {
+      failure: 'Failed to fetch the group run history', read: readPage, noTokenError: NO_AUTHENTICATION_TOKEN,
+    });
   }
 
   // ─── Groups ──────────────────────────────────────────────────────────────
@@ -481,11 +535,11 @@ class BackendApiService {
 
   /**
    * POST /groups/join — går med i en grupp med inbjudningskod (ADR 012). 409 när användaren redan har ett aktivt medlemskap (man flyttas inte tyst),
-   * 404 för en kod som inte finns. Svaret är hela kroppen ({ success, message, group }).
+   * 404 `invalid_invite_code` för en kod som inte finns. Svaret är gruppen (`data.group`, eller den gamla toppnivån) och serverns text.
    */
-  async joinGroup(inviteCode: JoinGroupRequest['invite_code']): Promise<ApiResult<JoinGroupResponse>> {
+  async joinGroup(inviteCode: JoinGroupRequest['invite_code']): Promise<ApiResult<JoinGroupResponse['data']>> {
     const body: JoinGroupRequest = { invite_code: inviteCode };
-    return this.authenticatedRequest<JoinGroupResponse>('/groups/join', { method: 'POST', body });
+    return this.request<JoinGroupResponse['data']>('POST', '/groups/join', body, { failure: 'Failed to join the group', read: readEnvelopedAndMessage, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   // ─── Challenges ──────────────────────────────────────────────────────────
@@ -522,13 +576,15 @@ class BackendApiService {
    * GET /events/history — avslutade events, nyast först, offset-sidor (ADR 007 B8). `data.meta` bär `total` och
    * `has_more` (sidstorlek default 30, max 50).
    */
-  async getEventHistoryPage(limit: number, offset: number): Promise<ApiResult<EventsHistoryResponse>> {
-    return this.authenticatedRequest<EventsHistoryResponse>(`/events/history?limit=${limit}&offset=${offset}`);
+  async getEventHistoryPage(limit: number, offset: number): Promise<ApiResult<EventsHistoryPage>> {
+    return this.request<EventsHistoryPage>('GET', `/events/history?limit=${limit}&offset=${offset}`, undefined, {
+      failure: 'Failed to fetch the event history', read: readPage, noTokenError: NO_AUTHENTICATION_TOKEN,
+    });
   }
 
   /** GET /events — aktiva + schemalagda events med participantCount/memberCount för alla typer (ADR 007 B7). Enda events-metoden: Events-skärmen och skalets "Right now" delar query-nyckeln ['events'] och därmed formen. */
-  async getEventList(): Promise<ApiResult<EventsResponse>> {
-    return this.authenticatedRequest<EventsResponse>('/events');
+  async getEventList(): Promise<ApiResult<EventsResponse['data']>> {
+    return this.request<EventsResponse['data']>('GET', '/events', undefined, { failure: 'Failed to fetch events', read: readEnveloped, noTokenError: NO_AUTHENTICATION_TOKEN });
   }
 
   // ─── News (ADR 008) ───────────────────────────────────────────────────────

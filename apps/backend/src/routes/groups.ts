@@ -6,7 +6,8 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
 import { MembershipError, getActiveMembership, joinGroup } from '../utils/membership.js';
 import { rebuildGroupRankingAfterJoin } from '../services/groupRanking.js';
-import type { ApiError, JoinGroupRequest, JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
+import type { JoinGroupRequest, JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
+import { fail, ok, okWithLegacy } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
     const groupId = req.user!.group_id;
 
     if (!groupId) {
-      res.status(404).json({ error: 'You are not a member of any group' } satisfies ApiError); return;
+      fail(res, 404, 'You are not a member of any group'); return;
     }
 
     logger.info(`👥 Fetching group info for user ${userId}, group ${groupId}`);
@@ -29,10 +30,10 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       membership = await getActiveMembership(userId);
     } catch (error) {
       logger.error(`❌ Error fetching membership (${errorCode(error)})`);
-      res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+      fail(res, 500, 'Internal server error'); return;
     }
     if (!membership || membership.group_id !== groupId) {
-      res.status(404).json({ error: 'You are not a member of any group' } satisfies ApiError); return;
+      fail(res, 404, 'You are not a member of any group'); return;
     }
 
     const supabase = getSupabaseClient();
@@ -45,7 +46,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
     if (groupError || !group) {
       logger.error(`❌ Error fetching group (${errorCode(groupError)})`);
-      res.status(404).json({ error: 'Group not found' } satisfies ApiError); return;
+      fail(res, 404, 'Group not found'); return;
     }
 
     const { data: members, error: membersError } = await supabase
@@ -56,31 +57,27 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
     if (membersError) {
       logger.error(`❌ Error fetching group members (${errorCode(membersError)})`);
-      res.status(500).json({ error: 'Failed to fetch group members' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to fetch group members'); return;
     }
 
     const isOwner = group.owner_id === userId;
 
     logger.info(`✅ Fetched group ${group.id} with ${members?.length || 0} members`);
 
-    const body: MyGroupResponse = {
-      success: true,
-      data: {
-        id: group.id,
-        name: group.name,
-        invite_code: isOwner ? group.invite_code : undefined,
-        is_owner: isOwner,
-        my_role: membership.role,
-        member_count: members?.length || 0,
-        members: members || [],
-        created_at: group.created_at
-      }
-    };
-    res.json(body);
+    ok<MyGroupResponse>(res, {
+      id: group.id,
+      name: group.name,
+      invite_code: isOwner ? group.invite_code : undefined,
+      is_owner: isOwner,
+      my_role: membership.role,
+      member_count: members?.length || 0,
+      members: members || [],
+      created_at: group.created_at
+    });
 
   } catch (error) {
     logger.error(`❌ Error fetching group (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -91,7 +88,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
     const { invite_code }: Partial<JoinGroupRequest> = req.body ?? {};
 
     if (typeof invite_code !== 'string' || invite_code.trim() === '') {
-      res.status(400).json({ error: 'invite_code is required' } satisfies ApiError); return;
+      fail(res, 400, 'invite_code is required'); return;
     }
 
     // Invite-koden är en hemlighet som ger tillträde till gruppen: aldrig i loggen.
@@ -107,7 +104,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (groupError || !group) {
-      res.status(404).json({ error: 'Invalid invite code' } satisfies ApiError); return;
+      fail(res, 404, 'Invalid invite code', 'invalid_invite_code'); return;
     }
 
     // Medlemskapet och pekaren users.group_id skrivs av join_group i en transaktion. Ett aktivt medlemskap ger 409: man flyttas inte tyst.
@@ -116,32 +113,25 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
     } catch (error) {
       if (error instanceof MembershipError && error.kind === 'already_member') {
         logger.info(`👥 User ${userId} already has an active membership`);
-        res.status(409).json({ error: 'You are already a member of a group' } satisfies ApiError); return;
+        fail(res, 409, 'You are already a member of a group', 'already_in_group'); return;
       }
       if (error instanceof MembershipError && error.kind === 'not_found') {
-        res.status(404).json({ error: 'Group or user not found' } satisfies ApiError); return;
+        fail(res, 404, 'Group or user not found'); return;
       }
       logger.error(`❌ Error joining group (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to join group' } satisfies ApiError); return;
+      fail(res, 500, 'Failed to join group'); return;
     }
 
     // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte joinen: medlemskapet är redan sparat.
     await rebuildGroupRankingAfterJoin(group.id, supabase);
     logger.info(`✅ User ${userId} joined group ${group.id}`);
 
-    const body: JoinGroupResponse = {
-      success: true,
-      message: `Successfully joined group "${group.name}"`,
-      group: {
-        id: group.id,
-        name: group.name
-      }
-    };
-    res.json(body);
+    const joined = { id: group.id, name: group.name };
+    okWithLegacy<JoinGroupResponse>(res, { group: joined }, { message: `Successfully joined group "${group.name}"`, group: joined });
 
   } catch (error) {
     logger.error(`❌ Error joining group (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 

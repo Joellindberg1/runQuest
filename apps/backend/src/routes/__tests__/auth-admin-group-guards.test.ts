@@ -139,7 +139,7 @@ describe('PUT /api/auth/users/:id/password (admin)', () => {
     const res = await reset('00000000-0000-4000-8000-0000000000a1', adminToken(GROUP_A));
     const missing = await server.request('PUT', '/api/auth/users/00000000-0000-4000-8000-0000000000ff/password', { token: adminToken(GROUP_A), body: { newPassword: 'brand-new-secret' } });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to look up the user' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to look up the user', code: 'internal_error' });
     expect(missing.status).toBe(500);
     expect(writesTo(db, 'users')).toEqual([]);
     expect(db.tables.users.find((u) => u.id === '00000000-0000-4000-8000-0000000000a1')!.password_hash).toBe(OLD_HASH);

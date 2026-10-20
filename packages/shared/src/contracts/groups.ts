@@ -1,7 +1,7 @@
 // GET /api/groups/my och POST /api/groups/join (ADR 012 beslut 2.4, 2.5 och 8, ADR 007 A). Endast typer.
 // `my_role` är användarens roll i sitt aktiva medlemskap, läst ur databasen (group_members) vid varje anrop, aldrig ur JWT.
 import type { GroupRole } from '../groupRoles.js';
-import type { ApiSuccess } from './common.js';
+import type { ApiSuccess, DualEnvelope } from './common.js';
 
 /** En medlem i listan över gruppens medlemmar (sorterad på total_xp, fallande). */
 export interface GroupMemberSummary {
@@ -34,10 +34,7 @@ export interface JoinGroupRequest {
 
 /**
  * Svar på POST /api/groups/join. 409 (`ApiError`) om användaren redan har ett aktivt medlemskap: man flyttas inte tyst mellan grupper,
- * och ett byte kräver säsongs-/RUN-95-arbetet (ADR 012 N3). Formen är oförändrad mot tidigare (`success`, `message`, `group`).
+ * och ett byte kräver säsongs-/RUN-95-arbetet (ADR 012 N3). Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): `group` ligger kvar på toppnivå bredvid `message`
+ * och i `data`; en ogiltig kod är 404 `invalid_invite_code`, ett aktivt medlemskap 409 `already_in_group`.
  */
-export interface JoinGroupResponse {
-  success: true;
-  message: string;
-  group: { id: string; name: string };
-}
+export type JoinGroupResponse = DualEnvelope<{ message: string; group: { id: string; name: string } }, { group: { id: string; name: string } }>;

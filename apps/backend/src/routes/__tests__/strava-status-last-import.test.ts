@@ -159,7 +159,7 @@ describe('GET /api/strava/status last_import_at', () => {
 
     expect(res.body).not.toHaveProperty('last_sync');
     expect(Object.keys(res.body).sort()).toEqual(
-      ['connected', 'connection_date', 'consent_version', 'expired', 'expires_at', 'last_import_at', 'paused_at', 'sync_paused'],
+      ['connected', 'connection_date', 'consent_version', 'data', 'expired', 'expires_at', 'last_import_at', 'paused_at', 'success', 'sync_paused'], // steg 1: success och data bredvid statusfälten
     );
     expect(JSON.stringify(res.body)).not.toMatch(/2026-10-14T23:59|2026-10-15T01:00/);
     expect(res.body.last_import_at).toBe('2026-10-02T08:00:00.000Z');

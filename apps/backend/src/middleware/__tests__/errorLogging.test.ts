@@ -48,7 +48,7 @@ describe('requireAdmin when the database fails', () => {
     await requireAdmin({ user: USER } as unknown as Request, res, next);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Failed to verify admin status' });
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Failed to verify admin status', code: 'internal_error' });
     expect(next).not.toHaveBeenCalled();
     expect(logged()).toContain('23505');
     expect(logged()).not.toContain('users_email_key');
@@ -67,7 +67,7 @@ describe('requireAdmin when the database fails', () => {
     await requireAdmin({ user: USER } as unknown as Request, res, vi.fn());
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Internal server error', code: 'internal_error' });
     expect(logged()).toContain('ECONNRESET');
     expect(logged()).not.toContain('users_email_key');
     expect(loggedObjects()).toEqual([]);
@@ -87,7 +87,7 @@ describe('authenticateJWT with an invalid token', () => {
     authenticateJWT({ headers: { authorization: `Bearer ${forged}` } } as Request, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token' });
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Invalid token', code: 'token_invalid' });
     expect(next).not.toHaveBeenCalled();
     expect(logged()).toContain('JsonWebTokenError');
     expect(logged()).not.toContain('invalid signature');

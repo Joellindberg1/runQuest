@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkConditionalGroupFilter,
   checkEmptySuites,
+  checkErrorResponsesViaFail,
   checkFontFiles,
   checkGroupRoleMapping,
   checkGroupSettingsWrites,
@@ -29,6 +30,7 @@ import {
   checkTestNames,
   checkTodos,
   checkUsersGroupIdWrites,
+  ERROR_RESPONSE_EXEMPT_ROUTES,
   GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
   listWorkspaces,
@@ -693,6 +695,13 @@ describe('checkRouteResponseContracts', () => {
     assert.deepEqual(scan(content), []);
   });
 
+  it('passes a route that answers through ok or okWithLegacy with a Response contract as the type parameter', () => {
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  ok<ThingResponse>(res, thing);\n});\n"), []);
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  okWithLegacy<ThingResponse>(res, { thing }, { thing });\n});\n"), []);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok(res, thing);\n});\n").length, 1);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok<LocalThing>(res, thing);\n});\n").length, 1);
+  });
+
   it('flags a route that sends an untyped object, with its line, verb and path', () => {
     const errors = scan("\nrouter.post('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
     assert.equal(errors.length, 1);
@@ -762,6 +771,105 @@ describe('checkRouteResponseContracts', () => {
 
   it('has nothing to compare against without contracts', () => {
     assert.deepEqual(checkRouteResponseContracts([{ path: ROUTE, content: "router.get('/a', auth, (_req, res) => { res.json({}); });\n" }]), []);
+  });
+});
+
+describe('checkErrorResponsesViaFail', () => {
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE, exempt) => checkErrorResponsesViaFail([{ path, content }], exempt);
+
+  it('passes a route that answers its errors through fail and its successes through ok', () => {
+    const content = [
+      "router.get('/a', async (_req, res) => {",
+      "  if (bad) { fail(res, 400, 'Bad input'); return; }",
+      '  res.status(201).json({ success: true });',
+      '  ok(res, data);',
+      '});',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('flags res.status(4xx|5xx|207).json with its line', () => {
+    for (const status of [400, 401, 403, 404, 409, 413, 429, 500, 503, 207]) {
+      const errors = scan(`\nres.status(${status}).json({ error: 'x' });\n`);
+      assert.equal(errors.length, 1, String(status));
+      assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: /);
+    }
+  });
+
+  it('flags the same call spread over several lines, with a typed body and in a one-line early return', () => {
+    const multiline = scan("res\n  .status(500)\n  .json({ error: 'x' } satisfies ApiError);");
+    assert.match(multiline[0], /things\.ts:2: /); // raden med .status(500); .json({ error … }) på nästa rad ger en rad till
+    assert.equal(scan("res.status(500).json({ error: 'x' } satisfies ApiError);").length, 1);
+    assert.equal(scan("if (!x) { res.status(404).json({ error: 'x' }); return; }").length, 1);
+  });
+
+  it('flags res.status(...) with anything but a literal status, res.sendStatus and an error body without a status', () => {
+    assert.equal(scan('res.status(code).json(body);').length, 1);
+    assert.equal(scan('res.status(error.status ?? 500).json(body);').length, 1);
+    assert.equal(scan('res.sendStatus(404);').length, 1);
+    assert.equal(scan("res.json({ error: 'x' });").length, 1);
+    assert.equal(scan("res.json({ success: false, error: 'x' });").length, 1);
+  });
+
+  it('leaves 2xx statuses, a comment and respond.ts itself alone', () => {
+    assert.deepEqual(scan('res.status(200).json(body);\nres.status(201).json(body);'), []);
+    assert.deepEqual(scan("// res.status(500).json({ error: 'x' }) var förut\n/* res.status(404).json() */"), []);
+    assert.deepEqual(scan("res.status(500).json({ error: 'x' });", 'apps/backend/src/utils/respond.ts'), []);
+  });
+
+  it('covers routes, middleware, utils and app.ts but not tests or other apps', () => {
+    const bad = "res.status(500).json({ error: 'x' });";
+    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/middleware/a.ts', 'apps/backend/src/utils/a.ts', 'apps/backend/src/app.ts']) {
+      assert.equal(scan(bad, path).length, 1, path);
+    }
+    for (const path of ['apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/test-utils/a.ts', 'apps/frontend/src/routes/a.ts', 'apps/backend/src/services/a.ts']) {
+      assert.deepEqual(scan(bad, path), [], path);
+    }
+  });
+
+  describe('the Strava webhook exemption', () => {
+    const WEBHOOK = 'apps/backend/src/routes/stravaWebhook.ts';
+    const webhook = [
+      'export function createStravaWebhookRouter() {',
+      '  const router = express.Router();',
+      "  router.get('/', (req, res) => {",
+      "    res.status(403).json({ error: 'Forbidden' });",
+      '  });',
+      "  router.get('/health', authenticateJWT, requireAdmin, async (_req, res) => {",
+      "    res.status(500).json({ success: false, error: 'Failed to read webhook health' });",
+      '  });',
+      "  router.post('/', express.json(), async (req, res) => {",
+      "    res.status(400).json({ error: 'Invalid event' });",
+      '  });',
+      '  router.use((err, _req, res, next) => {',
+      "    if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }",
+      '    next(err);',
+      '  });',
+      '  return router;',
+      '}',
+    ].join('\n');
+
+    it('exempts exactly the two Strava protocol routes (ADR 007 Addendum 2026-10-20 punkt 4), GET / and POST /, and nothing else', () => {
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.keys()], [WEBHOOK]);
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.get(WEBHOOK)].sort(), ['GET /', 'POST /']);
+    });
+
+    it('lets the protocol routes (and the router error handler that follows POST /) through and catches a hand-written answer in /health', () => {
+      const errors = scan(webhook, WEBHOOK);
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /stravaWebhook\.ts:7: ett felsvar skrivs för hand/);
+    });
+
+    it('catches a hand-written answer in a webhook route that is not one of the two, and in code before the first route', () => {
+      assert.equal(scan(webhook.replace("router.get('/health'", "router.put('/other'"), WEBHOOK).length, 1);
+      assert.equal(scan("res.status(500).json({ error: 'x' });\n" + webhook, WEBHOOK).length, 2);
+    });
+
+    it('does not exempt the other route files', () => {
+      assert.equal(scan("res.status(403).json({ error: 'x' });", 'apps/backend/src/routes/strava.ts').length, 1);
+      assert.equal(scan("router.get('/', (req, res) => { res.status(403).json({ error: 'x' }); });", 'apps/backend/src/routes/other.ts').length, 1);
+    });
   });
 });
 

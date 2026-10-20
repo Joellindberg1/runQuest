@@ -294,7 +294,7 @@ describe('rank_passed i flödet: xp', () => {
     const res = await request('DELETE', `/api/runs/${run.id}`, W);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, message: 'Run deleted successfully' });
+    expect(res.body).toEqual({ success: true, message: 'Run deleted successfully', data: null });
     // XP är tillbaka på 110 (Bertil 135 är åter före), dagens rad är retractad och Bertils klocka är tillbaka där den var.
     expect(totalXp(t, W)).toBe(110);
     expect(rankRows(t)).toEqual([]);

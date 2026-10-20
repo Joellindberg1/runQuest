@@ -1,7 +1,7 @@
 // Utmaningar: GET /api/challenges/group-history och /api/challenges/head-to-head/:userId (ADR 007 B5–B6) samt de äldre my, send, respond, withdraw,
 // :id/progress och group-stats. Fältstil snake_case. Nya endpoints: { success, data, meta? } / { error }.
 // ChallengeTier och ChallengeMetric har sin enda definition här (klienten importerar dem därifrån, inte ur @runquest/types).
-import type { ApiSuccess, OffsetPageMeta } from './common.js';
+import type { ApiSuccess, DualEnvelope, OffsetPageMeta } from './common.js';
 
 export type ChallengeTier = 'minor' | 'major' | 'legendary';
 export type ChallengeMetric = 'km' | 'runs' | 'total_xp';
@@ -181,18 +181,11 @@ export interface RespondChallengeRequest {
   action: ChallengeResponseAction;
 }
 
-/** Svar för PUT /api/challenges/:id/respond. `data` (datumen) följer bara med när utmaningen accepterades. */
-export interface RespondChallengeResponse {
-  success: true;
-  message: string;
-  data?: { start_date: string; end_date: string };
-}
+/** Svar för PUT /api/challenges/:id/respond. `data` är datumen när utmaningen accepterades och `null` när den avböjdes; `message` ligger kvar bredvid under dubbelsvarsfönstret (steg 1, RUN-354). */
+export type RespondChallengeResponse = DualEnvelope<{ message: string }, { start_date: string; end_date: string } | null>;
 
-/** Svar för PUT /api/challenges/:id/withdraw. */
-export interface WithdrawChallengeResponse {
-  success: true;
-  message: string;
-}
+/** Svar för PUT /api/challenges/:id/withdraw: `{ success, message, data: null }` (steg 1, RUN-354). */
+export type WithdrawChallengeResponse = DualEnvelope<{ message: string }, null>;
 
 // ─── GET /api/challenges/:id/progress ───────────────────────────────────────────────────────────────────────
 

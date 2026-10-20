@@ -140,7 +140,7 @@ describe('POST /api/auth/login lookups', () => {
     const { status, body } = await login({ name: 'Bob' });
 
     expect(status).toBe(401);
-    expect(body).toEqual({ error: 'Invalid credentials' });
+    expect(body).toEqual({ success: false, error: 'Invalid credentials', code: 'invalid_credentials' });
   });
 
   it('answers 401 when both lookups fail', async () => {
@@ -149,7 +149,7 @@ describe('POST /api/auth/login lookups', () => {
     const { status, body } = await login({ email: 'alice@example.com' });
 
     expect(status).toBe(401);
-    expect(body).toEqual({ error: 'Invalid credentials' });
+    expect(body).toEqual({ success: false, error: 'Invalid credentials', code: 'invalid_credentials' });
   });
 
   it('logs in the email user when the name lookup throws after an email hit', async () => {
@@ -170,6 +170,6 @@ describe('POST /api/auth/login lookups', () => {
 
     expect(nameLookupThrows.status).toBe(500);
     expect(emailLookupThrows.status).toBe(500);
-    expect(nameLookupThrows.body).toEqual({ error: 'Internal server error' });
+    expect(nameLookupThrows.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
   });
 });

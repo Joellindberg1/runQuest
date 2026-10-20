@@ -179,7 +179,7 @@ describe('a reprocess error after a Strava import', () => {
     const res = await sync();
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'Failed to sync activities' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to sync activities', code: 'strava_sync_failed' });
     expectOnlyTheCode('T0001');
   });
 
@@ -281,7 +281,7 @@ describe('the other Strava routes', () => {
     const res = await server.request('POST', '/api/strava/callback', { token: user(), body: { code: 'c', consent_version: STRAVA_CONSENT_VERSION } });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to save Strava connection' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to save Strava connection', code: 'internal_error' });
     expectOnlyTheCode('U0001');
   });
 
@@ -302,7 +302,7 @@ describe('the other Strava routes', () => {
     const res = await server.request('DELETE', '/api/strava/disconnect', { token: user() });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to disconnect Strava' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to disconnect Strava', code: 'internal_error' });
     expectOnlyTheCode('D0001');
   });
 

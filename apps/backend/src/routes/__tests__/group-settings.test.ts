@@ -265,7 +265,7 @@ describe('PUT /api/groups/settings', () => {
     const { db } = use();
     const res = await put(MEMBER, { values: { [DIGEST.key]: true } });
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: 'Forbidden' });
+    expect(res.body).toEqual({ success: false, error: 'Forbidden', code: 'forbidden' });
     expect(mutations(db)).toEqual([]);
     expect(changes).toEqual([]);
   });
@@ -317,7 +317,7 @@ describe('PUT /api/groups/settings', () => {
     const { db } = use();
     const res = await put(ADMIN, { values: { [DIGEST.key]: true, [MINE.key]: false } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining(MINE.key) });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining(MINE.key), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
     expect(changes).toEqual([]);
   });
@@ -333,7 +333,7 @@ describe('PUT /api/groups/settings', () => {
     ]) {
       const res = await put(ADMIN, body);
       expect(res.status, JSON.stringify(body)).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     }
     expect(mutations(db)).toEqual([]);
   });

@@ -1,6 +1,7 @@
 // GET /api/runs/group-history, POST /api/runs, PUT /api/runs/:id och DELETE /api/runs/:id (ADR 007 B9–B10, A2).
-// Befintliga endpoints behåller nyckeln `runs`/`run` och snake_case; fälten nedan är additiva.
-import type { OffsetPageMeta } from './common.js';
+// Befintliga endpoints behåller nyckeln `runs`/`run` och snake_case; fälten nedan är additiva. Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): `success` och `data` ligger
+// bredvid de gamla nycklarna (dubbelsvar, DualEnvelope) tills steg 2 (RUN-364) tar bort dem.
+import type { DualEnvelope, OffsetPageMeta } from './common.js';
 
 /**
  * En rad ur `runs` som servern skickar (users-with-runs, POST- och PUT-svaren). Vilka kolumner som följer med beror på route: PUT-svaret läser
@@ -70,10 +71,8 @@ export interface GroupRunHistoryItem {
   created_at: string | null;
 }
 
-export interface GroupRunHistoryResponse {
-  runs: GroupRunHistoryItem[];
-  meta: OffsetPageMeta;
-}
+/** Svar från GET /api/runs/group-history: `{ success, runs, data: { runs }, meta }`. Utan grupp: 200 med tom lista. */
+export type GroupRunHistoryResponse = DualEnvelope<{ runs: GroupRunHistoryItem[] }, { runs: GroupRunHistoryItem[] }, OffsetPageMeta>;
 
 /**
  * Brödtext till POST /api/runs. `Idempotency-Key` (uuid v4) skickas som header, inte här.
@@ -93,11 +92,7 @@ export type RunIdOnly = Pick<RunRow, 'id'>;
  * Svar från POST /api/runs: rundan efter omräkningen, eller bara dess id (`RunIdOnly`) om återläsningen föll. Läsaren måste därför kontrollera formen
  * (`'xp_gained' in run`) innan den läser siffrorna. En upprepning med samma Idempotency-Key ger samma form med den först skapade rundan.
  */
-export interface CreateRunResponse {
-  success: true;
-  message: string;
-  run: RunRow | RunIdOnly;
-}
+export type CreateRunResponse = DualEnvelope<{ message: string; run: RunRow | RunIdOnly }, { run: RunRow | RunIdOnly }>;
 
 /**
  * Brödtext till PUT /api/runs/:id. `date` utelämnas när datumet inte ändrats — en ren distansändring ska inte falla på serverns datumvalidering
@@ -109,14 +104,7 @@ export interface UpdateRunRequest {
 }
 
 /** Svar från PUT /api/runs/:id: rundan efter omräkningen, eller null om den inte gick att läsa tillbaka. `is_treadmill` ingår inte. */
-export interface UpdateRunResponse {
-  success: true;
-  message: string;
-  run: RunRow | null;
-}
+export type UpdateRunResponse = DualEnvelope<{ message: string; run: RunRow | null }, { run: RunRow | null }>;
 
 /** Svar från DELETE /api/runs/:id. */
-export interface DeleteRunResponse {
-  success: true;
-  message: string;
-}
+export type DeleteRunResponse = DualEnvelope<{ message: string }, null>;

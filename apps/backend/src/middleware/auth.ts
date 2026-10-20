@@ -2,6 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { withSentryUser } from '../observability/sentry.js';
 import { errorCode } from '../utils/errorCode.js';
+import { fail } from '../utils/respond.js';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
@@ -22,7 +23,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
   
   if (!authHeader) {
     logger.info('❌ No authorization header');
-    res.status(401).json({ error: 'Authorization header required' });
+    fail(res, 401, 'Authorization header required');
     return;
   }
 
@@ -30,7 +31,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 
   if (!token) {
     logger.info('❌ No token in authorization header');
-    res.status(401).json({ error: 'Token required' });
+    fail(res, 401, 'Token required');
     return;
   }
 
@@ -56,7 +57,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     else logger.error(message);
     // Ogiltig/utgången token är AUTENTISERING (401), inte auktorisering — klienten loggar ut vid 401.
     // IDOR-/ägarskaps-403:orna i routes är en annan sak och oförändrade.
-    res.status(401).json({ error: 'Invalid token' });
+    fail(res, 401, 'Invalid token', 'token_invalid');
   }
 };
 

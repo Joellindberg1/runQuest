@@ -24,12 +24,14 @@ afterEach(() => {
 describe('login', () => {
   it('svaret och den sparade sessionen bär is_admin', async () => {
     localStorage.clear();
-    const response: LoginResponse = { success: true, token: 'jwt-1', user: { id: 'u1', name: 'Anna', email: 'anna@example.com', is_admin: true } };
+    const user = { id: 'u1', name: 'Anna', email: 'anna@example.com', is_admin: true };
+    // Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): token och user på toppnivå (gammal klient) och i data (ny klient).
+    const response: LoginResponse = { success: true, token: 'jwt-1', user, data: { token: 'jwt-1', user } };
     fetchMock.mockResolvedValue(json(200, response));
 
     const result = await backendApi.login('Anna', 'hemligt');
 
-    expect(result).toEqual(response);
+    expect(result).toEqual({ success: true, token: 'jwt-1', user });
     if (!result.success) throw new Error('inloggningen skulle lyckas');
     const isAdmin: boolean = result.user.is_admin;
     expect(isAdmin).toBe(true);
@@ -110,12 +112,13 @@ describe('groups', () => {
   });
 
   it('joinGroup skickar { invite_code } till POST /groups/join och ger serverns svar', async () => {
-    const joined: JoinGroupResponse = { success: true, message: 'Successfully joined group "Wolfpack"', group: { id: 'g1', name: 'Wolfpack' } };
+    const group = { id: 'g1', name: 'Wolfpack' };
+    const joined: JoinGroupResponse = { success: true, message: 'Successfully joined group "Wolfpack"', group, data: { group } };
     fetchMock.mockResolvedValue(json(200, joined));
 
     const res = await backendApi.joinGroup('ABC123');
 
-    expect(res).toEqual({ success: true, data: joined });
+    expect(res).toEqual({ success: true, data: { group }, message: 'Successfully joined group "Wolfpack"' });
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url).endsWith('/groups/join')).toBe(true);
     expect(init.method).toBe('POST');

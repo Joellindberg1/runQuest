@@ -81,7 +81,7 @@ describe('POST /api/groups/join', () => {
     const res = await join('secret42');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, message: 'Successfully joined group "Crew"', group: { id: G1, name: 'Crew' } });
+    expect(res.body).toEqual({ success: true, message: 'Successfully joined group "Crew"', group: { id: G1, name: 'Crew' }, data: { group: { id: G1, name: 'Crew' } } });
     expect(tables.group_members).toMatchObject([{ user_id: 'user-1', group_id: G1, role: 'member', starts_on: null, left_at: null }]);
     expect(tables.users[0]!.group_id).toBe(G1);
   });
@@ -96,7 +96,7 @@ describe('POST /api/groups/join', () => {
     const res = await join(INVITE, mintToken({ user_id: 'user-1', group_id: G2 }));
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'You are already a member of a group' });
+    expect(res.body).toEqual({ success: false, error: 'You are already a member of a group', code: 'already_in_group' });
     expect(tables.users[0]!.group_id).toBe(G2);
     expect(tables.group_members).toHaveLength(1);
     expect(tables.group_members[0]).toMatchObject({ group_id: G2, left_at: null });
@@ -227,7 +227,7 @@ describe('POST /api/groups/join', () => {
     const res = await join(INVITE);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Group or user not found' });
+    expect(res.body).toEqual({ success: false, error: 'Group or user not found', code: 'not_found' });
   });
 
   it('answers 500 with a generic body and logs only the code when join_group fails for another reason', async () => {
@@ -238,7 +238,7 @@ describe('POST /api/groups/join', () => {
     const res = await join(INVITE);
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to join group' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to join group', code: 'internal_error' });
     expect(logged.join('\n')).toContain('40P01');
     expect(logged.join('\n')).not.toMatch(new RegExp(INVITE, 'i'));
   });
@@ -306,7 +306,7 @@ describe('GET /api/groups/my', () => {
     const res = await my(mintToken({ user_id: 'user-2', group_id: G1 }));
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Internal server error' });
+    expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('broken');
     expect(logged.join('\n')).toContain('42P01');
   });
@@ -386,7 +386,7 @@ describe('POST /api/auth/users', () => {
     const res = await create();
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create user' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create user', code: 'internal_error' });
     expect(tables.users.map((u) => u.id)).toEqual(['admin-1']);
     expect(JSON.stringify(res.body)).not.toContain('newbie@example.com');
     expect(logged.join('\n')).toContain('40P01');
@@ -402,7 +402,7 @@ describe('POST /api/auth/users', () => {
     const res = await create();
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create user' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create user', code: 'internal_error' });
     const out = logged.join('\n');
     expect(out).toContain('40P01');
     expect(out).toContain('23503');

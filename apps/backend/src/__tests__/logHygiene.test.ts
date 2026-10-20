@@ -33,6 +33,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import * as respondModule from '../utils/respond.js';
 
 const SRC = fileURLToPath(new URL('..', import.meta.url));
 
@@ -80,9 +81,17 @@ function isLoggerCall(node: ts.CallExpression): boolean {
       || (callee.expression.text === 'console' && CONSOLE_METHODS.has(callee.name.text)));
 }
 
-/** `res.json(...)` och `res.send(...)`. */
+/**
+ * Svarshjälparna i utils/respond.ts (ADR 007 Addendum 2026-10-20): `fail(res, 500, text)` och de andra bär svaret lika väl som `res.json`. Listan härleds ur modulen, så en
+ * ny exporterad hjälpare omfattas av vakten utan att någon kommer ihåg den (en hjälpare som inte tar `res` först berörs inte: se isResponseCall).
+ */
+const RESPOND_HELPERS = new Set(Object.entries(respondModule).filter(([, value]) => typeof value === 'function').map(([name]) => name));
+
+/** `res.json(...)`, `res.send(...)` och `fail(res, ...)`/`ok(res, ...)` (svarshjälparna). */
 function isResponseCall(node: ts.CallExpression): boolean {
   const callee = node.expression;
+  // Första argumentet är svaret (`res`): en egen hjälpare som heter fail men inte svarar (services/stravaConnection.ts) räknas inte.
+  if (ts.isIdentifier(callee)) return RESPOND_HELPERS.has(callee.text) && node.arguments[0] !== undefined && ts.isIdentifier(node.arguments[0]) && node.arguments[0].text === 'res';
   return ts.isPropertyAccessExpression(callee) && (callee.name.text === 'json' || callee.name.text === 'send');
 }
 
@@ -311,6 +320,13 @@ function scan(source: string, name = 'sample.ts'): string[] {
   return violationsIn(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source, name);
 }
 
+describe('the response helpers the guard reads', () => {
+  it('cover every helper utils/respond.ts exports that writes a response', () => {
+    for (const name of ['ok', 'okWithLegacy', 'fail', 'failAnyStatus', 'failWithLegacy', 'failWritten']) expect(RESPOND_HELPERS.has(name), name).toBe(true);
+    expect(typeof respondModule.failWithLegacy).toBe('function');
+  });
+});
+
 describe('the log hygiene guard itself', () => {
   it.each([
     ["logger.error('x:', error.message)"],
@@ -382,6 +398,18 @@ describe('the log hygiene guard itself', () => {
     ["logger.error(`x ${err.toString()}`)"],
     ["throw new Error(`x ${error.toString()}`)"],
     ["res.status(500).json({ error: error.toString() })"],
+    // svarshjälparna bär svaret lika väl som res.json
+    ["fail(res, 500, error.message)"],
+    ["fail(res, 500, String(error))"],
+    ["fail(res, 500, `Failed: ${error}`)"],
+    ["fail(res, 500, error as any)"],
+    ["try {} catch (boom) { fail(res, 500, boom); }"],
+    ["failWritten(res, err.message)"],
+    ["failWithLegacy(res, 500, error.message, 'internal_error', counts, { message: 'x' })"],
+    ["failWithLegacy(res, 207, String(error), 'partial_failure', counts, { message: error.message })"],
+    ["failAnyStatus(res, 500, error.message, 'internal_error')"],
+    ["ok(res, { detail: error.message })"],
+    ["okWithLegacy(res, { detail: err.details }, { detail: err.details })"],
     ["issues.push(`x ${error.message}`)"],
     ["errs.push(`x ${error}`)"],
     ["problems.push(`x ${e.message}`)"],
@@ -409,6 +437,12 @@ describe('the log hygiene guard itself', () => {
     ["res.status(500).json({ error: errorCode(error) })"],
     ["res.status(500).json({ code: error.code })"],
     ["res.status(500).send('Internal server error')"],
+    ["fail(res, 500, 'Failed to fetch titles')"],
+    ["fail(res, 400, page.error)"],
+    ["fail(res, 500, 'Failed to fetch titles', 'internal_error')"],
+    ["fail(res, 500, errorCode(error))"],
+    ["failWithLegacy(res, 207, 'x of y failed', 'partial_failure', { total, processed, failed }, { message: 'x of y failed', total, processed, failed })"],
+    ["ok(res, { events: [] })"],
     ["console.log('plain text')"],
     ["throw Object.assign(new Error(`Failed to fetch runs (user ${userId})`), { code: errorCode(error) })"],
     ["throw new Error(`${failed} of ${total} auto-declines failed`)"],

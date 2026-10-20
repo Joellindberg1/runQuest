@@ -2,7 +2,8 @@
 import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
-import type { ApiError, OnboardingMarkSeenRequest, OnboardingMarkSeenResponse, OnboardingStatusResponse } from '@runquest/shared';
+import type { OnboardingMarkSeenRequest, OnboardingMarkSeenResponse, OnboardingStatusResponse } from '@runquest/shared';
+import { fail, okWithLegacy } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -19,9 +20,10 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) throw error;
 
-    res.json({ seen: (data ?? []).map((r: { item_slug: string }) => r.item_slug) } satisfies OnboardingStatusResponse);
+    const seen = (data ?? []).map((r: { item_slug: string }) => r.item_slug);
+    okWithLegacy<OnboardingStatusResponse>(res, { seen }, { seen });
   } catch (e) {
-    res.status(500).json({ error: 'Failed to fetch onboarding status' } satisfies ApiError);
+    fail(res, 500, 'Failed to fetch onboarding status');
   }
 });
 
@@ -33,7 +35,7 @@ router.post('/mark-seen', authenticateJWT, async (req, res): Promise<void> => {
     const { slug }: Partial<OnboardingMarkSeenRequest> = req.body;
 
     if (!slug || typeof slug !== 'string') {
-      res.status(400).json({ error: 'slug is required and must be a string' } satisfies ApiError);
+      fail(res, 400, 'slug is required and must be a string');
       return;
     }
 
@@ -47,9 +49,9 @@ router.post('/mark-seen', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) throw error;
 
-    res.json({ ok: true } satisfies OnboardingMarkSeenResponse);
+    okWithLegacy<OnboardingMarkSeenResponse>(res, null, { ok: true });
   } catch (e) {
-    res.status(500).json({ error: 'Failed to mark item as seen' } satisfies ApiError);
+    fail(res, 500, 'Failed to mark item as seen');
   }
 });
 

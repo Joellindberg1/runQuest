@@ -64,12 +64,12 @@ describe('auth', () => {
   it('GET /api/badges/user/:userId utan token → 401', async () => {
     const res = await server.request('GET', `/api/badges/user/${KARL}`);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
   it('GET /api/badges/group utan token → 401', async () => {
     const res = await server.request('GET', '/api/badges/group');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
 });
 
@@ -79,7 +79,7 @@ describe('GET /api/badges/user/:userId', () => {
     for (const bad of ['not-a-uuid', '123', `${KARL}x`]) {
       const res = await getUser(bad);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     }
     expect(db.queries).toHaveLength(0);
   });
@@ -183,7 +183,7 @@ describe('GET /api/badges/user/:userId', () => {
     use(tables(), { errors: { user_badges: { message: 'secret db detail' } } });
     const res = await getUser(KARL);
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('secret db detail');
   });
 });
