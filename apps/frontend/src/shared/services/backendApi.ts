@@ -168,6 +168,8 @@ function failed(error: string, extra: { code?: ApiErrorCode; written?: true } = 
  * Ett 401 med token avslutar sessionen bara när koden säger det (`unauthorized`, `token_invalid`) eller när det inte finns någon känd kod (en backend före steg 1 och en kod
  * klienten inte känner: statusens klass, 401). `invalid_credentials` och `current_password_incorrect` är ett svar på ett lösenord, inte en utgången session.
  */
+// Vitlista, inte spärrlista: bara de två koderna, eller ingen känd kod, avslutar sessionen. En känd kod av annat slag på ett 401 (till exempel `forbidden`, som servern inte skickar med 401
+// men som katalogen har) är ett svar på något annat än token och lämnar sessionen. En okänd kod filtreras bort av isApiErrorCode och är därför "ingen kod": statusens klass, alltså utloggning.
 function endsSession(code: ApiErrorCode | undefined): boolean {
   return code === undefined || code === 'unauthorized' || code === 'token_invalid';
 }

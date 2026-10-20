@@ -231,6 +231,22 @@ describe('the session is cleared only for a 401 that ends the session', () => {
     expectCleared();
   });
 
+  it('pins the ADR rule as an allow-list: a code the client does not know (filtered by isApiErrorCode) is no code, so a 401 with it clears the session', async () => {
+    for (const code of ['some_future_code', 'Unauthorized', '', 'token_invalid ', 42, null]) {
+      localStorage.setItem(SESSION_TOKEN_KEY, TOKEN);
+      onUnauthorized.mockClear();
+      fetchMock.mockResolvedValue(reply(401, { success: false, error: 'Nope', code }));
+      expect(await backendApi.getAllUsers(), String(code)).toEqual({ success: false, error: 'Session expired. Please log in again.' });
+      expectCleared();
+    }
+  });
+
+  it('a 401 with a known code that does not end a session (forbidden) keeps the session and carries the code: the allow-list is unauthorized, token_invalid or no code', async () => {
+    fetchMock.mockResolvedValue(reply(401, { success: false, error: 'Forbidden', code: 'forbidden' }));
+    expect(await backendApi.getAllUsers()).toEqual({ success: false, error: 'Forbidden', code: 'forbidden' });
+    expectKept();
+  });
+
   it('keeps the session and shows the error for a wrong current password (current_password_incorrect)', async () => {
     fetchMock.mockResolvedValue(reply(401, { success: false, error: 'Current password is incorrect', code: 'current_password_incorrect' }));
     expect(await backendApi.changePassword('wrong', 'new-password')).toEqual({ success: false, error: 'Current password is incorrect', code: 'current_password_incorrect' });
