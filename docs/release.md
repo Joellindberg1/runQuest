@@ -437,7 +437,8 @@ Beslutas av ägaren; snabbast först. Varje releases egen "Rollback" i `CHANGELO
    i Railway **före** deployen av S1–S4 tillsammans (ADR 013 beslut 13); utan den startar appen men Strava-synken är avstängd och Sentry får ett
    `🚨 KRITISKT`-larm med `source:token_key`.
    Sätt aldrig `TZ` på backendtjänsten; processen ska köra i UTC. Stockholm-jobben får sin zon av `timezone`-optionen på varje schema, och
-   ett `TZ` med sommartid kan få node-crons heartbeat att loopa under timmen som upprepas när klockan ställs tillbaka. Backend loggar en
+   ett `TZ` med sommartid får node-cron att räkna fel under timmen som upprepas när klockan ställs tillbaka (uppmätt: ett jobb utan
+   `timezone` körde inget på ungefär en timme). Backend loggar en
    varning vid start (produktionsläge) om `TZ` är satt till något annat än UTC eller tomt.
 6. **Data som gått förlorad** (databasen, profilbilder, hemligheter): koden rullas inte tillbaka för det. Vad Pro-backupen täcker och
    inte täcker, återställningsövningen och RPO/RTO står i [`docs/runbook-backup.md`](runbook-backup.md).

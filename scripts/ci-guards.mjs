@@ -662,7 +662,7 @@ export function checkRecoverySchedulerStart(files) {
 
 /**
  * Regel 23. Samma form som regel 9, 10 och 16, för loggern som node-cron får (RUN-346): `installCronLogger();` direkt i produktionsblocket,
- * före schedulers. Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett Supabase- eller Stravafel
+ * (vakten prövar inte ordningen mot schedulers; node-crons logger är sent bunden, så ett jobbfel loggas via appens logger oavsett). Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett Supabase- eller Stravafel
  * kan då föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6).
  */
 export function checkCronLoggerInstall(files) {
