@@ -36,8 +36,11 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Typsnitten är självhostade (@font-face i src/index.css). Bara rubrikens typsnitt förladdas; crossorigin krävs även för samma ursprung. -->
+    <!-- Typsnitten är självhostade (@font-face i src/index.css). Bara de två som första skärmen ritar med förladdas: rubrikens (Bebas Neue) och brödtextens (Barlow Condensed 400:
+         ingressen och menyn). Utan Barlow-förladdningen byter texten typsnitt efter första ritningen och sidan hoppar (CLS ca 0,017 på desktop); resten (500–700, logotyp, siffror)
+         är små eller under vikningen och hämtas när CSS:en kräver dem. crossorigin krävs även för samma ursprung. Filnamnen är de versionerade filerna i public/fonts, inte byggets hashar. -->
     <link rel="preload" href="/fonts/bebas-neue-400.v1.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/barlow-condensed-400.v1.woff2" as="font" type="font/woff2" crossorigin />
     <!-- Landningen serveras för exakt "/" (ADR 006-addendum 2026-10-19). Mobilens LCP-element är filmens poster: den begärs här, före all JS, men bara på smala
          skärmar (desktop väljer 720-postern ur <picture> och hämtar den vid sin ordinarie prioritet). Filnamnet följer LandingFilm.tsx (staticHead.test.ts). -->
     <link rel="preload" as="image" href="/media/landing-film-poster-480.v1.webp" type="image/webp" media="(max-width: 1023px)" fetchpriority="high" />

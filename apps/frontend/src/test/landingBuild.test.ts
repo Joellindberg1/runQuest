@@ -113,6 +113,21 @@ function landingClosure(name: string): ChunkInfo[] {
   return staticClosure(name, entry!);
 }
 
+/** Landningens boot-skript: den enda modulskript-taggen i landing.html, och de JS-filer det startar (ingången och dess förladdningar, som adresser i dess text). */
+function bootScript(distDir: string, html: string): { file: string; modulesInHtml: number; starts: string[] } {
+  const modules = Array.from(html.matchAll(/<script\b(?=[^>]*type="module")[^>]*\bsrc="\/([^"]+)"[^>]*><\/script>/g), (match) => match[1]);
+  const file = modules[0] ?? '';
+  const starts = file ? Array.from(read(distDir, file).matchAll(/"\/(assets\/[^"]+\.js)"/g), (match) => match[1]) : [];
+  return { file, modulesInHtml: modules.length, starts };
+}
+
+/** Landningens JS-filer som finns i dist: grafen minus chunkar Vite tar bort (temat är en ren CSS-chunk, dess JS-fil skrivs aldrig). */
+const landingScriptFiles = (name: string, distDir: string) =>
+  landingClosure(name)
+    .map((chunk) => chunk.fileName)
+    .filter((file) => existsSync(join(distDir, file)))
+    .sort();
+
 const cssOf = (dist: string, chunks: ChunkInfo[]) => [...new Set(chunks.flatMap((chunk) => chunk.css))].map((file) => read(dist, file)).join('\n');
 // Skalets överlagerregler i minifierad form: scrimmen och modalen är fasta lager. login.css har egna regler på .rq-modal.rq-login-dialog, så markören är grundreglerna.
 const SCRIM_RULE = /\.rq-scrim\{[^}]*position:fixed/;
@@ -182,7 +197,7 @@ describe('the production build', () => {
     expect(scripts.filter(({ text }) => serverCode.test(text)).map(({ file }) => file)).toEqual([]);
   });
 
-  it('the landing entry loads neither the app pages nor the tour, and landing.html preloads nothing outside its own graph', () => {
+  it('the landing entry loads neither the app pages nor the tour', () => {
     const closure = landingClosure('prod');
     const modules = closure.flatMap((chunk) => chunk.moduleIds).map(normalize);
     expect(modules.filter((id) => /\/src\/pages\/(?:Board|Titles|Duels|Events|News|Log|Profile|Runner|Badges)Page/.test(id))).toEqual([]);
@@ -190,11 +205,29 @@ describe('the production build', () => {
     expect(modules.filter((id) => /\/src\/(?:routes|App)\.tsx$/.test(id))).toEqual([]);
     // Och själva landningen finns med, annars bevisar tomma sökträffar ingenting.
     expect(modules.some((id) => id.endsWith('/features/landing/components/LandingScreen.tsx'))).toBe(true);
+  });
 
+  // Ingångsmodulen och dess förladdningar hämtas först efter första ritningen (RUN-343, deferLandingEntry.ts). HTML-filen bär bara ett litet boot-skript; boot-skriptet
+  // ska starta exakt landningens egen graf: tappas en chunk hydreras landningen aldrig, och en extra chunk vore en förladdning utanför grafen.
+  it('landing.html has one module script, the boot script, and no modulepreload link; the boot script starts the landing entry and exactly its own graph', () => {
     const html = read(dist, 'landing.html');
-    const preloaded = Array.from(html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
-    const known = new Set(closure.map((chunk) => chunk.fileName));
-    expect(preloaded.filter((file) => !known.has(file))).toEqual([]);
+    expect(html).not.toMatch(/<link\b[^>]*rel="modulepreload"/);
+    const boot = bootScript(dist, html);
+    expect(boot.modulesInHtml).toBe(1);
+    expect(boot.file).toMatch(/^assets\/landing-boot-[\w-]+\.js$/);
+
+    const closure = landingClosure('prod');
+    const entry = closure.find((chunk) => chunk.facadeModuleId?.endsWith('landing.html'))!;
+    expect(boot.starts).toContain(entry.fileName);
+    expect([...boot.starts].sort()).toEqual(landingScriptFiles('prod', dist));
+    for (const file of boot.starts) expect(existsSync(join(dist, file)), `${file} finns i dist`).toBe(true);
+  });
+
+  it('index.html keeps its module script and preloads in the HTML: only the landing defers its entry', () => {
+    const html = read(dist, 'index.html');
+    expect(html).toMatch(/<link\b[^>]*rel="modulepreload"/);
+    expect(html).toMatch(/<script\b[^>]*type="module"[^>]*\bsrc="\/assets\/index-[\w-]+\.js"/);
+    expect(html).not.toContain('landing-boot');
   });
 
   it("landing.html's stylesheets carry the loading view's rule but none of the shell's layout rules", () => {
@@ -292,6 +325,14 @@ describe('the staging build', () => {
       expect(rootMarkup(read(dist, file))).toContain('Staging environment');
     }
     expect(inlineScripts(read(dist, 'landing.html'))[0].body).toBe(sessionHintScript());
+  });
+
+  it('defers the landing entry here too, and the lazy banner chunk is not part of what the boot script starts', () => {
+    const boot = bootScript(dist, read(dist, 'landing.html'));
+    expect(boot.modulesInHtml).toBe(1);
+    expect(boot.file).toMatch(/^assets\/landing-boot-[\w-]+\.js$/);
+    expect([...boot.starts].sort()).toEqual(landingScriptFiles('staging', dist));
+    expect(boot.starts.filter((file) => /StagingBanner/.test(file))).toEqual([]);
   });
 
   it('index.html draws the banner above the loading view before any script runs, so the loader is already where the app will put it', () => {

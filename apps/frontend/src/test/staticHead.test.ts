@@ -339,11 +339,11 @@ describe('site.webmanifest', () => {
 
 // ── landing.html ─────────────────────────────────────────────────────────────
 
-/** Allt i head som delningsbotar och webbläsare läser, i filens ordning: title, alla meta, och länkarna som inte är landningens egna förladdningar. */
+/** Allt i head som delningsbotar och webbläsare läser, i filens ordning: title, alla meta, och länkarna som inte är landningens egna förladdningar (postern och typsnitten). */
 function sharedHead(text: string): string[] {
   const head = /<head>([\s\S]*?)<\/head>/.exec(text)?.[1] ?? '';
   const tags = [...head.matchAll(/<title>[\s\S]*?<\/title>|<meta\b[^>]*>|<link\b[^>]*>/g)].map((match) => match[0].replace(/\s+/g, ' ').trim());
-  return tags.filter((tag) => !/rel="preload"[^>]*as="image"/.test(tag));
+  return tags.filter((tag) => !/rel="preload"[^>]*as="(?:image|font)"/.test(tag));
 }
 
 /** POSTER_480 ur LandingFilm: filnamnet som mobilens förladdning ska peka på ligger på ett ställe, i komponenten. */
@@ -369,6 +369,22 @@ describe('landing.html', () => {
     expect(attrs.media).toBe('(max-width: 1023px)');
     expect(attrs.fetchpriority).toBe('high');
     expect(existsSync(join(publicDir, attrs.href.slice(1)))).toBe(true);
+  });
+
+  // Landningens första skärm ritas med rubrikens typsnitt (Bebas Neue) och brödtextens (Barlow Condensed 400: ingress och meny). Förladdas inte Barlow byter texten typsnitt efter första
+  // ritningen och sidan hoppar (CLS ca 0,017 på desktop). Fler än så konkurrerar med stilmallarna och mobilpostern om bandbredden före första ritningen (RUN-343, docs/performance.md).
+  it('preloads the two faces the first screen draws with, as woff2 with crossorigin, each one a file that index.css declares', () => {
+    const tags = [...(/<head>([\s\S]*?)<\/head>/.exec(landingHtml)?.[1] ?? '').matchAll(/<link\b[^>]*>/g)].map((match) => match[0]).filter((tag) => /rel="preload"/.test(tag) && /as="font"/.test(tag));
+    expect(tags.map((tag) => attributes(tag).href)).toEqual(['/fonts/bebas-neue-400.v1.woff2', '/fonts/barlow-condensed-400.v1.woff2']);
+    const css = readFileSync(join(frontend, 'src', 'index.css'), 'utf8');
+    for (const tag of tags) {
+      const { href, type } = attributes(tag);
+      expect(type).toBe('font/woff2');
+      // Typsnitt hämtas alltid i CORS-läge: utan crossorigin förladdas filen men används inte, och hämtas två gånger.
+      expect(tag, href).toMatch(/\scrossorigin(?:[\s=>/]|$)/);
+      expect(existsSync(join(publicDir, href.slice(1))), `${href} finns i public`).toBe(true);
+      expect(css, `${href} är en @font-face-källa`).toContain(`url('${href}')`);
+    }
   });
 
   it('is a separate entry with its own marker in #root, and needs no noscript because the content is in the HTML', () => {
