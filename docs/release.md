@@ -118,6 +118,10 @@ stället för mot prod-databasen:
     previewn).
   - Kontroll vid previewn: öppna stagingadressen och bekräfta att remsan syns, och att
     `curl https://runquest-frontend-staging-staging.up.railway.app/robots.txt` ger `Disallow: /`.
+- **Säkerhetshuvuden i staging (RUN-344).** Stagingfrontenden serveras av samma `Caddyfile` som prod och får samma huvuden. Kontroll:
+  `curl -sI https://runquest-frontend-staging-staging.up.railway.app/` ska visa `Strict-Transport-Security: max-age=31536000`,
+  `Referrer-Policy`, `X-Frame-Options: DENY` och CSP (först `Content-Security-Policy-Report-Only`, sedan skarp). Stagingbygget laddar aldrig Umamis tracker (`umamiWebsiteIdOf`);
+  `gateway.umami.is` står ändå i `connect-src` eftersom filen är gemensam. Se "Säkerhetshuvuden" i steg 3 för CSP-strängen och införandet.
 - **Migrationer provas i staging före prod.** Release-PR:ens nya migrationer appliceras först på staging-databasen
   (`supabase-staging`), koden provas mot dem, och först därefter söker Lead ägarens ja per migration för prod (steg 5).
   Prod-regeln om ett ja per migration ändras inte, och staging kräver inget ägar-ja. Skripten för att läsa, återställa
@@ -288,6 +292,15 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
 - **Cookiefritt:** Umami sätter inga cookies och koden skriver varken till cookies eller localStorage/sessionStorage (testat i
   `umamiPageviews.test.ts`). `data-do-not-track="true"` är påslaget: besökare som skickar Do Not Track räknas inte. Valet kostar
   några procent av sidvisningarna och stämmer med att tjänsten ska vara integritetsvänlig; det stör inte målet (trender, inte exakta tal).
+- **Trackern är vår egen kopia (RUN-344):** `apps/frontend/public/vendor/umami.v1.js` är Umamis egen minifierade tracker (MIT, licens och
+  ursprung i `umami.LICENSE.txt` bredvid), serverad från appens eget ursprung och inte hämtad från `cloud.umami.is`. Skriptet där har ingen version
+  och byts utan förvarning (Last-Modified 2026-10-17 när vi tittade), så SRI hade tyst stoppat statistiken vid nästa uppdatering, och
+  CSP:ns `script-src` hade fått släppa in en tredje parts kod på samma ursprung som inloggningen. Trackern skickar till
+  `https://gateway.umami.is/api/send` (filens eget standardvärde; koden sätter det också med `data-host-url`), som därför står i `connect-src`.
+  Uppdatera trackern så här: hämta nya `https://cloud.umami.is/script.js` med `curl`, läs igenom ändringen, spara den som en ny fil med nästa versionsnummer (`.v2`;
+  `.gitattributes` håller radbrytningarna orörda), uppdatera hash och datum i `umami.LICENSE.txt` och namnet i `UMAMI_SCRIPT_SRC`, och kontrollera att
+  `data-host-url`-adressen fortfarande är den filen skickar till. `scripts/verify-static-serving.sh` jämför filen med hashen i licensfilen.
+  Kostnaden: ingen automatisk uppdatering, och slutar `gateway.umami.is` svara syns det först som tomma siffror i Umami-panelen.
 - **Laddningen:** skriptet läggs in från koden (inte från `index.html`) som `<script async defer>` först när dokumentet laddats klart,
   med automatisk spårning avstängd (`data-auto-track="false"`); koden skickar själv en sidvisning per ny sida efter att adressen legat
   still en kort stund (så att en omdirigering inte räknas som en sidvisning). En blockerad eller misslyckad laddning tystas.
@@ -295,8 +308,8 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   skriptet laddas aldrig där och budgeten (RUN-259) påverkas bara av den lilla koden i huvudbunten (ca 0,9 kB gzip). Bygg inte med
   variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): skriptet hämtas då utifrån och mätningen slutar vara hermetisk.
 - **Kontroll efter att variabeln satts i prod (Lead och ägaren):** öppna `https://www.runquest.dev` i ett privat fönster med DevTools →
-  Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `script.js` från
-  `cloud.umami.is` och en POST till Umamis `/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
+  Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `umami.v1.js` från
+  `www.runquest.dev` och en POST till `gateway.umami.is/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
   med id). Gå sedan in i appen och öppna en löpare: payloaden ska visa `/runner/:id`. Ägaren bekräftar att sidvisningarna syns i
   Umami-panelen. Integritetstexten på `/legal` uppdateras i en egen story i samma epic (S3), inte här.
 - **Två ingångar (v0.8.0, RUN-335):** den förrenderade `landing.html` räknar sina egna sidvisningar (`/`, `/legal`, `/login` via lean routern) med samma sändare och normalisering som appen; `/landing` och `/landing.html` rapporteras som `/`. Vid överlämningen till appen (inloggning, sessionstipset, okänd adress) skickar landningen ingen visning, så samma besök räknas inte två gånger. Kontrollen ovan görs därför på både `/` och `/board`.
@@ -344,6 +357,58 @@ enstaka gemena ord. En ny händelse eller ett nytt värde kräver en ändring i 
 - **Kontroll i prod (Lead och ägaren):** i DevTools → Network ska en klick på "Join the waitlist" ge en POST till `/api/send` med
   `"name":"waitlist-click"` och en `url` som `/`; en inställningsändring ska ge `"name":"setting-changed"` med `data` som bara har `setting`.
   Ingen payload ska innehålla ett id, ett namn, en e-postadress eller ett tal.
+
+#### Säkerhetshuvuden (RUN-344, epic RUN-96)
+
+Frontend-tjänstens Caddy (repo-rotens `Caddyfile`, ett `header`-block) sätter fem huvuden på **alla** svar, också 404, omdirigeringar och `/health`:
+
+| Huvud | Värde | Varför |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000` | Ett år. **Utan `includeSubDomains` och utan `preload`** i v0.8.1: underdomänerna är inte inventerade, och `preload` går inte att ångra snabbt (en webbläsare som fått domänen i sin lista kräver https i månader). Tas upp igen när underdomänerna är kartlagda. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Adressen med sökväg lämnar aldrig sajten; utanför den följer bara ursprunget med. |
+| `X-Frame-Options` | `DENY` | Skarp redan medan CSP går som Report-Only (`frame-ancestors` i en Report-Only-policy blockerar inget). Finns kvar när CSP blir skarp. |
+| `X-Content-Type-Options` | `nosniff` | Fanns sedan tidigare. |
+| `Content-Security-Policy-Report-Only`, sedan `Content-Security-Policy` | se nedan | Två steg, se "Införandet". |
+
+**CSP-strängen** (en rad i `Caddyfile`; samma fil i prod och staging, så listorna täcker båda miljöerna):
+
+```
+default-src 'self';
+script-src 'self' 'sha256-1yYJ…' (index.html: laddarens fas) 'sha256-ZOYf…' (landing.html: sessionstips) 'sha256-y6TT…' (landing.html: next-themes) 'sha256-ENgR…' (strava-popup.html);
+style-src 'self' 'unsafe-inline';
+img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co;
+font-src 'self'; media-src 'self'; manifest-src 'self';
+connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is;
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+- **script-src** släpper bara in `'self'` och fyra hashar: det är de fyra inline-skripten i bygget. Ingen `unsafe-inline`, `unsafe-eval` eller `strict-dynamic`
+  (landningens boot-skript lägger in modulskript och `modulepreload` från samma ursprung, så `'self'` räcker). Umamis tracker är en egen fil på eget ursprung (se Webbanalys ovan) och behöver ingen värd i `script-src`.
+  `strava-popup.html` (OAuth-återkopplingen när Strava kopplas) har ett inline-skript som inte stod i underlaget; utan dess hash hade Strava-kopplingen slutat fungera.
+- **Hasharna prövas mot bygget.** `scripts/csp-hashes.mjs` läser Caddyfilens CSP-rad och räknar sha256 över varje inline `<script>` i `dist/**/*.html` (radbrytningar normaliserade som webbläsaren gör).
+  Den fäller på tre saker: ett inline-skript utan hash (`FAIL index.html: inline script 'sha256-…' is missing from script-src`), en hash som inget längre matchar
+  (`stale hash`), och en policy som släppt på ett grunddirektiv (`unsafe-inline` i `script-src`, `frame-ancestors` som inte är `'none'`, Umami-värden borta ur `connect-src`). Den körs av `scripts/verify-static-serving.sh`
+  (CI-steget "Static serving (Caddy)") och logiken har enhetstester i `scripts/csp-hashes.test.mjs`. Laddarens hash (`index.html`) kommer ur `alignRunnersWithClock.toString()` via esbuild: ändras funktionen eller byts esbuild-version ändras hashen
+  och CI fäller bygget. Åtgärd: kopiera den nya hashen ur FAIL-raden till Caddyfilen (och ta bort den gamla) i samma PR.
+- **style-src är `'self' 'unsafe-inline'`, inga hashar, medvetet.** Det prövades i Report-Only mot e2e-sviten: `react-remove-scroll` (Radix-dialogerna, bland annat inloggningsrutan) lägger in en `<style>` vars text bär uppmätta marginaler och scrollistens bredd och därför inte går att fästa, `sonner` lägger in sin CSS som `<style>` vid import, och den förrenderade markupen har 28 `style`-attribut (24 på landningen, 4 i laddaren) som webbläsaren läser före hydrering.
+  Hashar hade blockerat dialoger och toasts. En inline-stil kan inte köra skript; det som återstår (CSS som läcker data via attributväljare) begränsas av `img-src`, `font-src` och `connect-src`. `csp-hashes.mjs` prövar att `style-src` är exakt det här, så en ändring blir ett medvetet val.
+- **connect-src** listar båda miljöernas API, Sentrys EU-ingest (mönster, eftersom DSN-värdet aldrig läses; bara det inloggade skalet startar Sentry, och koden använder ingen `tunnel`) och Umamis tracker-endpoint.
+  Prod får alltså tala med staging-API:et och tvärtom; det är ofarligt eftersom `script-src` hindrar främmande kod från att köra, och det håller filen densamma (Railpack renderar den som Go-mall, och nya Railway-variabler kräver ägarens ja).
+- **img-src** är Supabase Storage för profilbilder (uppladdningen går via `apps/backend/src/routes/users.ts`), prod- och stagingprojektet. Ingen annan bildkälla finns i koden; Strava är bara navigering (OAuth), inga bilder därifrån.
+  Har en äldre profilbild en adress någon annanstans syns den som överträdelse under Report-Only-steget.
+- Inga `data:`- eller `blob:`-adresser och inga Workers finns i bygget; inget formulär postar dokumentet (inloggning och väntelista går via `fetch`, alltså `connect-src`).
+- **Ingen `report-uri`/`report-to`** i v0.8.1: det kräver Sentrys DSN-nyckel. Överträdelser samlas i stället av e2e-sviten (`apps/e2e/support/cspViolations.ts`, fixturen `cspGuard`): skarp CSP fäller provet, Report-Only skriver ut dem (`CSP report-only: …`) och lägger dem som anteckning.
+  `tests/security-headers.spec.ts` prövar huvudena på `/`, `/login` och en 404 mot det som serveras.
+
+**Införandet i två steg.** Steg 1 (Report-Only): allt ovan är skarpt utom CSP, som går som `Content-Security-Policy-Report-Only`; Lead låter staging deploya, kör e2e mot staging och läser överträdelserna.
+Steg 2 (skarp): rubriken byts till `Content-Security-Policy` på en rad i `Caddyfile` och `CSP_HEADER` överst i `scripts/verify-static-serving.sh` följer med; inget annat ändras. Rollback av steg 2 är samma rad tillbaka.
+
+**Lokala körningar.** Caddyfilen renderas med `{{.DIST_DIR}}` ersatt (som Railpack gör). Bygget pekar på det falska API:et på `http://localhost:3001`, som inte står i `connect-src`; `scripts/lighthouse/run.sh` lägger därför till det i sin renderade kopia, och samma `sed` behövs vid e2e mot stubben
+(`docs/e2e.md`). Repo-rotens Caddyfile ändras aldrig för det.
+
+**API:ets egna huvuden** (`helmet()`, `apps/backend/src/app.ts`, helmet 8.1.0, oförändrat i RUN-344): `Content-Security-Policy` (helmets standard: `default-src 'self'`, `frame-ancestors 'self'`, `script-src 'self'`, `upgrade-insecure-requests` m.fl.), `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Resource-Policy: same-origin`, `Origin-Agent-Cluster: ?1`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000; includeSubDomains` (gäller bara API-värden), `X-Content-Type-Options: nosniff`, `X-DNS-Prefetch-Control: off`,
+`X-Download-Options: noopen`, `X-Frame-Options: SAMEORIGIN`, `X-Permitted-Cross-Domain-Policies: none`, `X-XSS-Protection: 0`; `X-Powered-By` tas bort.
 
 ### 4. Rök mot de kritiska flödena
 

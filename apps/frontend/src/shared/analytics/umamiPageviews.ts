@@ -23,7 +23,14 @@ export interface EventSender {
 /** Hänvisning utan känt ursprung: Umami tolkar tomt som direktbesök. */
 const PAGEVIEW_REFERRER_NONE = '';
 
-export const UMAMI_SCRIPT_SRC = 'https://cloud.umami.is/script.js';
+/**
+ * Trackern är Umamis egen fil (MIT), versionerad och hostad av oss under public/vendor, inte hämtad från cloud.umami.is. Skriptet där har ingen version
+ * och byts utan förvarning, så SRI hade tyst stoppat statistiken vid nästa uppdatering, och CSP:ns script-src hade fått släppa in en tredje parts kod på
+ * samma ursprung som inloggningen. Ursprung och licens: public/vendor/umami.LICENSE.txt. Byts filen: nytt namn (.v2) här.
+ */
+export const UMAMI_SCRIPT_SRC = '/vendor/umami.v1.js';
+/** Dit trackern skickar (filens eget standardvärde, satt uttryckligen så att ett framtida filbyte inte flyttar det). Måste stå i connect-src i Caddyfile (prövas av scripts/csp-hashes.mjs). */
+export const UMAMI_HOST_URL = 'https://gateway.umami.is';
 /** Skriptet skickar bara från de här värdarna: ingenting från staging, localhost eller en förhandsvisning, även om id:t av misstag skulle sättas. */
 export const UMAMI_DOMAINS = 'www.runquest.dev,runquest.dev';
 
@@ -133,6 +140,7 @@ export function createPageviewSender(websiteId: string | undefined, win: Window)
     script.async = true;
     script.defer = true;
     script.dataset.websiteId = websiteId;
+    script.dataset.hostUrl = UMAMI_HOST_URL;
     script.dataset.autoTrack = 'false';
     script.dataset.doNotTrack = 'true';
     script.dataset.domains = UMAMI_DOMAINS;

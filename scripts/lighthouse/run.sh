@@ -50,7 +50,10 @@ else
   CADDY="$(bash "$HERE/install-caddy.sh" "$WORK/caddy-install" | tail -n 1)"
 fi
 
-sed "s|{{.DIST_DIR}}|$DIST|g" Caddyfile > "$WORK/Caddyfile"
+# Samma rendering som Railpack gör av {{.DIST_DIR}}. Bygget pekar på det falska API:et på 127.0.0.1/localhost, som CSP:ns connect-src (prod- och stagingadresserna) inte listar:
+# utan tillägget blockerar webbläsaren anropet och mätningen får konsolfel som prod aldrig har (RUN-344). Bara den renderade kopian ändras, aldrig repo-rotens Caddyfile.
+sed -e "s|{{.DIST_DIR}}|$DIST|g" -e "s|connect-src 'self'|connect-src 'self' http://localhost:$API_PORT|" Caddyfile > "$WORK/Caddyfile"
+grep -q "connect-src 'self' http://localhost:$API_PORT" "$WORK/Caddyfile" || { echo "FAIL Caddyfilen har ingen connect-src att lägga det falska API:et i: kontrollera CSP-raden"; exit 1; }
 "$CADDY" validate --config "$WORK/Caddyfile" --adapter caddyfile
 
 rm -rf "$OUT_DIR"

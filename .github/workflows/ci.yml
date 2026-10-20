@@ -119,6 +119,11 @@ jobs:
         run: node --test scripts/sentry-build.test.mjs
         working-directory: .
 
+      # CSP-vakten (RUN-344): logiken som prövar Caddyfilens inline-hashar mot bygget. Själva prövningen mot dist körs i "Static serving (Caddy)" nedan.
+      - name: CSP guard
+        run: node --test scripts/csp-hashes.test.mjs
+        working-directory: .
+
       # Återställningsövningens jämförelse-SQL (docs/runbook-backup-compare.sql) körs av ägaren mot prod: filen får bara innehålla
       # SELECT. Inga beroenden, inget nätverk.
       - name: Backup runbook SQL guard

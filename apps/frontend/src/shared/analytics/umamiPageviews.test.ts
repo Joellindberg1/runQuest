@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { UMAMI_DOMAINS, UMAMI_SCRIPT_SRC, createPageviewSender, umamiWebsiteIdOf } from './umamiPageviews';
+import { UMAMI_DOMAINS, UMAMI_HOST_URL, UMAMI_SCRIPT_SRC, createPageviewSender, umamiWebsiteIdOf } from './umamiPageviews';
 
 // Nätverket fejkas: jsdom hämtar inga skript, och window.umami ersätts av en spion. Inget når Umami Cloud.
 const WEBSITE_ID = 'f69b618e-a134-4cd9-af69-d4479c418de8';
@@ -64,8 +64,11 @@ describe('the Umami loader', () => {
     createPageviewSender(WEBSITE_ID, window).send('/');
     const [script] = umamiScripts();
     expect(umamiScripts()).toHaveLength(1);
-    expect(UMAMI_SCRIPT_SRC).toBe('https://cloud.umami.is/script.js');
-    expect(script!.src).toBe('https://cloud.umami.is/script.js');
+    // Trackern är en versionerad fil på appens eget ursprung (public/vendor), inte ett skript från Umami: CSP:ns script-src släpper bara in 'self'.
+    expect(UMAMI_SCRIPT_SRC).toBe('/vendor/umami.v1.js');
+    expect(script!.getAttribute('src')).toBe('/vendor/umami.v1.js');
+    expect(UMAMI_HOST_URL).toBe('https://gateway.umami.is');
+    expect(script!.dataset.hostUrl).toBe(UMAMI_HOST_URL);
     expect(script!.async).toBe(true);
     expect(script!.defer).toBe(true);
     expect(script!.dataset.websiteId).toBe(WEBSITE_ID);
