@@ -106,6 +106,10 @@
 //     grupp får samma fail-closed-svar överallt (ADR 007 A6). Undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester. Textbaserad (se checkTokenGroupIdReads
 //     för vad den inte fångar).
 //
+// 23. node-crons logger installeras i produktionsblocket (RUN-346): `installCronLogger()` direkt i samma `if (process.env.NODE_ENV === 'production') { … }` som
+//     regel 9, 10 och 16 (samma vakt, samma begränsningar). Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett databas- eller
+//     Stravafel kan föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6). Loggern (scheduler/cronLogger.ts) skickar bara fast text och errorCode vidare.
+//
 // Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|cron-logger-install|frontend-supabase|route-contracts|error-responses|token-group-id|doc-paths|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
@@ -657,7 +661,7 @@ export function checkRecoverySchedulerStart(files) {
 }
 
 /**
- * Regel 20. Samma form som regel 9, 10 och 16, för loggern som node-cron får (RUN-346): `installCronLogger();` direkt i produktionsblocket,
+ * Regel 23. Samma form som regel 9, 10 och 16, för loggern som node-cron får (RUN-346): `installCronLogger();` direkt i produktionsblocket,
  * före schedulers. Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett Supabase- eller Stravafel
  * kan då föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6).
  */
