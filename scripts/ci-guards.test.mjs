@@ -30,6 +30,7 @@ import {
   checkRouteResponseContracts,
   checkTestNames,
   checkTodos,
+  checkTokenGroupIdReads,
   checkUsersGroupIdWrites,
   DOC_PATH_EXEMPT,
   ERROR_RESPONSE_EXEMPT_ROUTES,
@@ -1326,6 +1327,79 @@ describe('checkDocPaths', () => {
   });
 });
 
+describe('checkTokenGroupIdReads', () => {
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE) => checkTokenGroupIdReads([{ path, content }]);
+
+  it('flags every direct read of the group in the token, with its line', () => {
+    for (const read of ['req.user!.group_id', 'req.user?.group_id', 'req.user.group_id', 'req.user!?.group_id', "req.user!['group_id']", 'req . user ! . group_id']) {
+      const errors = scan(`\nconst groupId = ${read};\n`);
+      assert.equal(errors.length, 1, read);
+      assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: /, read);
+    }
+  });
+
+  it('flags a read through an alias of req.user or of req in the same file', () => {
+    assert.equal(scan('const u = req.user!;\nconst g = u.group_id;').length, 1);
+    assert.equal(scan('const u = req.user as AuthUser;\nconst g = u?.group_id;').length, 1);
+    assert.equal(scan('let me: AuthUser = req.user!;\nuse(me!.group_id);').length, 1);
+    assert.equal(scan('const { user } = req;\nconst g = user.group_id;').length, 1);
+    assert.equal(scan('const { user: me } = req;\nconst g = me.group_id;').length, 1);
+    assert.equal(scan('const r = req;\nconst g = r.user!.group_id;').length, 1);
+    const twice = scan('const u = req.user;\nuse(u.group_id);\nuse(u.group_id);');
+    assert.deepEqual(twice.map((error) => error.split(': ')[0]), ['apps/backend/src/routes/things.ts:2', 'apps/backend/src/routes/things.ts:3']);
+  });
+
+  it('flags destructuring of group_id out of req.user, out of req, or out of an alias', () => {
+    assert.equal(scan('const { group_id } = req.user;').length, 1);
+    assert.equal(scan('const { group_id: g } = req.user!;').length, 1);
+    assert.equal(scan('const { user_id, group_id } = req.user!;').length, 1);
+    assert.equal(scan('const {\n  user_id,\n  group_id: g,\n} = req.user!;').length, 1);
+    assert.equal(scan('const { user: { group_id } } = req;').length, 1);
+    assert.equal(scan('const u = req.user;\nconst { group_id } = u;').length, 1);
+    assert.equal(scan('({ group_id } = req.user!);').length, 1);
+  });
+
+  it('covers routes, services (also nested) and middleware', () => {
+    const bad = 'const g = req.user!.group_id;';
+    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/services/a.ts', 'apps/backend/src/services/stravaWebhook/handlers/a.ts', 'apps/backend/src/middleware/admin.ts']) {
+      assert.equal(scan(bad, path).length, 1, path);
+    }
+    assert.equal(scan('a(req.user!.group_id, req.user?.group_id);').length, 1);
+  });
+
+  it('leaves groupScope.ts, auth.ts (which sets group_id), tests, other folders and other apps alone', () => {
+    const bad = 'const g = req.user!.group_id;';
+    for (const path of ['apps/backend/src/utils/groupScope.ts', 'apps/backend/src/middleware/auth.ts', 'apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/services/test-utils/a.ts', 'apps/backend/src/utils/a.ts', 'apps/backend/src/scripts/a.ts', 'apps/frontend/src/routes/a.ts']) {
+      assert.deepEqual(scan(bad, path), [], path);
+    }
+  });
+
+  it('lets through reads of group_id that do not come from the token, other token fields, the helpers and comments', () => {
+    const content = [
+      'const g = row.group_id;',
+      'const { group_id } = row;',
+      'const { group_id: g2 } = data;',
+      'const g3 = user.group_id;', // en användarrad ur databasen, inget alias av req.user
+      'const { user_id, name } = req.user!;',
+      'const me = req.user!.user_id;',
+      'const u = req.user!;\nuse(u.user_id);',
+      'const g4 = req.body.group_id;',
+      'const g5 = tokenGroupId(req);',
+      'const g6 = groupIdOrRespondEmpty(req, res);',
+      '// const g = req.user!.group_id; var förut\n/* req.user.group_id */',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('uses an alias only in the file that declares it', () => {
+    assert.deepEqual(checkTokenGroupIdReads([
+      { path: 'apps/backend/src/routes/a.ts', content: 'const u = req.user;\n' },
+      { path: 'apps/backend/src/routes/b.ts', content: 'const g = u.group_id;\n' },
+    ]), []);
+  });
+});
+
 describe('walkFiles / listWorkspaces', () => {
   it('skips node_modules and dist, and returns slash-separated relative paths', () => {
     const fs = { '/r/p': ['src', 'node_modules', 'dist'], '/r/p/src': ['a.ts', 'sub'], '/r/p/src/sub': ['b.ts'] };
@@ -1823,6 +1897,32 @@ describe('CLI', () => {
     const ok = fontsDir('fonts-ok');
     writeFileSync(join(ok.dir, 'fine.v1.woff2'), Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(100)]));
     assert.equal(runCli('fonts', ok.root).status, 0);
+  });
+
+  it('exits 0 on the current repo in token-group-id mode', () => {
+    const result = runCli('token-group-id');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /gruppen i token läses bara i groupScope/);
+  });
+
+  it('exits 1 on a planted read of the group in the token (also under all) and 0 once it goes through groupScope', () => {
+    const bad = makeRepo('token-group-bad');
+    mkdirSync(join(bad, 'apps', 'one', 'src', 'routes'), { recursive: true });
+    writeFileSync(join(bad, 'apps', 'one', 'src', 'routes', 'things.ts'), 'const g = req.user!.group_id;\n');
+    assert.equal(runCli('token-group-id', bad).status, 0, 'only apps/backend is covered');
+    const backendBad = join(temp, 'token-group-backend');
+    mkdirSync(join(backendBad, 'apps', 'backend', 'src', 'routes'), { recursive: true });
+    writeFileSync(join(backendBad, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+    writeFileSync(join(backendBad, 'apps', 'backend', 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'a.test.ts'), 'export {};\n');
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'routes', 'things.ts'), 'const g = req.user!.group_id;\n');
+    for (const mode of ['token-group-id', 'all']) {
+      const result = runCli(mode, backendBad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/things\.ts:1: /);
+    }
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'routes', 'things.ts'), 'const g = tokenGroupId(req);\n');
+    assert.equal(runCli('token-group-id', backendBad).status, 0);
   });
 
   it('exits 0 on the current repo in route-contracts mode', () => {
