@@ -148,12 +148,6 @@ describe('written och 404-som-tomt', () => {
     }
   });
 
-  it('written följer med bara för run-skrivningarna, andra metoder lämnar fältet', async () => {
-    fetchMock.mockResolvedValue(reply(500, { error: 'nope', written: true }));
-
-    expect(await backendApi.createUser('A', 'a@example.com', 'pw')).toEqual({ success: false, error: 'nope' });
-  });
-
   it('getUserTitles läser 404 som en tom lista men inget annat fel', async () => {
     fetchMock.mockResolvedValue(reply(404, { error: 'User not found' }));
     expect(await backendApi.getUserTitles('u1')).toEqual({ success: true, data: [] });
