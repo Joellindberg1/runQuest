@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import type { Challenge, ChallengeToken, UserBoost } from '@runquest/types';
-import { MS_DAY, type ChallengeHistoryItem } from '@runquest/shared';
+import type { Challenge } from '@runquest/types';
+import { MS_DAY, type ChallengeGroupStat, type ChallengeHistoryItem, type MyBoost, type MyChallengeToken, type MyChallengesData } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { DuelsLayout } from '@/features/challenges/components/DuelsLayout';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
-  buildTokenGroups, nameMap, summaryText, tokenTotal, type GroupStat, type MyChallenges, type ProgressByChallenge,
+  buildTokenGroups, nameMap, summaryText, tokenTotal, type ProgressByChallenge,
 } from '@/features/challenges/duelsModel';
 import { buildTierRules, observedStakes } from '@/features/challenges/rulesModel';
 import { sendBlocker } from '@/features/challenges/sendModel';
@@ -30,7 +30,7 @@ const MEMBERS: Array<{ id: string; name: string; wins: number; draws: number; lo
   { id: 'u8', name: 'Mikael Holm', wins: 0, draws: 0, losses: 0, level: 3 },
 ];
 
-const STATS: GroupStat[] = MEMBERS.map((member) => ({
+const STATS: ChallengeGroupStat[] = MEMBERS.map((member) => ({
   user_id: member.id,
   name: member.name,
   wins: member.wins,
@@ -84,12 +84,12 @@ const RECEIVED: Challenge[] = [
   }),
 ];
 
-const TOKENS: MyChallenges['tokens'] = [
-  { id: 't1', user_id: 'u1', tier: 'legendary', metric: 'total_xp', duration_days: 21, ...LEGENDARY, earned_at: isoTime(-5) },
-  { id: 't2', user_id: 'u1', tier: 'major', metric: 'km', duration_days: 10, ...MAJOR, earned_at: isoTime(-3) },
-  { id: 't3', user_id: 'u1', tier: 'minor', metric: 'runs', duration_days: 7, ...MINOR, earned_at: isoTime(-10) },
-  { id: 't4', user_id: 'u1', tier: 'minor', metric: 'total_xp', duration_days: 5, ...MINOR, earned_at: isoTime(-15) },
-] satisfies ChallengeToken[];
+const TOKENS: MyChallengesData['tokens'] = [
+  { id: 't1', reward_id: 'r1', tier: 'legendary', metric: 'total_xp', duration_days: 21, ...LEGENDARY, earned_at: isoTime(-5) },
+  { id: 't2', reward_id: 'r2', tier: 'major', metric: 'km', duration_days: 10, ...MAJOR, earned_at: isoTime(-3) },
+  { id: 't3', reward_id: 'r3', tier: 'minor', metric: 'runs', duration_days: 7, ...MINOR, earned_at: isoTime(-10) },
+  { id: 't4', reward_id: 'r4', tier: 'minor', metric: 'total_xp', duration_days: 5, ...MINOR, earned_at: isoTime(-15) },
+] satisfies MyChallengeToken[];
 
 const HISTORY: Challenge[] = [
   challenge({
@@ -98,8 +98,8 @@ const HISTORY: Challenge[] = [
   }),
 ];
 
-const BOOSTS: UserBoost[] = [
-  { id: 'b1', user_id: 'u1', challenge_id: 'h1', outcome: 'winner', type: 'multiplier_days', delta: 0.15, created_at: isoTime(-4), expires_at: isoTime(1) },
+const BOOSTS: MyBoost[] = [
+  { id: 'b1', challenge_id: 'h1', outcome: 'winner', type: 'multiplier_days', delta: 0.15, created_at: isoTime(-4), expires_at: isoTime(1) },
 ];
 
 const MATCH = (id: string, over: Partial<ChallengeHistoryItem>): ChallengeHistoryItem => ({

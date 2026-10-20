@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ChallengeTier, User } from '@runquest/types';
+import type { ChallengeGroupStat, ChallengeTier } from '@runquest/shared';
+import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName, tierLabel } from '../duelsFormat';
-import type { GroupStat, TierGroup, TokenCombo } from '../duelsModel';
+import type { TierGroup, TokenCombo } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
 import { buildOpponents, resolveOpponentParam, type OpponentOption, type SendBlocker } from '../sendModel';
 import { TierRibbon } from './TierRibbon';
@@ -16,7 +17,7 @@ interface SendSheetProps {
   groups: TierGroup[];
   /** Varför jag inte kan skicka just nu — då visar sheeten bara orsaken. */
   blocker: SendBlocker | null;
-  members: GroupStat[];
+  members: ChallengeGroupStat[];
   users: User[] | undefined;
   meId: string;
   /** Nivån som tryckts på i tokens-panelen. */

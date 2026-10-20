@@ -4,7 +4,7 @@ import { Link, Route, Routes } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token } from '@/features/challenges/duels.fixture';
-import type { MyChallenges } from '@/features/challenges/duelsModel';
+import type { MyChallengesData } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
@@ -47,12 +47,12 @@ const STATS = [
   stat(DAN, { challenge_active: true }),
 ];
 
-const my = (over: Partial<MyChallenges> = {}): MyChallenges => ({
+const my = (over: Partial<MyChallengesData> = {}): MyChallengesData => ({
   tokens: TOKENS, sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [KARL_DAN, ADAM_NICK], ...over,
 });
 
 interface Scenario {
-  my?: Partial<MyChallenges>;
+  my?: Partial<MyChallengesData>;
   stats?: ReturnType<typeof stat>[];
 }
 
@@ -641,8 +641,8 @@ describe('Duels — boost och rekord', () => {
       my: {
         history: [challenge({ id: 'c-old', challenger_id: ME, opponent_id: ADAM, metric: 'runs', duration_days: 5, status: 'completed' })],
         boosts: [
-          { id: 'b1', user_id: ME, challenge_id: 'c-old', outcome: 'winner', type: 'multiplier_days', delta: 0.25, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3.5 * 86_400_000).toISOString() },
-          { id: 'b2', user_id: ME, challenge_id: 'c-gone', outcome: 'loser', type: 'multiplier_days', delta: -0.07, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 1.2 * 86_400_000).toISOString() },
+          { id: 'b1', challenge_id: 'c-old', outcome: 'winner', type: 'multiplier_days', delta: 0.25, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3.5 * 86_400_000).toISOString() },
+          { id: 'b2', challenge_id: 'c-gone', outcome: 'loser', type: 'multiplier_days', delta: -0.07, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 1.2 * 86_400_000).toISOString() },
         ],
       },
     });

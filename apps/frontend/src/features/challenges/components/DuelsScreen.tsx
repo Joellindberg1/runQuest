@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';

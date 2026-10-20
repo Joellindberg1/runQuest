@@ -1,5 +1,5 @@
 import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
-import type { ChallengeMetric } from '@runquest/types';
+import type { ChallengeMetric } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';

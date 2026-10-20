@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 
 interface TierBadgeProps {
   tier: ChallengeTier;

@@ -4,7 +4,7 @@ import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, type ChallengeProgressEntry } from '@runquest/shared';
 import { todayStockholm } from '../utils/dateUtils.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
@@ -154,16 +154,11 @@ async function awardTokenForLevel(userId: string, level: number, tier: string): 
 
 // ─── Progress ────────────────────────────────────────────────────────────────
 
-export interface ProgressEntry {
-  user_id: string;
-  value: number;
-}
-
 /**
  * Calculate progress (metric sum) for both users in a challenge.
  * Returns null if the challenge is not active or lacks start_date.
  */
-export async function getProgressForChallenge(challengeId: string): Promise<ProgressEntry[] | null> {
+export async function getProgressForChallenge(challengeId: string): Promise<ChallengeProgressEntry[] | null> {
   const supabase = getSupabaseClient();
 
   const { data: challenge, error } = await supabase

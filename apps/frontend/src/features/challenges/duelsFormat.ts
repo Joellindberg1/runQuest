@@ -1,4 +1,4 @@
-import type { ChallengeMetric, ChallengeTier } from '@runquest/types';
+import type { ChallengeMetric, ChallengeTier } from '@runquest/shared';
 import { MS_HOUR, daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.

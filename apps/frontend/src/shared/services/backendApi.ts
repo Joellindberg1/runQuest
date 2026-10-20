@@ -1,7 +1,8 @@
 // 🔗 Backend API Service - Production Ready
-import type { Challenge, ChallengeToken, UserBoost } from '@runquest/types';
 import type {
-  AdminSettingsResponse, AdminUsersResponse, ApiError, ChangePasswordRequest, ChangePasswordResponse, CreateRunRequest, CreateRunResponse,
+  AdminSettingsResponse, AdminUsersResponse, ApiError, ChallengeGroupStatsResponse, ChallengeProgressResponse, ChallengeResponseAction,
+  ChangePasswordRequest, ChangePasswordResponse, CreateRunRequest, CreateRunResponse, MyChallengesResponse, RespondChallengeRequest,
+  SendChallengeRequest, SendChallengeResponse,
   CreateUserRequest, CreateUserResponse, UpdateRunRequest, UpdateRunResponse,
   LoginRequest, LoginResponse, LoginUser, ResetUserPasswordRequest, ResetUserPasswordResponse, StreakMultipliersResponse,
   TitlesRefreshResponse, UpdateAdminSettingsRequest, UpdateAdminSettingsResponse, UpdateDisplayedTitlesRequest, UpdateDisplayedTitlesResponse,
@@ -850,14 +851,7 @@ class BackendApiService {
 
   // ─── Challenges ──────────────────────────────────────────────────────────
 
-  async getMyChallenges(): Promise<ApiResponse<{
-    tokens: ChallengeToken[];
-    sent_challenge: Challenge | null;
-    received_challenges: Challenge[];
-    boosts: UserBoost[];
-    history: Challenge[];
-    group_active: Challenge[];
-  }>> {
+  async getMyChallenges(): Promise<ApiResponse<MyChallengesResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/my`, {
         headers: { 'Authorization': `Bearer ${this.getToken()}` },
@@ -873,12 +867,12 @@ class BackendApiService {
     }
   }
 
-  async sendChallenge(tokenId: string, opponentId: string): Promise<ApiResponse<{ challenge_id: string }>> {
+  async sendChallenge(tokenId: string, opponentId: string): Promise<ApiResponse<SendChallengeResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/send`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${this.getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token_id: tokenId, opponent_id: opponentId }),
+        body: JSON.stringify({ token_id: tokenId, opponent_id: opponentId } satisfies SendChallengeRequest),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -891,12 +885,12 @@ class BackendApiService {
     }
   }
 
-  async respondToChallenge(challengeId: string, action: 'accept' | 'decline'): Promise<ApiResponse<void>> {
+  async respondToChallenge(challengeId: string, action: ChallengeResponseAction): Promise<ApiResponse<void>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/respond`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${this.getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action } satisfies RespondChallengeRequest),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -926,7 +920,7 @@ class BackendApiService {
     }
   }
 
-  async getChallengeProgress(challengeId: string): Promise<ApiResponse<{ progress: { user_id: string; value: number }[] }>> {
+  async getChallengeProgress(challengeId: string): Promise<ApiResponse<ChallengeProgressResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/${challengeId}/progress`, {
         headers: { 'Authorization': `Bearer ${this.getToken()}` },
@@ -942,10 +936,7 @@ class BackendApiService {
     }
   }
 
-  async getChallengeGroupStats(): Promise<ApiResponse<Array<{
-    user_id: string; name: string; wins: number; draws: number; losses: number;
-    total: number; points: number; challenge_active: boolean; has_pending_challenge: boolean; current_level: number; profile_picture: string | null;
-  }>>> {
+  async getChallengeGroupStats(): Promise<ApiResponse<ChallengeGroupStatsResponse['data']>> {
     try {
       const response = await fetch(`${API_BASE_URL}/challenges/group-stats`, {
         headers: { 'Authorization': `Bearer ${this.getToken()}` },

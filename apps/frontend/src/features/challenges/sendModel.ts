@@ -1,8 +1,8 @@
 import type { User } from '@runquest/types';
-import type { HeadToHeadRecord } from '@runquest/shared';
+import type { ChallengeGroupStat, HeadToHeadRecord } from '@runquest/shared';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { firstName } from './duelsFormat';
-import type { GroupStat, ResultTone, SentCard } from './duelsModel';
+import type { ResultTone, SentCard } from './duelsModel';
 
 // Send-sheetens logik: varför man inte kan skicka, motståndarvalen och head-to-head-tipsen. Ren logik.
 
@@ -66,7 +66,7 @@ export function h2hHint(record: HeadToHeadRecord | undefined, opponentFirstName:
 }
 
 export function buildOpponents(input: {
-  members: readonly GroupStat[];
+  members: readonly ChallengeGroupStat[];
   users: readonly User[] | undefined;
   meId: string;
   headToHead: Record<string, HeadToHeadRecord | undefined>;
