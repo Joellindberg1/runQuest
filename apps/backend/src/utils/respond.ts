@@ -79,28 +79,36 @@ export function okWithLegacy<TData, TLegacy extends object, TMeta = undefined>(r
   });
 }
 
-function errorBody(status: ErrorStatus, error: unknown, code: ApiErrorCode | undefined): { success: false; error: string; code: ApiErrorCode } {
+function errorBody(status: ErrorStatus, text: unknown, code: ApiErrorCode | undefined): { success: false; error: string; code: ApiErrorCode } {
   return {
     success: false,
     // En icke-sträng (en Error via en cast, ett objekt) ekas aldrig: den fasta texten för statusen tar dess plats.
-    error: typeof error === 'string' ? error : fixedErrorText(status),
+    error: typeof text === 'string' ? text : fixedErrorText(status),
     code: code ?? defaultErrorCode(status),
   };
 }
 
 /** Felsvar: `{ success: false, error, code }`. `error` är en fast text för visning och loggar, aldrig för logik; `code` är det klienten grenar på. */
-export function fail(res: Response, status: ErrorStatus, error: string, code?: ApiErrorCode): void {
-  res.status(status).json(errorBody(status, error, code));
+export function fail(res: Response, status: ErrorStatus, text: string, code?: ApiErrorCode): void {
+  res.status(status).json(errorBody(status, text, code));
+}
+
+/**
+ * Bara för den centrala felhanteraren (`middleware/errorHandler.ts`), vars status kommer från ett fel som nått Express (400-599, även sådana som inte är i `ErrorStatus`:
+ * 405, 431, 502 ...). Koden och texten väljer anroparen ur fasta tabeller. Routes använder `fail`, vars status är begränsad.
+ */
+export function failAnyStatus(res: Response, status: number, text: string, code: ApiErrorCode): void {
+  res.status(status).json({ success: false, error: text, code });
 }
 
 /**
  * 207 och 500 i `POST /titles/reprocess-all` är de enda svaren med `success: false` som bär `data` (bara räknare, punkt 4). 207 är ett 2xx-svar
  * med `success: false` (kuvertets enda undantag): några lyckades, några föll.
  */
-export function failWithData<TData>(res: Response, status: 207 | 500, error: string, code: ApiErrorCode, data: TData): void {
+export function failWithData<TData>(res: Response, status: 207 | 500, text: string, code: ApiErrorCode, data: TData): void {
   res.status(status).json({
     success: false,
-    error: typeof error === 'string' ? error : fixedErrorText(500),
+    error: typeof text === 'string' ? text : fixedErrorText(500),
     code,
     data,
   });
@@ -110,6 +118,6 @@ export function failWithData<TData>(res: Response, status: 207 | 500, error: str
  * Steg 1 (dubbelsvar): raden skrevs men XP-omräkningen föll. Koden `recalc_failed_after_write` bär betydelsen "skrivet, försök inte igen"; `written: true`
  * finns kvar för klienter från före steg 1 och tas bort i steg 2 (RUN-364).
  */
-export function failWritten(res: Response, error: string): void {
-  res.status(500).json({ ...errorBody(500, error, 'recalc_failed_after_write'), written: true });
+export function failWritten(res: Response, text: string): void {
+  res.status(500).json({ ...errorBody(500, text, 'recalc_failed_after_write'), written: true });
 }
