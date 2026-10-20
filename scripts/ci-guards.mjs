@@ -106,7 +106,7 @@
 //     grupp får samma fail-closed-svar överallt (ADR 007 A6). Undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester. Textbaserad (se checkTokenGroupIdReads
 //     för vad den inte fångar).
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|token-group-id|doc-paths|media|fonts|all]   (standard: all)
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|cron-logger-install|frontend-supabase|route-contracts|error-responses|token-group-id|doc-paths|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -585,6 +585,7 @@ const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]pro
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
 const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;
+const CRON_LOGGER_CALL = /(?<![\w.])installCronLogger\s*\(\s*\)/;
 
 /**
  * Texten direkt i första `if (process.env.NODE_ENV === 'production') { … }`-blocket: utan kommentarer och utan innehållet i
@@ -652,6 +653,19 @@ export function checkRecoverySchedulerStart(files) {
     call: RECOVERY_SCHEDULER_CALL,
     missingFile: 'omräkningsåterhämtningen startas aldrig',
     missingCall: 'startRecalculationRecoveryScheduler() måste anropas direkt i produktionsblocket — annars plockar ingenting upp en omräkning som blev ogjord efter en radering, eller så startar jobbet i dev och tester (RUN-322)',
+  });
+}
+
+/**
+ * Regel 20. Samma form som regel 9, 10 och 16, för loggern som node-cron får (RUN-346): `installCronLogger();` direkt i produktionsblocket,
+ * före schedulers. Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett Supabase- eller Stravafel
+ * kan då föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6).
+ */
+export function checkCronLoggerInstall(files) {
+  return checkSchedulerStart(files, {
+    call: CRON_LOGGER_CALL,
+    missingFile: 'node-crons logger installeras aldrig',
+    missingCall: 'installCronLogger() måste anropas direkt i produktionsblocket — annars skriver node-cron ett jobbs fel med hela Error-objektet till console, och ett databas- eller Stravafel kan föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6)',
   });
 }
 
@@ -1053,8 +1067,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'token-group-id', 'doc-paths', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | token-group-id | doc-paths | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'cron-logger-install', 'frontend-supabase', 'route-contracts', 'error-responses', 'token-group-id', 'doc-paths', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | cron-logger-install | frontend-supabase | route-contracts | error-responses | token-group-id | doc-paths | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1069,7 +1083,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts' || mode === 'error-responses' || mode === 'token-group-id') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'cron-logger-install' || mode === 'route-contracts' || mode === 'error-responses' || mode === 'token-group-id') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -1110,6 +1124,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'reconcile-scheduler-start') {
       errors.push(...checkReconcileSchedulerStart(files));
       summary.push('den nattliga Strava-avstämningen startas i produktionsblocket i server.ts');
+    }
+    if (mode === 'all' || mode === 'cron-logger-install') {
+      errors.push(...checkCronLoggerInstall(files));
+      summary.push('node-crons logger installeras i produktionsblocket i server.ts');
     }
     if (mode === 'all' || mode === 'recovery-scheduler-start') {
       errors.push(...checkRecoverySchedulerStart(files));
