@@ -498,7 +498,8 @@ describe('Events — facit-källan läser sidor tills has_more är falskt', () =
     renderEvents();
     const record = within(await screen.findByRole('region', { name: 'Your record' }));
     expect(record.getByText('60 of 120')).toBeInTheDocument();
-    expect(record.getByText('1500 XP earned · 1500 XP left on the table')).toBeInTheDocument();
+    // Tusentalsmellanrummet (U+00A0, formatInt) blir ett vanligt mellanslag i Testing Librarys normalisering av nodens text.
+    expect(record.getByText('1 500 XP earned · 1 500 XP left on the table').textContent).toBe('1 500 XP earned · 1 500 XP left on the table');
     expect(calls.filter(([limit]) => limit === 50)).toEqual([[50, 0], [50, 50], [50, 100]]);
   });
 
