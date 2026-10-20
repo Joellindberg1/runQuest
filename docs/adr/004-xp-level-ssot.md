@@ -7,7 +7,7 @@ se Beslut 4 och Konsekvenser.
 
 ## Kontext
 Spelmatematiken (XP, level, streak-multiplikator) är kärnan i RunQuest och
-bor på flera ställen (STATE.md zon 4, audit i `docs/STATE-proposal.md`).
+bor på flera ställen (STATE.md zon 4, audit i `docs/archive/STATE-proposal.md`).
 Verifierat i koden 2026-10-04:
 
 - **XP per runda: en källa, bra.** `packages/shared/src/xpCalculation.ts`

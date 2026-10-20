@@ -180,7 +180,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   fokus aldrig tappas. `App.login.test` väntar på alert-textens innehåll (regionen finns tom från början). Ingen "Forgot password" (ingen funktion).
 - **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
   17 px på desktop, och 16 px på mobil hindrar iOS från att zooma in vid fokus.
-- **Borttaget som dött:** `constants/streakConstants.ts` (Playbook var sista användaren), `shared/components/PageTabs.tsx` (shadcn-flikar, Playbook var sista
+- **Borttaget som dött:** filen streakConstants (Playbook var sista användaren), komponenten PageTabs (shadcn-flikar, Playbook var sista
   användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat

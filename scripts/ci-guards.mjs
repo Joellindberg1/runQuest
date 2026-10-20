@@ -96,7 +96,11 @@
 //     aldrig ett `Error`, så ett felmeddelande, en stack eller Strava- och databastext kan inte ekas av misstag. Undantag: respond.ts själv och Strava-webhookens GET / och POST /
 //     (ERROR_RESPONSE_EXEMPT_ROUTES). Textbaserad (se checkErrorResponsesViaFail för vad den inte fångar).
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|media|fonts|all]   (standard: all)
+// 21. Dokumenten hänvisar inte till filer som inte finns (RUN-361): backtick-sökvägar i README.md, STATE.md, docs/*.md och README.md i varje feature måste finnas bland
+//     de spårade filerna. Avsiktliga undantag (byggutdata, mönster som NNN_namn.sql, tredjepartsfiler) står i DOC_PATH_EXEMPT med skäl, och ett undantag som inte längre
+//     träffar något fäller bygget. Textbaserad (se checkDocPaths för vad den inte fångar). Hoppas över när listan över spårade filer inte går att hämta.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|doc-paths|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -763,6 +767,78 @@ export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT
   return errors;
 }
 
+// Dokumentens filhänvisningar (RUN-361): ett backtick-spann som ser ut som en filsökväg måste peka på en spårad fil eller mapp.
+// Dokumenten som läses är README.md, STATE.md, docs/*.md (inte undermappar som docs/archive, docs/adr och docs/design) och README.md i varje
+// feature under apps/frontend/src/features. Ett spann räknas som en sökväg när det slutar på en känd filändelse eller på `/`. En sökväg finns när en
+// spårad fil är exakt den eller slutar på `/<sökvägen>` (dokumenten skriver ofta bara `routes/runs.ts` eller `board.css`), eller, för en mapp, när någon
+// spårad fil ligger i en mapp med det namnet. `:12` och `:12-34` efter sökvägen räknas bort.
+const DOC_PATH_SOURCES = [/^README\.md$/, /^STATE\.md$/, /^docs\/[^/]+\.md$/, /^apps\/frontend\/src\/features\/[^/]+\/README\.md$/];
+const DOC_PATH_EXTENSION = /\.(?:md|tsx?|mts|mjs|js|json|sql|ya?ml|css|html|sh|toml|woff2|webp)$/;
+const DOC_PATH_NOT_A_PATH = /^(?:https?:|\/|~|\.{1,2}\/)|[\s*<>{}$|()@]|\.\.\./;
+const DOC_PATH_SPAN = /`([^`\n]+)`/g;
+const DOC_PATH_LOCATION_SUFFIX = /:\d+(?:-\d+)?$/;
+
+/**
+ * Hänvisningar som avsiktligt inte pekar på en spårad fil. Varje post bär sitt skäl. En post som inte träffar något span längre fäller kontrollen
+ * (annars växer listan tyst). `doc` begränsar posten till ett dokument.
+ */
+export const DOC_PATH_EXEMPT = [
+  { pattern: /^(?:.*\/)?dist\//, reason: 'byggutdata (apps/frontend/dist, apps/backend/dist), gitignorerad' },
+  { doc: 'docs/performance.md', pattern: /^(?:.*\/)?assets\/|-[\w-]{8}\.(?:js|css)$/, reason: 'hashade filer i ett bygge, namnet ändras vid varje bygge' },
+  { pattern: /^NNN_/, reason: 'mönster för migrationsnamn, inte en fil' },
+  { pattern: /^(?:error|mock)\/$/, reason: 'mapparna i Lighthouse-artefakten lighthouse-reports, inte i repot' },
+  { pattern: /^(?:.*\/)?(?:lighthouse-reports|test-results|\.auth)\/|^scripts\/loadtest\/out\//, reason: 'körningsutdata som gitignoreras' },
+  { pattern: /^error-context\.md$/, reason: 'Playwright skriver filen vid ett fel i test-results' },
+  { pattern: /^assertion-results\.json$/, reason: 'Lighthouse CI skriver filen vid en körning' },
+  { pattern: /^(?:script|driver)\.js$/, reason: 'tredjepartsfiler (Umamis spårningsskript, driver.js-biblioteket)' },
+  { pattern: /^docs\/design\/landing-media\/$/, reason: 'originalen till filmen ligger utanför git (.gitignore, vakt 4)' },
+  { doc: 'STATE.md', pattern: /^utils\/xpCalculation\.ts$/, reason: 'raden beskriver att filen raderades (ADR 004); Lead formulerar om raden i releasesteget, ta bort posten då' },
+];
+
+/** Filhänvisningarna i ett dokument som saknar en spårad fil, som `dokument:rad: sökväg`. `used` samlar de undantag som träffat något. */
+function missingDocPaths({ path, content }, trackedFiles, exempt, used) {
+  const missing = [];
+  content.split(/\r?\n/).forEach((line, index) => {
+    for (const match of line.matchAll(DOC_PATH_SPAN)) {
+      const token = match[1].replace(DOC_PATH_LOCATION_SUFFIX, '').replace(/[.,;]+$/, '');
+      const isDirectory = token.endsWith('/');
+      if (!isDirectory && !DOC_PATH_EXTENSION.test(token)) continue;
+      if (DOC_PATH_NOT_A_PATH.test(token) || /^\.[\w.-]*$/.test(token)) continue;
+      const exemption = exempt.find((entry) => (entry.doc === undefined || entry.doc === path) && entry.pattern.test(token));
+      if (exemption) {
+        used.add(exemption);
+        continue;
+      }
+      const bare = token.replace(/\/$/, '');
+      const found = isDirectory
+        ? trackedFiles.some((file) => file.startsWith(`${bare}/`) || file.includes(`/${bare}/`))
+        : trackedFiles.some((file) => file === bare || file.endsWith(`/${bare}`));
+      if (!found) missing.push(`${path}:${index + 1}: ${token}`);
+    }
+  });
+  return missing;
+}
+
+/**
+ * Vakt 21 (RUN-361): inget dokument hänvisar till en fil som inte finns. `docs` är { path, content } för alla spårade dokument (filtret på vilka som läses
+ * görs här), `trackedFiles` är `git ls-files`. Fångas INTE: en sökväg utan känd ändelse (`Dockerfile`, `.env.example`), en sökväg med mellanrum, en sökväg som
+ * delas över två spann och en hänvisning utan backticks (STATE.md:53 nämner docs/STATE-proposal.md som löpande text). Ett bart filnamn räcker som träff om en
+ * fil med det namnet finns var som helst, så en flyttad fil med samma namn märks inte; en struken eller omdöpt fil märks.
+ */
+export function checkDocPaths(docs, trackedFiles, exempt = DOC_PATH_EXEMPT) {
+  const errors = [];
+  const used = new Set();
+  for (const doc of docs.filter(({ path }) => DOC_PATH_SOURCES.some((source) => source.test(path)))) {
+    for (const missing of missingDocPaths(doc, trackedFiles, exempt, used)) {
+      errors.push(`${missing} finns inte bland de spårade filerna — rätta hänvisningen (eller skriv den som löpande text utan backticks om filen är borta med flit)`);
+    }
+  }
+  for (const entry of exempt.filter((candidate) => !used.has(candidate))) {
+    errors.push(`undantaget ${entry.pattern} i DOC_PATH_EXEMPT (${entry.reason}) träffar ingen hänvisning längre — ta bort det`);
+  }
+  return errors;
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -882,8 +958,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'doc-paths', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | doc-paths | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -974,6 +1050,19 @@ function runCli(argv = process.argv.slice(2)) {
     }
     errors.push(...checkNoFrontendSupabase(files));
     summary.push('frontend nämner ingen Supabase-variabel eller -klient');
+  }
+
+  if (mode === 'all' || mode === 'doc-paths') {
+    const tracked = gitTrackedFiles(root);
+    if (tracked) {
+      const docs = tracked
+        .filter((path) => DOC_PATH_SOURCES.some((source) => source.test(path)) && existsSync(join(root, path)))
+        .map((path) => ({ path, content: readFileSync(join(root, path), 'utf8') }));
+      errors.push(...checkDocPaths(docs, tracked));
+      summary.push(`${docs.length} dokument utan hänvisningar till filer som saknas`);
+    } else {
+      summary.push('dokumentens filhänvisningar ej prövade (listan över spårade filer ej tillgänglig)');
+    }
   }
 
   if (mode === 'media' || (mode === 'all' && existsSync(join(root, 'apps/frontend/public')))) {

@@ -19,7 +19,7 @@ en gång per användare. Versionsnumret och datumet överst är den senaste post
 ## Regler värda att komma ihåg
 
 - **En källa, tre läsare:** sidan, popupen och onboarding-kön (`useOnboardingQueue`, `OnboardingOrchestrator`) läser alla `changelog.json` via `changelogData`.
-  Ett guard-test låser att ingen annan fil importerar JSON-filen och att `patchNotes.ts`/`changelogHelpers.ts` inte kommer tillbaka.
+  ESLint (`CHANGELOG_JSON` i `eslint.config.js`) låser att ingen annan fil importerar JSON-filen. De gamla modulerna `patchNotes` och `changelogHelpers` är borta, och en import av dem fäller `tsc`.
 - **`announce` = popup.** Slugen (`patch_v0.5.0`) sparas som "sett" i onboarding-tabellen när användaren trycker Got it/✕/Escape. Ändra aldrig slugen för en redan släppt
   version (alla skulle få popupen igen); en omskriven post som alla ska se igen får en ny version. Kön visar annonserade poster nyaste först, en i taget, efter första-inloggningstouren.
 - **Versionsvakten** (`scripts/check-versions.mjs`, CI-steget "Version guard") fäller bygget om ordningen, semver, datumformatet, typen, `announce` utan ändringar eller
