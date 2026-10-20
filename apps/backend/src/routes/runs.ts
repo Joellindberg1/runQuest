@@ -10,7 +10,6 @@ import {
   type AdminSettings, type StreakMultiplier, type BoostSpec, type BoostRow, type PreviousRunDay,
 } from '@runquest/shared';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
-import { getActiveMembership } from '../utils/membership.js';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
@@ -46,23 +45,18 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
   const { data: userBoosts, error: boostsError } = await supabase
     .from('user_boosts')
-    .select('type, delta, remaining, created_at, expires_at, challenges(group_id)')
+    .select('type, delta, remaining, created_at, expires_at, start_date, end_date')
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
   // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
   if (boostsError) throw errorWithCode(`Failed to fetch boosts for reprocess (user ${userId})`, boostsError);
 
-  // Boostens dygn räknas i gruppens tidszon: duellens grupp först, annars användarens aktiva medlemskap (läst en gång, bara vid behov).
-  let membershipGroup: Promise<string | null> | undefined;
-  const groupOfBoost = async (b: { challenges?: { group_id?: string | null } | null }): Promise<string | null> => {
-    if (b.challenges?.group_id) return b.challenges.group_id;
-    membershipGroup ??= getActiveMembership(userId).then((membership) => membership?.group_id ?? null);
-    return membershipGroup;
-  };
-
+  // Boostens fönster är det som sparades på raden när boosten skapades (settleChallenge, gruppens dygn; migration 059 backfyllde de gamla med deras
+  // UTC-dagar). Fönstret räknas inte om här, så en gammal boost ger samma XP som förut och en ny exakt sina n dagar. En rad utan sparat fönster läses
+  // med det gamla UTC-fönstret (shared/boostWindow).
   const boostSpecs: BoostSpec[] = await Promise.all(
-    (userBoosts ?? []).map(async (b: BoostRow & { delta: number; remaining: number | null; challenges?: { group_id?: string | null } | null }) => {
-      const { startDay: startDate, endDay } = boostWindow(b, groupTimeZone(await groupOfBoost(b)));
+    (userBoosts ?? []).map(async (b: BoostRow & { delta: number; remaining: number | null }) => {
+      const { startDay: startDate, endDay } = boostWindow(b);
       if (b.type === 'multiplier_days') {
         return {
           type: 'multiplier_days' as const,

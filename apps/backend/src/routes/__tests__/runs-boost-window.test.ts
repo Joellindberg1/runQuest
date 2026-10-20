@@ -1,8 +1,9 @@
 /**
- * Boostfönstret i XP-omräkningen räknas i gruppens dygn (boostWindow i shared), inte i UTC-dygn.
+ * Boostens sparade fönster i XP-omräkningen (reprocessRunsFromDate läser user_boosts.start_date/end_date, migration 059).
  *
  * XP-kedja mot fakeDb: femkilometersrundor varannan dag (varje runda är streakdag 1, multiplikator 1.0 → 30 XP; med +0.2 → 35 XP).
- * Förväntade värden för boostar skapade mitt på dagen är DE FÖRE ÄNDRINGEN: ändras de är det ett fynd, inte ett test att rätta.
+ * Förväntade värden för GAMLA boostar (skapade före ändringen, med eller utan backfyllda dagar) är DE FÖRE ÄNDRINGEN: ändras de är det ett fynd,
+ * inte ett test att rätta. De hämtades ur koden före 059 (a430bf43) och jämfördes där mot backfyllet i PGlite.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -35,10 +36,9 @@ vi.mock('../../services/xpConfig.js', async () => {
   };
 });
 
-import { MS_DAY } from '@runquest/shared';
+import { MS_DAY, addDays } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
-import { setGroupTimeZoneSource } from '../../utils/groupTimeZone.js';
 import { reprocessRunsFromDate } from '../runs.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 
@@ -47,96 +47,131 @@ beforeEach(() => {
   vi.spyOn(logger, 'info').mockImplementation(() => {});
   vi.spyOn(logger, 'error').mockImplementation(() => {});
 });
-afterEach(() => {
-  vi.restoreAllMocks();
-  setGroupTimeZoneSource();
-});
+afterEach(() => { vi.restoreAllMocks(); });
 
 const run = (date: string): Row => ({ id: `run-${date}`, user_id: 'user-1', date, distance: 5, streak_day: 1, xp_gained: 0 });
 const everyOtherDay = ['2026-10-17', '2026-10-19', '2026-10-21', '2026-10-23', '2026-10-25'];
 
 /** Så sparades expires_at före ändringen, och så ser varje befintlig rad i databasen ut: skapad + n * 24 h. */
 const expiresAfter = (created: string, days: number) => new Date(new Date(created).getTime() + days * MS_DAY).toISOString();
-const daysBoost = (created_at: string, days: number, over: Row = {}): Row => ({
-  user_id: 'user-1', type: 'multiplier_days', delta: 0.2, remaining: null, created_at, expires_at: expiresAfter(created_at, days), ...over,
+/** En gammal dagsboost. `backfilled` lägger på det migration 059 skriver: UTC-dagarna ur created_at och expires_at. */
+const oldDaysBoost = (created_at: string, days: number, backfilled: boolean, delta = 0.2): Row => {
+  const expires_at = expiresAfter(created_at, days);
+  return {
+    user_id: 'user-1', type: 'multiplier_days', delta, remaining: null, created_at, expires_at,
+    ...(backfilled ? { start_date: created_at.slice(0, 10), end_date: expires_at.slice(0, 10) } : {}),
+  };
+};
+const oldRunsBoost = (created_at: string, charges: number, backfilled: boolean): Row => ({
+  user_id: 'user-1', type: 'multiplier_runs', delta: 0.2, remaining: charges, created_at, expires_at: null,
+  ...(backfilled ? { start_date: created_at.slice(0, 10), end_date: null } : {}),
 });
-const runsBoost = (created_at: string, charges: number, over: Row = {}): Row => ({
-  user_id: 'user-1', type: 'multiplier_runs', delta: 0.2, remaining: charges, created_at, expires_at: null, ...over,
+/** En ny boost, skriven av settleChallenge med det sparade fönstret. */
+const newDaysBoost = (start_date: string, days: number, delta = 0.2): Row => ({
+  user_id: 'user-1', type: 'multiplier_days', delta, remaining: null, created_at: '2026-10-20T01:00:00.000Z', expires_at: null,
+  start_date, end_date: addDays(start_date, days - 1),
+});
+const newRunsBoost = (start_date: string, charges: number): Row => ({
+  user_id: 'user-1', type: 'multiplier_runs', delta: 0.2, remaining: charges, created_at: '2026-10-20T01:00:00.000Z', expires_at: null, start_date, end_date: null,
 });
 
-async function reprocess(boosts: Row[], extra: Record<string, Row[]> = {}, dates = everyOtherDay): Promise<Row[]> {
+async function reprocess(boosts: Row[], dates = everyOtherDay, extra: Record<string, Row[]> = {}, fromDate = dates[0]) {
   const tables: Record<string, Row[]> = { runs: dates.map(run), user_boosts: boosts, ...extra };
-  vi.mocked(getSupabaseClient).mockReturnValue(createFakeDb(tables, { autoIds: true }).client as any);
-  await reprocessRunsFromDate('user-1', dates[0]);
-  return tables.runs;
+  const db = createFakeDb(tables, { autoIds: true });
+  vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+  await reprocessRunsFromDate('user-1', fromDate);
+  return { rows: tables.runs, db };
 }
 
 const xpByDate = (rows: Row[]) => Object.fromEntries(rows.map((r) => [r.date, r.xp_gained]));
 
-describe('reprocessRunsFromDate — boostfönstret i gruppens dygn', () => {
-  it('a boost created 2026-10-19T23:30Z starts on 2026-10-20 in the XP calculation', async () => {
-    // 01:30 svensk tid den 20:e. Före ändringen räknades den 19:e (UTC-dygnet) som startdag och rundan den 19:e fick boosten.
-    const rows = await reprocess([daysBoost('2026-10-19T23:30:00.000Z', 3)]);
-    expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 30, '2026-10-21': 35, '2026-10-23': 35, '2026-10-25': 30 });
-  });
+/** Vilka dagar boosten gav XP på: rundornas XP med boosten minus utan den. */
+async function boostedDays(boosts: Row[], dates: string[]): Promise<string[]> {
+  const without = (await reprocess([], dates)).rows.map((r) => r.xp_gained as number);
+  const withBoost = (await reprocess(boosts, dates)).rows;
+  return withBoost.filter((r, i) => r.xp_gained !== without[i]).map((r) => r.date as string);
+}
+const daily = (from: string, count: number) => Array.from({ length: count }, (_, i) => addDays(from, i));
 
-  it('a boost created in the middle of the day gives the XP it gave before the change', async () => {
-    // 12:00 svensk tid den 18:e, 3 dagar: fönstret 18-21 (n + 1 dagar), alltså rundorna den 19:e och 21:a.
-    const rows = await reprocess([daysBoost('2026-10-18T10:00:00.000Z', 3)]);
+describe('reprocessRunsFromDate — gamla boostar behåller sin XP', () => {
+  // Förväntade värden ur koden före 059 (UTC-fönstret): en boost skapad 01:30 svensk tid den 20:e har startdag 19 och slutdag 22.
+  it.each([false, true])('a boost created 2026-10-19T23:30Z (00-02 Swedish time) keeps its UTC window 19-22 (backfilled: %s)', async (backfilled) => {
+    const { rows } = await reprocess([oldDaysBoost('2026-10-19T23:30:00.000Z', 3, backfilled)]);
     expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
   });
 
-  it('a loser boost created mid-day lowers the same runs as before', async () => {
-    const rows = await reprocess([daysBoost('2026-10-18T10:00:00.000Z', 3, { delta: -0.1 })]);
+  it.each([false, true])('a boost created in the middle of the day gives the XP it gave before (backfilled: %s)', async (backfilled) => {
+    const { rows } = await reprocess([oldDaysBoost('2026-10-18T10:00:00.000Z', 3, backfilled)]);
+    expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
+  });
+
+  it.each([false, true])('a loser boost created mid-day lowers the same runs as before (backfilled: %s)', async (backfilled) => {
+    const { rows } = await reprocess([oldDaysBoost('2026-10-18T10:00:00.000Z', 3, backfilled, -0.1)]);
     expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 27, '2026-10-21': 27, '2026-10-23': 30, '2026-10-25': 30 });
   });
 
-  it('a run boost created mid-day is spent on the same runs as before', async () => {
-    const rows = await reprocess([runsBoost('2026-10-18T10:00:00.000Z', 2)]);
+  it.each([false, true])('a run boost created mid-day is spent on the same runs as before (backfilled: %s)', async (backfilled) => {
+    const { rows } = await reprocess([oldRunsBoost('2026-10-18T10:00:00.000Z', 2, backfilled)]);
     expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
   });
 
-  it('a run boost created 2026-10-19T23:30Z is first spent on the run of 2026-10-20 or later', async () => {
-    const rows = await reprocess([runsBoost('2026-10-19T23:30:00.000Z', 2)]);
-    expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 30, '2026-10-21': 35, '2026-10-23': 35, '2026-10-25': 30 });
+  it.each([false, true])('a run boost created 2026-10-19T23:30Z is spent from the UTC day 19, as before (backfilled: %s)', async (backfilled) => {
+    const { rows } = await reprocess([oldRunsBoost('2026-10-19T23:30:00.000Z', 2, backfilled)]);
+    expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
   });
 
-  it('the group of the duel decides the time zone: another zone through the resolver moves the start day', async () => {
-    // 04:30 svensk tid den 20:e men 22:30 den 19:e i New York.
-    const boost = daysBoost('2026-10-20T02:30:00.000Z', 3, { challenges: { group_id: 'ny-group' } });
-
-    const stockholm = await reprocess([boost]);
-    expect(xpByDate(stockholm)).toEqual({ '2026-10-17': 30, '2026-10-19': 30, '2026-10-21': 35, '2026-10-23': 35, '2026-10-25': 30 });
-
-    setGroupTimeZoneSource((groupId) => (groupId === 'ny-group' ? 'America/New_York' : undefined));
-    const newYork = await reprocess([boost]);
-    expect(xpByDate(newYork)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
-  });
-
-  it('the duel group wins over the active membership', async () => {
-    setGroupTimeZoneSource((groupId) => (groupId === 'ny-group' ? 'America/New_York' : undefined));
-    const boost = daysBoost('2026-10-20T02:30:00.000Z', 3, { challenges: { group_id: 'ny-group' } });
-    const rows = await reprocess([boost], { group_members: [{ user_id: 'user-1', group_id: 'other-group', role: 'member', left_at: null }] });
-    expect(xpByDate(rows)['2026-10-19']).toBe(35);
-  });
-
-  it('falls back to the active membership when the boost has no duel group', async () => {
-    setGroupTimeZoneSource((groupId) => (groupId === 'ny-group' ? 'America/New_York' : undefined));
-    const boost = daysBoost('2026-10-20T02:30:00.000Z', 3);
-    const rows = await reprocess([boost], { group_members: [{ user_id: 'user-1', group_id: 'ny-group', role: 'member', left_at: null }] });
-    expect(xpByDate(rows)['2026-10-19']).toBe(35);
-  });
-
-  it('counts in the default zone when there is neither a duel group nor a membership', async () => {
+  it('an old boost is not moved by the time zone of its group: its window is stored, not counted', async () => {
+    const { setGroupTimeZoneSource } = await import('../../utils/groupTimeZone.js');
     setGroupTimeZoneSource(() => 'America/New_York');
-    const rows = await reprocess([daysBoost('2026-10-20T02:30:00.000Z', 3)]);
-    expect(xpByDate(rows)['2026-10-19']).toBe(30);
+    try {
+      const { rows } = await reprocess([oldDaysBoost('2026-10-19T23:30:00.000Z', 3, true)]);
+      expect(xpByDate(rows)).toEqual({ '2026-10-17': 30, '2026-10-19': 35, '2026-10-21': 35, '2026-10-23': 30, '2026-10-25': 30 });
+    } finally {
+      setGroupTimeZoneSource();
+    }
+  });
+});
+
+describe('reprocessRunsFromDate — nya boostar ger exakt det som står', () => {
+  it('a new 3-day boost gives XP on exactly 3 calendar days, starting on the stored start day', async () => {
+    const dates = daily('2026-10-17', 9);
+    expect(await boostedDays([newDaysBoost('2026-10-20', 3)], dates)).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
   });
 
-  it('does not read the membership when every boost has a duel group', async () => {
-    const db = createFakeDb({ runs: everyOtherDay.map(run), user_boosts: [daysBoost('2026-10-18T10:00:00.000Z', 3, { challenges: { group_id: 'g1' } })] }, { autoIds: true });
-    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
-    await reprocessRunsFromDate('user-1', everyOtherDay[0]);
-    expect(db.queries.some((q) => q.table === 'group_members')).toBe(false);
+  it.each([1, 2, 5, 7])('a new %i-day boost gives XP on exactly %i days', async (n) => {
+    const dates = daily('2026-10-10', 20);
+    expect(await boostedDays([newDaysBoost('2026-10-13', n)], dates)).toEqual(daily('2026-10-13', n));
+  });
+
+  it('gives XP on exactly 3 days across the spring and the autumn clock change', async () => {
+    expect(await boostedDays([newDaysBoost('2026-03-28', 3)], daily('2026-03-25', 9))).toEqual(['2026-03-28', '2026-03-29', '2026-03-30']);
+    expect(await boostedDays([newDaysBoost('2026-10-24', 3)], daily('2026-10-21', 9))).toEqual(['2026-10-24', '2026-10-25', '2026-10-26']);
+  });
+
+  it('a new run boost is spent on the first n runs from the stored start day', async () => {
+    const dates = daily('2026-10-17', 9);
+    expect(await boostedDays([newRunsBoost('2026-10-20', 2)], dates)).toEqual(['2026-10-20', '2026-10-21']);
+    // Rundor före startdagen förbrukar ingen laddning.
+    expect(await boostedDays([newRunsBoost('2026-10-20', 3)], ['2026-10-18', '2026-10-19', '2026-10-22', '2026-10-24', '2026-10-26'])).toEqual(['2026-10-22', '2026-10-24', '2026-10-26']);
+  });
+
+  it('the stored window wins over created_at and expires_at', async () => {
+    const boost = { ...newDaysBoost('2026-10-20', 3), created_at: '2026-10-01T10:00:00.000Z', expires_at: '2026-10-04T10:00:00.000Z' };
+    expect(await boostedDays([boost], daily('2026-10-17', 9))).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
+  });
+
+  it('counts the charges of a run boost spent before the recalculation window, from the stored start day', async () => {
+    const dates = daily('2026-10-17', 9);
+    // Omräkning från den 20:e: rundan den 19:e förbrukade en av tre laddningar före fönstret, så två återstår.
+    const without = (await reprocess([], dates, {}, '2026-10-20')).rows;
+    const withBoost = (await reprocess([newRunsBoost('2026-10-19', 3)], dates, {}, '2026-10-20')).rows;
+    expect(withBoost.filter((r, i) => r.xp_gained !== without[i].xp_gained).map((r) => r.date)).toEqual(['2026-10-20', '2026-10-21']);
+  });
+
+  it('reads the stored window columns from user_boosts', async () => {
+    const { db } = await reprocess([]);
+    const read = db.queries.find((q) => q.table === 'user_boosts')!;
+    expect(read.select).toContain('start_date');
+    expect(read.select).toContain('end_date');
   });
 });
