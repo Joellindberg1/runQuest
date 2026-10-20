@@ -4,6 +4,7 @@ import { useAuth } from '@/providers/authContext';
 import { paths } from '@/paths';
 import { AppShell } from '@/app-shell/AppShell';
 import { FirstBoardGate } from '@/app-shell/FirstBoardGate';
+import { PendingNavigate } from '@/app-shell/PendingNavigate';
 import { RequireAuth } from '@/app-shell/RequireAuth';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
@@ -43,7 +44,7 @@ const AdminRoute: React.FC = () => {
 
 const LegacyChallengesRedirect: React.FC = () => {
   const { search } = useLocation();
-  return <Navigate to={legacyChallengesTarget(search)} replace />;
+  return <PendingNavigate to={legacyChallengesTarget(search)} />;
 };
 
 /**

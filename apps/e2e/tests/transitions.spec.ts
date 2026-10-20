@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { submitSignIn } from '../support/signIn';
 import { userCredentials } from '../support/targets';
+import { AUTH_FILE } from '../support/paths';
 import { isBlankFrame, logFrames, type FrameLog, type FrameSample } from '../support/loadingView';
 
 // Övergångarna mellan inloggat och utloggat inuti fullappen (ADR 006, addendum 2026-10-19, punkt 11): #root är aldrig tom, och laddarens rektangel står still där den visas.
@@ -74,5 +75,31 @@ test.describe('moving between signed out and signed in inside the app', () => {
     await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible();
     expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
     await expectLoaderRectStill(page, log.frames());
+  });
+
+  test('a signed-out direct load of /challenges?x=1 never draws an empty #root on its way to the sign-in page', async ({ page }) => {
+    const log = await logFrames(page);
+    await page.goto('/challenges?x=1');
+
+    // /challenges → /duels (sökparametrarna med) → RequireAuth → /login: två omdirigeringar i rad.
+    await expect(page).toHaveURL(/\/login\?next=%2Fduels%3Fx%3D1$/);
+    await expect(landingHeadline(page)).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible();
+    expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
+    await expectLoaderRectStill(page, log.frames());
+  });
+
+  test.describe('with a saved session', () => {
+    test.use({ storageState: AUTH_FILE });
+
+    test('a signed-in direct load of /challenges?x=1 never draws an empty #root on its way to /duels', async ({ page }) => {
+      const log = await logFrames(page);
+      await page.goto('/challenges?x=1');
+
+      await expect(page).toHaveURL(/\/duels\?x=1$/);
+      await expect(shellOf(page)).toBeVisible();
+      expect(blankFramesOf(log), 'frames with nothing drawn in #root').toEqual([]);
+      await expectLoaderRectStill(page, log.frames());
+    });
   });
 });
