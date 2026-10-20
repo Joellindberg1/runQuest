@@ -22,6 +22,7 @@ import {
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { fail, ok } from '../utils/respond.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -63,7 +64,7 @@ async function fetchGroupBestWeekKm(groupId: string): Promise<number> {
 // GET /api/leaderboard/week[?week_start=YYYY-MM-DD]
 router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const timeZone = groupTimeZone(req.user!.group_id);
+    const timeZone = groupTimeZone(tokenGroupId(req));
     const today = zoneDay(new Date(), timeZone);
     const currentStart = mondayOf(today);
 
@@ -85,15 +86,17 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     const { end, previous_start } = weekRange(weekStart);
     const week = { start: weekStart, end, previous_start, is_current: weekStart === currentStart, today };
 
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      ok<WeekLeaderboardApiResponse>(res, {
+    const emptyBody = {
+      success: true,
+      data: {
         week,
         users: [],
         totals: { km: 0, runs: 0, xp: 0, active_runners: 0, members: 0, best_week_km: 0, pct_of_best_week: null },
         mover: null,
-      }); return;
-    }
+      },
+    } satisfies WeekLeaderboardApiResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const [membersResult, runsResult] = await Promise.all([
@@ -147,12 +150,11 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
 // GET /api/leaderboard/rank-delta
 router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const groupId = req.user!.group_id;
-    const timeZone = groupTimeZone(groupId);
+    const timeZone = groupTimeZone(tokenGroupId(req));
     const asOf = mondayOf(zoneDay(new Date(), timeZone));
-    if (!groupId) {
-      ok<RankDeltaApiResponse>(res, { as_of: asOf, users: [] }); return;
-    }
+    const emptyBody = { success: true, data: { as_of: asOf, users: [] } } satisfies RankDeltaApiResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const [usersResult, runsResult, entriesResult] = await Promise.all([

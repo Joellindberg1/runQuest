@@ -21,6 +21,7 @@ import {
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { fail, ok } from '../utils/respond.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -57,7 +58,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
 
     // Samma svar för "finns inte" och "annan grupp".
     const notFound = () => fail(res, 404, 'User not found');
-    const groupId = req.user!.group_id;
+    const groupId = tokenGroupId(req);
     const isSelf = targetId === me;
 
     const supabase = getSupabaseClient();
@@ -101,10 +102,9 @@ router.get('/user/:userId', authenticateJWT, async (req, res): Promise<void> => 
 // user_badges för hela gruppen, ingen N+1. Ingen grupp i token ger tom data — aldrig någon annans grupp.
 router.get('/group', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      ok<BadgeGroupApiResponse>(res, { members: [], holders: countHolders([]) }, { member_count: 0 }); return;
-    }
+    const emptyBody = { success: true, data: { members: [], holders: countHolders([]) }, meta: { member_count: 0 } } satisfies BadgeGroupApiResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const { data: users, error: usersError } = await supabase
