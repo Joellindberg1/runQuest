@@ -1,8 +1,9 @@
 // Inloggning, lösenord och adminens XP-inställningar: POST /api/auth/login, POST /api/auth/change-password, POST /api/auth/recalculate-totals,
 // GET/PUT /api/auth/admin-settings och GET/PUT /api/auth/streak-multipliers. Endast typer.
-// Äldre endpoints behåller sin form (ADR 007 A2): kuvertet är { success, data } för listorna och { success, message } för kvittenserna.
+// Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): varje svar är { success, data }, och de gamla toppnivånycklarna (token, user, message ...) finns kvar bredvid `data`
+// i ett dubbelsvar (DualEnvelope) tills steg 2 (RUN-364) tar bort dem.
 import type { AdminSettings, StreakMultiplier } from '../xpCalculation.js';
-import type { ApiSuccess } from './common.js';
+import type { ApiSuccess, DualEnvelope } from './common.js';
 
 /** Brödtext till POST /api/auth/login: `name` eller `email` (servern provar e-posten först, sedan namnet) och `password`. */
 export interface LoginRequest {
@@ -19,12 +20,8 @@ export interface LoginUser {
   is_admin: boolean;
 }
 
-/** Svar från POST /api/auth/login. Fel (400/401/500) är `{ error }`. */
-export interface LoginResponse {
-  success: true;
-  token: string;
-  user: LoginUser;
-}
+/** Svar från POST /api/auth/login: `{ success, token, user, data: { token, user } }`. Fel (400/401/500) är `ApiError`; 401 har alltid koden `invalid_credentials`. */
+export type LoginResponse = DualEnvelope<{ token: string; user: LoginUser }>;
 
 /** Brödtext till POST /api/auth/change-password. */
 export interface ChangePasswordRequest {
@@ -32,19 +29,11 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
-/** Svar från POST /api/auth/change-password. */
-export interface ChangePasswordResponse {
-  success: true;
-  message: string;
-}
+/** Svar från POST /api/auth/change-password: `{ success, message, data: null }`. Fel nuvarande lösenord är 401 med koden `current_password_incorrect` (loggar inte ut sessionen). */
+export type ChangePasswordResponse = DualEnvelope<{ message: string }, null>;
 
-/** Svar från POST /api/auth/recalculate-totals: anroparens egna summor omräknade. Misslyckas det är svaret `ApiFailure` (500). */
-export interface RecalculateTotalsResponse {
-  success: true;
-  message: string;
-  userId: string;
-  timestamp: string;
-}
+/** Svar från POST /api/auth/recalculate-totals: anroparens egna summor omräknade. Misslyckas det är svaret `ApiError` (500). */
+export type RecalculateTotalsResponse = DualEnvelope<{ message: string; userId: string; timestamp: string }, { userId: string; timestamp: string }>;
 
 /** admin_settings-raden som GET/PUT /api/auth/admin-settings skickar: de sju värdena plus radens id och ändringstid. Aldrig lösenordshashen. */
 export interface AdminSettingsRow extends AdminSettings {
@@ -58,10 +47,8 @@ export type AdminSettingsResponse = ApiSuccess<AdminSettingsRow>;
 /** Brödtext till PUT /api/auth/admin-settings: `base_xp` och `xp_per_km` krävs, de andra faller tillbaka på standardvärdena. */
 export type UpdateAdminSettingsRequest = AdminSettings;
 
-/** Svar för PUT /api/auth/admin-settings: raden efter ändringen. */
-export interface UpdateAdminSettingsResponse extends ApiSuccess<AdminSettingsRow> {
-  message: string;
-}
+/** Svar för PUT /api/auth/admin-settings: raden efter ändringen (`data`), och serverns text (`message`, kvar under dubbelsvarsfönstret). */
+export type UpdateAdminSettingsResponse = DualEnvelope<{ message: string }, AdminSettingsRow>;
 
 /** Ett trappsteg ur streak_multipliers som servern skickar: `days` och `multiplier` plus radens id. */
 export interface StreakMultiplierRow extends StreakMultiplier {
@@ -76,7 +63,5 @@ export interface UpdateStreakMultipliersRequest {
   multipliers: StreakMultiplier[];
 }
 
-/** Svar för PUT /api/auth/streak-multipliers: trappan efter ändringen. */
-export interface UpdateStreakMultipliersResponse extends ApiSuccess<StreakMultiplierRow[]> {
-  message: string;
-}
+/** Svar för PUT /api/auth/streak-multipliers: trappan efter ändringen (`data`), och serverns text (`message`, kvar under dubbelsvarsfönstret). */
+export type UpdateStreakMultipliersResponse = DualEnvelope<{ message: string }, StreakMultiplierRow[]>;

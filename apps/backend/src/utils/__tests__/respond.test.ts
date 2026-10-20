@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Response } from 'express';
-import { API_ERROR_CODES, type ApiErrorCode } from '@runquest/shared';
+import { API_ERROR_CODES, type ApiErrorCode, type DualEnvelope } from '@runquest/shared';
 import { defaultErrorCode, fail, failWithData, failWritten, fixedErrorText, ok, okWithLegacy, type ErrorStatus } from '../respond.js';
 
 /** Ett res som bara minns status och kropp. `status()` sätter, `json()` skickar, som Express. */
@@ -50,25 +50,25 @@ describe('ok', () => {
 describe('okWithLegacy', () => {
   it('sends data next to the old top-level keys (the double answer of step 1)', () => {
     const { res, sent } = fakeRes();
-    okWithLegacy(res, { events: ['e1'] }, { events: ['e1'] });
+    okWithLegacy<DualEnvelope<{ events: string[] }>>(res, { events: ['e1'] }, { events: ['e1'] });
     expect(sent.body).toEqual({ success: true, events: ['e1'], data: { events: ['e1'] } });
   });
 
   it('keeps meta at the top level, next to the old keys and data', () => {
     const { res, sent } = fakeRes();
-    okWithLegacy(res, { runs: [] }, { runs: [] }, { total: 0, has_more: false });
+    okWithLegacy<DualEnvelope<{ runs: string[] }, { runs: string[] }, { total: number; has_more: boolean }>>(res, { runs: [] }, { runs: [] }, { total: 0, has_more: false });
     expect(sent.body).toEqual({ success: true, runs: [], data: { runs: [] }, meta: { total: 0, has_more: false } });
   });
 
   it('carries the old message and the new data in the same answer', () => {
     const { res, sent } = fakeRes();
-    okWithLegacy(res, { run: { id: 'r1' } }, { message: 'Run created successfully', run: { id: 'r1' } });
+    okWithLegacy<DualEnvelope<{ message: string; run: { id: string } }, { run: { id: string } }>>(res, { run: { id: 'r1' } }, { message: 'Run created successfully', run: { id: 'r1' } });
     expect(sent.body).toEqual({ success: true, message: 'Run created successfully', run: { id: 'r1' }, data: { run: { id: 'r1' } } });
   });
 
   it('sends data: null when there is no payload outside the old keys', () => {
     const { res, sent } = fakeRes();
-    okWithLegacy(res, null, { ok: true });
+    okWithLegacy<DualEnvelope<{ ok: true }, null>>(res, null, { ok: true });
     expect(sent.body).toEqual({ success: true, ok: true, data: null });
   });
 });

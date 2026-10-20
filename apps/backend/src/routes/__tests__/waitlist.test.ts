@@ -140,7 +140,7 @@ describe('POST /api/waitlist', () => {
     for (let i = 1; i <= 5; i++) expect((await post({ email: `u${i}@example.com`, consent: true }, ip)).status, `försök ${i}`).toBe(200);
     const blocked = await post({ email: 'u6@example.com', consent: true }, ip);
     expect(blocked.status).toBe(429);
-    expect(blocked.body).toEqual({ error: expect.any(String) });
+    expect(blocked.body).toEqual({ success: false, error: expect.any(String), code: 'rate_limited' });
     expect(stored()).toHaveLength(5);
     expect((await post({ email: 'u7@example.com', consent: true }, '10.9.9.10')).status).toBe(200);
   });

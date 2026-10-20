@@ -1,7 +1,7 @@
 // Användare: GET /api/auth/users-with-runs, adminvyn (GET/POST /api/auth/users, PUT /api/auth/users/:id/password),
 // PUT /api/auth/me/displayed-titles och POST /api/users/profile-picture. Fältstil snake_case, utom admin-lösenorden (camelCase, som routen läser dem).
 // Endast typer. Äldre endpoints behåller sin form (ADR 007 A2).
-import type { ApiSuccess } from './common.js';
+import type { ApiSuccess, DualEnvelope } from './common.js';
 import type { RunRow } from './runs.js';
 
 /** Antal osända utmaningstokens per nivå (user_challenge_tokens utan sent_at). */
@@ -81,21 +81,16 @@ export interface ResetUserPasswordRequest {
   newPassword: string;
 }
 
-/** Svar för PUT /api/auth/users/:id/password. */
-export interface ResetUserPasswordResponse {
-  success: true;
-  message: string;
-}
+/** Svar för PUT /api/auth/users/:id/password: `{ success, message, data: null }`. */
+export type ResetUserPasswordResponse = DualEnvelope<{ message: string }, null>;
 
 /** Brödtext till PUT /api/auth/me/displayed-titles: de titlar användaren visar (högst MAX_DISPLAYED_TITLES). */
 export interface UpdateDisplayedTitlesRequest {
   title_ids: string[];
 }
 
-/** Svar för PUT /api/auth/me/displayed-titles. */
-export interface UpdateDisplayedTitlesResponse {
-  success: true;
-}
+/** Svar för PUT /api/auth/me/displayed-titles: `{ success, data: null }`. */
+export type UpdateDisplayedTitlesResponse = ApiSuccess<null>;
 
 /** Svar för POST /api/users/profile-picture: den publika adressen till den nya bilden. Brödtexten är själva bilden (Content-Type avgör formatet). */
 export type UploadProfilePictureResponse = ApiSuccess<{ profile_picture: string }>;

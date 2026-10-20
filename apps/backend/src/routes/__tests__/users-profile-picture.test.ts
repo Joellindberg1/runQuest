@@ -134,7 +134,7 @@ describe('POST /api/users/profile-picture', () => {
     const { uploads } = use();
     const res = await upload(image(), 'image/png', 'not-a-valid-jwt');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: 'Invalid token' });
+    expect(res.body).toEqual({ success: false, error: 'Invalid token', code: 'token_invalid' });
     expect(uploads).toEqual([]);
   });
 

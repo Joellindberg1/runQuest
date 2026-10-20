@@ -265,7 +265,7 @@ describe('PUT /api/groups/settings', () => {
     const { db } = use();
     const res = await put(MEMBER, { values: { [DIGEST.key]: true } });
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: 'Forbidden' });
+    expect(res.body).toEqual({ success: false, error: 'Forbidden', code: 'forbidden' });
     expect(mutations(db)).toEqual([]);
     expect(changes).toEqual([]);
   });

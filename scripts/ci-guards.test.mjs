@@ -695,6 +695,13 @@ describe('checkRouteResponseContracts', () => {
     assert.deepEqual(scan(content), []);
   });
 
+  it('passes a route that answers through ok or okWithLegacy with a Response contract as the type parameter', () => {
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  ok<ThingResponse>(res, thing);\n});\n"), []);
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  okWithLegacy<ThingResponse>(res, { thing }, { thing });\n});\n"), []);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok(res, thing);\n});\n").length, 1);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok<LocalThing>(res, thing);\n});\n").length, 1);
+  });
+
   it('flags a route that sends an untyped object, with its line, verb and path', () => {
     const errors = scan("\nrouter.post('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
     assert.equal(errors.length, 1);

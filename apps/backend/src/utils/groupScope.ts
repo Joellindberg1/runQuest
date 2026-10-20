@@ -2,6 +2,7 @@
 // Ett villkorligt gruppfilter (`if (groupId) query = query.eq('group_id', groupId)`) är förbjudet i routes;
 // scripts/ci-guards.mjs (regel 6) fäller bygget om det dyker upp igen.
 import type { Request, Response } from 'express';
+import { fail } from './respond.js';
 
 /** Svarsformen {success,data} med tom lista, den som auth- och challenges-listorna redan använder. */
 const EMPTY_LIST = { success: true, data: [] } as const;
@@ -31,6 +32,6 @@ export function groupIdOrRespondEmpty(req: Request, res: Response, emptyBody: un
 export function groupIdOrRespondForbidden(req: Request, res: Response): string | null {
   const groupId = req.user?.group_id;
   if (groupId) return groupId;
-  res.status(403).json({ error: 'Admin must belong to a group' });
+  fail(res, 403, 'Admin must belong to a group', 'group_required');
   return null;
 }

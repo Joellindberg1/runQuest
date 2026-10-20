@@ -107,7 +107,7 @@ describe('POST /api/auth/login bcrypt work', () => {
     }
 
     expect(answers[0].status).toBe(401);
-    expect(answers[0].raw).toBe(JSON.stringify({ error: 'Invalid credentials' }));
+    expect(answers[0].raw).toBe(JSON.stringify({ success: false, error: 'Invalid credentials', code: 'invalid_credentials' }));
     expect(answers[1]).toEqual(answers[0]);
     expect(answers[2]).toEqual(answers[0]);
   });

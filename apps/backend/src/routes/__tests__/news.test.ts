@@ -66,7 +66,7 @@ describe('auth', () => {
   it('GET /api/news utan token → 401', async () => {
     const res = await server.request('GET', '/api/news');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
   it('POST /api/news/seen utan token → 401', async () => {
     const res = await server.request('POST', '/api/news/seen', { body: {} });

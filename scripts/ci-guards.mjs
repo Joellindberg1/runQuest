@@ -81,7 +81,7 @@
 //     eller `const body: XResponse = …`. Då följer klientens typ och serverns svar samma definition, och en ändrad form syns som typfel på båda sidor.
 //     Undantaget är Stravas webhookprotokoll (GET och POST `/` i stravaWebhook.ts, ROUTE_CONTRACT_EXEMPT); `/health` i samma fil är en vanlig adminroute.
 //     Vakten är textbaserad: den läser handlerns text (från en `router.<verb>(` till nästa) utan kommentarer och räknar en träff i handlern som
-//     "typad". Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
+//     "typad" (även `ok<XResponse>(res, …)` och `okWithLegacy<XResponse>(res, …)` ur utils/respond.ts). Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
 //     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn, men bara när svarets data är typad: Supabase-klienten är otypad, så data som kommer direkt därifrån är `any` och `satisfies` säger då ingenting om serverns faktiska form).
 //     Fångas heller INTE: en route med en icke-literal väg (`router.get(PATH, …)` eller en väg byggd av en variabel; mönstret kräver en sträng direkt
 //     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
@@ -693,7 +693,8 @@ export function checkRouteResponseContracts(files, exempt = ROUTE_CONTRACT_EXEMP
   }
   if (contracts.size === 0) return []; // inget att jämföra mot (t.ex. ett provrepo utan shared)
   const names = [...contracts].map((name) => name.replaceAll('$', String.raw`\$`)).join('|');
-  const typed = new RegExp(String.raw`\bsatisfies\s+(?:${names})\b|:\s*(?:${names})\s*=(?![=>])`);
+  // `ok<XResponse>(res, …)` och `okWithLegacy<XResponse>(res, …)` (utils/respond.ts) räknas också: typparametern kontrollerar data, de gamla nycklarna och meta mot kontraktet.
+  const typed = new RegExp(String.raw`\bsatisfies\s+(?:${names})\b|:\s*(?:${names})\s*=(?![=>])|\bok(?:WithLegacy)?\s*<\s*(?:${names})\b`);
   const errors = [];
   for (const { path, content } of files) {
     if (!ROUTE_RESPONSE_FILE.test(path) || TEST_FILE.test(path)) continue;
@@ -755,7 +756,6 @@ export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT
 // TILLFÄLLIGT (RUN-354, tas bort i den sista routecommiten): filer som ännu inte är omskrivna till fail. Varje domäncommit tar bort sina rader härifrån.
 const TEMPORARILY_UNCONVERTED = new Set([
   'apps/backend/src/routes/admin.ts',
-  'apps/backend/src/routes/auth.ts',
   'apps/backend/src/routes/badges.ts',
   'apps/backend/src/routes/challenges.ts',
   'apps/backend/src/routes/config.ts',
@@ -772,11 +772,6 @@ const TEMPORARILY_UNCONVERTED = new Set([
   'apps/backend/src/routes/titles.ts',
   'apps/backend/src/routes/users.ts',
   'apps/backend/src/routes/waitlist.ts',
-  'apps/backend/src/middleware/admin.ts',
-  'apps/backend/src/middleware/auth.ts',
-  'apps/backend/src/middleware/rateLimit.ts',
-  'apps/backend/src/utils/groupAccess.ts',
-  'apps/backend/src/utils/groupScope.ts',
 ]);
 
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */

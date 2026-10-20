@@ -69,7 +69,7 @@ describe('GET /api/settings', () => {
     const { db } = use();
     const res = await server.request('GET', '/api/settings');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
     expect(db.queries).toEqual([]);
   });
 

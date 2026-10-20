@@ -92,7 +92,7 @@ it('POST /news/read utan token ger 401', async () => {
   const db = use(world([row(1)]));
   const res = await server.request('POST', '/api/news/read', { body: { ids: [1] } });
   expect(res.status).toBe(401);
-  expect(res.body).toEqual({ error: expect.any(String) });
+  expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   expect(db.queries).toEqual([]);
 });
 

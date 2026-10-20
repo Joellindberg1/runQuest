@@ -125,7 +125,7 @@ describe('POST /api/auth/change-password tells a database failure from a missing
       const res = await server.request('POST', '/api/auth/change-password', { token: adminToken(), body });
 
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ error: 'Failed to change password' });
+      expect(res.body).toEqual({ success: false, error: 'Failed to change password', code: 'internal_error' });
       const events = await sentry.drain();
       expect(events).toHaveLength(1);
       expect(JSON.stringify(events)).toContain('08006');
@@ -152,7 +152,7 @@ describe('POST /api/auth/change-password tells a database failure from a missing
       const res = await server.request('POST', '/api/auth/change-password', { token: mintToken({ user_id: 'no-such-user', group_id: GROUP }), body });
 
       expect(res.status).toBe(404);
-      expect(res.body).toEqual({ error: 'User not found' });
+      expect(res.body).toEqual({ success: false, error: 'User not found', code: 'not_found' });
       expect(await sentry.drain()).toHaveLength(0);
     } finally {
       await sentry.stop();

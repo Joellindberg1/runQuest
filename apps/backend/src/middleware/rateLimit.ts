@@ -3,6 +3,7 @@
 // in-memory räcker; vid fler repliker krävs delad lagring — ta det då.
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
+import { fail } from '../utils/respond.js';
 
 interface Entry { count: number; resetAt: number }
 
@@ -30,7 +31,7 @@ function limiterOver(attempts: Map<string, Entry>, windowMs: number, max: number
     entry.count++;
     if (entry.count > max) {
       logger.warn(`🚦 Rate limit: ${key} blockerad (${entry.count} försök)`);
-      res.status(429).json({ error: 'Too many attempts, try again later' });
+      fail(res, 429, 'Too many attempts, try again later');
       return;
     }
     next();

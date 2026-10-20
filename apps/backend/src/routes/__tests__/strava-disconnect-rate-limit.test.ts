@@ -63,7 +63,7 @@ describe('DELETE /api/strava/disconnect rate limit', () => {
 
     const eleventh = await server.request('DELETE', '/api/strava/disconnect', { token });
     expect(eleventh.status).toBe(429);
-    expect(eleventh.body).toEqual({ error: 'Too many attempts, try again later' });
+    expect(eleventh.body).toEqual({ success: false, error: 'Too many attempts, try again later', code: 'rate_limited' });
     expect(strava.calls.oauthDeauthorize).toBe(1); // only the first call had a connection to revoke
   });
 });

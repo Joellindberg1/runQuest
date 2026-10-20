@@ -64,12 +64,12 @@ describe('auth', () => {
   it('GET /api/badges/user/:userId utan token → 401', async () => {
     const res = await server.request('GET', `/api/badges/user/${KARL}`);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
   it('GET /api/badges/group utan token → 401', async () => {
     const res = await server.request('GET', '/api/badges/group');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
 });
 

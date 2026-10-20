@@ -37,7 +37,7 @@ describe('POST /api/auth/recalculate-totals', () => {
   it('answers a generic 500 without the error message and logs only the error code', async () => {
     const res = await server.request('POST', '/api/auth/recalculate-totals', { token: mintToken({ user_id: 'u1' }) });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to recalculate user totals' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to recalculate user totals', code: 'internal_error' });
 
     const calls = spies.flatMap((s) => s.mock.calls);
     const out = calls.map((args: unknown[]) => args.map((a) => (typeof a === 'string' ? a : inspect(a, { depth: 6 }))).join(' ')).join('\n');

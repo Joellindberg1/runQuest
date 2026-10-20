@@ -12,7 +12,7 @@
 // Steg 1 (expand, dubbelsvar): `okWithLegacy` skickar `data` BREDVID de gamla toppnivånycklarna, `failWritten` lägger `written: true` bredvid koden
 // `recalc_failed_after_write`. Båda tas bort i steg 2 (contract); sök på dem för att hitta varje ställe.
 import type { Response } from 'express';
-import type { ApiErrorCode } from '@runquest/shared';
+import type { ApiErrorCode, ApiSuccess } from '@runquest/shared';
 
 /** Statusarna ett felsvar använder. En status utanför listan är ett kompileringsfel: lägg den i `DEFAULT_CODE_BY_STATUS` och i katalogen först. */
 export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 500 | 503;
@@ -54,8 +54,16 @@ export function fixedErrorText(status: ErrorStatus): string {
   return FIXED_TEXT_BY_STATUS[status];
 }
 
-/** Lyckat svar: `{ success: true, data, meta? }`. Statusen är den som `res` redan har (200, eller 201 efter `res.status(201)`). */
-export function ok<TData, TMeta = undefined>(res: Response, data: TData, meta?: TMeta): void {
+/** Formen på ett lyckat svar i kontraktet: `{ success: true, data, meta? }` (ApiSuccess) eller dess dubbelsvar (DualEnvelope) i steg 1. */
+type SuccessWire = { success: true; data: unknown; meta?: unknown };
+/** Det en kontraktstyp har utöver kuvertet: de gamla toppnivånycklarna. */
+type LegacyOf<TWire> = Omit<TWire, 'success' | 'data' | 'meta'>;
+
+/**
+ * Lyckat svar: `{ success: true, data, meta? }`. Statusen är den som `res` redan har (200, eller 201 efter `res.status(201)`). Typparametern är svarets kontraktstyp
+ * (`ok<AdminUsersResponse>(res, rows)`): då kontrollerar kompilatorn `data` och `meta` mot den, så klientens typ och serverns svar följer samma definition (ADR 007 A7).
+ */
+export function ok<TWire extends SuccessWire = ApiSuccess<unknown, unknown>>(res: Response, data: TWire['data'], meta?: NonNullable<TWire['meta']>): void {
   res.json({
     success: true,
     data: data === undefined ? null : data,
@@ -63,14 +71,12 @@ export function ok<TData, TMeta = undefined>(res: Response, data: TData, meta?: 
   });
 }
 
-/** De gamla toppnivånycklarna får varken heta `success`, `data` eller `meta`: de tre är kuvertets. */
-type LegacyKeys<TLegacy extends object> = TLegacy & { success?: never; data?: never; meta?: never };
-
 /**
- * Steg 1 (dubbelsvar): som `ok`, men de gamla toppnivånycklarna (`events`, `run`, `message`, `token`, räknare ...) skickas kvar bredvid `data`, så att en
- * klient från före steg 1 läser samma svar. `meta` är kuvertets (paginering, diagnostik) och ligger kvar på toppnivå som förut. Tas bort i steg 2 (RUN-364).
+ * Steg 1 (dubbelsvar): som `ok`, men de gamla toppnivånycklarna (`events`, `run`, `message`, `token`, räknare ...) skickas kvar bredvid `data`, så att en klient från före steg 1
+ * läser samma svar. `meta` är kuvertets (paginering, diagnostik) och ligger kvar på toppnivå som förut. Typparametern är kontraktstypen (`DualEnvelope<…>`), som kontrollerar
+ * både `data`, de gamla nycklarna och `meta`. Tas bort i steg 2 (RUN-364): sök på `okWithLegacy` för att hitta varje ställe.
  */
-export function okWithLegacy<TData, TLegacy extends object, TMeta = undefined>(res: Response, data: TData, legacy: LegacyKeys<TLegacy>, meta?: TMeta): void {
+export function okWithLegacy<TWire extends SuccessWire>(res: Response, data: TWire['data'], legacy: LegacyOf<TWire>, meta?: NonNullable<TWire['meta']>): void {
   res.json({
     success: true,
     ...legacy,

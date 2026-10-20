@@ -386,7 +386,7 @@ describe('POST /api/auth/users', () => {
     const res = await create();
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create user' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create user', code: 'internal_error' });
     expect(tables.users.map((u) => u.id)).toEqual(['admin-1']);
     expect(JSON.stringify(res.body)).not.toContain('newbie@example.com');
     expect(logged.join('\n')).toContain('40P01');
@@ -402,7 +402,7 @@ describe('POST /api/auth/users', () => {
     const res = await create();
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create user' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create user', code: 'internal_error' });
     const out = logged.join('\n');
     expect(out).toContain('40P01');
     expect(out).toContain('23503');

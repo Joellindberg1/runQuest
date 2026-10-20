@@ -65,14 +65,14 @@ describe('auth', () => {
     const db = use(tables(OWNED()));
     const res = await putShowcase({ series: [] }, null);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
     expect(db.queries).toHaveLength(0);
   });
   it('POST /api/badges/seen utan token → 401 utan databasanrop', async () => {
     const db = use(tables(OWNED()));
     const res = await postSeen({}, null);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
     expect(db.queries).toHaveLength(0);
   });
 });
