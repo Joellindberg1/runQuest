@@ -62,7 +62,7 @@
 		Strict-Transport-Security "max-age=31536000"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Frame-Options "DENY"
-		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'sha256-1yYJuvj582gVqQR/dSkeTdHfAS0wEZ/XUOH2vBttgR4=' 'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ=' 'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw=' 'sha256-ENgRl/chRPaOunHsdSJWIrmZCfT35J163c/mCMMs+kQ='; style-src 'self' 'unsafe-inline'; img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-1yYJuvj582gVqQR/dSkeTdHfAS0wEZ/XUOH2vBttgR4=' 'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ=' 'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw=' 'sha256-ENgRl/chRPaOunHsdSJWIrmZCfT35J163c/mCMMs+kQ='; style-src 'self' 'unsafe-inline'; img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 	}
 

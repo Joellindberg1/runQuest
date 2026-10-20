@@ -9,7 +9,7 @@ CADDY_VERSION="2.11.4"
 PORT="18080"
 # Rubriken som Caddyfilen ska bära CSP i (RUN-344): först Report-Only i staging, sedan skarp. Det här är enda raden som byts när CSP blir skarp
 # (Caddyfilens rubrik byts samtidigt); den andra rubriken får då inte finnas alls.
-CSP_HEADER="content-security-policy-report-only"
+CSP_HEADER="content-security-policy"
 if [[ "$CSP_HEADER" == "content-security-policy" ]]; then CSP_OTHER="content-security-policy-report-only"; else CSP_OTHER="content-security-policy"; fi
 WORK="$(mktemp -d)"
 # Windows (Git Bash): en inbyggd Caddy vill ha C:/-sökvägar i Caddyfilen, inte /tmp/…; på Linux är sökvägen oförändrad.
