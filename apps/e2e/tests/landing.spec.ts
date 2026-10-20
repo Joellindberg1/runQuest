@@ -481,7 +481,7 @@ test.describe('the onboarding tour', () => {
   test('the close button shows a focus ring when it is reached with the keyboard', async ({ page }) => {
     // Kontot har sett turen. Statusen byts ut mot "inget sett" så att förstagångsturen startar; ingenting skrivs (turen stängs aldrig här).
     await page.route('**/onboarding/status', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ seen: [] } satisfies OnboardingStatusResponse) }),
+      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ success: true, seen: [], data: { seen: [] } } satisfies OnboardingStatusResponse) }),
     );
     await page.goto('/board');
     await page.locator('.driver-popover').waitFor({ state: 'visible', timeout: 15_000 });

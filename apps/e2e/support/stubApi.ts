@@ -118,12 +118,18 @@ function announcedPatchSlugs(): string[] {
   return releases.filter((release) => release.announce === true).map((release) => patchSlugForVersion(release.version));
 }
 
-/** Ett konto som sett allt: ingen tur och ingen "What's new"-popup över sidan. */
+/** Ett konto som sett allt: ingen tur och ingen "What's new"-popup över sidan. Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20): `seen` på toppnivå och i `data`, som backenden svarar. */
 export function seenEverything(): OnboardingStatusResponse {
-  return { seen: [...FIXED_ONBOARDING_SLUGS, ...announcedPatchSlugs()] };
+  const seen = [...FIXED_ONBOARDING_SLUGS, ...announcedPatchSlugs()];
+  return { success: true, seen, data: { seen } };
 }
 
 const publicStats: PublicStatsApiResponse = { success: true, data: { runners: 6, challenges: 42, km: 1234 } };
+
+// Felsvaren har samma form som backendens: { success: false, error, code } (ADR 007 Addendum 2026-10-20). Koden är den klienten grenar på, så stubben måste svara med den.
+function failure(error: string, code: string): { success: false; error: string; code: string } {
+  return { success: false, error, code };
+}
 
 // Podiekortets dekor ur svar som ger alla tre: en innehavd titel, en rank-pil som inte är platt och en badge-mini. Specerna kräver att inget kort någonsin ritas
 // med motsvarande tomläge ("No titles held yet", —, ingen mini) när datan finns i svaren.
@@ -179,10 +185,15 @@ async function answer(route: Route, state: StubState): Promise<void> {
     const sent = request.postDataJSON() as { name?: string; password?: string } | null;
     const account = userCredentials();
     if (sent?.name === account.login && sent?.password === account.password) {
-      return json(route, 200, { success: true, token: STUB_TOKEN, user: STUB_USER });
+      return json(route, 200, { success: true, token: STUB_TOKEN, user: STUB_USER, data: { token: STUB_TOKEN, user: STUB_USER } });
     }
-    // Backendens fel har bara `error` (ingen `success`).
-    return json(route, 401, { error: 'Invalid credentials' });
+    return json(route, 401, failure('Invalid credentials', 'invalid_credentials'));
+  }
+  if (method === 'POST' && path === '/auth/change-password') {
+    // Fel nuvarande lösenord är ett 401 som INTE avslutar sessionen (koden current_password_incorrect); klienten visar felet och loggar inte ut. Stubben ändrar aldrig något lösenord.
+    const sent = request.postDataJSON() as { currentPassword?: string } | null;
+    if (sent?.currentPassword !== userCredentials().password) return json(route, 401, failure('Current password is incorrect', 'current_password_incorrect'));
+    return json(route, 200, { success: true, message: 'Password changed successfully', data: null });
   }
   if (method === 'GET' && path === '/public/stats') return json(route, 200, publicStats);
   if (method === 'GET' && path === '/auth/users-with-runs') return json(route, 200, { success: true, data: [runnerOf(state)] });
@@ -190,22 +201,22 @@ async function answer(route: Route, state: StubState): Promise<void> {
   if (method === 'GET' && path === '/leaderboard/rank-delta') return json(route, 200, rankDelta);
   if (method === 'GET' && path === '/badges/group') return json(route, 200, groupBadges);
   if (method === 'GET' && path === '/onboarding/status') return json(route, 200, seenEverything());
-  if (method === 'POST' && path === '/onboarding/mark-seen') return json(route, 200, { ok: true });
+  if (method === 'POST' && path === '/onboarding/mark-seen') return json(route, 200, { success: true, ok: true, data: null });
   if (method === 'GET' && path === '/config/xp') return json(route, 200, xpConfig);
   if (method === 'POST' && path === '/waitlist') {
     // Samma svar för varje anmälan (WaitlistSignupResponse i shared, som är handskriven här av samma skäl som config/xp: kontraktsfilen drar in dataPolicy och kalendern, som inte klarar
     // e2e:s strängare flaggor), och inget sparas: ingen e-postadress lämnar webbläsaren.
-    return json(route, 200, { success: true });
+    return json(route, 200, { success: true, data: null });
   }
   if (method === 'POST' && path === '/runs') {
     const sent = request.postDataJSON() as CreateRunRequest | null;
-    if (!sent || !sent.date || !(sent.distance > 0)) return json(route, 400, { error: 'Date and distance are required' });
+    if (!sent || !sent.date || !(sent.distance > 0)) return json(route, 400, failure('Date and distance are required', 'invalid_request'));
     const run = runFrom(state, sent);
     state.runs.push(run);
-    return json(route, 200, { success: true, message: 'Run created successfully', run });
+    return json(route, 200, { success: true, message: 'Run created successfully', run, data: { run } });
   }
   // Allt annat som appen frågar efter får 404 ("Not stubbed"): sviten bevisar laddningsvyn och övergången, inte datan. Sidor som behöver mer (nyheter, rundhistorik) hör hemma i sviten mot staging.
-  return json(route, 404, { error: 'Not stubbed' });
+  return json(route, 404, failure('Not stubbed', 'route_not_found'));
 }
 
 /** Besvarar API-adressens förfrågningar i en webbläsarkontext med fejkade svar. Kastar om det inte är en lokal körning. */
