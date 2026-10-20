@@ -17,6 +17,9 @@ import { fileURLToPath } from 'node:url';
 export const UMAMI_HOST = 'https://gateway.umami.is';
 
 const FORBIDDEN_SCRIPT_TOKENS = ["'unsafe-inline'", "'unsafe-eval'", "'strict-dynamic'"];
+const OVERRIDING_SCRIPT_DIRECTIVES = ['script-src-elem', 'script-src-attr'];
+const HOST_LIST_DIRECTIVES = ['connect-src', 'img-src'];
+const BARE_SCHEME = /^[a-z][a-z0-9+.-]*:$/i;
 const HASH_TOKEN = /^'sha256-[A-Za-z0-9+/]+={0,2}'$/;
 const EXACT_DIRECTIVES = {
   'default-src': ["'self'"],
@@ -56,7 +59,8 @@ export function parseCsp(value) {
   const directives = new Map();
   for (const part of value.split(';')) {
     const tokens = part.trim().split(/\s+/).filter(Boolean);
-    if (tokens.length > 0) directives.set(tokens[0], tokens.slice(1));
+    // Upprepat direktiv: webbläsaren använder det första och ignorerar resten.
+    if (tokens.length > 0 && !directives.has(tokens[0])) directives.set(tokens[0], tokens.slice(1));
   }
   return directives;
 }
@@ -87,6 +91,16 @@ export function checkCsp({ csp, pages }) {
     if (!actual || actual.join(' ') !== expected.join(' ')) problems.push(`${directive} must be ${expected.join(' ')}, found ${actual ? actual.join(' ') : 'nothing'}`);
   }
   if (!(directives.get('connect-src') ?? []).includes(UMAMI_HOST)) problems.push(`connect-src must contain ${UMAMI_HOST} (Umami's tracker sends there)`);
+  // script-src-elem och script-src-attr går före script-src för sina skript: sätts de gäller inte längre hasharna ovan.
+  for (const directive of OVERRIDING_SCRIPT_DIRECTIVES) {
+    if (directives.has(directive)) problems.push(`${directive} must not be set: it overrides script-src, so the hashes would no longer be what decides`);
+  }
+  // Ett jokertecken eller ett bart schema ('https:') öppnar för vilken värd som helst; värdarna ska listas.
+  for (const directive of HOST_LIST_DIRECTIVES) {
+    for (const token of directives.get(directive) ?? []) {
+      if (token === '*' || BARE_SCHEME.test(token)) problems.push(`${directive} must not contain ${token}: list the hosts instead`);
+    }
+  }
   for (const token of scriptSources) {
     if (FORBIDDEN_SCRIPT_TOKENS.includes(token)) problems.push(`script-src must not contain ${token}`);
     else if (token !== "'self'" && !HASH_TOKEN.test(token)) problems.push(`script-src must only contain 'self' and hashes, found ${token}`);

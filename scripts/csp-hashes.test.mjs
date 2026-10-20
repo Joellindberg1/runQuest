@@ -50,6 +50,10 @@ describe('parseCsp', () => {
     assert.deepEqual(parsed.get('script-src'), ["'self'", "'sha256-abc='"]);
     assert.deepEqual(parsed.get('object-src'), ["'none'"]);
   });
+
+  it('keeps the first of a repeated directive, as browsers do', () => {
+    assert.deepEqual(parseCsp("script-src 'self'; script-src 'unsafe-inline'").get('script-src'), ["'self'"]);
+  });
 });
 
 describe('cspFromCaddyfile', () => {
@@ -98,6 +102,25 @@ describe('checkCsp', () => {
       const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
       assert.match(problems.join('\n'), new RegExp(`script-src must not contain ${token}`));
     }
+  });
+
+  it('fails on script-src-elem and script-src-attr, which override script-src for their own kind of script', () => {
+    for (const directive of ['script-src-elem', 'script-src-attr']) {
+      const base = `${POLICY_BASE}; ${directive} 'self' 'unsafe-inline'`;
+      const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+      assert.deepEqual(problems, [`${directive} must not be set: it overrides script-src, so the hashes would no longer be what decides`]);
+    }
+  });
+
+  it('fails on a wildcard or a bare scheme in connect-src and img-src, but accepts a host with a wildcard label', () => {
+    for (const directive of ['connect-src', 'img-src']) {
+      for (const token of ['*', 'https:', 'http:', 'data:', 'blob:', 'wss:']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+        assert.ok(problems.includes(`${directive} must not contain ${token}: list the hosts instead`), `${directive} ${token}: ${problems.join(' | ')}`);
+      }
+    }
+    assert.deepEqual(checkCsp({ csp: policy({ scripts: [script] }), pages }), []); // https://*.ingest.de.sentry.io i POLICY_BASE
   });
 
   it('fails when a required directive is missing or weaker than the rule', () => {
