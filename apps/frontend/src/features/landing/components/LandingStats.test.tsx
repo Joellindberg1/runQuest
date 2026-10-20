@@ -5,7 +5,7 @@ import postcss from 'postcss';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { isInaccessible } from '@testing-library/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { formatInt } from '@/features/log/logFormat';
+import { formatInt } from '@/shared/utils/format';
 import { LandingStats } from './LandingStats';
 
 const respondWith = (data: { runners: number; challenges: number; km: number }) =>

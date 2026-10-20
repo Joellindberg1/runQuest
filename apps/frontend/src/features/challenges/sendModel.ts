@@ -1,7 +1,7 @@
 import type { User } from '@runquest/types';
 import type { ChallengeGroupStat, HeadToHeadRecord } from '@runquest/shared';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { firstName } from './duelsFormat';
+import { firstName } from '@/shared/utils/format';
 import type { ResultTone, SentCard } from './duelsModel';
 
 // Send-sheetens logik: varför man inte kan skicka, motståndarvalen och head-to-head-tipsen. Ren logik.

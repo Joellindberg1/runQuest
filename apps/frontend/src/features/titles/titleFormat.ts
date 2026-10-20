@@ -1,7 +1,8 @@
 // Titelvärden och titelnamn som text. Ren logik — delas av Titles, Runner card och Profile.
 // Måttnyckeln (`metric_key`, ur title-motorerna i backend) avgör enheten; värdena från backend är
 // kodade för sortering (högre = bättre); kodningen och avkodningen ligger i @runquest/shared (titleMetrics), delad med backend.
-import { MINUTES_PER_HOUR, SECONDS_PER_MINUTE, decodeTitleMetric } from '@runquest/shared';
+import { MINUTES_PER_HOUR, SECONDS_PER_MINUTE, decodeTitleMetric, zoneDay } from '@runquest/shared';
+import { formatDayMonth, formatKm } from '@/shared/utils/format';
 
 /** Replace "King/Queen" in a title name based on the holder's gender. */
 export function resolveGenderedTitle(name: string, gender?: string | null): string {
@@ -48,10 +49,12 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
       return stdDev === null ? '—' : `${stdDev.toFixed(1)}s/km std`;
     }
     case 'lastRunOfWeek': {
-      const d = new Date(decodeTitleMetric(metricKey, value));
+      const encoded = new Date(decodeTitleMetric(metricKey, value));
+      // Ett värde som inte är ett datum (NaN, oändligt, utanför datumintervallet) får inte kasta i render: tankstreck som övriga saknade värden.
+      if (Number.isNaN(encoded.getTime())) return '—';
       // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts): läs dagen i UTC, annars glider
       // sena kvällsrundor till nästa dag i zoner öster om UTC.
-      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      return formatDayMonth(zoneDay(encoded, 'UTC'));
     }
     case 'fastest5km': {
       const totalSeconds = decodeTitleMetric(metricKey, value);
@@ -68,7 +71,7 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     case 'winterKm':
     case 'longestRunAfterBreak14':
     case 'longestRunAfterBreak30':
-      return `${value.toFixed(1)}km`;
+      return `${formatKm(value)}km`;
     // Ett mått utan känd enhet (en ny motor som inte lagts till här): hellre bara talet än en påhittad enhet.
     default:
       return String(Math.round(value * 10) / 10);

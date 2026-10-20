@@ -1,7 +1,8 @@
 import { useRef, type FormEvent } from 'react';
 import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE } from '@runquest/shared';
 import type { LogFormState } from '../hooks/useLogForm';
-import { formatKm, formatLongDate } from '../logFormat';
+import { formatKm } from '@/shared/utils/format';
+import { formatLongDate } from '../logFormat';
 import { QUICK_KM, parseKm, type Surface } from '../logModel';
 
 const SURFACES: ReadonlyArray<{ key: Surface; label: string }> = [

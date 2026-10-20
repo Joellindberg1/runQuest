@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ErrorState } from '@/shared/components/ErrorState';
+import { firstName } from '@/shared/utils/format';
 import type { HeadToHeadResponse } from '@runquest/shared';
 import { buildHeadToHead, type Meeting, type MeetingResult } from '../runnerModel';
 import { PanelLoading } from './RunnerParts';
@@ -60,7 +61,7 @@ export function HeadToHeadPanel({ opponentName, meId, data, isError, isFetching,
             {view.meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} />)}
           </ol>
         ) : (
-          <p className="rq-runner-note">No duels against {opponentName.split(' ')[0]} yet.</p>
+          <p className="rq-runner-note">No duels against {firstName(opponentName)} yet.</p>
         )}
       </>
     );

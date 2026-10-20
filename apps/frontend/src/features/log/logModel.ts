@@ -1,7 +1,8 @@
 import type { Run } from '@runquest/types';
 import type { RunIdOnly } from '@runquest/shared';
 import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, zoneDay } from '@runquest/shared';
-import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
+import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { formatLongDate } from './logFormat';
 
 // Formulärets ren logik: tillstånd, validering (speglar POST /runs) och streakdagen en ny runda får.
 // Ingen DOM, ingen datahämtning — `now`/`today` skickas alltid in.

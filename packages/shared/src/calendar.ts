@@ -59,6 +59,12 @@ export function mondayOf(day: string): string {
   return addDays(day, -((dayOfWeek(day) + 6) % 7));
 }
 
+/** ISO-veckonummer (mån–sön, vecka 1 = veckan med årets första torsdag) för en kalenderdag. RangeError för ogiltigt datum. */
+export function isoWeekNumber(day: string): number {
+  const thursday = addDays(mondayOf(day), 3);
+  return Math.floor(daysBetween(`${thursday.slice(0, 4)}-01-01`, thursday) / 7) + 1;
+}
+
 // ─── Tidszon: väggklocka <-> ögonblick ───────────────────────────────────────────────────────────
 
 const formatters = new Map<string, Intl.DateTimeFormat>();

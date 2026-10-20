@@ -190,9 +190,23 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - Feature-CSS i huvudbunten laddas före index.css (main.tsx-importordningen); de lazy-laddade sidornas CSS (Playbook, Settings, Admin, Features) laddas EFTER. Tailwind 3:s `@layer` blir vanlig CSS i bygget, så ordningen avgör vid lika specificitet — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
-- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
-  nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
-  använder en-GB och är stabil i test men kan skilja mellan miljöer).
+- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU — datumformat använder egna månadsnamn (`MONTHS_SHORT`/`formatDayMonth` i
+  `shared/utils/format`). Sedan formatmodulen samlades finns inget `Intl`/`toLocale*`-anrop kvar i frontendens features; lint (`rq/design-syntax`) och
+  en regel för `format.ts` håller det så.
+- Formatmodulen (`shared/utils/format.ts`): tusentalsavgränsaren är det svenska "1 240" (U+00A0) överallt, även i Events och Duels (ägarbeslut). Antagande: samma
+  mellanrum gäller heltalsdelen av km (`formatKm(1240.5)` = "1 240.5", punkt kvar som decimaltecken), så att XP och km på samma skärm skrivs likadant; det syns
+  först vid 1 000 km eller mer (Runner/Board totalsiffror, Titles). Dagens skilda "tid sedan"- och nedräkningstexter är oförändrade men namngivna stilar
+  (`formatAgo`: spelled, compact, feed, feed-long; `formatCountdown`: hms, hm, coarse, pill). Vill ägaren ha en enhetlig stil är det en separat designfråga.
+- `formatKm` avrundar halv uppåt på talets kortaste decimalskrivning, räknat på siffrorna som text (`toFixedHalfUp`, med minnessiffra genom heltalsdelen), utan Intl.
+  Det är samma regel som den gamla Intl en-GB i Events och Duels följde, också för flyttalssummor strax under en halvgräns (104.94999999999999 blir "104.9",
+  3.4499999999999997 blir "3.4"). Differentialprovat mot Intl en-GB med 1 och 2 decimaler över 3 320 001 tal (2 020 001 rena tvådecimalstal, 1 000 000 summor av
+  2–9 slumpade tvådecimalstal och 300 000 fyrdecimalstal): 0 avvikelser utöver tusentalsavgränsaren. `toFixed` avrundar däremot det binära värdet, så Log, Board, Runner, Profile, Playbook och Titles ger nu
+  ny text för ungefär 4 % av tvådecimalstal: 0.95 skrivs "1.0" (förut "0.9"), 12.35 "12.4" (förut "12.3"), 1.15 "1.2" (förut "1.1"), 9.95 "10.0" (förut "9.9").
+  Ytorna är alla som visar km via `formatKm`: rundans distans och XP-förhandsvisningen (Log), veckans och säsongens km (Board), Runner card och Profile,
+  Playbook och titelvärden för km (Titles). Multiplikatorn (`formatMultiplier`/`formatTimes`) behåller `toFixed(1)`: halv uppåt skulle ändra text för 36 av 900
+  tvådecimalsvärden mellan 1.00 och 9.99 (1.15, 1.45, 1.65 …), och standardtrappan (ett decimal) är oberörd.
+- Titles skriver "Sep" för september i "senaste söndagsrundan" (`lastRunOfWeek`); den gamla `toLocaleDateString('en-GB')` gav "Sept" i nyare ICU. Godtaget: egna
+  månadsnamn överallt. Ett värde som inte är ett datum (NaN, oändligt, utanför datumintervallet) visas som "—" i stället för att kasta i render.
 - Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
   Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
   gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:

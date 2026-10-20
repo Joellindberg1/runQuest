@@ -1,10 +1,11 @@
 import type { Challenge, Run } from '@runquest/types';
+import { firstName } from '@/shared/utils/format';
 import {
   LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, STOCKHOLM_TZ, boostRemaining, boostWindow, compareChallengeStandings, type BoostRow,
   type ChallengeGroupStat, type ChallengeHistoryItem, type ChallengeMetric, type ChallengeStanding, type ChallengeTier, type MyBoost, type MyChallengesData,
 } from '@runquest/shared';
 import {
-  TIERS, durationLongText, durationText, firstName, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
+  TIERS, durationLongText, durationText, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
   startsInText, stakeOf, tierLabel, timeLeft, type Stake, type TimeLeft,
 } from './duelsFormat';
 

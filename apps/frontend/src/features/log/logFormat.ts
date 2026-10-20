@@ -1,46 +1,12 @@
-import { MS_DAY, MS_HOUR, MS_MINUTE } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
+import { MONTHS_LONG } from '@/shared/utils/format';
 
-// Rena formatterare för Log. Engelskt UI: egna månadsnamn (Intl:s förkortningar skiljer mellan ICU-versioner)
-// och tal utan locale-beroende. `now` skickas alltid in så att allt går att testa med fasta klockslag.
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] as const;
-
-
-const NBSP = ' ';
-
-/** "1 126" — heltal med tusentalsmellanrum som designen. */
-export function formatInt(value: number): string {
-  return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
-}
-
-/** "8.0" — en decimal, punkt som decimaltecken. */
-export function formatKm(km: number): string {
-  return km.toFixed(1);
-}
+// Rena formatterare för Log. Engelskt UI: tal, km, multiplikator och "tid sedan" ligger i shared/utils/format.
 
 /** "1 June 2025" för en kalenderdag (YYYY-MM-DD). */
 export function formatLongDate(isoDate: string): string {
   const [year, month, day] = isoDate.split('-').map(Number);
-  return `${day} ${MONTHS[month - 1]} ${year}`;
-}
-
-/** "×1.4" — multiplikatorn i XP-uppställningen. */
-export function formatTimes(multiplier: number): string {
-  return `×${multiplier.toFixed(1)}`;
-}
-
-/** "1.4×" — multiplikatorn i historikcellen. */
-export function formatMultiplier(multiplier: number): string {
-  return `${multiplier.toFixed(1)}×`;
-}
-
-/** "32 min ago" · "3 h ago" · "2 d ago" · "just now". */
-export function formatAgo(ms: number): string {
-  if (ms < MS_MINUTE) return 'just now';
-  if (ms < MS_HOUR) return `${Math.floor(ms / MS_MINUTE)} min ago`;
-  if (ms < MS_DAY) return `${Math.floor(ms / MS_HOUR)} h ago`;
-  return `${Math.floor(ms / MS_DAY)} d ago`;
+  return `${day} ${MONTHS_LONG[month - 1]} ${year}`;
 }
 
 export interface WeatherLabel {

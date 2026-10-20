@@ -4,10 +4,11 @@ import {
 import type { ChallengeTier } from '@runquest/shared';
 import { TIERS, tierLabel, type Stake } from '@/features/challenges/duelsFormat';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
-import { formatInt, formatKm, formatLongDate } from '@/features/log/logFormat';
+import { formatLongDate } from '@/features/log/logFormat';
 import type { XpRules } from '@/features/log/xpPreviewModel';
 import { ALL_WAYPOINTS, JOURNEY_END_KM } from '@/features/profile/frodoModel';
 import type { RQIconName } from '@/shared/components/icons';
+import { formatInt, formatKm } from '@/shared/utils/format';
 import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, WEEKLY_XP } from './playbookFacts';
 
 // Playbook-skärmens kapitel: spelets regler som text, med siffrorna ur GET /config/xp (bas-XP, XP/km, distansbonusar,

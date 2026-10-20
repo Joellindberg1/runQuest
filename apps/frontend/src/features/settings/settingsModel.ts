@@ -1,4 +1,5 @@
-import { formatAgo, formatLongDate } from '@/features/log/logFormat';
+import { formatLongDate } from '@/features/log/logFormat';
+import { formatAgo } from '@/shared/utils/format';
 import { stockholmDay, stravaPollIntervalLabel, type StravaStatus } from '@runquest/shared';
 import type { Run } from '@runquest/types';
 import { validatePassword } from '@/shared/utils/validation';

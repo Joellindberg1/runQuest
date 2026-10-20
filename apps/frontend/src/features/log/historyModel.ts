@@ -1,7 +1,8 @@
 import type { GroupRunHistoryItem } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import { getInitials } from '@/shared/utils/formatters';
-import { describeWeather, formatInt, formatKm, formatMultiplier } from './logFormat';
+import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { describeWeather } from './logFormat';
 import type { Tone } from './xpPreviewModel';
 
 // Group history: gruppens rundor som kort. Ren logik — ingen DOM, ingen datahämtning.

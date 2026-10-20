@@ -17,7 +17,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **xpPreviewModel.ts** — `buildXpPreview`: uppställning via `calculateCompleteRunXP` (shared) + effekterna streak/nivå/Frodo/ranking
 - **historyModel.ts** — `buildHistoryRow` (kort: initialer, underlag, väder, källa, fem celler), sidstorlek
 - **stravaModel.ts** — banderollens text ur `/strava/status` (`last_import_at`: Last import, ingen nästa synk)
-- **logFormat.ts** — en-GB-tal, egna månadsnamn, "32 min ago"/"in 28 min", WMO-väderkod → etikett
+- **logFormat.ts** — "1 June 2025" och WMO-väderkod → etikett (tal, km, multiplikator, månadsnamn och "32 min ago" ligger i `shared/utils/format`)
 - **hooks/** — `useLogForm` (formulärets tillstånd, överlever flikbyte), `useCreateRun` (mutation + invalideringar), `useLogQueries` (`useGroupHistory`; Strava-hookarna bor i `shared/hooks/useStravaQueries`)
 - `log.css` — enda stilfilen; mått (`--rq-log-*`) i temafilen, sektion 1.25 (index.css + docs/design/temafil-forslag.css)
 - `log.fixture.ts` — testdata (rundor ur `GET /runs/group-history`)

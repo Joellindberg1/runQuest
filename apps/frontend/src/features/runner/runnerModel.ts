@@ -1,8 +1,8 @@
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { MARATHON_DISTANCE_KM, calculateStreakMultiplier, dayOfWeek, hasDoubleRunGap, stockholmClock } from '@runquest/shared';
-import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
-import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
+import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { buildStreakRow } from '@/features/leaderboard/streakModel';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
@@ -65,7 +65,7 @@ export function buildStatCells(user: User, heldTitles: number | null): StatCell[
   const losses = user.losses ?? 0;
   return [
     { key: 'xp', value: formatInt(user.total_xp), label: 'total xp', tone: 'gold', wideOnly: false },
-    { key: 'km', value: formatDecimal(user.total_km), label: 'total km', tone: 'default', wideOnly: false },
+    { key: 'km', value: formatKm(user.total_km), label: 'total km', tone: 'default', wideOnly: false },
     { key: 'challenges', value: `${wins}–${losses}`, label: 'challenges', tone: wins >= losses ? 'up' : 'down', wideOnly: false },
     { key: 'runs', value: String(user.runs?.length ?? 0), label: 'runs', tone: 'default', wideOnly: true },
     { key: 'titles', value: heldTitles === null ? '—' : String(heldTitles), label: 'titles held', tone: 'gold', wideOnly: true },
@@ -90,10 +90,10 @@ export function buildDistanceRows(user: User, now: Date): StatRow[] {
   const monthKm = (user.runs ?? []).filter((run) => dayOf(run).startsWith(month)).reduce((sum, run) => sum + run.distance, 0);
 
   return [
-    { label: 'Longest run', value: `${formatDecimal(stats.longestRun, 2)} km`, tone: 'default' },
-    { label: 'Total', value: `${formatDecimal(user.total_km)} km`, tone: 'default' },
-    { label: 'Average per run', value: `${formatDecimal(stats.averageKmPerRun)} km`, tone: 'default' },
-    { label: 'This month', value: `${formatDecimal(monthKm)} km`, tone: 'gold' },
+    { label: 'Longest run', value: `${formatKm(stats.longestRun, 2)} km`, tone: 'default' },
+    { label: 'Total', value: `${formatKm(user.total_km)} km`, tone: 'default' },
+    { label: 'Average per run', value: `${formatKm(stats.averageKmPerRun)} km`, tone: 'default' },
+    { label: 'This month', value: `${formatKm(monthKm)} km`, tone: 'gold' },
   ];
 }
 
@@ -274,19 +274,15 @@ const RESULT_LABEL: Record<MeetingResult, string> = { won: 'Won', lost: 'Lost', 
 
 function metricValueText(metric: ChallengeHistoryItem['metric'], value: number | null): string {
   if (value === null) return '—';
-  if (metric === 'km') return `${formatDecimal(value)} km`;
+  if (metric === 'km') return `${formatKm(value)} km`;
   if (metric === 'runs') return `${Math.round(value)} ${Math.round(value) === 1 ? 'run' : 'runs'}`;
   return `${formatInt(value)} XP`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-/** "4 Oct" i Stockholm-tid. Månadsnamnen är egna: Intl:s förkortningar skiljer mellan ICU-versioner ("Sept"). */
+/** "4 Oct" i Stockholm-tid. */
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
-  const { date } = stockholmClock(new Date(iso));
-  const [, month, day] = date.split('-').map(Number);
-  return `${day} ${MONTHS[month - 1]}`;
+  return formatDayMonth(stockholmClock(new Date(iso)).date);
 }
 
 export function buildMeeting(item: ChallengeHistoryItem, meId: string): Meeting {
