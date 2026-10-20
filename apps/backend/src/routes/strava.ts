@@ -10,7 +10,10 @@ import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { isTreadmillActivity } from '../utils/stravaActivity.js';
 import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
-import type { StravaCallbackRequest, StravaCallbackResponse, StravaStatusResponse, StravaSyncPausedResponse } from '@runquest/shared';
+import type {
+  ApiError, StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse,
+  StravaSyncAllResponse, StravaSyncPausedResponse, StravaSyncResponse,
+} from '@runquest/shared';
 import { checkEventQualification } from '../services/eventService.js';
 import { WeatherService } from '../services/weatherService.js';
 import { stravaLookback } from '../utils/stravaLookback.js';
@@ -89,13 +92,13 @@ router.get('/config', async (_req, res): Promise<void> => {
     
     const clientId = process.env.STRAVA_CLIENT_ID;
     if (!clientId) {
-      res.status(500).json({ error: 'Strava client ID not configured' }); return;
+      res.status(500).json({ error: 'Strava client ID not configured' } satisfies ApiError); return;
     }
     
-    res.json({ client_id: clientId }); return;
+    res.json({ client_id: clientId } satisfies StravaConfigResponse); return;
   } catch (error) {
     logger.error(`❌ Strava config error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to get Strava config' }); return;
+    res.status(500).json({ error: 'Failed to get Strava config' } satisfies ApiError); return;
   }
 });
 
@@ -109,13 +112,13 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 
     // A row that could not be read says nothing about the connection: an error, never "not connected" (which the client acts on).
     if (!token.ok && token.reason === 'token_read_failed') {
-      res.status(500).json({ error: 'Failed to check Strava status' }); return;
+      res.status(500).json({ error: 'Failed to check Strava status' } satisfies ApiError); return;
     }
 
     // A token we cannot read (or a missing key) is our fault and says nothing about the connection: not "not connected" and not
     // "expired" (the client acts on both by asking the user to connect again). A temporary error, ADR 013 decision 9.
     if (!token.ok && token.reason === 'token_unreadable') {
-      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE } satisfies ApiError); return;
     }
 
     if (!token.ok && token.reason === 'not_connected') {
@@ -178,7 +181,7 @@ router.get('/status', authenticateJWT, async (req, res): Promise<void> => {
 
   } catch (error) {
     logger.error(`❌ Strava status error for user ${req.user!.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to check Strava status' }); return;
+    res.status(500).json({ error: 'Failed to check Strava status' } satisfies ApiError); return;
   }
 });
 
@@ -206,7 +209,7 @@ function startSyncInBackground(userId: string): void {
 router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res): Promise<void> => {
   const paused = parseSyncPausedBody(req.body);
   if (paused === null) {
-    res.status(400).json({ error: 'Body must be exactly { "paused": boolean }' }); return;
+    res.status(400).json({ error: 'Body must be exactly { "paused": boolean }' } satisfies ApiError); return;
   }
 
   try {
@@ -231,7 +234,7 @@ router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res):
       // Redan i det begärda läget (idempotent) eller ingen koppling alls.
       const current = await readPauseState(userId);
       if (!current.connected) {
-        res.status(400).json({ error: 'User not connected to Strava' }); return;
+        res.status(400).json({ error: 'User not connected to Strava' } satisfies ApiError); return;
       }
       state = { sync_paused: current.paused, paused_at: current.pausedAt };
     }
@@ -246,7 +249,7 @@ router.put('/sync-paused', authenticateJWT, syncPausedLimiter, async (req, res):
     }
   } catch (error) {
     logger.error(`❌ Strava sync-paused error for user ${req.user!.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update sync pause' }); return;
+    res.status(500).json({ error: 'Failed to update sync pause' } satisfies ApiError); return;
   }
 });
 
@@ -258,13 +261,13 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     const userId = req.user!.user_id;
 
     if (!code) {
-      res.status(400).json({ error: 'Authorization code required' }); return;
+      res.status(400).json({ error: 'Authorization code required' } satisfies ApiError); return;
     }
 
     // Samtycket krävs innan koden byts mot token hos Strava (ADR 010 beslut 12). consented_at skickas aldrig av klienten.
     if (consentVersion !== STRAVA_CONSENT_VERSION) {
       logger.warn('⚠️ Strava callback without current consent_version', { user_id: userId, has_consent_version: consentVersion !== undefined && consentVersion !== null });
-      res.status(400).json({ error: 'Consent required' }); return;
+      res.status(400).json({ error: 'Consent required' } satisfies ApiError); return;
     }
     
     logger.info(`🔗 Processing Strava callback for user ${req.user!.user_id}`);
@@ -274,7 +277,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
     
     if (!clientId || !clientSecret) {
-      res.status(500).json({ error: 'Strava credentials not configured' }); return;
+      res.status(500).json({ error: 'Strava credentials not configured' } satisfies ApiError); return;
     }
 
     // The key is checked BEFORE the code is exchanged (ADR 013 decision 5.5 and 9): a code spent on tokens that cannot be saved is a
@@ -282,7 +285,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     const sealing = checkSealingReady();
     if (!sealing.ok) {
       logger.error(`❌ Strava callback for user ${userId} cannot store tokens (${sealing.code}); the code was not exchanged`);
-      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE } satisfies ApiError); return;
     }
 
     // The exchange and the save are ONE step under the user's lock, like the disconnect (ADR 010 decision 6): a reconnect that starts in
@@ -308,7 +311,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       if (!tokenResponse.ok) {
         // Stravas felsvar kan bära värden (och vid ett lyckat svar tokens): bara statusen loggas.
         logger.error(`❌ Strava token exchange failed for user ${userId} (HTTP ${tokenResponse.status})`);
-        res.status(400).json({ error: 'Failed to exchange authorization code' }); return;
+        res.status(400).json({ error: 'Failed to exchange authorization code' } satisfies ApiError); return;
       }
     
       // Aldrig någon del av token-värdet i loggen — bara om den finns.
@@ -350,12 +353,12 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
       if (error?.code === '23505' && `${error.message} ${error.details ?? ''}`.includes('strava_tokens_athlete_id_key')) {
         // Samma Strava-konto är redan kopplat till en annan RunQuest-användare (unikt index, migration 045).
         logger.warn('⚠️ Strava account already connected to another user', { user_id: userId });
-        res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' }); return;
+        res.status(409).json({ error: 'This Strava account is already connected to another RunQuest user' } satisfies ApiError); return;
       }
 
       if (error) {
         logger.error(`❌ Failed to save Strava tokens for user ${userId} (${errorCode(error)})`);
-        res.status(500).json({ error: 'Failed to save Strava connection' }); return;
+        res.status(500).json({ error: 'Failed to save Strava connection' } satisfies ApiError); return;
       }
     
       logger.info('✅ Strava tokens saved successfully');
@@ -369,7 +372,7 @@ router.post('/callback', authenticateJWT, async (req, res): Promise<void> => {
     // A timeout is a DOMException whose numeric code (23) says nothing in a log; its name does.
     const reason = error instanceof Error && error.name === 'TimeoutError' ? 'token exchange timed out' : errorCode(error);
     logger.error(`❌ Strava callback error for user ${req.user!.user_id} (${reason})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
   }
 });
 
@@ -390,11 +393,11 @@ router.delete('/disconnect', authenticateJWT, disconnectLimiter, async (req, res
     res.json({
       success: true,
       message: 'Strava disconnected successfully'
-    });
+    } satisfies StravaDisconnectResponse);
 
   } catch (error) {
     logger.error(`❌ Strava disconnect failed for user ${userId} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to disconnect Strava' }); return;
+    res.status(500).json({ error: 'Failed to disconnect Strava' } satisfies ApiError); return;
   }
 });
 
@@ -407,13 +410,13 @@ router.post('/sync', authenticateJWT, async (req, res) => {
     // Kontrollen sker FÖRE låset/synken; runUserStravaSync kontrollerar igen inne i låset (kö bakom en annan synk).
     // Kan pausen inte läsas (kastar) blir svaret 500: en pausad användare får aldrig synkas på ett gissat "inte pausad".
     if ((await readPauseState(userId)).paused) {
-      res.status(409).json({ error: 'Sync is paused' }); return;
+      res.status(409).json({ error: 'Sync is paused' } satisfies ApiError); return;
     }
 
     const result = await syncUserStravaActivities(userId);
 
     if (result.paused) {
-      res.status(409).json({ error: 'Sync is paused' }); return;
+      res.status(409).json({ error: 'Sync is paused' } satisfies ApiError); return;
     }
     if (result.success) {
       res.json({
@@ -421,17 +424,17 @@ router.post('/sync', authenticateJWT, async (req, res) => {
         message: `Synced ${result.newRuns} new runs from Strava`,
         newRuns: result.newRuns,
         totalActivities: result.totalActivities
-      });
+      } satisfies StravaSyncResponse);
     } else if (result.unavailable) {
       // The Strava tokens cannot be read or the key is missing (ADR 013): the same temporary error as GET /status, not a request error.
-      res.status(503).json({ error: result.error }); return;
+      res.status(503).json({ error: result.error } satisfies ApiError); return;
     } else {
-      res.status(400).json({ error: result.error }); return;
+      res.status(400).json({ error: result.error } satisfies ApiError); return;
     }
 
   } catch (error) {
     logger.error(`❌ Manual Strava sync error for user ${req.user!.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to sync Strava activities' }); return;
+    res.status(500).json({ error: 'Failed to sync Strava activities' } satisfies ApiError); return;
   }
 });
 
@@ -439,16 +442,7 @@ router.post('/sync', authenticateJWT, async (req, res) => {
  * Sync all Strava-connected users. Used by the scheduler and the admin HTTP endpoint.
  * Exported so the scheduler can call this directly without an HTTP roundtrip.
  */
-export async function syncAllStravaUsers(): Promise<{
-  success: boolean;
-  message: string;
-  syncedUsers: number;
-  totalUsers: number;
-  totalNewRuns: number;
-  results: Array<{ userId: string; userName: string; newRuns?: number; totalActivities?: number; error?: string }>;
-  /** The key that reads and saves Strava tokens is missing or refused (ADR 013): the whole run was skipped, nobody was tried. */
-  unavailable?: true;
-}> {
+export async function syncAllStravaUsers(): Promise<StravaSyncAllResponse> {
   // Without a usable key no user can be synced (checkSealingReady is fail-closed), so the run is skipped as a whole: one line for the
   // run instead of an error per user and a Sentry event for each of them. The alarm that matters is the startup one (tokenKeyStartup);
   // this is the reminder that comes with every run until the key is fixed.
@@ -554,7 +548,7 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
       .not('access_token', 'is', null);
 
     if (error || !connectedUsers?.length) {
-      res.json({ success: true, message: 'No connected users', updated: 0 }); return;
+      res.json({ success: true, message: 'No connected users', updated: 0 } satisfies StravaBackfillExtendedResponse); return;
     }
 
     let totalUpdated = 0;
@@ -617,10 +611,10 @@ router.post('/backfill-extended', authenticateJWT, requireAdmin, async (_req, re
     }
 
     logger.info(`🎯 Backfill complete: ${totalUpdated} runs updated across ${connectedUsers.length} users`);
-    res.json({ success: true, totalUpdated, summary });
+    res.json({ success: true, totalUpdated, summary } satisfies StravaBackfillExtendedResponse);
   } catch (error) {
     logger.error(`❌ Backfill error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Backfill failed' }); return;
+    res.status(500).json({ error: 'Backfill failed' } satisfies ApiError); return;
   }
 });
 
@@ -630,26 +624,41 @@ router.get('/sync-all', authenticateJWT, requireAdmin, async (_req, res): Promis
     const result = await syncAllStravaUsers();
     if (result.unavailable) {
       // The key is missing or refused (ADR 013): the same temporary error as the other endpoints, not a result list.
-      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE }); return;
+      res.status(503).json({ error: TOKEN_STORAGE_UNAVAILABLE } satisfies ApiError); return;
     }
-    res.json(result);
+    res.json(result satisfies StravaSyncAllResponse);
   } catch (error) {
     logger.error(`❌ API Error in /strava/sync-all (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to sync Strava activities' });
+    res.status(500).json({ error: 'Failed to sync Strava activities' } satisfies ApiError);
   }
 });
 
-interface UserSyncResult {
-  success: boolean;
+// One user's sync: either done (the counts and a message are always there) or failed (an error is always there; the counts are there when the
+// import got that far, as in "Imported runs but failed to recalculate XP"). The `?: undefined` members let a caller read any field before it has
+// narrowed on `success`.
+interface UserSyncDone {
+  success: true;
+  newRuns: number;
+  totalActivities: number;
+  message: string;
+  error?: undefined;
+  paused?: undefined;
+  unavailable?: undefined;
+}
+
+interface UserSyncFailed {
+  success: false;
+  error: string;
   newRuns?: number;
   totalActivities?: number;
-  message?: string;
-  error?: string;
+  message?: undefined;
   /** The user's sync is paused (ADR 010 decision 7.5): nothing was fetched or imported. */
   paused?: true;
   /** The Strava tokens could not be read or the key is missing (token_unreadable): temporary and ours. The manual sync answers 503. */
   unavailable?: true;
 }
+
+type UserSyncResult = UserSyncDone | UserSyncFailed;
 
 // Helper function to sync activities for a single user. Every caller (manual POST /sync, the scheduled polling) goes through the
 // per-user lock (ADR 010 decision 6): a poll that listed Strava before a deletion must not insert after it. The lock is not

@@ -1,15 +1,11 @@
 import { useState, type FormEvent } from 'react';
+import type { StravaBackfillDoneResponse } from '@runquest/shared';
 import { FormNotices } from '@/shared/components/form/FormNotices';
 import { TextField } from '@/shared/components/form/TextField';
 import { RQIcon } from '@/shared/components/icons';
 import { backendApi } from '@/shared/services/backendApi';
 import { runsText } from '../adminModel';
 import type { AdminNotice } from '../hooks/useAdminData';
-
-interface BackfillResult {
-  totalUpdated: number;
-  summary: Array<{ user: string; updated: number; error?: string }>;
-}
 
 interface SecurityPanelProps {
   newAdminPassword: string;
@@ -21,7 +17,7 @@ interface SecurityPanelProps {
 /** Säkerhet: adminlösenordet (ännu inte kopplat till backend — som tidigare) och Strava-backfillen av utökad data. */
 export function SecurityPanel({ newAdminPassword, setNewAdminPassword, onChangeAdminPassword, notice }: SecurityPanelProps) {
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BackfillResult | null>(null);
+  const [result, setResult] = useState<StravaBackfillDoneResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const runBackfill = async () => {
@@ -30,7 +26,8 @@ export function SecurityPanel({ newAdminPassword, setNewAdminPassword, onChangeA
     setError(null);
     try {
       const res = await backendApi.backfillStravaExtendedData();
-      if (res.success && res.data) setResult(res.data);
+      // Utan kopplade användare svarar servern bara med ett meddelande (inga rundor uppdaterades): visas som noll.
+      if (res.success && res.data) setResult('summary' in res.data ? res.data : { success: true, totalUpdated: 0, summary: [] });
       else setError(res.error || 'The backfill did not finish. Runs that were already updated stay updated.');
     } catch {
       setError('The backfill did not finish. Runs that were already updated stay updated.');

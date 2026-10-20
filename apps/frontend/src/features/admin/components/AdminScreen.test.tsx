@@ -343,6 +343,15 @@ describe('Admin — security', () => {
     expect(result).toHaveTextContent('Joel Lindberg0 runs');
   });
 
+  it('Run backfill utan kopplade användare: servern svarar bara med ett meddelande, skärmen visar noll rundor', async () => {
+    handlers.backfillStravaExtendedData = () => ({ success: true, data: { success: true, message: 'No connected users', updated: 0 } });
+    renderAdmin('/admin?view=security');
+    fireEvent.click(await screen.findByRole('button', { name: 'Run backfill' }));
+    const result = await screen.findByRole('status', { name: 'Backfill result' });
+    await waitFor(() => expect(result).toHaveTextContent('Total updated: 0 runs'));
+    expect(screen.getByRole('alert', { name: 'Backfill error' })).toBeEmptyDOMElement();
+  });
+
   it('misslyckad backfill: ett fel i alert (tidigare tyst)', async () => {
     handlers.backfillStravaExtendedData = () => ({ success: false, error: 'Strava is down' });
     renderAdmin('/admin?view=security');

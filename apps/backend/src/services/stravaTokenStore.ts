@@ -10,6 +10,7 @@
  * wrong reading lets a forged deauthorize event delete a user's runs (ADR 010 7.4.3, ADR 013 decision 9). The codes are for logs only;
  * nothing here puts a token, a stored value or key material into an error or a log line.
  */
+import type { StravaTokenEncryptionHealth } from '@runquest/shared';
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { buildSecretAad, kidOfStored, open, parseKeyRing, seal, SecretBoxError, type KeyRing, type SecretAad, type SecretBoxErrorCode } from '../utils/secretBox.js';
@@ -45,9 +46,6 @@ export function requiredKidPrefix(env: Readonly<Record<string, string | undefine
   if (env.NODE_ENV !== 'production') return null;
   return env.SENTRY_ENVIRONMENT?.trim().toLowerCase() === 'staging' ? 'stg-' : 'prod-';
 }
-
-/** What is wrong with the key configuration: nothing usable, malformed, or a key id this environment does not accept. */
-export type TokenKeyProblem = 'key_missing' | 'key_invalid' | 'kid_not_allowed';
 
 export type TokenKeyConfig =
   | { ok: true; ring: KeyRing }
@@ -248,28 +246,6 @@ export async function upsertStravaConnection(
   return { error };
 }
 
-/** What the token columns of the table look like and whether this process can use its key: the `token_encryption` block of the webhook health. */
-export interface TokenEncryptionHealth {
-  /** The key configuration is usable and accepted in this environment (checkSealingReady is ok). */
-  configured: boolean;
-  /** Why not, when it is not. */
-  config_error: TokenKeyProblem | null;
-  /** The key id writes use. Null when no key could be parsed. */
-  active_kid: string | null;
-  /** The key ids that only open (TOKEN_ENCRYPTION_KEYS_RETIRED). */
-  retired_kids: string[];
-  /** Rows whose every stored token column is a well-formed enc:v1 value. */
-  encrypted_rows: number;
-  /** Rows with a legacy plaintext column and no unrecognised one (until the backfill has run). The invariant after it is 0. */
-  plaintext_rows: number;
-  /** Rows with a column that is neither: a broken enc: value, or a value of no known shape. */
-  unrecognised_rows: number;
-  /** Of the encrypted rows, those with a column on a key id other than the active one (a retired key, or one the configuration does not hold). Null without a key. */
-  rows_on_other_kid: number | null;
-  /** Token reads that ended in token_unreadable since this process started. */
-  unreadable_since_start: number;
-}
-
 /** What a stored column holds, by shape alone (nothing is decrypted): no value, `enc:v1` under a key id, legacy plaintext, or neither. */
 export type TokenColumnForm = { form: 'empty' } | { form: 'encrypted'; kid: string } | { form: 'plaintext' } | { form: 'unrecognised' };
 
@@ -316,7 +292,7 @@ const readAllTokenColumns = (pageSize: number) => readAllRows<{ access_token: un
  * and by the key id they name; nothing is decrypted, so this says nothing about whether a value opens (`unreadable_since_start` does,
  * for the reads that happened). THROWS on a database error: a health check that says 0 when the read failed lies.
  */
-export async function readTokenEncryptionHealth(pageSize: number = TOKEN_ROWS_PAGE_SIZE): Promise<TokenEncryptionHealth> {
+export async function readTokenEncryptionHealth(pageSize: number = TOKEN_ROWS_PAGE_SIZE): Promise<StravaTokenEncryptionHealth> {
   const config = inspectTokenKeyConfig();
   const ring = config.ok || config.problem === 'kid_not_allowed' ? config.ring : null;
 

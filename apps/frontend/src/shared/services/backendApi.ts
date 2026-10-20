@@ -14,7 +14,7 @@ import type {
   SettingsApiResponse, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
   AdminWaitlistData,
   WaitlistSignupRequest,
-  StravaCallbackRequest, StravaStatusResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
+  StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse, StravaSyncResponse, StravaSyncPausedRequest, StravaSyncPausedResponse,
   GroupEligibilityEntry, TitleLeaderboardEntry, UserTitleEntry,
 } from '@runquest/shared';
 import { logger } from '@/shared/utils/logger';
@@ -509,7 +509,7 @@ class BackendApiService {
   }
 
   // 🔗 Strava Integration Methods
-  async getStravaConfig(): Promise<ApiResponse<{ client_id: string }>> {
+  async getStravaConfig(): Promise<ApiResponse<StravaConfigResponse>> {
     try {
       const response = await fetch(`${this.baseUrl}/strava/config`);
       const data = await response.json();
@@ -529,7 +529,7 @@ class BackendApiService {
   }
 
   /** `consentVersion` är versionen användaren godkände före OAuth-omdirigeringen; saknas den utelämnas nyckeln och servern svarar 400 "Consent required". */
-  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResponse> {
+  async connectStrava(code: string, consentVersion?: StravaCallbackRequest['consent_version']): Promise<ApiResponse<StravaCallbackResponse>> {
     const body: Pick<StravaCallbackRequest, 'code'> & Partial<StravaCallbackRequest> = { code, consent_version: consentVersion };
     return this.authenticatedRequest('/strava/callback', {
       method: 'POST',
@@ -537,7 +537,7 @@ class BackendApiService {
     });
   }
 
-  async syncStrava(): Promise<ApiResponse<{ newRuns: number; totalActivities: number; message: string }>> {
+  async syncStrava(): Promise<ApiResponse<StravaSyncResponse>> {
     return this.authenticatedRequest('/strava/sync', {
       method: 'POST',
     });
@@ -555,16 +555,13 @@ class BackendApiService {
    * DELETE /strava/disconnect. Kontraktet är `{ success, message }` och ändras inte av bortkopplingen i backend (ADR 010 beslut 7.4): den
    * ber Strava återkalla åtkomsten och raderar Stravarundorna. Klienten utgår aldrig från att rundorna är borta förrän den läst om dem.
    */
-  async disconnectStrava(): Promise<ApiResponse> {
+  async disconnectStrava(): Promise<ApiResponse<StravaDisconnectResponse>> {
     return this.authenticatedRequest('/strava/disconnect', {
       method: 'DELETE',
     });
   }
 
-  async backfillStravaExtendedData(): Promise<ApiResponse<{
-    totalUpdated: number;
-    summary: Array<{ user: string; updated: number; error?: string }>;
-  }>> {
+  async backfillStravaExtendedData(): Promise<ApiResponse<StravaBackfillExtendedResponse>> {
     return this.authenticatedRequest('/strava/backfill-extended', { method: 'POST' });
   }
 
