@@ -217,7 +217,7 @@ describe('PUT /api/strava/sync-paused', () => {
     const res = await putPaused('user-1', body);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'Body must be exactly { "paused": boolean }' });
+    expect(res.body).toEqual({ success: false, error: 'Body must be exactly { "paused": boolean }', code: 'invalid_request' });
     expect(tokenRow('user-1')).toMatchObject({ sync_paused: false, paused_at: null });
     await settle();
     expect(listCalls.order).toEqual([]);
@@ -246,7 +246,7 @@ describe('PUT /api/strava/sync-paused', () => {
     for (const paused of [true, false]) {
       const res = await putPaused('user-1', { paused });
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'User not connected to Strava' });
+      expect(res.body).toEqual({ success: false, error: 'User not connected to Strava', code: 'strava_not_connected' });
     }
     expect(tables.strava_tokens.map((row) => row.user_id)).toEqual(['user-2']);
   });
@@ -292,7 +292,7 @@ describe('PUT /api/strava/sync-paused', () => {
     const res = await putPaused('user-1', { paused: true });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to update sync pause' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to update sync pause', code: 'internal_error' });
     expect(tables.strava_tokens[0]).toMatchObject({ sync_paused: false, paused_at: null });
   });
 });
@@ -333,7 +333,7 @@ describe('GET /api/strava/status', () => {
     const res = await statusOf('user-1');
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to check Strava status' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to check Strava status', code: 'internal_error' });
   });
 
   it('status for a user without a connection does not mention the pause', async () => {
@@ -341,7 +341,7 @@ describe('GET /api/strava/status', () => {
 
     const res = await statusOf('user-1');
 
-    expect(res.body).toEqual({ connected: false, expired: false });
+    expect(res.body).toEqual({ success: true, connected: false, expired: false, data: { connected: false, expired: false } });
   });
 });
 
@@ -365,7 +365,7 @@ describe('polling and manual sync respect the pause', () => {
     await settle();
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'Sync is paused' });
+    expect(res.body).toEqual({ success: false, error: 'Sync is paused', code: 'sync_paused' });
     expect(listCalls.order).toEqual([]);
     expect(tables.runs).toEqual([]);
   });
@@ -385,7 +385,7 @@ describe('polling and manual sync respect the pause', () => {
     const res = await manualSync('user-1');
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'User not connected to Strava' });
+    expect(res.body).toEqual({ success: false, error: 'User not connected to Strava', code: 'strava_not_connected' });
   });
 
   it('a manual sync that cannot read the pause state fails closed', async () => {
@@ -414,7 +414,7 @@ describe('polling and manual sync respect the pause', () => {
     expect((await first).body).toMatchObject({ success: true, newRuns: 1 });
     const queuedResult = await queued;
     expect(queuedResult.status).toBe(409);
-    expect(queuedResult.body).toEqual({ error: 'Sync is paused' });
+    expect(queuedResult.body).toEqual({ success: false, error: 'Sync is paused', code: 'sync_paused' });
     expect(listCalls.order).toEqual(['user-1']);
     expect(tables.runs).toHaveLength(1);
   });
@@ -434,7 +434,7 @@ describe('polling and manual sync respect the pause', () => {
     expect((await first).body).toMatchObject({ success: true, newRuns: 1 });
     const queuedResult = await queued;
     expect(queuedResult.status).toBe(400);
-    expect(queuedResult.body).toEqual({ error: 'Failed to sync activities' });
+    expect(queuedResult.body).toEqual({ success: false, error: 'Failed to sync activities', code: 'strava_sync_failed' });
     expect(listCalls.order).toEqual(['user-1']); // the queued sync never reached Strava
     expect(tables.runs).toHaveLength(1);
   });

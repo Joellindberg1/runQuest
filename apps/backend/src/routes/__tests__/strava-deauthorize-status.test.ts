@@ -104,6 +104,6 @@ describe('GET /api/strava/status after a deauthorize event', () => {
     expect(store.row(1)).toMatchObject({ status: 'done', outcome: 'deauthorized_runs_deleted' });
     const after = await status();
     expect(after.status).toBe(200);
-    expect(after.body).toEqual({ connected: false, expired: false });
+    expect(after.body).toEqual({ success: true, connected: false, expired: false, data: { connected: false, expired: false } });
   });
 });

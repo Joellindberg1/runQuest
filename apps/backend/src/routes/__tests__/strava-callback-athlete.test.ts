@@ -87,7 +87,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
     const res = await connect('user-1');
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'This Strava account is already connected to another RunQuest user' });
+    expect(res.body).toEqual({ success: false, error: 'This Strava account is already connected to another RunQuest user', code: 'strava_account_in_use' });
     expect(t.strava_tokens).toHaveLength(1); // ingen rad för user-1
     expect(plainRow(t.strava_tokens[0])).toMatchObject({ user_id: 'user-2', strava_athlete_id: 4711, access_token: 'old-at' }); // user-2 orörd
   });
@@ -160,7 +160,7 @@ describe('POST /api/strava/callback — athlete identity', () => {
     const res = await connect('user-1');
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to save Strava connection' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to save Strava connection', code: 'internal_error' });
   });
 
   it('callback answers 500, not 409, for a unique violation on another constraint', async () => {
@@ -173,6 +173,6 @@ describe('POST /api/strava/callback — athlete identity', () => {
     const res = await connect('user-1');
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to save Strava connection' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to save Strava connection', code: 'internal_error' });
   });
 });

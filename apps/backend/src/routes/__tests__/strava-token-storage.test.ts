@@ -103,7 +103,7 @@ describe('GET /api/strava/status with a token that cannot be read', () => {
       const res = await status();
 
       expect(res.status, label).toBe(503);
-      expect(res.body, label).toEqual({ error: 'Strava is temporarily unavailable' });
+      expect(res.body, label).toEqual({ success: false, error: 'Strava is temporarily unavailable', code: 'strava_unavailable' });
       expect(strava.requests, label).toHaveLength(0);
       strava.restore();
       strava = undefined;
@@ -116,12 +116,12 @@ describe('GET /api/strava/status with a token that cannot be read', () => {
     use();
     const connected = await status();
     expect(connected.status).toBe(503);
-    expect(connected.body).toEqual({ error: 'Strava is temporarily unavailable' });
+    expect(connected.body).toEqual({ success: false, error: 'Strava is temporarily unavailable', code: 'strava_unavailable' });
 
     use({ strava_tokens: [] });
     const none = await status();
     expect(none.status).toBe(200);
-    expect(none.body).toEqual({ connected: false, expired: false });
+    expect(none.body).toEqual({ success: true, connected: false, expired: false, data: { connected: false, expired: false } });
     expect(strava.requests).toHaveLength(0);
   });
 
@@ -146,7 +146,7 @@ describe('POST /api/strava/sync with a token that cannot be read', () => {
       const res = await sync();
 
       expect(res.status, label).toBe(503);
-      expect(res.body, label).toEqual({ error: 'Strava is temporarily unavailable' });
+      expect(res.body, label).toEqual({ success: false, error: 'Strava is temporarily unavailable', code: 'strava_unavailable' });
       expect(strava.requests, label).toHaveLength(0);
       expect(JSON.stringify(t.strava_tokens), label).toBe(before);
       strava.restore();
@@ -165,7 +165,7 @@ describe('POST /api/strava/callback and the key', () => {
       const res = await connect();
 
       expect(res.status, value).toBe(503);
-      expect(res.body, value).toEqual({ error: 'Strava is temporarily unavailable' });
+      expect(res.body, value).toEqual({ success: false, error: 'Strava is temporarily unavailable', code: 'strava_unavailable' });
       expect(strava.calls.oauthToken, value).toBe(0);
       expect(t.strava_tokens, value).toEqual([]);
       expect(db.queries.filter((q) => q.mutation), value).toEqual([]);
@@ -210,7 +210,7 @@ describe('everything that does not touch Strava tokens without a key', () => {
     const config = await server.request('GET', '/api/strava/config');
 
     expect(config.status).toBe(200);
-    expect(config.body).toEqual({ client_id: 'client-id' });
+    expect(config.body).toEqual({ success: true, client_id: 'client-id', data: { client_id: 'client-id' } });
   });
 });
 
@@ -275,7 +275,7 @@ describe('the polling when tokens cannot be read', () => {
     const res = await server.request('GET', '/api/strava/sync-all', { token: token() });
 
     expect(res.status).toBe(503);
-    expect(res.body).toEqual({ error: 'Strava is temporarily unavailable' });
+    expect(res.body).toEqual({ success: false, error: 'Strava is temporarily unavailable', code: 'strava_unavailable' });
     expect(strava.requests).toHaveLength(0);
   });
 
