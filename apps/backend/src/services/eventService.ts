@@ -5,7 +5,10 @@ import { getLevelFromXP } from './levelService.js';
 import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { recordActivities, recordActivity, recordLevelUps } from './activityLog.js';
 import { recordRankPassesForXp } from './rankNews.js';
-import { STORM_EVENT_GUST_MS, addDays, buildEventClosedDraft, buildEventOpenDraft, stockholmDay, zoneDay, zoneMidnightIso, type ActivityDraft, type EventActivityRow } from '@runquest/shared';
+import {
+  STORM_EVENT_GUST_MS, addDays, buildEventClosedDraft, buildEventOpenDraft, prizeForRank, scoreCompetition, stockholmDay, zoneDay, zoneMidnightIso,
+  type ActivityDraft, type CompetitionParticipant, type CompetitionRun, type EventActivityRow, type ScoredParticipant,
+} from '@runquest/shared';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 /** A failure that is collected and thrown after the loop: what failed (ids written by us) and its code, never the database text. */
@@ -291,11 +294,69 @@ export async function checkEventQualification(params: {
   }
 }
 
+// ─── Tävlingspoäng ────────────────────────────────────────────────────────────
+
+/** Namnet som tabellen visar (och tie-breaken ordnar efter) för en deltagare vars användarrad saknas eller saknar namn. */
+export const UNKNOWN_NAME = 'Unknown';
+
+/** Id till namn för de angivna användarna. Ett fel i läsningen ger en tom karta: poängen ändras inte, bara namnen faller tillbaka på UNKNOWN_NAME. */
+export async function fetchUserNames(supabase: ReturnType<typeof getSupabaseClient>, userIds: readonly string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const { data, error } = await supabase.from('users').select('id, name').in('id', [...userIds]);
+  if (error) logger.error(`❌ [EventService] Fetch participant names error (${errorCode(error)})`);
+  return new Map((data ?? []).map((u: any) => [u.id as string, (u.name ?? UNKNOWN_NAME) as string]));
+}
+
+/** Rundorna som räknas i en tävling: eventets dagar i gruppens zon, och i en höjdmeter-tävling inga löpbandsrundor. */
+async function fetchCompetitionRuns(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  event: { metric: string | null; starts_at: string; ends_at: string },
+  userId: string,
+  timeZone: string,
+): Promise<CompetitionRun[]> {
+  const isKm = event.metric === 'km';
+  let runsQuery = supabase
+    .from('runs')
+    .select(isKm ? 'distance' : 'total_elevation_gain')
+    .eq('user_id', userId)
+    .gte('date', zoneDay(new Date(event.starts_at), timeZone))
+    .lte('date', zoneDay(new Date(event.ends_at), timeZone));
+
+  if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
+
+  const { data: runs } = await runsQuery;
+  return (runs ?? []) as CompetitionRun[];
+}
+
+/**
+ * Rankar tävlingens deltagare med scoreCompetition. Live-tabellen (GET /api/events) och avräkningen går båda hit, så en tabell som visas
+ * och en utbetalning som sker rankar alltid lika. `entry` följer med så att anroparen når sin egen rad.
+ */
+export async function scoreCompetitionEntries<E extends { user_id: string }>(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  event: { metric: string | null; starts_at: string; ends_at: string },
+  entries: readonly E[],
+  names: ReadonlyMap<string, string>,
+  timeZone: string,
+): Promise<Array<ScoredParticipant<CompetitionParticipant & { entry: E }>>> {
+  const participants: Array<CompetitionParticipant & { entry: E }> = [];
+  for (const entry of entries) {
+    participants.push({
+      id: entry.user_id,
+      name: names.get(entry.user_id) ?? UNKNOWN_NAME,
+      runs: await fetchCompetitionRuns(supabase, event, entry.user_id, timeZone),
+      entry,
+    });
+  }
+  return scoreCompetition(event.metric ?? '', participants);
+}
+
 // ─── settleCompetitionEvents ──────────────────────────────────────────────────
 
 /**
  * Körs måndag 00:05 Stockholm (cron '5 0 * * 1' i eventScheduler.ts; veckotävlingar slutar söndag 23:59).
- * Rankar deltagarna efter total_value och delar ut XP per plats ur mallen (reward_xp_1st/2nd/3rd,
+ * Rankar deltagarna efter total_value (lika totaler: namn, sedan id, som live-tabellen; scoreCompetition) och delar ut XP per plats
+ * ur mallen via prizeForRank (reward_xp_1st/2nd/3rd,
  * seed 40/30/20 XP — absoluta belopp, ingen pool). Färre än 3 deltagare: saknade placeringar delas
  * inte ut. Eventet claimas före utbetalning (idempotens, bugg #6).
  */
@@ -364,7 +425,7 @@ export async function settleCompetitionEvents(): Promise<void> {
         continue;
       }
 
-      const participants = entries ?? [];
+      const participants: Array<{ id: string; user_id: string }> = entries ?? [];
       const activityEvent = toActivityEvent({ ...event, type: 'competition' }, asTemplate(event.event_templates));
       if (!participants.length) {
         // redan markerat settled i claimen ovan. Ingen event_closed-rad: ett event utan deltagare är inte
@@ -372,40 +433,17 @@ export async function settleCompetitionEvents(): Promise<void> {
         continue;
       }
 
-      // Beräkna total_value per användare utifrån faktiska runs under eventet
-      const isKm = event.metric === 'km';
-      const scored: Array<{ entryId: string; userId: string; totalValue: number }> = [];
-
-      const timeZone = groupTimeZone(event.group_id);
-      for (const entry of participants) {
-        let runsQuery = supabase
-          .from('runs')
-          .select(isKm ? 'distance' : 'total_elevation_gain')
-          .eq('user_id', entry.user_id)
-          .gte('date', zoneDay(new Date(event.starts_at), timeZone))
-          .lte('date', zoneDay(new Date(event.ends_at), timeZone));
-
-        if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
-
-        const { data: runs } = await runsQuery;
-
-        const totalValue = (runs ?? []).reduce((sum: number, r: any) => {
-          return sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0);
-        }, 0);
-
-        scored.push({ entryId: entry.id, userId: entry.user_id, totalValue });
-      }
-
-      // Sortera fallande
-      scored.sort((a, b) => b.totalValue - a.totalValue);
+      // Beräkna total_value per användare utifrån faktiska runs under eventet. Samma ranking som live-tabellen (scoreCompetitionEntries):
+      // lika totaler avgörs av namn och id, så utbetalningen beror inte på i vilken ordning databasen listade entries.
+      const names = await fetchUserNames(supabase, participants.map((p) => p.user_id));
+      const scored = (await scoreCompetitionEntries(supabase, event, participants, names, groupTimeZone(event.group_id)))
+        .map(({ participant, totalValue, rank }) => ({ entryId: participant.entry.id, userId: participant.id, totalValue, rank }));
 
       // Dela ut XP per placering
       const payoutFailures: Failure[] = [];
       const paidOut: Array<{ userId: string; groupId: string | null; prevXp: number }> = [];
-      for (let i = 0; i < scored.length; i++) {
-        const { entryId, userId, totalValue } = scored[i];
-        const xp = i < xpPerRank.length ? xpPerRank[i] : 0;
-        const rank = i + 1;
+      for (const { entryId, userId, totalValue, rank } of scored) {
+        const xp = prizeForRank(rank, xpPerRank);
 
         const { error: rankErr } = await supabase
           .from('event_entries')
@@ -456,7 +494,7 @@ export async function settleCompetitionEvents(): Promise<void> {
             members: members ?? scored.length,
             // Alla med en entry, även de utan XP (participants är samma lista: scored byggs av entries).
             entrantIds: participants.map((p: any) => p.user_id as string),
-            top: scored.slice(0, 3).map((s, i) => ({ user_id: s.userId, rank: i + 1, xp: xpPerRank[i] ?? 0 })),
+            top: scored.slice(0, 3).map((s) => ({ user_id: s.userId, rank: s.rank, xp: prizeForRank(s.rank, xpPerRank) })),
           },
           now,
         ));
