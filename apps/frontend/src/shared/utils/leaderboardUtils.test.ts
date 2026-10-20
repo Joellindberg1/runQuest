@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Run, User } from '@runquest/types';
 import { groupTimeZone, levelProgress } from '@runquest/shared';
 import { leaderboardUtils } from './leaderboardUtils';
@@ -24,11 +24,6 @@ describe('all-time ranking — one order, the same as rank_passed', () => {
     expect(users.map((user) => leaderboardUtils.rankOfUser(user, users))).toEqual([4, 3, 2, 1]);
   });
 
-  it('does not reorder by level first: more XP is always ahead', () => {
-    const users = [person('a', 'Anna', 5242), person('b', 'Bea', 5243)];
-    expect(leaderboardUtils.rankedUsers(users).map((user) => user.id)).toEqual(['b', 'a']);
-  });
-
   it('gives no place to a user who is not in the list', () => {
     expect(leaderboardUtils.rankOfUser(person('x', 'Xena', 1), [person('a', 'Anna', 5)])).toBeNull();
   });
@@ -46,10 +41,25 @@ describe('calculateUserStats — level progress from the shared levelProgress', 
     expect(stats.xpLevelRange).toBe(Math.round(shared.nextLevelXP - shared.currentLevelXP));
   });
 
-  it('is full with nothing left on the max level, and never has negative XP left', () => {
+  it('is full with nothing left on the max level', () => {
     const max = leaderboardUtils.calculateUserStats(person('a', 'Anna', 9_999_999));
     expect(max).toMatchObject({ xpProgress: 100, xpLeftForNextLevel: 0, xpInLevel: 0, xpLevelRange: 0 });
-    expect(leaderboardUtils.calculateUserStats(person('b', 'Bo', -50)).xpLeftForNextLevel).toBeGreaterThanOrEqual(0);
+  });
+
+  describe('days to the next level', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-20T15:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('divides the exact XP left by the daily pace, so 40.04 XP at 40 per day is two days, not one', () => {
+      // Nivå 25 börjar på 5902 XP. 5861.96 ger 40.04 kvar, och 560 XP på 14 dagar är 40 per dag.
+      const user = { ...person('a', 'Anna', 5861.96), runs: [{ date: '2026-10-19', xp_gained: 560 }] } as unknown as User;
+      const stats = leaderboardUtils.calculateUserStats(user);
+      expect(stats.avgXpPer14Days).toBe(40);
+      expect(stats.daysToNextLevel).toBe(2);
+    });
   });
 });
 

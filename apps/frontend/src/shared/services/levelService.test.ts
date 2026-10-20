@@ -53,6 +53,19 @@ describe('FrontendLevelService — hämtning via backenden', () => {
     expect(rows.map((row) => row.level)).toEqual([1, 2, 3]);
     expect(service.getLevelFromXPSync(120)).toBe(2);
   });
+
+  it('nivåprogressen räknas på serverns tabell efter refresh(), inte på reservtabellen', async () => {
+    api.token = 'jwt';
+    api.authenticatedRequest.mockResolvedValue(ok(SERVER_TABLE));
+    const service = new FrontendLevelService();
+
+    // 120 XP är nivå 3 i reservtabellen (102) med 38 kvar, men nivå 2 i serverns tabell (100 till 250).
+    expect(service.getLevelProgressSync(120)).toMatchObject({ currentLevel: 3, xpToNext: 38 });
+
+    await service.refresh();
+
+    expect(service.getLevelProgressSync(120)).toMatchObject({ currentLevel: 2, currentLevelXP: 100, nextLevelXP: 250, xpToNext: 130 });
+  });
 });
 
 describe('FrontendLevelService — utloggad', () => {
