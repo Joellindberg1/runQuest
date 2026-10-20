@@ -109,54 +109,91 @@ describe('summarizeLhrs', () => {
 
 describe('lighthouserc budget', () => {
   const rc = JSON.parse(readFileSync(join(here, 'lighthouse', 'lighthouserc.json'), 'utf8'));
-  const { assertions } = rc.ci.assert;
+  const { assertMatrix } = rc.ci.assert;
+  const urlOf = (pathname) => rc.ci.collect.url.find((u) => new URL(u).pathname === pathname);
+  const rowsFor = (pathname) => assertMatrix.filter((entry) => new RegExp(entry.matchingUrlPattern).test(urlOf(pathname)));
 
-  it('measures the landing and /legal, three runs each, judged on the median', () => {
+  it('measures the landing and /legal, three runs each', () => {
     assert.equal(rc.ci.collect.numberOfRuns, 3);
     assert.deepEqual(rc.ci.collect.url.map((u) => new URL(u).pathname), ['/', '/legal']);
-    assert.equal(rc.ci.assert.assertions['categories:performance'][0], 'error');
-    assert.equal(rc.ci.assert.aggregationMethod, 'median');
   });
 
-  // BUDGETEN ÄR FÄST HÄR. Golven och taken nedan är ägarens budget (docs/release.md, "Lighthouse-budget"); lighthouserc.json får vara
+  // lhci vägrar blanda assertMatrix med assertions/aggregationMethod på toppnivån, och en sida som ingen rad matchar prövas inte alls.
+  it('judges every page on the median, with exactly one rule set per page so no page escapes the budget', () => {
+    assert.equal(rc.ci.assert.assertions, undefined);
+    assert.equal(rc.ci.assert.aggregationMethod, undefined);
+    for (const entry of assertMatrix) assert.equal(entry.aggregationMethod, 'median', entry.matchingUrlPattern);
+    for (const url of rc.ci.collect.url) assert.equal(rowsFor(new URL(url).pathname).length, 1, `${url} ska matchas av exakt en regelrad`);
+  });
+
+  // BUDGETEN ÄR FÄST HÄR, per sida. Golven och taken nedan är budgeten (docs/release.md, "Lighthouse-budget"); lighthouserc.json får vara
   // lika med eller strängare, aldrig lättare. Det här testet får därför BARA ändras när budgeten SKÄRPS (högre golv, lägre tak).
   // Att lätta en gräns, ta bort en rad eller höja ett tak kräver ägarens uttryckliga ok, och ska stå i PR-beskrivningen.
-  const FLOORS = {
-    'categories:performance': 0.75,
-    'categories:accessibility': 0.95,
-    'categories:best-practices': 0.9,
-    'categories:seo': 0.95,
+  // Landningen (/) skärptes efter CI-mätningen i S7 (ADR 006 punkt 10); /legal delar inte landningens vikt och behåller sina rader,
+  // utom LCP som fick taket uppmätt × 1,1.
+  const PINNED = {
+    '/': {
+      floors: {
+        'categories:performance': 0.9,
+        'categories:accessibility': 0.95,
+        'categories:best-practices': 0.9,
+        'categories:seo': 0.95,
+      },
+      ceilings: {
+        'largest-contentful-paint': 2500,
+        'first-contentful-paint': 1950,
+        'cumulative-layout-shift': 0.02,
+        'total-blocking-time': 150,
+        'resource-summary:script:size': 150000,
+        'resource-summary:stylesheet:size': 30000,
+        'resource-summary:total:size': 355000,
+      },
+    },
+    '/legal': {
+      floors: {
+        'categories:performance': 0.75,
+        'categories:accessibility': 0.95,
+        'categories:best-practices': 0.9,
+        'categories:seo': 0.95,
+      },
+      ceilings: {
+        'largest-contentful-paint': 3600,
+        'cumulative-layout-shift': 0.05,
+        'total-blocking-time': 200,
+        'resource-summary:script:size': 275000,
+        'resource-summary:stylesheet:size': 50000,
+        'resource-summary:total:size': 500000,
+      },
+    },
   };
-  const CEILINGS = {
-    'largest-contentful-paint': 5000,
-    'cumulative-layout-shift': 0.05,
-    'total-blocking-time': 200,
-    'resource-summary:script:size': 275000,
-    'resource-summary:stylesheet:size': 50000,
-    'resource-summary:total:size': 500000,
-  };
 
-  it('keeps every score floor at or above the owner-approved minimum', () => {
-    for (const [name, floor] of Object.entries(FLOORS)) {
-      const minScore = assertions[name]?.[1]?.minScore;
-      assert.ok(typeof minScore === 'number' && minScore >= floor, `${name}: minScore ${minScore} är lättare än ${floor}`);
-    }
-  });
+  for (const [pathname, { floors, ceilings }] of Object.entries(PINNED)) {
+    describe(`page ${pathname}`, () => {
+      const assertions = () => rowsFor(pathname)[0].assertions;
 
-  it('keeps every ceiling at or below the owner-approved maximum', () => {
-    for (const [name, ceiling] of Object.entries(CEILINGS)) {
-      const max = assertions[name]?.[1]?.maxNumericValue;
-      assert.ok(typeof max === 'number' && max <= ceiling, `${name}: maxNumericValue ${max} är lättare än ${ceiling}`);
-    }
-  });
+      it('keeps every score floor at or above the pinned minimum', () => {
+        for (const [name, floor] of Object.entries(floors)) {
+          const minScore = assertions()[name]?.[1]?.minScore;
+          assert.ok(typeof minScore === 'number' && minScore >= floor, `${pathname} ${name}: minScore ${minScore} är lättare än ${floor}`);
+        }
+      });
 
-  it('has no budget line beyond the pinned ones, so a new line is a conscious change of this test', () => {
-    assert.deepEqual(Object.keys(assertions).sort(), [...Object.keys(FLOORS), ...Object.keys(CEILINGS)].sort());
-  });
+      it('keeps every ceiling at or below the pinned maximum', () => {
+        for (const [name, ceiling] of Object.entries(ceilings)) {
+          const max = assertions()[name]?.[1]?.maxNumericValue;
+          assert.ok(typeof max === 'number' && max <= ceiling, `${pathname} ${name}: maxNumericValue ${max} är lättare än ${ceiling}`);
+        }
+      });
 
-  it('is not weakened into warnings: every budget line fails the run', () => {
-    for (const [name, [level]] of Object.entries(assertions)) assert.equal(level, 'error', name);
-  });
+      it('has no budget line beyond the pinned ones, so a new line is a conscious change of this test', () => {
+        assert.deepEqual(Object.keys(assertions()).sort(), [...Object.keys(floors), ...Object.keys(ceilings)].sort());
+      });
+
+      it('is not weakened into warnings: every budget line fails the run', () => {
+        for (const [name, [level]] of Object.entries(assertions())) assert.equal(level, 'error', `${pathname} ${name}`);
+      });
+    });
+  }
 });
 
 describe('formatFailures', () => {
