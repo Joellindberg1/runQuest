@@ -100,8 +100,8 @@
 //     de spårade filerna. Avsiktliga undantag (byggutdata, mönster som NNN_namn.sql, tredjepartsfiler) står i DOC_PATH_EXEMPT med skäl, och ett undantag som inte längre
 //     träffar något fäller bygget. Textbaserad (se checkDocPaths för vad den inte fångar). Hoppas över när listan över spårade filer inte går att hämta.
 //
-// 22. Gruppen i token läses på ett ställe (RUN-358, ADR 012 anteckningen "Var gruppen kommer ifrån"): ingen fil under apps/backend/src/{routes,services,middleware} läser
-//     `req.user.group_id` direkt (`req.user!.group_id`, `req.user?.group_id`, `req.user['group_id']`, ett alias som `const u = req.user; u.group_id`, eller destructuring som
+// 22. Gruppen i token läses på ett ställe (RUN-358, ADR 012 anteckningen "Var gruppen kommer ifrån"): ingen fil under apps/backend/src/{routes,services,middleware,utils} läser
+//     `req.user.group_id` direkt (`req.user!.group_id`, `req.user?.group_id`, `req.user['group_id']`, `(req.user as AuthUser).group_id`, ett alias som `const u = req.user; u.group_id`, eller destructuring som
 //     `const { group_id } = req.user`). Läsningen ligger i `utils/groupScope.ts` (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`), så en användare utan
 //     grupp får samma fail-closed-svar överallt (ADR 007 A6). Undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester. Textbaserad (se checkTokenGroupIdReads
 //     för vad den inte fångar).
@@ -773,15 +773,18 @@ export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT
   return errors;
 }
 
-const TOKEN_GROUP_FILE = /^apps\/backend\/src\/(?:routes|services|middleware)\/.+\.[cm]?ts$/;
+const TOKEN_GROUP_FILE = /^apps\/backend\/src\/(?:routes|services|middleware|utils)\/.+\.[cm]?ts$/;
 /** auth.ts sätter req.user (och därmed group_id) ur token; groupScope.ts är den enda läsaren (regel 22). */
 const TOKEN_GROUP_EXEMPT_FILES = new Set(['apps/backend/src/middleware/auth.ts', 'apps/backend/src/utils/groupScope.ts']);
 const IDENT = '[A-Za-z_$][\\w$]*';
 const escapeRegExp = (text) => text.replace(/[$^\\.*+?()[\]{}|]/g, '\\$&');
-// req.user.group_id, req.user?.group_id, req.user!.group_id, req.user!?.group_id och req.user!['group_id'] (blanksteg tillåtna).
+// req.user.group_id, req.user?.group_id, req.user!.group_id, req.user!?.group_id och req.user!['group_id'] (blanksteg tillåtna), och samma läsning genom en
+// parentes: (req.user as AuthUser).group_id, (req.user!).group_id, (req as AuthenticatedRequest).user.group_id.
 const TOKEN_GROUP_DIRECT = [
   /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
   /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.)?\s*\[\s*['"`]group_id['"`]\s*\]/g,
+  /\(\s*(?:req|request)\s*\.\s*user\b[^()]*\)\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
+  /\(\s*(?:req|request)\b[^().]*\)\s*!?\s*(?:\?\.|\.)\s*user\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
 ];
 // const u = req.user!;   let me: AuthUser = req.user as AuthUser;
 const TOKEN_USER_ALIAS = new RegExp(`(?:const|let|var)\\s+(${IDENT})\\s*(?::[^=;]+)?=\\s*(?:req|request)\\s*\\.\\s*user\\s*!?\\s*(?:as\\s+[^;\\n]+)?\\s*(?:;|$)`, 'gm');
@@ -795,8 +798,9 @@ const DESTRUCTURING = /\{((?:[^{}]|\{[^{}]*\})*)\}\s*=(?![=>])\s*([^;\n]*)/g;
 /**
  * Regel 22 (ADR 012, anteckningen "Var gruppen kommer ifrån"). Gruppen i token (`req.user.group_id`) läses på ETT ställe: `apps/backend/src/utils/groupScope.ts`
  * (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`). Annars glider routes tillbaka till egna kontroller som svarar olika för en användare
- * utan grupp (fail-closed, ADR 007 A6). Granskar apps/backend/src/{routes,services,middleware}; undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester.
+ * utan grupp (fail-closed, ADR 007 A6). Granskar apps/backend/src/{routes,services,middleware,utils}; undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester.
  * `files`: [{ path, content }]. Returnerar "path:rad: text". Fångar `req.user!.group_id`, `req.user?.group_id`, `req.user.group_id`, `req.user!['group_id']`,
+ * läsningar genom en parentes (`(req.user as AuthUser).group_id`, `(req.user!).group_id`, `(req as AuthenticatedRequest).user.group_id`),
  * alias i samma fil (`const u = req.user; u.group_id`, `const { user } = req; user.group_id`, `const r = req; r.user.group_id`) och destructuring
  * (`const { group_id } = req.user`, `{ group_id: g } = req.user!`, `{ user: { group_id } } = req`, `const { group_id } = u`). Kommentarer räknas inte.
  * Vakten är textbaserad och förstår inte kod. Fångas INTE: ett alias i en annan fil, req eller req.user som skickas som argument till en funktion som läser fältet

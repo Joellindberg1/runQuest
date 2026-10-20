@@ -1332,7 +1332,7 @@ describe('checkTokenGroupIdReads', () => {
   const scan = (content, path = ROUTE) => checkTokenGroupIdReads([{ path, content }]);
 
   it('flags every direct read of the group in the token, with its line', () => {
-    for (const read of ['req.user!.group_id', 'req.user?.group_id', 'req.user.group_id', 'req.user!?.group_id', "req.user!['group_id']", 'req . user ! . group_id']) {
+    for (const read of ['req.user!.group_id', 'req.user?.group_id', 'req.user.group_id', 'req.user!?.group_id', "req.user!['group_id']", 'req . user ! . group_id', '(req.user as AuthUser).group_id', '(req.user as any)?.group_id', '(req.user!).group_id', '(req as AuthenticatedRequest).user.group_id', '(req as any).user!.group_id']) {
       const errors = scan(`\nconst groupId = ${read};\n`);
       assert.equal(errors.length, 1, read);
       assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: /, read);
@@ -1360,9 +1360,9 @@ describe('checkTokenGroupIdReads', () => {
     assert.equal(scan('({ group_id } = req.user!);').length, 1);
   });
 
-  it('covers routes, services (also nested) and middleware', () => {
+  it('covers routes, services (also nested), middleware and utils', () => {
     const bad = 'const g = req.user!.group_id;';
-    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/services/a.ts', 'apps/backend/src/services/stravaWebhook/handlers/a.ts', 'apps/backend/src/middleware/admin.ts']) {
+    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/services/a.ts', 'apps/backend/src/services/stravaWebhook/handlers/a.ts', 'apps/backend/src/middleware/admin.ts', 'apps/backend/src/utils/a.ts']) {
       assert.equal(scan(bad, path).length, 1, path);
     }
     assert.equal(scan('a(req.user!.group_id, req.user?.group_id);').length, 1);
@@ -1370,7 +1370,7 @@ describe('checkTokenGroupIdReads', () => {
 
   it('leaves groupScope.ts, auth.ts (which sets group_id), tests, other folders and other apps alone', () => {
     const bad = 'const g = req.user!.group_id;';
-    for (const path of ['apps/backend/src/utils/groupScope.ts', 'apps/backend/src/middleware/auth.ts', 'apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/services/test-utils/a.ts', 'apps/backend/src/utils/a.ts', 'apps/backend/src/scripts/a.ts', 'apps/frontend/src/routes/a.ts']) {
+    for (const path of ['apps/backend/src/utils/groupScope.ts', 'apps/backend/src/middleware/auth.ts', 'apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/services/test-utils/a.ts', 'apps/backend/src/scripts/a.ts', 'apps/frontend/src/routes/a.ts']) {
       assert.deepEqual(scan(bad, path), [], path);
     }
   });
@@ -1387,6 +1387,7 @@ describe('checkTokenGroupIdReads', () => {
       'const g4 = req.body.group_id;',
       'const g5 = tokenGroupId(req);',
       'const g6 = groupIdOrRespondEmpty(req, res);',
+      'const g7 = (row as TitleRow).group_id;\nconst g8 = (req.body as Body).group_id;',
       '// const g = req.user!.group_id; var förut\n/* req.user.group_id */',
     ].join('\n');
     assert.deepEqual(scan(content), []);
