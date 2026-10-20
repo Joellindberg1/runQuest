@@ -13,6 +13,7 @@ import {
   WAITLIST_EMAIL_MAX_LENGTH,
   WAITLIST_MIN_ELAPSED_MS,
   WAITLIST_SOURCE_LANDING,
+  type ApiError,
   type WaitlistSignupResponse,
 } from '@runquest/shared';
 
@@ -46,9 +47,9 @@ router.post('/', waitlistRateLimiter, express.json({ limit: BODY_LIMIT }), async
   if (isFilled(body.website)) { res.status(200).json(accepted); return; }
   if (typeof body.elapsedMs === 'number' && body.elapsedMs < WAITLIST_MIN_ELAPSED_MS) { res.status(200).json(accepted); return; }
 
-  if (body.consent !== true) { res.status(400).json({ error: 'Consent is required' }); return; }
+  if (body.consent !== true) { res.status(400).json({ error: 'Consent is required' } satisfies ApiError); return; }
   const email = normalizeEmail(body.email);
-  if (!email) { res.status(400).json({ error: 'A valid email address is required' }); return; }
+  if (!email) { res.status(400).json({ error: 'A valid email address is required' } satisfies ApiError); return; }
 
   // ON CONFLICT (email) DO NOTHING: en dubblett ger ingen andra rad och inget fel som skiljer sig från en ny anmälan.
   const { error } = await getSupabaseClient()
@@ -62,8 +63,8 @@ router.post('/', waitlistRateLimiter, express.json({ limit: BODY_LIMIT }), async
     // Bara felkoden: PostgREST-meddelandet och details kan innehålla adressen.
     logger.error(`❌ Waitlist signup failed (${errorCode(error)})`);
     // 23514 = CHECK-villkoren i 044 (normaliserad, ≤ 254): adressen kan inte lagras, oavsett vad den är -> inte en serverstörning.
-    if (error.code === '23514') { res.status(400).json({ error: 'A valid email address is required' }); return; }
-    res.status(500).json({ error: 'Failed to join the waitlist' });
+    if (error.code === '23514') { res.status(400).json({ error: 'A valid email address is required' } satisfies ApiError); return; }
+    res.status(500).json({ error: 'Failed to join the waitlist' } satisfies ApiError);
     return;
   }
 
@@ -72,8 +73,8 @@ router.post('/', waitlistRateLimiter, express.json({ limit: BODY_LIMIT }), async
 
 // Fel från body-parsern (för stor body, trasig JSON) som JSON i ADR 007-formen i stället för Express HTML-felsida.
 router.use((err: { type?: string; status?: number }, _req: Request, res: Response, next: NextFunction): void => {
-  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }
-  if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'Invalid JSON body' }); return; }
+  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' } satisfies ApiError); return; }
+  if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'Invalid JSON body' } satisfies ApiError); return; }
   next(err);
 });
 

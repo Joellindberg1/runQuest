@@ -1,8 +1,11 @@
-import type { Challenge, ChallengeMetric, ChallengeTier, ChallengeToken, Run, UserBoost } from '@runquest/types';
-import { LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, compareChallengeStandings, stockholmClock, type ChallengeHistoryItem, type ChallengeStanding } from '@runquest/shared';
+import type { Challenge, Run } from '@runquest/types';
+import {
+  LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, compareChallengeStandings, stockholmClock,
+  type ChallengeGroupStat, type ChallengeHistoryItem, type ChallengeMetric, type ChallengeStanding, type ChallengeTier, type MyBoost, type MyChallengesData,
+} from '@runquest/shared';
 import {
   TIERS, durationLongText, durationText, firstName, formatDayMonth, formatMetricValue, metricLabel, metricUnit,
-  startsInText, stakeOf, tierLabel, timeLeft, type Stake, type StakeSource, type TimeLeft,
+  startsInText, stakeOf, tierLabel, timeLeft, type Stake, type TimeLeft,
 } from './duelsFormat';
 
 // Duels-skärmens vymodeller: live-kort, inkommande, tokens, standings, historik, boosts, send-sheetens val.
@@ -14,39 +17,15 @@ export type DuelsView = 'standings' | 'live' | 'rules' | 'history';
 export const DUELS_VIEWS: readonly DuelsView[] = ['standings', 'live', 'rules', 'history'];
 export const DEFAULT_DUELS_VIEW: DuelsView = 'live';
 
-// ─── Indata (formerna backend redan svarar med) ───────────────────────────────
-
-/** GET /challenges/my. Token-raderna bär även `winner_type`/`loser_type`, men typen i packages/types saknar dem. */
-export interface MyChallenges {
-  tokens: Array<ChallengeToken & Partial<Pick<StakeSource, 'winner_type' | 'loser_type'>>>;
-  sent_challenge: Challenge | null;
-  received_challenges: Challenge[];
-  boosts: UserBoost[];
-  history: Challenge[];
-  group_active: Challenge[];
-}
-
-/** GET /challenges/group-stats: en rad per gruppmedlem. */
-export interface GroupStat {
-  user_id: string;
-  name: string;
-  wins: number;
-  draws: number;
-  losses: number;
-  total: number;
-  points: number;
-  challenge_active: boolean;
-  has_pending_challenge: boolean;
-  current_level: number;
-  profile_picture: string | null;
-}
+// ─── Indata ───────────────────────────────────────────────────────────────────
+// Formerna backend svarar med (GET /challenges/my och /group-stats) är MyChallengesData och ChallengeGroupStat i @runquest/shared.
 
 /** GET /challenges/:id/progress — [utmanare, motståndare]. */
 export type ProgressByChallenge = Record<string, Array<{ user_id: string; value: number }>>;
 
 const UNKNOWN = 'Unknown';
 
-export function nameMap(stats: readonly GroupStat[]): Record<string, string> {
+export function nameMap(stats: readonly ChallengeGroupStat[]): Record<string, string> {
   return Object.fromEntries(stats.map((stat) => [stat.user_id, stat.name]));
 }
 
@@ -148,7 +127,7 @@ const LEGENDARY_AUTO_START_MS = LEGENDARY_AUTO_START_DAYS * MS_DAY;
 const HOURS_PER_DAY = 24;
 
 /** "Auto-starts in 2 d 5 h" — legendary startar av sig själv fyra dagar efter att den skickats (challengeScheduler). */
-export function autoStartText(sentAt: string | undefined, now: Date): string | null {
+export function autoStartText(sentAt: string | null | undefined, now: Date): string | null {
   if (!sentAt) return null;
   const left = new Date(sentAt).getTime() + LEGENDARY_AUTO_START_MS - now.getTime();
   if (left <= 0) return 'Auto-starts soon';
@@ -234,7 +213,7 @@ const METRIC_ORDER: readonly ChallengeMetric[] = ['km', 'runs', 'total_xp'];
  * Osända tokens per nivå (minor → legendary, designens ordning). Ett token fixerar mått och längd, så tokens med samma
  * nivå/mått/längd slås ihop till en rad med antal; send-sheeten väljer bland raderna.
  */
-export function buildTokenGroups(tokens: MyChallenges['tokens']): TierGroup[] {
+export function buildTokenGroups(tokens: MyChallengesData['tokens']): TierGroup[] {
   return TIERS.flatMap((tier): TierGroup[] => {
     const own = tokens.filter((token) => token.tier === tier);
     if (own.length === 0) return [];
@@ -275,12 +254,12 @@ export interface StandingRow {
   mine: boolean;
 }
 
-const points = (stat: Pick<GroupStat, 'wins' | 'draws' | 'losses'>): number | null => {
+const points = (stat: Pick<ChallengeGroupStat, 'wins' | 'draws' | 'losses'>): number | null => {
   const total = stat.wins + stat.draws + stat.losses;
   return total === 0 ? null : (stat.wins + stat.draws * 0.5) / total;
 };
 
-const toStanding = (stat: GroupStat): ChallengeStanding => ({
+const toStanding = (stat: ChallengeGroupStat): ChallengeStanding => ({
   id: stat.user_id, name: stat.name, wins: stat.wins, draws: stat.draws, losses: stat.losses,
 });
 
@@ -290,7 +269,7 @@ const toStanding = (stat: GroupStat): ChallengeStanding => ({
  * flest vinster, sedan namn utan locale och id. Ingen localeCompare här: den ger olika ordning per webbläsarspråk.
  * `pct` är bara visning (avrundad) och påverkar aldrig ordningen.
  */
-export function buildStandings(stats: readonly GroupStat[], meId: string): StandingRow[] {
+export function buildStandings(stats: readonly ChallengeGroupStat[], meId: string): StandingRow[] {
   const sorted = [...stats].sort((a, b) => compareChallengeStandings(toStanding(a), toStanding(b)));
   return sorted.map((stat, index) => {
     const pts = points(stat);
@@ -388,7 +367,7 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count} ${cou
 
 /** Aktiva boosts. `runs` (mina) behövs bara för boosts per runda: laddningarna är totala och förbrukas av rundor efter skapandet. */
 export function buildBoosts(
-  boosts: readonly UserBoost[],
+  boosts: readonly MyBoost[],
   history: readonly Challenge[],
   meId: string,
   names: Record<string, string>,
@@ -433,7 +412,7 @@ export interface RecordCell {
   tone: 'up' | 'down' | 'muted' | 'gold';
 }
 
-export function buildRecord(stat: Pick<GroupStat, 'wins' | 'draws' | 'losses'> | undefined): RecordCell[] {
+export function buildRecord(stat: Pick<ChallengeGroupStat, 'wins' | 'draws' | 'losses'> | undefined): RecordCell[] {
   const wins = stat?.wins ?? 0;
   const draws = stat?.draws ?? 0;
   const losses = stat?.losses ?? 0;

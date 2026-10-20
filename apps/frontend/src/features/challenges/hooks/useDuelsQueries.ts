@@ -1,8 +1,8 @@
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
-import type { HeadToHeadRecord } from '@runquest/shared';
+import type { ChallengeGroupStat, HeadToHeadRecord, MyChallengesData } from '@runquest/shared';
 import { HEAD_TO_HEAD_LIMIT, RUNNER_QUERY_KEYS } from '@/features/runner/hooks/useRunnerQueries';
 import { backendApi } from '@/shared/services/backendApi';
-import type { GroupStat, MyChallenges, ProgressByChallenge } from '../duelsModel';
+import type { ProgressByChallenge } from '../duelsModel';
 
 const REFRESH_MS = 60_000;
 // Ett snabbt omförsök, sedan felkortet — standardens tre försök med backoff håller skelettet kvar i ~7 s.
@@ -22,7 +22,7 @@ export const DUELS_QUERY_KEYS = {
 export function useMyChallenges(enabled = true) {
   return useQuery({
     queryKey: DUELS_QUERY_KEYS.mine,
-    queryFn: async (): Promise<MyChallenges> => {
+    queryFn: async (): Promise<MyChallengesData> => {
       const res = await backendApi.getMyChallenges();
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load challenges');
       return res.data;
@@ -38,7 +38,7 @@ export function useMyChallenges(enabled = true) {
 export function useGroupStats(enabled = true) {
   return useQuery({
     queryKey: DUELS_QUERY_KEYS.groupStats,
-    queryFn: async (): Promise<GroupStat[]> => {
+    queryFn: async (): Promise<ChallengeGroupStat[]> => {
       const res = await backendApi.getChallengeGroupStats();
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load standings');
       return res.data;

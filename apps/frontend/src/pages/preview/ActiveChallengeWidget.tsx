@@ -29,7 +29,7 @@ function formatEndDate(endDate: string): string {
 }
 
 // En utmaning startar kl 00:00 Stockholm-tid på start_date.
-function isPendingStart(startDate?: string): boolean {
+function isPendingStart(startDate?: string | null): boolean {
   if (!startDate) return false;
   return stockholmWallClockToInstant(startDate, 0).getTime() > Date.now();
 }

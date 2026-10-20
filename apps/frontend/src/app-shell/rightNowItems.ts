@@ -38,8 +38,8 @@ export interface ShellDuel {
   id: string;
   opponentName: string;
   metric: 'km' | 'runs' | 'total_xp';
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface RightNowInput {

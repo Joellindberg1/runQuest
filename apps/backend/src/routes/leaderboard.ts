@@ -13,6 +13,7 @@ import {
   isCalendarDay,
   mondayOf,
   percentOfBest,
+  type ApiError,
   type LedgerEventEntry,
   type RankDeltaApiResponse,
   type WeekLeaderboardApiResponse,
@@ -66,13 +67,13 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     const requested = req.query.week_start;
     if (requested !== undefined) {
       if (typeof requested !== 'string' || !isCalendarDay(requested)) {
-        res.status(400).json({ error: 'week_start must be a date in the format YYYY-MM-DD' }); return;
+        res.status(400).json({ error: 'week_start must be a date in the format YYYY-MM-DD' } satisfies ApiError); return;
       }
       if (mondayOf(requested) !== requested) {
-        res.status(400).json({ error: 'week_start must be a Monday' }); return;
+        res.status(400).json({ error: 'week_start must be a Monday' } satisfies ApiError); return;
       }
       if (requested > currentStart) {
-        res.status(400).json({ error: 'week_start must not be in the future' }); return;
+        res.status(400).json({ error: 'week_start must not be in the future' } satisfies ApiError); return;
       }
       weekStart = requested;
     }
@@ -143,7 +144,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ Error fetching week leaderboard (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch week leaderboard' });
+    res.status(500).json({ error: 'Failed to fetch week leaderboard' } satisfies ApiError);
   }
 });
 
@@ -210,7 +211,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ Error fetching rank delta (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch rank delta' });
+    res.status(500).json({ error: 'Failed to fetch rank delta' } satisfies ApiError);
   }
 });
 

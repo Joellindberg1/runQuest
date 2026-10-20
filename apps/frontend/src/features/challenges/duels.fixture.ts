@@ -1,6 +1,5 @@
-import type { Challenge, ChallengeToken, UserBoost } from '@runquest/types';
-import type { ChallengeHistoryItem } from '@runquest/shared';
-import type { GroupStat } from './duelsModel';
+import type { Challenge } from '@runquest/types';
+import type { ChallengeGroupStat, ChallengeHistoryItem, MyBoost, MyChallengeToken } from '@runquest/shared';
 
 // Gemensamma testdata för Duels-testerna (modell + skärm). Fasta id:n och klockslag så att inget beror på dagens datum.
 
@@ -44,10 +43,10 @@ export function challenge(over: Partial<Challenge> & Pick<Challenge, 'id' | 'cha
   };
 }
 
-export function token(over: Partial<ChallengeToken> & Pick<ChallengeToken, 'id'>): ChallengeToken & { winner_type: string; loser_type: string } {
+export function token(over: Partial<MyChallengeToken> & Pick<MyChallengeToken, 'id'>): MyChallengeToken {
   const tier = over.tier ?? 'minor';
   return {
-    user_id: ME,
+    reward_id: 'r1',
     tier,
     metric: 'km',
     duration_days: 7,
@@ -57,9 +56,8 @@ export function token(over: Partial<ChallengeToken> & Pick<ChallengeToken, 'id'>
   };
 }
 
-export function boost(over: Partial<UserBoost> & Pick<UserBoost, 'id'>): UserBoost {
+export function boost(over: Partial<MyBoost> & Pick<MyBoost, 'id'>): MyBoost {
   return {
-    user_id: ME,
     challenge_id: 'c-old',
     outcome: 'winner',
     type: 'multiplier_days',
@@ -70,7 +68,7 @@ export function boost(over: Partial<UserBoost> & Pick<UserBoost, 'id'>): UserBoo
   };
 }
 
-export function stat(user_id: string, over: Partial<GroupStat> = {}): GroupStat {
+export function stat(user_id: string, over: Partial<ChallengeGroupStat> = {}): ChallengeGroupStat {
   return {
     user_id,
     name: NAMES[user_id],

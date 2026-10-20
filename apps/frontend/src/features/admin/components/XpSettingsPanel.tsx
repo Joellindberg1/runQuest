@@ -6,14 +6,14 @@ import { TextField } from '@/shared/components/form/TextField';
 import { RQIcon } from '@/shared/components/icons';
 import { TrackLoader } from '@/shared/components/loaders/TrackLoader';
 import { XP_GROUPS, fieldValue, multiplierRows, parseField, type XpFieldDef } from '../adminModel';
-import type { AdminNotice, AdminSettings } from '../hooks/useAdminData';
+import type { AdminNotice, AdminSettingsForm } from '../hooks/useAdminData';
 
 const LOADER_SIZE = 64;
 const SAVE_HINT_ID = 'admin-save-hint';
 
 interface XpSettingsPanelProps {
-  settings: AdminSettings;
-  setSettings: Dispatch<SetStateAction<AdminSettings>>;
+  settings: AdminSettingsForm;
+  setSettings: Dispatch<SetStateAction<AdminSettingsForm>>;
   /** Falskt tills inställningarna OCH trappan lästs in — Save är då låst (annars skrivs prod över med standardvärden). */
   canSave: boolean;
   loadFailed: boolean;

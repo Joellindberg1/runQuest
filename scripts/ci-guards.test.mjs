@@ -24,6 +24,7 @@ import {
   checkTokenKeyStartupCheck,
   checkWebhookSchedulerStart,
   checkRawStravaFetch,
+  checkRouteResponseContracts,
   checkTestNames,
   checkTodos,
   checkUsersGroupIdWrites,
@@ -656,6 +657,110 @@ describe('checkNoFrontendSupabase', () => {
   it('leaves the backend and other workspaces alone', () => {
     assert.deepEqual(scan('const url = process.env.SUPABASE_URL;\n', 'apps/backend/src/config.ts'), []);
     assert.deepEqual(scan("import { createClient } from '@supabase/supabase-js';\n", 'apps/backend/src/db.ts'), []);
+  });
+});
+
+describe('checkRouteResponseContracts', () => {
+  const CONTRACTS = {
+    path: 'packages/shared/src/contracts/things.ts',
+    content: [
+      'export interface Thing { id: string }',
+      'export interface ThingResponse { success: true; data: Thing }',
+      'export type ThingListApiResponse = { success: true; data: Thing[] };',
+      'export interface ApiError { error: string }',
+      'export interface OffsetPageMeta { total: number }',
+    ].join('\n'),
+  };
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE, exempt) => checkRouteResponseContracts([CONTRACTS, { path, content }], exempt);
+
+  it('passes a route that answers with satisfies against a Response contract', () => {
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true, data: thing } satisfies ThingResponse);\n});\n"), []);
+  });
+
+  it('passes a route whose body is annotated with a Response contract, with ApiResponse names and across several routes', () => {
+    const content = [
+      "router.get('/a', auth, async (_req, res) => {",
+      '  const body: ThingResponse = { success: true, data: thing };',
+      '  res.json(body);',
+      '});',
+      "router.put('/b', auth, async (_req, res) => {",
+      '  const empty: ThingListApiResponse = { success: true, data: [] };',
+      '  res.json(empty);',
+      '});',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('flags a route that sends an untyped object, with its line, verb and path', () => {
+    const errors = scan("\nrouter.post('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: POST \/a skriver inget svar mot en kontraktstyp/);
+  });
+
+  it('flags only the untyped route among several, and a route is not rescued by the type in the next one', () => {
+    const content = [
+      "router.get('/typed', auth, async (_req, res) => {",
+      '  res.json({ success: true, data: thing } satisfies ThingResponse);',
+      '});',
+      "router.get('/untyped', auth, async (_req, res) => {",
+      '  res.json({ ok: true });',
+      '});',
+      "router.get('/typed-too', auth, async (_req, res) => {",
+      '  res.json({ success: true, data: thing } satisfies ThingResponse);',
+      '});',
+    ].join('\n');
+    const errors = scan(content);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /:4: GET \/untyped /);
+  });
+
+  it('does not count an error-only type, a type that is not a Response contract, a local type or a cast', () => {
+    for (const body of [
+      "res.status(400).json({ error: 'x' } satisfies ApiError);",
+      'const meta: OffsetPageMeta = { total: 1 }; res.json({ meta });',
+      'const body: LocalThing = { id: 1 }; res.json(body);',
+      'res.json({ success: true } as ThingResponse);',
+      'res.json({ success: true, data: thing } satisfies ThingResponseDraft);',
+    ]) {
+      assert.equal(scan(`router.get('/a', auth, async (_req, res) => {\n  ${body}\n});\n`).length, 1, body);
+    }
+  });
+
+  it('ignores a contract name that only appears in a comment', () => {
+    const content = "// svarar med ThingResponse\nrouter.get('/a', auth, async (_req, res) => {\n  // satisfies ThingResponse\n  res.json({});\n});\n";
+    assert.equal(scan(content).length, 1);
+  });
+
+  it('reads routes registered over several lines and on the root alias', () => {
+    const multiline = "router.post(\n  '/profile-picture',\n  auth,\n  async (req, res) => {\n    res.json({ ok: true });\n  },\n);\n";
+    assert.match(scan(multiline)[0], /:1: POST \/profile-picture /);
+    assert.equal(scan("root.post('/read', auth, async (req, res) => {\n  res.json({});\n});\n").length, 1);
+    assert.deepEqual(scan("root.post('/read', auth, async (req, res) => {\n  res.json({ success: true, data: thing } satisfies ThingResponse);\n});\n"), []);
+  });
+
+  it('exempts the Strava webhook protocol routes (GET and POST /) but not its health route', () => {
+    const webhook = 'apps/backend/src/routes/stravaWebhook.ts';
+    const content = [
+      "router.get('/', (req, res) => { res.json({ 'hub.challenge': 'x' }); });",
+      "router.get('/health', auth, async (_req, res) => { res.json({ success: true }); });",
+      "router.post('/', json, async (req, res) => { res.status(200).json({ received: true }); });",
+    ].join('\n');
+    const errors = scan(content, webhook);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /:2: GET \/health /);
+    assert.equal(scan("router.get('/', (req, res) => {});", 'apps/backend/src/routes/other.ts').length, 1);
+  });
+
+  it('leaves files outside routes/ and test files alone', () => {
+    const untyped = "router.get('/a', auth, async (_req, res) => { res.json({}); });\n";
+    assert.deepEqual(scan(untyped, 'apps/backend/src/app.ts'), []);
+    assert.deepEqual(scan(untyped, 'apps/backend/src/routes/things.test.ts'), []);
+    assert.deepEqual(scan(untyped, 'apps/frontend/src/routes/things.ts'), []);
+  });
+
+  it('has nothing to compare against without contracts', () => {
+    assert.deepEqual(checkRouteResponseContracts([{ path: ROUTE, content: "router.get('/a', auth, (_req, res) => { res.json({}); });\n" }]), []);
   });
 });
 
@@ -1483,6 +1588,38 @@ describe('CLI', () => {
     const ok = fontsDir('fonts-ok');
     writeFileSync(join(ok.dir, 'fine.v1.woff2'), Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(100)]));
     assert.equal(runCli('fonts', ok.root).status, 0);
+  });
+
+  it('exits 0 on the current repo in route-contracts mode', () => {
+    const result = runCli('route-contracts');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /varje route svarar mot en kontraktstyp/);
+  });
+
+  it('exits 1 on a planted untyped route (also under all) and 0 once it answers with a shared contract', () => {
+    const makeRepoWithRoute = (name, route) => {
+      const root = join(temp, name);
+      const backend = join(root, 'apps', 'backend');
+      const contracts = join(root, 'packages', 'shared', 'src', 'contracts');
+      mkdirSync(join(backend, 'src', 'routes'), { recursive: true });
+      mkdirSync(contracts, { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*', 'packages/*'] }));
+      writeFileSync(join(backend, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(backend, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(root, 'packages', 'shared', 'package.json'), JSON.stringify({ name: 'shared', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(root, 'packages', 'shared', 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(contracts, 'things.ts'), 'export interface ThingResponse { success: true }\n');
+      writeFileSync(join(backend, 'src', 'routes', 'things.ts'), route);
+      return root;
+    };
+    const bad = makeRepoWithRoute('contract-bad', "router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
+    for (const mode of ['route-contracts', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/things\.ts:1: GET \/a skriver inget svar mot en kontraktstyp/);
+    }
+    const good = makeRepoWithRoute('contract-good', "router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true } satisfies ThingResponse);\n});\n");
+    assert.equal(runCli('route-contracts', good).status, 0);
   });
 
   it('rejects an unknown mode', () => {

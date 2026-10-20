@@ -200,7 +200,8 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
         const parent = node.parent;
         const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
           || (ts.isPropertyAccessExpression(parent) && parent.name === node)
-          || ts.isShorthandPropertyAssignment(parent);
+          || ts.isShorthandPropertyAssignment(parent)
+          || ts.isTypeReferenceNode(parent); // typnamnet i "satisfies ApiError" är inget felvärde
         if (!isKeyOrMember && PERSONAL_IDENTIFIERS.has(node.text) && !shadowed.has(node.text)) found.push(`logger: name or e-mail ${node.text} in ${where(node)}`);
         else if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`logger: error object ${node.text} in ${where(node)}`);
       }
@@ -233,7 +234,8 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
         const parent = node.parent;
         const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
           || (ts.isPropertyAccessExpression(parent) && parent.name === node)
-          || ts.isShorthandPropertyAssignment(parent);
+          || ts.isShorthandPropertyAssignment(parent)
+          || ts.isTypeReferenceNode(parent); // typnamnet i "satisfies ApiError" är inget felvärde
         if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node, true)) found.push(`response: error object ${node.text} in ${where(node)}`);
       }
       ts.forEachChild(node, visit);
@@ -269,6 +271,7 @@ function violationsIn(file: ts.SourceFile, text: string, rel: string): string[] 
         const isKeyOrMember = (ts.isPropertyAssignment(parent) && parent.name === node)
           || (ts.isPropertyAccessExpression(parent) && parent.name === node)
           || ts.isShorthandPropertyAssignment(parent)
+          || ts.isTypeReferenceNode(parent)
           || (ts.isPropertyAccessExpression(parent) && parent.expression === node && RESPONSE_FORBIDDEN_PROPERTIES.has(parent.name.text)); // `error.message` is reported by the property branch above
         if (!isKeyOrMember && isErrorName(node.text) && !isSafeErrorUse(node)) found.push(`${what}: error object ${node.text} in ${where(node)}`);
       }
@@ -335,6 +338,10 @@ describe('the log hygiene guard itself', () => {
     ["res.status(500).send(error)"],
     ["res.json(error)"],
     ["res.status(500).json({ error: String(error) })"],
+    // satisfies döljer inget: en läcka i ett typat svar fälls lika
+    ["res.status(500).json({ error: error.message } satisfies ApiError)"],
+    ["res.status(500).json({ error: String(error) } satisfies ApiError)"],
+    ["logger.error('x', error as ApiError)"],
     ["res.status(500).json({ error: `Failed: ${error}` })"],
     ["try {} catch (boom) { res.status(500).json({ boom }); }"],
     // console i src går lika illa till Railway-loggen
@@ -392,6 +399,11 @@ describe('the log hygiene guard itself', () => {
     ["logger.info(`Daily roll: \"${picked.name}\" selected`)"],
     ["logger.info(`Checking title ${title.name}`)"],
     ["res.status(500).json({ error: 'Failed to fetch titles' })"],
+    // Ett typnamn som slutar på Error är ingen felvariabel: svaren typas mot ApiError m.fl. i shared
+    ["res.status(400).json({ error: 'x' } satisfies ApiError)"],
+    ["res.status(500).json({ success: false, error: 'x' } satisfies ApiFailure)"],
+    ["res.status(500).json({ error: 'x', written: true } satisfies WrittenApiError)"],
+    ["const body: ApiError = { error: 'x' }; res.status(400).json(body)"],
     ["res.json({ success: true, message: 'Password changed successfully' })"],
     ["res.status(400).json({ error: page.error })"],
     ["res.status(500).json({ error: errorCode(error) })"],

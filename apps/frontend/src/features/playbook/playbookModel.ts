@@ -1,7 +1,7 @@
 import {
   FALLBACK_LEVEL_REQUIREMENTS, MANUAL_RUN_MIN_DISTANCE_KM, MAX_DISPLAYED_TITLES, MIN_RUN_DATE, calculateCompleteRunXP, calculateRunXP, stravaPollIntervalLabel, type LevelRequirement,
 } from '@runquest/shared';
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import { TIERS, tierLabel, type Stake } from '@/features/challenges/duelsFormat';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
 import { formatInt, formatKm, formatLongDate } from '@/features/log/logFormat';

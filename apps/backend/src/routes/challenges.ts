@@ -17,7 +17,10 @@ import {
   toChallengeHistoryItem,
   type UserSummary,
 } from '../services/challengeHistory.js';
-import type { ChallengeGroupHistoryApiResponse, HeadToHeadApiResponse } from '@runquest/shared';
+import type {
+  ApiError, ChallengeGroupHistoryApiResponse, ChallengeGroupStatsResponse, ChallengeProgressResponse, HeadToHeadApiResponse, MyChallengesResponse,
+  RespondChallengeResponse, SendChallengeResponse, WithdrawChallengeResponse,
+} from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 
@@ -149,10 +152,10 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
         history: historyRes.data ?? [],
         group_active,
       },
-    });
+    } satisfies MyChallengesResponse);
   } catch (err) {
     logger.error(`❌ Error fetching challenges (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -165,14 +168,14 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     const { token_id, opponent_id } = req.body;
 
     if (!token_id || !opponent_id) {
-      res.status(400).json({ error: 'token_id and opponent_id are required' }); return;
+      res.status(400).json({ error: 'token_id and opponent_id are required' } satisfies ApiError); return;
     }
     // Före första databasfrågan: opponent_id kommer ur request-body och når aldrig ett filter som icke-uuid.
     if (!isUuid(opponent_id)) {
-      res.status(400).json({ error: 'opponent_id must be a valid uuid' }); return;
+      res.status(400).json({ error: 'opponent_id must be a valid uuid' } satisfies ApiError); return;
     }
     if (opponent_id === userId) {
-      res.status(400).json({ error: 'You cannot challenge yourself' }); return;
+      res.status(400).json({ error: 'You cannot challenge yourself' } satisfies ApiError); return;
     }
 
     const supabase = getSupabaseClient();
@@ -201,24 +204,24 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     const opponent = opponentRes.data;
 
     if (!token || token.user_id !== userId) {
-      res.status(403).json({ error: 'Token not found or does not belong to you' }); return;
+      res.status(403).json({ error: 'Token not found or does not belong to you' } satisfies ApiError); return;
     }
     if (token.sent_at !== null) {
-      res.status(400).json({ error: 'Token has already been sent' }); return;
+      res.status(400).json({ error: 'Token has already been sent' } satisfies ApiError); return;
     }
     if (!challenger) {
-      res.status(404).json({ error: 'Challenger not found' }); return;
+      res.status(404).json({ error: 'Challenger not found' } satisfies ApiError); return;
     }
     if (!opponent) {
-      res.status(404).json({ error: 'Opponent not found' }); return;
+      res.status(404).json({ error: 'Opponent not found' } satisfies ApiError); return;
     }
     // isUuid släpper igenom versaler och databasen jämför uuid skiftlägesokänsligt: kontrollera även mot det riktiga id:t.
     if (opponent.id === userId) {
-      res.status(400).json({ error: 'You cannot challenge yourself' }); return;
+      res.status(400).json({ error: 'You cannot challenge yourself' } satisfies ApiError); return;
     }
     // Fail-closed (ADR 007 A6): en token utan group_id får inte utmana någon över gruppgränsen.
     if (!groupId || opponent.group_id !== groupId) {
-      res.status(400).json({ error: 'Opponent is not in your group' }); return;
+      res.status(400).json({ error: 'Opponent is not in your group' } satisfies ApiError); return;
     }
 
     // Check for existing pending or active challenges for either party
@@ -238,10 +241,10 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     );
 
     if (userBusy) {
-      res.status(400).json({ error: 'You already have an active or pending challenge' }); return;
+      res.status(400).json({ error: 'You already have an active or pending challenge' } satisfies ApiError); return;
     }
     if (opponentBusy) {
-      res.status(400).json({ error: 'Opponent already has an active or pending challenge' }); return;
+      res.status(400).json({ error: 'Opponent already has an active or pending challenge' } satisfies ApiError); return;
     }
 
     // Fetch reward details
@@ -252,7 +255,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (!reward) {
-      res.status(500).json({ error: 'Failed to fetch reward config' }); return;
+      res.status(500).json({ error: 'Failed to fetch reward config' } satisfies ApiError); return;
     }
 
     const sentAt = new Date().toISOString();
@@ -283,7 +286,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
 
     if (challengeError || !challenge) {
       logger.error(`❌ Failed to create challenge (${errorCode(challengeError)})`);
-      res.status(500).json({ error: 'Failed to create challenge' }); return;
+      res.status(500).json({ error: 'Failed to create challenge' } satisfies ApiError); return;
     }
 
     // Mark token as sent + link to challenge
@@ -297,7 +300,7 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
       logger.error(`❌ Failed to mark token as sent (${errorCode(tokenError)})`);
       const { error: rollbackError } = await supabase.from('challenges').delete().eq('id', challenge.id);
       if (rollbackError) logger.error(`❌ Could not roll back challenge ${challenge.id} after failed token update (${errorCode(rollbackError)})`);
-      res.status(500).json({ error: 'Failed to send challenge' }); return;
+      res.status(500).json({ error: 'Failed to send challenge' } satisfies ApiError); return;
     }
 
     // Pack News (ADR 008): loggas efter insert + token-markering; icke-kastande, påverkar inte svaret.
@@ -316,10 +319,10 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`⚔️ Challenge sent: ${userId} → ${opponent.id} (${token.tier} / ${token.metric})`);
 
-    res.status(201).json({ success: true, data: { challenge_id: challenge.id } });
+    res.status(201).json({ success: true, data: { challenge_id: challenge.id } } satisfies SendChallengeResponse);
   } catch (err) {
     logger.error(`❌ Error sending challenge (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -332,7 +335,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
     const { action } = req.body;
 
     if (!['accept', 'decline'].includes(action)) {
-      res.status(400).json({ error: 'action must be "accept" or "decline"' }); return;
+      res.status(400).json({ error: 'action must be "accept" or "decline"' } satisfies ApiError); return;
     }
 
     const supabase = getSupabaseClient();
@@ -346,12 +349,12 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (error || !challenge) {
-      res.status(404).json({ error: 'Challenge not found or already responded' }); return;
+      res.status(404).json({ error: 'Challenge not found or already responded' } satisfies ApiError); return;
     }
 
     if (action === 'decline') {
       if (challenge.tier === 'legendary') {
-        res.status(400).json({ error: 'Legendary challenges cannot be declined' }); return;
+        res.status(400).json({ error: 'Legendary challenges cannot be declined' } satisfies ApiError); return;
       }
 
       // Restore token and reset challenge_active before deleting (FK order)
@@ -359,7 +362,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       if (restoreError) {
         // Utmaningen raderas inte med en token som fortfarande pekar på den; båda stegen är idempotenta, så klienten kan försöka igen.
         logger.error(`❌ Failed to restore token/challenge_active for declined challenge ${id} (${errorCode(restoreError)})`);
-        res.status(500).json({ error: 'Failed to decline challenge' }); return;
+        res.status(500).json({ error: 'Failed to decline challenge' } satisfies ApiError); return;
       }
       const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
       // Raden i flödet tas bara bort om utmaningen faktiskt raderades — annars visar flödet en utmaning som finns.
@@ -367,7 +370,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       else await retractChallengeReceived(id);
 
       logger.info(`❌ Challenge ${id} declined by ${userId} — token restored to challenger`);
-      res.json({ success: true, message: 'Challenge declined' }); return;
+      res.json({ success: true, message: 'Challenge declined' } satisfies RespondChallengeResponse); return;
     }
 
     // Accept: aktivera utmaningen. Den startar vid gruppens nästa midnatt (Stockholm tills tidszon per grupp finns, RUN-21) och
@@ -388,11 +391,11 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
       .select('id');
     if (activateError) {
       logger.error(`❌ Failed to activate challenge ${id} (${errorCode(activateError)})`);
-      res.status(500).json({ error: 'Failed to accept challenge' }); return;
+      res.status(500).json({ error: 'Failed to accept challenge' } satisfies ApiError); return;
     }
     // supabase-js ger alltid en array efter .select() utan fel; en tom array = ingen rad aktiverades.
     if (Array.isArray(activated) && activated.length === 0) {
-      res.status(404).json({ error: 'Challenge not found or already responded' }); return;
+      res.status(404).json({ error: 'Challenge not found or already responded' } satisfies ApiError); return;
     }
 
     const { error: flagError } = await supabase
@@ -406,7 +409,7 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
         .update({ status: 'pending', start_date: null, end_date: null, determine_at: null })
         .eq('id', id);
       if (revertError) logger.error(`❌ Could not revert activation of challenge ${id} (${errorCode(revertError)})`);
-      res.status(500).json({ error: 'Failed to accept challenge' }); return;
+      res.status(500).json({ error: 'Failed to accept challenge' } satisfies ApiError); return;
     }
 
     // Efter lyckad aktivering + flagga (aldrig på revert-grenen). Icke-kastande: ett loggfel fäller aldrig accepten.
@@ -414,10 +417,10 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Challenge ${id} accepted. Runs ${startDate} → ${endDate}`);
 
-    res.json({ success: true, message: 'Challenge accepted', data: { start_date: startDate, end_date: endDate } });
+    res.json({ success: true, message: 'Challenge accepted', data: { start_date: startDate, end_date: endDate } } satisfies RespondChallengeResponse);
   } catch (err) {
     logger.error(`❌ Error responding to challenge (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -438,27 +441,27 @@ router.put('/:id/withdraw', authenticateJWT, async (req, res): Promise<void> => 
       .single();
 
     if (error || !challenge) {
-      res.status(404).json({ error: 'Challenge not found or cannot be withdrawn' }); return;
+      res.status(404).json({ error: 'Challenge not found or cannot be withdrawn' } satisfies ApiError); return;
     }
 
     if (challenge.tier === 'legendary') {
-      res.status(400).json({ error: 'Legendary challenges cannot be withdrawn' }); return;
+      res.status(400).json({ error: 'Legendary challenges cannot be withdrawn' } satisfies ApiError); return;
     }
 
     const restoreError = await restoreAfterDecline(supabase, id, challenge.challenger_id, challenge.opponent_id);
     if (restoreError) {
       logger.error(`❌ Failed to restore token/challenge_active for withdrawn challenge ${id} (${errorCode(restoreError)})`);
-      res.status(500).json({ error: 'Failed to withdraw challenge' }); return;
+      res.status(500).json({ error: 'Failed to withdraw challenge' } satisfies ApiError); return;
     }
     const { error: deleteError } = await supabase.from('challenges').delete().eq('id', id);
     if (deleteError) logger.error(`❌ Failed to delete withdrawn challenge ${id} (${errorCode(deleteError)})`);
     else await retractChallengeReceived(id);
 
     logger.info(`↩️ Challenge ${id} withdrawn by challenger ${userId} — token restored`);
-    res.json({ success: true, message: 'Challenge withdrawn' });
+    res.json({ success: true, message: 'Challenge withdrawn' } satisfies WithdrawChallengeResponse);
   } catch (err) {
     logger.error(`❌ Error withdrawing challenge (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -481,7 +484,7 @@ async function fetchUserSummaries(ids: string[]): Promise<Map<string, UserSummar
 router.get('/group-history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const page = parseOffsetPage(req.query, GROUP_HISTORY_PAGE);
-    if (!page.ok) { res.status(400).json({ error: page.error }); return; }
+    if (!page.ok) { res.status(400).json({ error: page.error } satisfies ApiError); return; }
     const { limit, offset } = page;
 
     const groupId = req.user!.group_id;
@@ -514,7 +517,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
     res.json(body);
   } catch (err) {
     logger.error(`❌ Error fetching challenge group history (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -527,14 +530,14 @@ router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<v
     const me = req.user!.user_id;
     const otherId = req.params.userId;
 
-    if (!isUuid(otherId)) { res.status(400).json({ error: 'userId must be a valid uuid' }); return; }
-    if (otherId === me) { res.status(400).json({ error: 'Cannot compare with yourself' }); return; }
+    if (!isUuid(otherId)) { res.status(400).json({ error: 'userId must be a valid uuid' } satisfies ApiError); return; }
+    if (otherId === me) { res.status(400).json({ error: 'Cannot compare with yourself' } satisfies ApiError); return; }
 
     const page = parseOffsetPage({ limit: req.query.limit }, { defaultLimit: 5, maxLimit: HEAD_TO_HEAD_MAX_LIMIT });
-    if (!page.ok) { res.status(400).json({ error: page.error }); return; }
+    if (!page.ok) { res.status(400).json({ error: page.error } satisfies ApiError); return; }
 
     // Samma svar för "finns inte" och "annan grupp" — läcker inte existens.
-    const notFound = () => res.status(404).json({ error: 'User not found' });
+    const notFound = () => res.status(404).json({ error: 'User not found' } satisfies ApiError);
     const groupId = req.user!.group_id;
     if (!groupId) { notFound(); return; }
 
@@ -589,7 +592,7 @@ router.get('/head-to-head/:userId', authenticateJWT, async (req, res): Promise<v
     res.json(body);
   } catch (err) {
     logger.error(`❌ Error fetching head-to-head (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -607,7 +610,7 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
       .single();
 
     if (!challenge) {
-      res.status(404).json({ error: 'Challenge not found' }); return;
+      res.status(404).json({ error: 'Challenge not found' } satisfies ApiError); return;
     }
 
     // Auto-settle if past determine_at
@@ -636,10 +639,10 @@ router.get('/:id/progress', authenticateJWT, async (req, res): Promise<void> => 
         end_date: challenge.end_date,
         progress: progress ?? [],
       },
-    });
+    } satisfies ChallengeProgressResponse);
   } catch (err) {
     logger.error(`❌ Error fetching challenge progress (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -667,7 +670,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) {
       logger.error(`❌ Error fetching group stats (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch group stats' }); return;
+      res.status(500).json({ error: 'Failed to fetch group stats' } satisfies ApiError); return;
     }
 
     // Only flag the sender (challenger) — a receiver can still accept other challenges
@@ -701,10 +704,10 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
-    res.json({ success: true, data: stats });
+    res.json({ success: true, data: stats } satisfies ChallengeGroupStatsResponse);
   } catch (err) {
     logger.error(`❌ Error fetching group stats (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 

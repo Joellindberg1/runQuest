@@ -1,4 +1,4 @@
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import type { ChallengeHistoryItem } from '@runquest/shared';
 import { TIERS, stakeOf, tierLabel, type Stake, type StakeSource } from './duelsFormat';
 

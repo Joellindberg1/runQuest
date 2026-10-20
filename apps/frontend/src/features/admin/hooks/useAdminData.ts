@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, MIN_RUN_DATE } from '@runquest/shared';
+import type { AdminUser } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
-import type { AdminUser } from '@/shared/services/backendApi';
 import { findSettingsProblem } from '../adminModel';
 
-export interface AdminSettings {
+/**
+ * Formulärets tillstånd (camelCase, ett fält per inmatningsruta, multiplikatorerna som karta days -> värde). Inte svarsformen: den är `AdminSettingsRow`
+ * och `StreakMultipliersResponse` i @runquest/shared; fetchAdminSettings flyttar över värdena och handleSaveSettings bygger requesten ur dem.
+ */
+export interface AdminSettingsForm {
   xpPerRun: number;
   xpPerKm: number;
   bonus5km: number;
@@ -21,7 +25,7 @@ export interface AdminSettings {
 }
 
 // Fälten visas bara tills läsningen lyckats (Save är låst innan); värdena är shared:s standardvärden, inga egna kopior.
-const DEFAULT_SETTINGS: AdminSettings = {
+const DEFAULT_SETTINGS: AdminSettingsForm = {
   xpPerRun: DEFAULT_ADMIN_SETTINGS.base_xp,
   xpPerKm: DEFAULT_ADMIN_SETTINGS.xp_per_km,
   bonus5km: DEFAULT_ADMIN_SETTINGS.bonus_5km,
@@ -43,7 +47,7 @@ export type AdminNotices = Partial<Record<AdminSection, AdminNotice>>;
 
 export function useAdminData() {
   const queryClient = useQueryClient();
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AdminSettingsForm>(DEFAULT_SETTINGS);
   // Save skickar hela trappan och servern tar bort steg som saknas — sparas DEFAULT_SETTINGS
   // (inläsningen misslyckades) skulle prod-trappan skrivas över. Därför låst tills båda läsningarna lyckats.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -182,7 +186,8 @@ export function useAdminData() {
     try {
       const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
       if (result.success && result.data) {
-        const created = result.data;
+        // Servern svarar med sju kolumner (CreatedUser); ett nytt konto har ännu inga rundor, ingen sträcka och ingen streak att visa.
+        const created: AdminUser = { ...result.data, total_km: 0, longest_streak: 0, total_runs: 0 };
         setUsers(prev => [...prev, created]);
         // Board läser gruppen ur users-with-runs (staleTime 10 s): utan invalidering visar den listan från före kontot.
         void queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY });

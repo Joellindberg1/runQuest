@@ -76,7 +76,18 @@
 //     `package.json`, `vite.config.ts`) får nämna `VITE_SUPABASE_*` eller paketet `@supabase/…`. Variablerna ligger kvar i hostingen tills ägaren tar bort
 //     dem; vakten hindrar att koden börjar läsa dem igen. Textbaserad: den läser raderna och ser inte skillnad på kod och kommentar.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|media|fonts|all]   (standard: all)
+// 18. Varje route har ett svar med en kontraktstyp (ADR 007 A7, RUN-352): varje `router.<verb>(…)` i `apps/backend/src/routes` (även aliaset `root`) måste i sin
+//     handler skriva ett svar mot en exporterad typ ur `packages/shared/src/contracts` vars namn slutar på `Response`, antingen `… satisfies XResponse`
+//     eller `const body: XResponse = …`. Då följer klientens typ och serverns svar samma definition, och en ändrad form syns som typfel på båda sidor.
+//     Undantaget är Stravas webhookprotokoll (GET och POST `/` i stravaWebhook.ts, ROUTE_CONTRACT_EXEMPT); `/health` i samma fil är en vanlig adminroute.
+//     Vakten är textbaserad: den läser handlerns text (från en `router.<verb>(` till nästa) utan kommentarer och räknar en träff i handlern som
+//     "typad". Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
+//     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn).
+//     Fångas heller INTE: en route med en icke-literal väg (`router.get(PATH, …)` eller en väg byggd av en variabel; mönstret kräver en sträng direkt
+//     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
+//     routen i en fil får handlertext till filens slut, så en `…Response`-typ i kod efter den (en hjälpfunktion, en annan export) räknas som dess svar.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -635,6 +646,44 @@ export function checkNoFrontendSupabase(files) {
   return errors;
 }
 
+const ROUTE_RESPONSE_FILE = /^apps\/backend\/src\/routes\/[^/]+\.[cm]?ts$/;
+const CONTRACT_FILE = /^packages\/shared\/src\/contracts\/[^/]+\.[cm]?ts$/;
+// `router.get('/x'` och `root.post(\n  '/y'`: verb och sökväg. router och root är de enda namn routerfilerna ger sin Router.
+const ROUTE_REGISTRATION = /(?<![\w$.])(?:router|root)\s*\.\s*(get|post|put|patch|delete)\s*\(\s*(['"`])([^'"`]*)\2/g;
+const CONTRACT_EXPORT = /^export\s+(?:interface|type)\s+([A-Za-z_$][\w$]*)/gm;
+/** Routes som inte behöver någon kontraktstyp: Stravas protokoll (verifieringsanropet och händelserna) bestäms av Strava, inte av oss. Fil -> "VERB /sökväg". */
+export const ROUTE_CONTRACT_EXEMPT = new Map([['apps/backend/src/routes/stravaWebhook.ts', new Set(['GET /', 'POST /'])]]);
+
+/**
+ * Regel 18. `files`: [{ path, content }] (routes/*.ts och contracts/*.ts, path relativt repo-roten, snedstreck). Returnerar "path:rad: text" för varje route
+ * vars handler inte skriver något svar mot en `…Response`-typ som exporteras ur packages/shared/src/contracts.
+ */
+export function checkRouteResponseContracts(files, exempt = ROUTE_CONTRACT_EXEMPT) {
+  const contracts = new Set();
+  for (const { path, content } of files) {
+    if (!CONTRACT_FILE.test(path) || TEST_FILE.test(path)) continue;
+    for (const match of content.matchAll(CONTRACT_EXPORT)) if (match[1].endsWith('Response')) contracts.add(match[1]);
+  }
+  if (contracts.size === 0) return []; // inget att jämföra mot (t.ex. ett provrepo utan shared)
+  const names = [...contracts].map((name) => name.replaceAll('$', String.raw`\$`)).join('|');
+  const typed = new RegExp(String.raw`\bsatisfies\s+(?:${names})\b|:\s*(?:${names})\s*=(?![=>])`);
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!ROUTE_RESPONSE_FILE.test(path) || TEST_FILE.test(path)) continue;
+    const code = withoutComments(content);
+    const routes = [...code.matchAll(ROUTE_REGISTRATION)];
+    routes.forEach((route, index) => {
+      const key = `${route[1].toUpperCase()} ${route[3]}`;
+      if (exempt.get(path)?.has(key)) return;
+      const handler = code.slice(route.index, routes[index + 1]?.index ?? code.length);
+      if (typed.test(handler)) return;
+      const line = code.slice(0, route.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: ${key} skriver inget svar mot en kontraktstyp — typa svaret med \`satisfies XResponse\` (eller \`const body: XResponse = …\`) för en typ ur packages/shared/src/contracts som heter …Response (ADR 007 A7)`);
+    });
+  }
+  return errors;
+}
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -754,8 +803,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -770,7 +819,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -811,6 +860,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'recovery-scheduler-start') {
       errors.push(...checkRecoverySchedulerStart(files));
       summary.push('omräkningsåterhämtningen startas i produktionsblocket i server.ts');
+    }
+    if (mode === 'all' || mode === 'route-contracts') {
+      errors.push(...checkRouteResponseContracts(files));
+      summary.push('varje route svarar mot en kontraktstyp ur shared');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));

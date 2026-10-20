@@ -1,11 +1,10 @@
 // Utflyttad från AuthProvider.tsx så att provider-filen bara exporterar komponenter
 // (react-refresh/only-export-components). Samma kontext, samma beteende.
 import { createContext, useContext } from 'react';
+import type { LoginUser } from '@runquest/shared';
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
+/** Den inloggade användaren: det inloggningssvaret bär (LoginUser). `is_admin` är valfri här eftersom en session sparad före fältet saknar det. */
+export interface AuthUser extends Omit<LoginUser, 'is_admin'> {
   is_admin?: boolean;
   total_xp?: number | null;
   current_level?: number | null;

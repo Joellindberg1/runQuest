@@ -71,6 +71,14 @@ describe('tider (Stockholm-kalenderdagar, now = 4 okt 12:00)', () => {
     expect(formatDayMonth(null)).toBeNull();
   });
 
+  it('kolumner som databasen lämnar tomma (null) ger ingen text: datum null är som saknat, en boost utan längd är 0', () => {
+    expect(timeLeft(null, NOW)).toBeNull();
+    expect(startsInText(null, NOW)).toBeNull();
+    expect(hoursUntilStart(null, NOW)).toBeNull();
+    expect(boostText(0.15, null)).toBe('+0.15× / 0 d');
+    expect(boostText(0.25, null, 'multiplier_runs')).toBe('+0.25× / 0 runs');
+  });
+
   it('timeLeft: dagar kvar, imorgon, idag, avgörs', () => {
     expect(timeLeft('2026-10-13', NOW)).toEqual({ text: '9 d left', tone: 'neutral' });
     expect(timeLeft('2026-10-05', NOW)).toEqual({ text: 'ends tomorrow', tone: 'duel' });

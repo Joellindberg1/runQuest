@@ -43,6 +43,7 @@ import { buildWebhookDedupeKey, pickWhitelistedUpdates } from '../services/strav
 import { readWebhookHealth } from '../services/stravaWebhook/health.js';
 import { errorCode } from '../utils/errorCode.js';
 import { logger } from '../utils/logger.js';
+import type { ApiFailure, StravaWebhookHealthResponse } from '@runquest/shared';
 
 const EVENTS_TABLE = 'strava_webhook_events';
 const UNPROCESSED_STATUSES = ['pending', 'processing'];
@@ -114,11 +115,11 @@ export function createStravaWebhookRouter({ onEventStored }: StravaWebhookOption
   // räknare, inte gruppdata: flytta den till supportrollen när RUN-267 landar.
   router.get('/health', authenticateJWT, requireAdmin, async (_req, res): Promise<void> => {
     try {
-      res.json({ success: true, data: await readWebhookHealth(configuredSubscriptionId() !== null) });
+      res.json({ success: true, data: await readWebhookHealth(configuredSubscriptionId() !== null) } satisfies StravaWebhookHealthResponse);
     } catch (error) {
       // Synligt fel i stället för nollor: en hälsokontroll som säger 0 vid databasfel ljuger. Bara felkoden loggas.
       logger.error(`❌ Strava webhook health: could not read the queue (${errorCode(error)})`);
-      res.status(500).json({ success: false, error: 'Failed to read webhook health' });
+      res.status(500).json({ success: false, error: 'Failed to read webhook health' } satisfies ApiFailure);
     }
   });
 

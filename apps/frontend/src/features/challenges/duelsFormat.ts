@@ -1,4 +1,4 @@
-import type { ChallengeMetric, ChallengeTier } from '@runquest/types';
+import type { ChallengeMetric, ChallengeTier } from '@runquest/shared';
 import { MS_HOUR, daysBetween, stockholmClock } from '@runquest/shared';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
@@ -37,10 +37,10 @@ export function formatMetricWithUnit(metric: ChallengeMetric, value: number | nu
 /** Fält som bär en insats — token, utmaning och historikrad har alla dem (typen saknas på tokens). */
 export interface StakeSource {
   winner_delta: number;
-  winner_duration: number;
+  winner_duration: number | null;
   winner_type?: string;
   loser_delta: number;
-  loser_duration: number;
+  loser_duration: number | null;
   loser_type?: string;
 }
 
@@ -61,12 +61,14 @@ const trimmed = (value: number): string => String(Number(Math.abs(value).toFixed
 /** "+0.15×" / "−0.07×". Förlorarens delta är negativt i databasen. */
 export const deltaText = (delta: number): string => `${delta < 0 ? MINUS : '+'}${trimmed(delta)}×`;
 
-function windowText(duration: number, type: string | undefined): string {
-  return type === 'multiplier_runs' ? `${duration} ${duration === 1 ? 'run' : 'runs'}` : `${duration} d`;
+// En boost utan längd i databasen (kolumnen är nullbar) räknas som 0, som i sampleFromHistory (rulesModel).
+function windowText(duration: number | null, type: string | undefined): string {
+  const length = duration ?? 0;
+  return type === 'multiplier_runs' ? `${length} ${length === 1 ? 'run' : 'runs'}` : `${length} d`;
 }
 
 /** Boostens storlek och längd: "+0.15× / 5 d". */
-export function boostText(delta: number, duration: number, type?: string): string {
+export function boostText(delta: number, duration: number | null, type?: string): string {
   return `${deltaText(delta)} / ${windowText(duration, type)}`;
 }
 
@@ -104,7 +106,7 @@ export interface TimeLeft {
 }
 
 /** "9 d left" · "ends tomorrow" · "ends today" ur slutdatumet (kalenderdag, Stockholm). */
-export function timeLeft(endDate: string | undefined, now: Date): TimeLeft | null {
+export function timeLeft(endDate: string | null | undefined, now: Date): TimeLeft | null {
   if (!endDate) return null;
   const days = daysBetween(stockholmClock(now).date, endDate);
   if (days < 0) return { text: 'settling', tone: 'neutral' };
@@ -114,7 +116,7 @@ export function timeLeft(endDate: string | undefined, now: Date): TimeLeft | nul
 }
 
 /** Timmar kvar till startdagens midnatt (Stockholm); null när utmaningen redan har startat. */
-export function hoursUntilStart(startDate: string | undefined, now: Date): number | null {
+export function hoursUntilStart(startDate: string | null | undefined, now: Date): number | null {
   if (!startDate) return null;
   const clock = stockholmClock(now);
   const days = daysBetween(clock.date, startDate);
@@ -123,7 +125,7 @@ export function hoursUntilStart(startDate: string | undefined, now: Date): numbe
 }
 
 /** "starts in 14 h" (inom ett dygn) eller "starts in 2 d". */
-export function startsInText(startDate: string | undefined, now: Date): string | null {
+export function startsInText(startDate: string | null | undefined, now: Date): string | null {
   const hours = hoursUntilStart(startDate, now);
   if (hours === null) return null;
   return hours <= HOURS_PER_DAY ? `starts in ${hours} h` : `starts in ${Math.ceil(hours / HOURS_PER_DAY)} d`;

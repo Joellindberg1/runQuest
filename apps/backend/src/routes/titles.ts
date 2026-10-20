@@ -7,7 +7,10 @@ import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { errorCode } from '../utils/errorCode.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
-import type { GroupEligibilityResponse, TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
+import type {
+  ApiFailure, GroupEligibilityResponse, TitleCatalogResponse, TitleLeaderboardResponse, TitlesPopulateResponse, TitlesRefreshResponse, TitlesReprocessResponse,
+  UserTitlesResponse,
+} from '@runquest/shared';
 
 const router = express.Router();
 
@@ -28,14 +31,14 @@ router.get('/', authenticateJWT, async (_req, res) => {
         total_titles: titles.length,
         timestamp: new Date().toISOString()
       }
-    });
+    } satisfies TitleCatalogResponse);
     
   } catch (error) {
     logger.error(`❌ API Error in /titles (${errorCode(error)})`);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch titles'
-    });
+    } satisfies ApiFailure);
   }
 });
 
@@ -74,7 +77,7 @@ router.get('/leaderboard', authenticateJWT, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch title leaderboard'
-    });
+    } satisfies ApiFailure);
   }
 });
 
@@ -99,7 +102,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 
     const userTitles = await titleLeaderboardService.getUserTitles(groupId, userId);
     if (!userTitles) {
-      res.status(404).json({ success: false, error: 'User not found' });
+      res.status(404).json({ success: false, error: 'User not found' } satisfies ApiFailure);
       return;
     }
 
@@ -120,7 +123,7 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch user titles'
-    });
+    } satisfies ApiFailure);
   }
 });
 
@@ -141,13 +144,13 @@ router.post('/populate', authenticateJWT, requireAdmin, async (req, res) => {
       success: true,
       message: 'Title leaderboards populated successfully',
       timestamp: new Date().toISOString()
-    });
+    } satisfies TitlesPopulateResponse);
   } catch (error) {
     logger.error(`❌ API Error in /titles/populate (${errorCode(error)})`);
     res.status(500).json({
       success: false,
       error: 'Failed to populate title leaderboards'
-    });
+    } satisfies ApiFailure);
   }
 });
 
@@ -168,13 +171,13 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (req, res) => {
       success: true,
       message: 'Title leaderboards refreshed successfully',
       timestamp: new Date().toISOString()
-    });
+    } satisfies TitlesRefreshResponse);
   } catch (error) {
     logger.error(`❌ API Error in /titles/refresh (${errorCode(error)})`);
     res.status(500).json({
       success: false,
       error: 'Failed to refresh title leaderboards'
-    });
+    } satisfies ApiFailure);
   }
 });
 
@@ -194,7 +197,7 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
     const counts = { total, processed, failed };
 
     if (failed === 0) {
-      res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed', ...counts });
+      res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed', ...counts } satisfies TitlesReprocessResponse);
       return;
     }
 
@@ -202,13 +205,13 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
     if (processed === 0) {
       const message = `All ${total} users failed`;
       // ADR 007 A1: 5xx-svar bär error bredvid message (additivt).
-      res.status(500).json({ success: false, error: message, message, ...counts });
+      res.status(500).json({ success: false, error: message, message, ...counts } satisfies TitlesReprocessResponse);
       return;
     }
-    res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts });
+    res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts } satisfies TitlesReprocessResponse);
   } catch (error) {
     logger.error(`❌ API Error in /titles/reprocess-all (${errorCode(error)})`);
-    res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
+    res.status(500).json({ success: false, error: 'Failed to reprocess titles' } satisfies ApiFailure);
   }
 });
 
@@ -228,7 +231,7 @@ router.get('/group-eligibility', authenticateJWT, async (req, res) => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ API Error in /titles/group-eligibility (${errorCode(error)})`);
-    res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' });
+    res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' } satisfies ApiFailure);
   }
 });
 

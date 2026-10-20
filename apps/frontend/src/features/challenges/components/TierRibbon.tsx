@@ -1,4 +1,4 @@
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import { PENNANT_PATH, PENNANT_TEXT_X, PENNANT_TEXT_Y, PENNANT_VIEW_BOX } from '@/shared/components/challengeMark';
 
 interface TierRibbonProps {

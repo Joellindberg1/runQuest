@@ -19,6 +19,7 @@ import {
   customisedKeys,
   resolveSettings,
   sanitizePatch,
+  type ApiError,
   type SettingDefinition,
   type SettingsApiResponse,
 } from '@runquest/shared';
@@ -59,10 +60,10 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
   // ─── GET /api/settings ──────────────────────────────────────────────────────
   router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     try {
-      res.json(await currentSettings(req.user!.user_id));
+      res.json(await currentSettings(req.user!.user_id) satisfies SettingsApiResponse);
     } catch (e) {
       logger.error(`❌ GET /api/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to fetch settings' });
+      res.status(500).json({ error: 'Failed to fetch settings' } satisfies ApiError);
     }
   });
 
@@ -73,7 +74,7 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
     const userId = req.user!.user_id;
     const patch = sanitizePatch(req.body, 'user', registry());
     if (!patch.ok) {
-      res.status(400).json({ error: patch.error });
+      res.status(400).json({ error: patch.error } satisfies ApiError);
       return;
     }
 
@@ -90,10 +91,10 @@ export function createSettingsRouter(definitions?: readonly SettingDefinition[])
         const { error } = await supabase.from(TABLE).delete().eq('user_id', userId).in('key', patch.reset);
         if (error) throw error;
       }
-      res.json(await currentSettings(userId));
+      res.json(await currentSettings(userId) satisfies SettingsApiResponse);
     } catch (e) {
       logger.error(`❌ PUT /api/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to save settings' });
+      res.status(500).json({ error: 'Failed to save settings' } satisfies ApiError);
     }
   });
 
