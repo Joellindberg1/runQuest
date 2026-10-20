@@ -17,6 +17,7 @@ import type {
   ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsResponse, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersResponse,
   UsersWithRunsResponse,
 } from '@runquest/shared';
+import { BCRYPT_COST, getDummyPasswordHash } from '../utils/passwordHash.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { joinGroup } from '../utils/membership.js';
@@ -42,33 +43,41 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
     
-    // Find user by email, then by name. .eq() skickar värdet parametriserat —
+    // Find user by email, then by name (e-post vinner). Båda uppslagen görs alltid och samtidigt, så att antalet
+    // databasrundturer inte skiljer sig mellan känt och okänt konto. .eq() skickar värdet parametriserat —
     // användarinput får aldrig bli en del av filteruttrycket (PostgREST-injektion).
-    const { data: byEmail, error } = await supabase
+    const lookupBy = (column: 'email' | 'name') => supabase
       .from('users')
       .select('id, name, email, password_hash, is_admin, group_id')
-      .eq('email', nameOrEmail)
+      .eq(column, nameOrEmail)
       .limit(1);
+    const emailLookup = lookupBy('email');
+    // Namnuppslaget fångar sitt eget kast så att det inte fäller ett svar som e-postuppslaget redan avgjort.
+    const nameLookup = (async () => lookupBy('name'))().then(
+      (result) => ({ result, thrown: null as unknown }),
+      (thrown: unknown) => ({ result: null, thrown }),
+    );
+    const [{ data: byEmail, error }, named] = await Promise.all([emailLookup, nameLookup]);
 
+    // Som förut: namnet slås bara upp "efter" en tom e-posträff utan fel. Då blir ett returnerat fel ingen träff och
+    // ett kast ett 500 via catch nedan; efter en e-posträff eller ett e-postfel spelar namnuppslaget ingen roll.
     let user = byEmail?.[0] ?? null;
     if (!user && !error) {
-      const { data: byName } = await supabase
-        .from('users')
-        .select('id, name, email, password_hash, is_admin, group_id')
-        .eq('name', nameOrEmail)
-        .limit(1);
-      user = byName?.[0] ?? null;
+      if (named.result === null) throw named.thrown;
+      user = named.result.data?.[0] ?? null;
     }
+
+    // bcrypt-arbetet görs i alla fall (okänt konto, databasfel, fel lösenord) så att svarstiden inte avslöjar
+    // vilka konton som finns. Mot dummy-hashen kan jämförelsen aldrig lyckas, och `user` styr utfallet.
+    const passwordMatch = await bcrypt.compare(password, !error && user ? user.password_hash : await getDummyPasswordHash());
 
     if (error || !user) {
       logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
       res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
     }
 
-    logger.info(`🔑 User found, verifying password for user ${user.id}`);
+    logger.info(`🔑 User found, password checked for user ${user.id}`);
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
       logger.info('❌ Password mismatch');
       res.status(401).json({ error: 'Invalid credentials' } satisfies ApiError); return;
@@ -170,7 +179,7 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     logger.info('✅ Current password verified, hashing new password');
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
@@ -282,7 +291,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     }
 
     // Hash password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create new user. Gruppen sätts inte här: join_group ger medlemskapet och sätter pekaren users.group_id (ADR 012 beslut 2.2).
@@ -391,7 +400,7 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
     logger.info(`✅ User ${user.id} found, hashing new password`);
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database

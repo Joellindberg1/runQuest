@@ -22,6 +22,7 @@ import {
   checkRecoverySchedulerStart,
   checkStravaTokenPath,
   checkTokenKeyStartupCheck,
+  checkDummyHashWarmup,
   checkWebhookSchedulerStart,
   checkRawStravaFetch,
   checkRouteResponseContracts,
@@ -764,6 +765,37 @@ describe('checkRouteResponseContracts', () => {
   });
 });
 
+describe('checkDummyHashWarmup', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+
+  it('passes when server.ts calls warmUpDummyPasswordHash() at the top level', () => {
+    assert.deepEqual(checkDummyHashWarmup(server("import { x } from './x.js';\nwarmUpDummyPasswordHash();\nconst app = 1;\n")), []);
+    assert.deepEqual(checkDummyHashWarmup(server('warmUpDummyPasswordHash()\r\n')), []);
+  });
+
+  it('flags a server.ts without the call', () => {
+    const errors = checkDummyHashWarmup(server("import { warmUpDummyPasswordHash } from './utils/passwordHash.js';\nconst app = 1;\n"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: saknar ett anrop av warmUpDummyPasswordHash\(\)/);
+  });
+
+  it('flags a call that is only in a comment, indented inside a block or callback, or a different function', () => {
+    for (const code of [
+      '// warmUpDummyPasswordHash();\n',
+      "if (process.env.NODE_ENV === 'production') {\n  warmUpDummyPasswordHash();\n}\n",
+      "server.on('listening', () => {\n  warmUpDummyPasswordHash();\n});\n",
+      'warmUpDummyPasswordHashLater();\n',
+    ]) {
+      assert.equal(checkDummyHashWarmup(server(code)).length, 1, code);
+    }
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkDummyHashWarmup([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkDummyHashWarmup([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
 describe('checkTokenKeyStartupCheck', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
 
@@ -1314,6 +1346,32 @@ describe('CLI', () => {
       assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av reportTokenKeyAtStartup/);
     }
     assert.equal(runCli('token-key-startup', makeBackend('key-check-good', 'reportTokenKeyAtStartup();\n')).status, 0);
+  });
+
+  it('exits 1 when server.ts lacks the dummy hash warm-up (also under all) and 0 once it is planted', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('warmup-bad', 'registerStravaRateBudget();\n');
+    for (const mode of ['dummy-hash-warmup', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av warmUpDummyPasswordHash/);
+    }
+    assert.equal(runCli('dummy-hash-warmup', makeBackend('warmup-good', 'warmUpDummyPasswordHash();\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in dummy-hash-warmup mode', () => {
+    const result = runCli('dummy-hash-warmup');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /dummy-hashen/);
   });
 
   it('exits 0 on the current repo in token-key-startup mode', () => {
