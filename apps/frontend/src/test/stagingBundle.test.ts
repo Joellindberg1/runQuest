@@ -50,7 +50,7 @@ describe('the staging banner in the built bundle', () => {
     expect(filesWithBanner(dist)).toEqual([]);
   }, BUILD_TIMEOUT_MS);
 
-  it('a staging build ships the banner as its own chunk', async () => {
+  it('a staging build ships the banner code and its styles', async () => {
     const dist = await buildApp('staging', 'staging');
     const found = filesWithBanner(dist);
     expect(found.some((file) => file.endsWith('.js'))).toBe(true);

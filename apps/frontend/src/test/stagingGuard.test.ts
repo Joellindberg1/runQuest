@@ -86,11 +86,13 @@ describe('the build configuration', () => {
     const config = await resolveConfig('staging');
     expect(config.define['import.meta.env.VITE_APP_ENV']).toBe('"staging"');
     expect(config.plugins.find((plugin) => plugin.name === 'rq-staging-guard')?.transformIndexHtml).toBeDefined();
+    expect(config.plugins.find((plugin) => plugin.name === 'rq-staging-banner-style')?.transformIndexHtml).toBeDefined();
   });
 
   it('without the variable the guard does nothing and the banner constant is empty', async () => {
     const config = await resolveConfig(undefined);
     expect(config.define['import.meta.env.VITE_APP_ENV']).toBe('""');
     expect(config.plugins.find((plugin) => plugin.name === 'rq-staging-guard')?.transformIndexHtml).toBeUndefined();
+    expect(config.plugins.find((plugin) => plugin.name === 'rq-staging-banner-style')?.transformIndexHtml).toBeUndefined();
   });
 });

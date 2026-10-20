@@ -27,7 +27,6 @@ const BANNER = { name: 'Staging environment' };
 
 beforeAll(async () => {
   await warmLanding();
-  await import('@/app-shell/StagingBanner');
 });
 
 beforeEach(() => {
@@ -77,7 +76,7 @@ describe('the staging banner', () => {
     window.history.pushState({}, '', '/');
     render(<App />);
     await screen.findByRole('heading', { level: 1 });
-    // Bannern är en lazy-chunk (vore den på ritas den efter en tick): vänta ut en så frånvaron inte bara beror på timing.
+    // Landningen är lazy: vänta ut en tick så att frånvaron inte bara beror på timing.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });

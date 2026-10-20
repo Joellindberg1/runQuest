@@ -2,6 +2,9 @@
    (tint 10 % / kant 45 % / text i full accent) på sidans bas. Remsan är en vanlig rad överst i flödet: den scrollar bort med sidan och ligger aldrig över
    sidhuvudenas knappar. Höjden räknas bort från sidans 100dvh-ytor via --rq-staging-banner-h (app-shell.css, landing.css). Under en notch/statusyta
    (viewport-fit=cover, PWA) skjuter övre paddingen ned texten med samma inset som landingens header. */
+/* Höjden för en rad (inset + övre och nedre padding + kant + radhöjd), så att laddningsvyn under remsan ligger rätt redan i den förrenderade index.html: höjden mäts av
+   StagingBanner.tsx först när React monterat. `html:root` går före temats `:root { --rq-staging-banner-h: 0px }` oavsett i vilken ordning stilmallarna länkas. */
+html:root { --rq-staging-banner-h: calc(var(--rq-landing-header-inset) + var(--rq-sp-4) * 2 + var(--rq-hair) + var(--rq-fs-chip) * var(--rq-lh-tight)); }
 .rq-staging-banner {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: var(--rq-sp-12);
   padding: calc(var(--rq-landing-header-inset) + var(--rq-sp-4)) var(--rq-pad-screen) var(--rq-sp-4);

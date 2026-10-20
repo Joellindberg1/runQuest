@@ -150,6 +150,12 @@ export default {
         extraRules: { "declaration-no-important": [true, { message: "landingFilm.css sätter ingen !important; reducerad rörelse hanteras av temafilens globala regel." }] },
       }),
     },
+    {
+      // Stagingbannern (RUN-342) räknar ut sin egen höjd på :root (--rq-staging-banner-h, vars prodvärde 0 står i index.css) för att laddningsvyn ska ligga rätt i den
+      // förrenderade index.html. Filen länkas bara i stagingbygget (stagingBannerStyle.ts), så :root-regeln och variabeln finns aldrig i prod. Allt annat gäller som vanligt.
+      files: ["src/app-shell/staging-banner.css"],
+      rules: { ...designRules({ locals: ["rq-staging-banner-h"] }), "selector-disallowed-list": null },
+    },
     { files: ["src/features/admin/admin.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line", "rq-form-gap"] }) },
     {
       // Chippet "Paused" (RUN-241) är neutral bläck och aldrig silver (silver = placering 2): inget i den här filen läser rangfärgerna.
