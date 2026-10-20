@@ -156,6 +156,31 @@ describe("TrackLoader phase", () => {
     expect(screen.getByRole("status")).toSatisfy((loader: Element) => loader.matches(RUNNER_PHASE_SELECTOR));
   });
 
+  it("still mounts when the browser has no document clock", () => {
+    stubOrbit();
+    const own = Object.getOwnPropertyDescriptor(performance, "timeOrigin");
+    Object.defineProperty(performance, "timeOrigin", { configurable: true, value: undefined });
+    try {
+      expect(() => render(<TrackLoader size={192} />)).not.toThrow();
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    } finally {
+      if (own) Object.defineProperty(performance, "timeOrigin", own);
+      else Reflect.deleteProperty(performance, "timeOrigin");
+    }
+  });
+
+  it("still mounts when the browser throws while listing the animations", () => {
+    Object.defineProperty(Element.prototype, "getAnimations", {
+      configurable: true,
+      value: () => {
+        throw new Error("no animations here");
+      },
+    });
+
+    expect(() => render(<TrackLoader size={192} />)).not.toThrow();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
   it("hydrates the pre-rendered markup without a warning and then puts the runners on the clock", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const container = document.createElement("div");

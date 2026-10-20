@@ -62,13 +62,33 @@ describe('aligning the runner dots with the clock', () => {
   it('does nothing where the browser has no Web Animations', () => {
     expect(alignRunnersWithClock({} as Element, 1_760_000_000_000)).toBe(0);
   });
+
+  it.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])('does not set a start time from a document clock of %s', (timeOrigin) => {
+    const animation = orbit(2_400);
+
+    expect(() => alignRunnersWithClock(loaderWith(animation), timeOrigin as unknown as number)).not.toThrow();
+    expect(animation.startTime).toBeNull();
+  });
+
+  it('does not throw when the browser throws while listing the animations', () => {
+    const broken = { getAnimations: () => { throw new Error('no animations here'); } } as unknown as Element;
+
+    expect(alignRunnersWithClock(broken, 1_760_000_000_000)).toBe(0);
+  });
+
+  it('does not throw when the browser refuses the start time', () => {
+    const refusing = orbit(2_400);
+    Object.defineProperty(refusing, 'startTime', { set: () => { throw new TypeError('refused'); }, get: () => null });
+
+    expect(() => alignRunnersWithClock(loaderWith(refusing), 1_760_000_000_000)).not.toThrow();
+  });
 });
 
 describe('the inline script for the pre-rendered loader', () => {
   type Records = Array<{ addedNodes: unknown[] }>;
 
   /** Kör skriptet mot ett låtsasdokument med en låtsasobserver och ger tillbaka det den registrerade. */
-  function runScript({ webAnimations = true } = {}) {
+  function runScript({ webAnimations = true, reducedMotion = false } = {}) {
     let notify: (records: Records) => void = () => undefined;
     const observer = { observe: vi.fn(), disconnect: vi.fn() };
     class FakeObserver {
@@ -88,7 +108,14 @@ describe('the inline script for the pre-rendered loader', () => {
       querySelectorAll: (selector: string) => (selector === RUNNER_PHASE_SELECTOR ? loaders : []),
     };
     const element = { prototype: webAnimations ? { getAnimations: () => [] } : {} };
-    new Function('document', 'performance', 'MutationObserver', 'Element', runnerPhaseScript())(document, { timeOrigin: 1_760_000_000_000 }, FakeObserver, element);
+    const matchMedia = (query: string) => ({ matches: reducedMotion && query === '(prefers-reduced-motion: reduce)' });
+    new Function('document', 'performance', 'MutationObserver', 'Element', 'matchMedia', runnerPhaseScript())(
+      document,
+      { timeOrigin: 1_760_000_000_000 },
+      FakeObserver,
+      element,
+      matchMedia,
+    );
     return { document, observer, listeners, loaders, classes, insert: (...nodes: unknown[]) => notify([{ addedNodes: nodes }]) };
   }
 
@@ -158,6 +185,51 @@ describe('the inline script for the pre-rendered loader', () => {
 
     expect(classes.size).toBe(0);
     expect(document.addEventListener).not.toHaveBeenCalled();
+  });
+
+  it('hides nothing and listens to nothing with reduced motion: its animations have already ended, so there is no phase to wait for', () => {
+    const { classes, document, observer } = runScript({ reducedMotion: true });
+
+    expect(classes.size).toBe(0);
+    expect(document.addEventListener).not.toHaveBeenCalled();
+    expect(observer.observe).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dots shown when only some of them still have an animation to align', () => {
+    // Fler prickar än levande animationer (en som redan tagit slut räknas inte av getAnimations): skriptet väntar inte för evigt, DOMContentLoaded släpper dem.
+    const { classes, listeners, loaders } = runScript();
+    const loader = { getAnimations: () => [orbit(2_400)], querySelectorAll: () => [{}, {}, {}] } as unknown as Element;
+    loaders.push(loader);
+
+    listeners.get('load')!.listener();
+    expect(classes.has(RUNNER_PHASE_PENDING_CLASS)).toBe(true);
+    listeners.get('DOMContentLoaded')!.listener();
+
+    expect(classes.has(RUNNER_PHASE_PENDING_CLASS)).toBe(false);
+  });
+
+  it('aligns a loader once per batch of inserted nodes, and not again when it is already on the clock', () => {
+    const calls = vi.fn(() => [orbit(2_400), orbit(3_240), orbit(4_200)]);
+    const loader = { getAnimations: calls, querySelectorAll: () => [{}, {}, {}] } as unknown as Element;
+    const node = { closest: () => loader };
+    const { listeners, loaders, insert } = runScript();
+    loaders.push(loader);
+
+    insert(node, node, node);
+    expect(calls).toHaveBeenCalledTimes(1);
+    insert(node);
+    listeners.get('load')!.listener();
+
+    expect(calls).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not throw out of the observer or the load listener when the browser throws', () => {
+    const loader = { getAnimations: () => { throw new Error('no animations here'); }, querySelectorAll: () => [] } as unknown as Element;
+    const { listeners, loaders, insert } = runScript();
+    loaders.push(loader);
+
+    expect(() => insert({ closest: () => loader })).not.toThrow();
+    expect(() => listeners.get('load')!.listener()).not.toThrow();
   });
 
   it('leaves nodes outside a loader alone, text included', () => {
