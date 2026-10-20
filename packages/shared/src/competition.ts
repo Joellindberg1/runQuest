@@ -22,6 +22,12 @@ export interface ScoredParticipant<T extends CompetitionParticipant = Competitio
   rank: number;
 }
 
+/** Ett mätvärde som tal. Saknat, tomt eller icke-numeriskt värde ('abc', undefined) räknas som 0: ett NaN i summan skulle ge en godtycklig placering. */
+function measured(value: number | string | null | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /**
  * Summerar varje deltagares rundor och rankar dem: totalen fallande, vid lika total samma ordning som all-time-tabellen (`compareXpStandings`:
  * namn utan hänsyn till skiftläge, sedan id). Resultatet beror därför inte på i vilken ordning deltagarna kommer in.
@@ -32,7 +38,7 @@ export function scoreCompetition<T extends CompetitionParticipant>(metric: strin
   const isKm = metric === 'km';
   const scored = participants.map((participant) => ({
     participant,
-    totalValue: participant.runs.reduce((sum: number, run) => sum + Number(isKm ? run.distance : run.total_elevation_gain ?? 0), 0),
+    totalValue: participant.runs.reduce((sum: number, run) => sum + measured(isKm ? run.distance : run.total_elevation_gain), 0),
   }));
   scored.sort((a, b) =>
     compareXpStandings(

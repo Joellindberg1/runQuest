@@ -29,6 +29,16 @@ describe('scoreCompetition', () => {
     expect(scored[0].totalValue).toBe(4);
   });
 
+  it('counts a value that is not a number as zero instead of letting NaN decide the placement', () => {
+    const scored = scoreCompetition('km', [
+      person('a', 'Anna', km('abc', 4)),
+      person('b', 'Bertil', km(Number.NaN, 5)),
+      person('c', 'Cecilia', [{ total_elevation_gain: 7 }]),
+      person('d', 'David', km('Infinity', 1)),
+    ]);
+    expect(scored.map((s) => [s.participant.id, s.totalValue, s.rank])).toEqual([['b', 5, 1], ['a', 4, 2], ['d', 1, 3], ['c', 0, 4]]);
+  });
+
   it('gives a participant without runs the total 0 and keeps them on the board', () => {
     const scored = scoreCompetition('km', [person('a', 'Anna'), person('b', 'Bertil', km(1))]);
     expect(scored.map((s) => [s.participant.id, s.totalValue, s.rank])).toEqual([['b', 1, 1], ['a', 0, 2]]);

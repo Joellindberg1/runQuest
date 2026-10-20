@@ -27,6 +27,7 @@ export interface EventMyEntry {
 
 export interface EventLeaderboardRow {
   userId: string;
+  /** Medlemmens riktiga namn, aldrig ett lokaliserat ("Du"). `isMe` markerar anroparens rad och klienten skriver själv "You"; ingen utgiven bundle har läst "Du". */
   userName: string;
   totalValue: number;
   rank: number | null;
