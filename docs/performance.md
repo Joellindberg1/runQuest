@@ -409,12 +409,24 @@ Ovanför vikningen ritas rubriken med Bebas Neue 400 (redan förladdad), ingress
 
 ### Öppna rader
 
-- **CI-mätning** (Lead): före = `integration/v0.8.1`, efter = den här branchen, båda lägena. Mål: mobil-LCP ≤ 2 500 ms. Lokalt 1 956 ms.
 - RUN-334 (skärpt budget) kan utgå från CI-siffrorna; budgeten är orörd här. LCP-taket 5 000 ms ligger långt över; ADR 006, punkt 10 anger hur taket sätts efter minst fem CI-körningar.
-- **Hydreringen +0,6 s under riktig strypning** (ovan): värt att följa i Umami/Sentry (första interaktion) efter release; ligger den inte i vägen för väntelistans konvertering behövs inget mer. Alternativet är att starta JS:et tidigare, vilket i Lighthouses modell ger tillbaka LCP (2,87 s), så det går inte att få båda.
+- **Hydreringen +0,6 s under riktig strypning** (ovan): ägaren godtog avvägningen 2026-10-20 ("snabbare text"). Värt att följa i Umami/Sentry (första interaktion) efter release; ligger den inte i vägen för väntelistans konvertering behövs inget mer. Alternativet är att starta JS:et tidigare, vilket i Lighthouses modell ger tillbaka LCP (2,87 s), så det går inte att få båda.
 - `/legal` (3,0 s) och övriga sidor som serveras av `index.html` har inte åtgärdats här.
 - Sentry: boot-skriptet har ingen källkarta; uppladdningen (`sentryVitePlugin`) kördes inte här (ingen token). Kontrollera i staging att byggsteget med uppladdning tål en JS-fil utan karta.
 
 ### CI
 
-(Lead fyller i: före/efter, båda lägena, minst 6 körningar.)
+Mätt 2026-10-20 i CI-jobbet `Lighthouse — prestandabudget` (Linux, Chrome, `run.sh` oförändrat, 3 körningar per jobb). **Före:** utkast-PR #52 (`integration/v0.8.1`), sex jobb på 3a2731a1, 7a003a68, 22213447, 4b1c16d3, f61f34ad och 48fe1103 (landningen ändrades bara med +272 B JS i RUN-360 mellan dem), 18 körningar per sida och läge. **Efter:** utkast-PR #53 (RUN-343 ovanpå f61f34ad), två jobb, 6 körningar per sida och läge. Medianer, spridning för LCP inom hakparentes.
+
+| Sida, läge | Perf | LCP (ms) | FCP (ms) | CLS | TBT (ms) |
+|---|---|---|---|---|---|
+| `/` före, API ger fel | 0,915 | 2 858 [2 854–3 543] | 2 555 | 0,0205 | 35 |
+| **`/` efter, API ger fel** | **0,99** | **1 959** [1 956–2 106] | **1 507** | **0,0002** | 29 |
+| `/` före, falskt API | 0,92 | 2 857 [2 707–2 860] | 2 557 | 0,0205 | 23 |
+| **`/` efter, falskt API** | **0,99** | **1 960** [1 957–2 104] | **1 511** | **0,0002** | 26 |
+| `/legal` före, API ger fel | 0,89 | 3 197 [3 003–3 225] | 2 703 | 0 | 0 |
+| `/legal` efter, API ger fel | 0,89 | 3 208 [3 058–3 214] | 2 704 | 0 | 1 |
+| `/legal` före, falskt API | 0,89 | 3 202 [3 007–3 213] | 2 703 | 0 | 0 |
+| `/legal` efter, falskt API | 0,89 | 3 210 [3 058–3 215] | 2 704 | 0 | 3 |
+
+**Målet nås i CI:** mobil-LCP på `/` 1 959–1 960 ms (−899 ms), 540 ms under 2 500 ms, i båda lägena. CLS på `/` i CI var 0,0205 före (över lokalt, Linux-typsnittsbyte) och är 0,0002 efter. `/legal` är oförändrad (≈ 3,2 s i CI). Lokalt och i CI ger samma LCP på `/` (1 956 mot 1 959 ms) men inte på `/legal` (3,0 mot 3,2 s).
