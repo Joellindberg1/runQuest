@@ -11,7 +11,7 @@ Mobil = App Prototypens landing i en kolumn (390 px). Desktop (≥ 1024 px) är 
 ögonbrynet och de tre förklaringarna, sektionsrubrikernas synlighet, filmens vy) ligger i HTML i båda varianterna och CSS visar en med
 `@media (min-width: 1024px)`; den dolda är `display: none` (utanför tillgänglighetsträdet och tab-ordningen, och utan animationer). Ett undantag från
 skalets beslut 5 ("exakt EN variant i DOM") som bara gäller landningen. ESLint (`LANDING_NO_VIEWPORT_OR_LOCALE` i `eslint.config.js`) förbjuder
-`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` (regex med NBSP, samma text på server och klient).
+`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` ur `shared/utils/format` (regex med NBSP, samma text på server och klient; lint förbjuder `Intl` även i den modulen).
 Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En ny variant får alltså en regel i `landing.css`/`landingFilm.css`
 (grundregeln mobil, desktop i `@media (min-width: 1024px)`) och en rad i listan i `guards.test.ts`.
 

@@ -7,7 +7,7 @@ import {
   feedFromPage, formatAgo, fullTime, gapCursor, groupByDay, isUnread, markSeenInFeed, mergeNewer, parseFilterParam, serializeFilterParam,
   replaceNewest, parseInvolvesParam, serializeInvolvesParam, involvesMe, involvesAnnouncement, toggleFilter, topIdOf, typeParamOf, typesForFilters, unreadSummary, untilText, isKnownNewsItem, type NewsContext, type UnknownNewsItem, type WireNewsItem,
 } from './newsModel';
-import { formatInt } from '@/features/log/logFormat';
+import { formatInt } from '@/shared/utils/format';
 import { ADAM, DAN, ME, NICK, NOW, KARL, at, ref, badgeEarned, challengeAccepted, challengeWon, eventOpen, item, levelUp, meta, rankPassed, releasePublished, streakBroken, titleTaken } from './news.fixture';
 
 const ctx = (over: Partial<NewsContext> = {}): NewsContext => ({ viewerId: ME.id, now: NOW, ...over });

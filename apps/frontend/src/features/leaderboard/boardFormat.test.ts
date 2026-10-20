@@ -1,20 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  deltaLabel, deltaView, latestRunOf, formatCountdown, formatHoursMinutes, formatInt, formatRunAge, isoWeekNumber, preciseRunTime,
-} from './boardFormat';
+import { deltaLabel, deltaView, latestRunOf, formatRunAge, preciseRunTime } from './boardFormat';
 import { daysBetween } from '@runquest/shared';
 
 // Fast klocka: 2026-10-04 12:00 Stockholm (CEST, UTC+2) = 10:00 UTC.
 const NOW = new Date('2026-10-04T10:00:00Z');
-
-describe('isoWeekNumber', () => {
-  it.each([
-    ['2026-01-01', 1], ['2025-12-29', 1], ['2026-10-04', 40], ['2026-10-05', 41],
-    ['2024-12-30', 1], ['2021-01-03', 53], ['2020-12-31', 53],
-  ])('%s → vecka %i', (date, week) => {
-    expect(isoWeekNumber(date)).toBe(week);
-  });
-});
 
 describe('daysBetween', () => {
   it('räknar kalenderdagar över månads- och årsskiften', () => {
@@ -76,25 +65,6 @@ describe('formatRunAge — "X h ago" med start_time, created_at, annars datum', 
 
   it('ogiltig tidsstämpel faller tillbaka på datumet', () => {
     expect(formatRunAge({ date: '2026-10-03', start_time: 'inte-ett-datum' }, NOW)).toBe('1 d ago');
-  });
-});
-
-describe('tidsformat', () => {
-  it('formatHoursMinutes', () => {
-    expect(formatHoursMinutes(6 * 3_600_000 + 12 * 60_000)).toBe('6h 12m');
-    expect(formatHoursMinutes(2 * 3_600_000 + 40 * 60_000)).toBe('2h 40m');
-    expect(formatHoursMinutes(25 * 60_000)).toBe('25m');
-    expect(formatHoursMinutes(-5)).toBe('0m');
-  });
-
-  it('formatCountdown', () => {
-    expect(formatCountdown(6 * 3_600_000 + 12 * 60_000 + 5_000)).toBe('6h 12m 05s');
-    expect(formatCountdown(0)).toBe('0h 00m 00s');
-  });
-
-  it('formatInt grupperar tusental', () => {
-    expect(formatInt(1126.4).replace(/\s/g, ' ')).toBe('1 126');
-    expect(formatInt(988)).toBe('988');
   });
 });
 

@@ -2,7 +2,8 @@ import type { User } from '@runquest/types';
 import { calculateCompleteRunXP, calculateStreakMultiplier } from '@runquest/shared';
 import type { XpConfigResponse } from '@runquest/shared';
 import { streakDeadline } from '@/app-shell/rightNowItems';
-import { formatHoursMinutes, formatRunAge, latestRunOf } from './boardFormat';
+import { formatCountdown } from '@/shared/utils/format';
+import { formatRunAge, latestRunOf } from './boardFormat';
 
 // Streaks-vyns vymodell. Statusgrenen (safe / at risk / broken) går genom samma `streakDeadline`
 // som Right now-pillen, så de två aldrig kan vara oense. Trappan kommer ur /api/config/xp — inga
@@ -50,11 +51,6 @@ export function accentForProgress(pct: number): Exclude<StreakAccent, 'down'> {
   return pct > 0 ? 'bronze' : 'none';
 }
 
-/** "1.8×" — en decimal räcker för trappan (1.1 … 2.0). */
-export function formatMultiplier(multiplier: number): string {
-  return `${multiplier.toFixed(1)}×`;
-}
-
 export function buildStreakRow(user: User, now: Date, ladder: LadderStep[], meId?: string): StreakRow {
   const last = latestRunOf(user.runs);
   const deadline = streakDeadline(last?.date ?? null, now);
@@ -66,7 +62,7 @@ export function buildStreakRow(user: User, now: Date, ladder: LadderStep[], meId
   const isMe = user.id === meId;
 
   let detail: string;
-  if (status === 'at-risk' && deadline) detail = `${formatHoursMinutes(deadline.msLeft)} left`;
+  if (status === 'at-risk' && deadline) detail = `${formatCountdown(deadline.msLeft, 'hm')} left`;
   else if (status === 'safe' && last) detail = `ran ${formatRunAge(last, now)}`;
   else detail = last ? `last run ${formatRunAge(last, now)}` : 'no runs yet';
 

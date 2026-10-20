@@ -1,10 +1,9 @@
 import React from 'react';
-import { LEADERBOARD_TOUR_SLUG, stockholmClock } from '@runquest/shared';
+import { LEADERBOARD_TOUR_SLUG, isoWeekNumber, stockholmClock } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
-import { isoWeekNumber } from '@/features/leaderboard/boardFormat';
 import { BOARD_VIEWS, DEFAULT_BOARD_VIEW, type BoardView } from '@/features/leaderboard/boardViews';
 import { SeasonView } from '@/features/leaderboard/components/SeasonView';
 import { StreaksView } from '@/features/leaderboard/components/StreaksView';

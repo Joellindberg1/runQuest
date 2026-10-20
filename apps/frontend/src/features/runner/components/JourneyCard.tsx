@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
-import { formatInt } from '@/features/leaderboard/boardFormat';
+import { formatInt } from '@/shared/utils/format';
 import { JOURNEY_END_KM, journeyPercent, lastCheckpoint, nextZoom, type ZoomLevel } from '@/features/profile/frodoModel';
 import { FrodoRoad, ZoomButton } from '@/features/profile/components/FrodoRoad';
 import { PanelHead } from './RunnerParts';

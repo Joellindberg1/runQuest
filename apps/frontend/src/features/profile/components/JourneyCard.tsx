@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { JOURNEY_END_KM, journeyPercent, lastCheckpoint, nextCheckpointInfo, nextZoom, type ZoomLevel } from '../frodoModel';
 import { FrodoRoad, ZoomButton } from './FrodoRoad';
-import { formatInt } from '../profileFormat';
+import { formatInt } from '@/shared/utils/format';
 import { PanelHead } from './ProfileParts';
 
 interface JourneyCardProps {

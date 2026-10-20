@@ -1,9 +1,9 @@
 import type { ChallengeMetric, ChallengeTier } from '@runquest/shared';
 import { MS_HOUR, daysBetween, stockholmClock, zoneDay } from '@runquest/shared';
-import { formatDayMonth as formatCalendarDayMonth } from '@/features/events/eventsFormat';
+import { formatDayMonth as formatCalendarDayMonth, formatInt, formatKm } from '@/shared/utils/format';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
-// Engelskt UI — tal och datum i en-GB (som resten av redesignen).
+// Engelskt UI — tal, km och månadsnamn ligger i shared/utils/format.
 
 export const TIERS: readonly ChallengeTier[] = ['minor', 'major', 'legendary'];
 
@@ -18,16 +18,13 @@ export const metricUnit = (metric: ChallengeMetric): string => METRIC_UNIT[metri
 const MINUS = '−';
 const HOURS_PER_DAY = 24;
 
-const WHOLE = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
-const ONE_DECIMAL = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-
-/** Måttets värde utan enhet: km med en decimal, runs och XP som heltal ("1,820"). */
+/** Måttets värde utan enhet: km med en decimal, runs och XP som heltal ("1 820"). */
 export function formatMetricValue(metric: ChallengeMetric, value: number | null): string {
   if (value === null) return '—';
-  return metric === 'km' ? ONE_DECIMAL.format(value) : WHOLE.format(Math.round(value));
+  return metric === 'km' ? formatKm(value) : formatInt(value);
 }
 
-/** Värde + enhet för löptext: "38.4 km", "5 runs", "1,820 XP". */
+/** Värde + enhet för löptext: "38.4 km", "5 runs", "1 820 XP". */
 export function formatMetricWithUnit(metric: ChallengeMetric, value: number | null): string {
   if (value === null) return '—';
   if (metric === 'km') return `${formatMetricValue(metric, value)} km`;
@@ -83,13 +80,10 @@ export function stakeOf(source: StakeSource): Stake {
   };
 }
 
-/** Förnamnet — designen visar "Karl", inte "Karl Persson", i korten. */
-export const firstName = (name: string): string => name.trim().split(/\s+/)[0] || name;
-
 export const durationText = (days: number): string => `${days} d`;
 export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
 
-/** "21 Aug" för ett ögonblick, dagen i appens tidszon. Månadsnamnen är events formatDayMonth (egna: Intl:s förkortningar skiljer mellan ICU-versioner). */
+/** "21 Aug" för ett ögonblick, dagen i appens tidszon. Månadsnamnen kommer ur shared/utils/format (egna: Intl:s förkortningar skiljer mellan ICU-versioner). */
 export function formatDayMonth(iso: string | null): string | null {
   return iso ? formatCalendarDayMonth(zoneDay(new Date(iso))) : null;
 }

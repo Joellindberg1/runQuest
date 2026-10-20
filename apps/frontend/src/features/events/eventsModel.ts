@@ -1,6 +1,7 @@
 import { prizeForRank, zoneDay, type EventItem } from '@runquest/shared';
+import { formatCountdown } from '@/shared/utils/format';
 import {
-  dateRangeText, dayLabel, formatClock, formatCountdown, formatEventValue, formatMinKm, weekdayOf, windowText,
+  dateRangeText, dayLabel, formatClock, formatEventValue, formatMinKm, weekdayOf, windowText,
 } from './eventsFormat';
 
 // Vymodeller för Events: vad som är öppet, vad som kommer, mitt facit och historikraderna. Rena funktioner — `now` skickas in.
@@ -185,7 +186,7 @@ function buildOpenCard(event: EventItem, now: Date, phase: EventPhase): OpenCard
     name: event.template.name,
     rule: event.template.description,
     chips: openChips(event, mineDone),
-    countdown: settling ? 'Final' : formatCountdown(remaining),
+    countdown: settling ? 'Final' : formatCountdown(remaining, 'coarse'),
     ringLabel: settling ? 'settling soon' : 'left to run',
     ringFraction: settling || total <= 0 ? 0 : Math.min(1, remaining / total),
     doneText: isParticipation && event.memberCount > 0 ? `${takenCount(event)} of ${event.memberCount} done` : null,
@@ -220,7 +221,7 @@ function buildUpNext(event: EventItem, now: Date): UpNextCard {
     rule: template.description,
     facts: facts.join(' · '),
     chips,
-    countdown: formatCountdown(Math.max(0, startMs(event) - now.getTime())),
+    countdown: formatCountdown(Math.max(0, startMs(event) - now.getTime()), 'coarse'),
   };
 }
 

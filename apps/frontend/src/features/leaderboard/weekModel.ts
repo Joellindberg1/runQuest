@@ -1,5 +1,6 @@
 import type { WeekDay, WeekLeaderboardResponse, WeekLeaderboardUser } from '@runquest/shared';
-import { deltaView, formatDecimal, formatInt, type DeltaView } from './boardFormat';
+import { formatInt, formatKm } from '@/shared/utils/format';
+import { deltaView, type DeltaView } from './boardFormat';
 
 // Week-vyns vymodell: /api/leaderboard/week → rader med dagstaplar, mover och pack-total.
 
@@ -59,7 +60,7 @@ export function buildWeekRows(users: WeekLeaderboardUser[]): WeekRow[] {
     name: user.name,
     rank: user.rank,
     form: deltaView(user.rank_delta),
-    km: formatDecimal(user.km),
+    km: formatKm(user.km),
     runs: user.runs,
     runsText: `${user.runs} ${user.runs === 1 ? 'run' : 'runs'}`,
     xp: formatInt(user.xp),
@@ -84,7 +85,7 @@ export function buildMover(week: WeekLeaderboardResponse): MoverView | null {
     id: user.user_id,
     name: user.name,
     places,
-    summary: `Up ${places} ${places === 1 ? 'place' : 'places'} on last week — ${user.runs} ${user.runs === 1 ? 'run' : 'runs'} and ${formatDecimal(user.km)} km so far.`,
+    summary: `Up ${places} ${places === 1 ? 'place' : 'places'} on last week — ${user.runs} ${user.runs === 1 ? 'run' : 'runs'} and ${formatKm(user.km)} km so far.`,
   };
 }
 
@@ -98,7 +99,7 @@ export interface PackTotalView {
 
 export function buildPackTotal(totals: WeekLeaderboardResponse['totals']): PackTotalView {
   return {
-    km: `${formatDecimal(totals.km)} km`,
+    km: `${formatKm(totals.km)} km`,
     summary: `${totals.runs} ${totals.runs === 1 ? 'run' : 'runs'} · ${totals.active_runners} of ${totals.members} runners active`,
     pctOfBest: totals.pct_of_best_week,
     pctText: totals.pct_of_best_week === null ? 'No best week to compare with yet' : `${totals.pct_of_best_week}% of your best week`,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildRightNow, formatRemaining, streakDeadline, type RightNowInput, type ShellEvent } from './rightNowItems';
+import { buildRightNow, streakDeadline, type RightNowInput, type ShellEvent } from './rightNowItems';
 
 // 2026-10-04 20:00 i Stockholm (sommartid, +02:00 till 25 okt) = 18:00 UTC.
 const NOW = new Date('2026-10-04T18:00:00Z');
@@ -11,18 +11,6 @@ const event = (over: Partial<ShellEvent> = {}): ShellEvent => ({
   id: 'e1', kind: 'participation', name: 'Evening run', status: 'active',
   startsAt: '2026-10-04T15:00:00Z', endsAt: new Date(NOW.getTime() + 17 * HOUR).toISOString(),
   rewardXp: 25, done: false, rank: null, entered: true, ...over,
-});
-
-describe('formatRemaining', () => {
-  it.each([
-    [20_000, '<1 m'],
-    [28 * 60_000, '28 m'],
-    [6 * HOUR, '6h'],
-    [30 * HOUR, '1 d'],
-    [72 * HOUR, '3 d'],
-  ])('%d ms → %s', (ms, text) => {
-    expect(formatRemaining(ms)).toBe(text);
-  });
 });
 
 describe('streakDeadline (Stockholm-dagar)', () => {

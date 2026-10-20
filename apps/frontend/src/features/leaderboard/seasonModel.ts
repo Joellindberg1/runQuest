@@ -3,7 +3,8 @@ import { BADGE_SERIES, MAX_DISPLAYED_TITLES, MAX_SHOWCASE, type BadgeGroupMember
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { deltaView, formatDecimal, formatInt, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
+import { formatInt, formatKm } from '@/shared/utils/format';
+import { deltaView, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
 import type { UserTitleEntry } from '@runquest/shared';
 
 // Season-/All-time-vyns vymodell: allt som korten visar, härlett ur users-with-runs + titlar + rank-delta.
@@ -96,12 +97,12 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
         atMax,
       },
       kmTotal: formatInt(user.total_km),
-      longest: formatDecimal(stats.longestRun),
+      longest: formatKm(stats.longestRun),
       runs: stats.numberOfRuns,
-      avgPerRun: formatDecimal(stats.averageKmPerRun),
+      avgPerRun: formatKm(stats.averageKmPerRun),
       perDay: stats.avgXpPer14Days,
       nextLevelDays: !atMax && stats.daysToNextLevel > 0 ? stats.daysToNextLevel : null,
-      lastRun: latest ? { age: formatRunAge(latest, input.now), km: formatDecimal(latest.distance) } : null,
+      lastRun: latest ? { age: formatRunAge(latest, input.now), km: formatKm(latest.distance) } : null,
       tokens,
       tokensLeft: tokens.minor + tokens.major + tokens.legendary,
       showcase: input.badgesByUser?.[user.id] ?? [],

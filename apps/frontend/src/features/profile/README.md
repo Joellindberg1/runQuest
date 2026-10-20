@@ -26,7 +26,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS`
 - **heatmapModel.ts** — Consistency-rutnätet och dess tre siffror
 - **frodoModel.ts** — waypoint-/viewport-matematiken; delas med Runner card
-- **profileFormat.ts** — tal (delas med Log) och egna månadsnamn
+- **profileFormat.ts** — "1 day"/"19 days"; tal, km och månadsnamn ligger i shared/utils/format
 - **hooks/** — `useRunChanges` (`useUpdateRun`/`useDeleteRun`), `useProfilePictureUpload`
 - `profile.css` — enda stilfilen; mått (`--rq-profile-*`) i temafilen, sektion 1.26 (index.css + docs/design/temafil-forslag.css)
 - `profile.fixture.ts` — testdata (rundor, användare)

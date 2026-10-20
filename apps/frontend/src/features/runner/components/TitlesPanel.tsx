@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
+import { firstName } from '@/shared/utils/format';
 import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 import { useRunnerTitles } from '../hooks/useRunnerQueries';
 import { buildTitleRows } from '../runnerModel';
@@ -30,7 +31,7 @@ export function TitlesPanel({ user }: { user: User }) {
   } else if (!rows || boardQuery.isLoading) {
     body = <PanelLoading label="Loading titles" />;
   } else if (rows.held.length === 0 && rows.runnersUp.length === 0) {
-    body = <p className="rq-runner-note">No titles yet — {user.name.split(' ')[0]} is still chasing the first one.</p>;
+    body = <p className="rq-runner-note">No titles yet — {firstName(user.name)} is still chasing the first one.</p>;
   } else {
     body = (
       <>

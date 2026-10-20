@@ -13,7 +13,7 @@ import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
-import { firstName } from '../duelsFormat';
+import { firstName } from '@/shared/utils/format';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
   buildTokenGroups, nameMap, summaryText, tokenTotal,

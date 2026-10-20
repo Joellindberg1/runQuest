@@ -1,6 +1,7 @@
-import { MS_DAY, MS_HOUR, MS_MINUTE, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
+import { MS_DAY, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
+import { formatCountdown } from '@/shared/utils/format';
 
 // "Right now": det som tickar just nu (streak-deadline, event, duell, Strava-sync).
 // Ren logik — datahämtningen ligger i useRightNow, så allt här går att testa med en fast `now`.
@@ -57,14 +58,6 @@ const METRIC_LABELS: Record<ShellDuel['metric'], string> = {
   total_xp: 'Most XP',
 };
 
-/** "28 m", "6h", "3 d" — grov enhet räcker, raden uppdateras varje minut. */
-export function formatRemaining(ms: number): string {
-  if (ms < MS_MINUTE) return '<1 m';
-  if (ms < MS_HOUR) return `${Math.floor(ms / MS_MINUTE)} m`;
-  if (ms < MS_DAY) return `${Math.floor(ms / MS_HOUR)}h`;
-  return `${Math.floor(ms / MS_DAY)} d`;
-}
-
 /**
  * Tid kvar tills streaken bryts (Stockholm-dagar, som backend). Senaste rundan idag → deadline
  * är slutet på morgondagen; igår → slutet på idag; äldre → streaken är redan bruten (null).
@@ -92,7 +85,7 @@ function streakItem(input: RightNowInput): RightNowItem | null {
     kind: 'streak',
     label: 'Streak',
     note: `${streak.current}-day streak`,
-    value: `${formatRemaining(deadline.msLeft)} left`,
+    value: `${formatCountdown(deadline.msLeft, 'pill')} left`,
     tone: deadline.ranToday ? 'up' : 'down',
     icon: 'flame',
     to: paths.log,
@@ -110,10 +103,10 @@ function eventItems(input: RightNowInput): RightNowItem[] {
       const value = event.done
         ? 'Done'
         : scheduled
-          ? `in ${formatRemaining(Math.max(0, startsMs - nowMs))}`
+          ? `in ${formatCountdown(Math.max(0, startsMs - nowMs), 'pill')}`
           : endsMs <= nowMs
             ? 'Settling' // tävling efter slutdatum, väntar på söndagens avräkning (som Events-skärmen)
-            : formatRemaining(endsMs - nowMs);
+            : formatCountdown(endsMs - nowMs, 'pill');
       const note = event.kind === 'participation'
         ? (event.done ? 'Completed' : `+${event.rewardXp} XP`)
         : (event.rank ? `#${event.rank} in the pack` : event.entered ? 'Weekly competition' : 'Not entered');
@@ -159,7 +152,7 @@ function duelItem(input: RightNowInput): RightNowItem | null {
     kind: 'duel',
     label: METRIC_LABELS[duel.metric],
     note: `vs ${duel.opponentName}`,
-    value: pending ? `in ${formatRemaining(startMs - nowMs)}` : formatRemaining(Math.max(0, endMs - nowMs)),
+    value: pending ? `in ${formatCountdown(startMs - nowMs, 'pill')}` : formatCountdown(Math.max(0, endMs - nowMs), 'pill'),
     tone: 'duel',
     icon: 'swords',
     to: paths.duels,

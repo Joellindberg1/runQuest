@@ -1,5 +1,5 @@
 import { MULTIPLIER_MAX, MULTIPLIER_MIN, isValidMultiplier } from '@runquest/shared';
-import { formatInt } from '@/features/log/logFormat';
+import { formatInt } from '@/shared/utils/format';
 import type { AdminUser } from '@runquest/shared';
 import type { AdminSettingsForm } from './hooks/useAdminData';
 

@@ -4,7 +4,7 @@ import {
 } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { deltaView, type DeltaView } from '@/features/leaderboard/boardFormat';
-import { formatInt } from '@/features/log/logFormat';
+import { firstName, formatInt, formatTimes } from '@/shared/utils/format';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // Landingens vymodell. Exempelflocken är påhittad (features/leaderboard/previewUsers) och spelreglerna läses ur shared; de enda
@@ -96,7 +96,7 @@ export function buildPreviewRows(users: User[], rankDeltaByUser: Record<string, 
       id: user.id,
       rank,
       tone: toneOf(rank),
-      name: user.name.split(' ')[0],
+      name: firstName(user.name),
       xp: formatInt(user.total_xp),
       pct: topXp > 0 ? Math.round((user.total_xp / topXp) * 100) : 0,
       delay: `${(rank * STAGGER_SECONDS).toFixed(1)}s`,
@@ -153,7 +153,7 @@ export function buildHowItWorks(
       num: '03',
       title: 'Keep the streak',
       body: first && top
-        ? `Run on consecutive days and a multiplier kicks in from day ${first.days} (×${first.multiplier.toFixed(1)}), climbing to ×${top.multiplier.toFixed(1)} at day ${top.days}. Miss a day and it starts over.`
+        ? `Run on consecutive days and a multiplier kicks in from day ${first.days} (${formatTimes(first.multiplier)}), climbing to ${formatTimes(top.multiplier)} at day ${top.days}. Miss a day and it starts over.`
         : 'Run on consecutive days and your XP multiplier grows. Miss a day and it starts over.',
     },
     { num: '04', title: 'Take the title', body: 'Longest run, longest streak, most km. Titles change hands the moment someone beats you.' },

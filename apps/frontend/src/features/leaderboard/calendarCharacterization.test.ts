@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Run } from '@runquest/types';
 import { daysBetween, stockholmClock } from '@runquest/shared';
-import { formatCountdown } from '@/features/events/eventsFormat';
+import { formatCountdown } from '@/shared/utils/format';
 import { formatAgo } from '@/features/news/newsModel';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { isoWeekNumber } from './boardFormat';
 
 // RUN-218 T2 — karaktärisering av frontendens datumkopior (boardFormat, newsModel, rightNowItems, leaderboardUtils) INNAN
 // de ersattes av packages/shared/src/calendar.ts. Samma tabeller som i shared/backend ska ge samma svar här.
@@ -28,15 +27,6 @@ describe('daysBetween (boardFormat)', () => {
 
   it('ogiltig indata ger NaN', () => {
     expect(daysBetween('x', 'y')).toBeNaN();
-  });
-});
-
-describe('isoWeekNumber (boardFormat)', () => {
-  it.each([
-    ['2026-01-01', 1], ['2026-01-04', 1], ['2026-01-05', 2], ['2025-12-29', 1], ['2024-12-30', 1], ['2027-01-03', 53],
-    ['2026-12-31', 53], ['2021-01-03', 53], ['2021-01-04', 1], ['2026-03-29', 13], ['2026-10-25', 43], ['2026-10-26', 44],
-  ])('%s är vecka %i', (day, week) => {
-    expect(isoWeekNumber(day)).toBe(week);
   });
 });
 
@@ -74,14 +64,14 @@ describe('formatAgo (newsModel) — dagräkning och dygnsgränser i Stockholm-ti
   });
 });
 
-describe('formatCountdown (eventsFormat) — dygnsgränsen', () => {
+describe('formatCountdown (coarse) — dygnsgränsen', () => {
   it.each([
     [86_399_999, '23h 59m'],
     [86_400_000, '1d 0h'],
     [90_000_000, '1d 1h'],
     [3 * 86_400_000 + 4 * 3_600_000, '3d 4h'],
   ])('%d ms -> %s', (ms, text) => {
-    expect(formatCountdown(ms)).toBe(text);
+    expect(formatCountdown(ms, 'coarse')).toBe(text);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boostText, durationLongText, firstName, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, metricLabel, metricUnit,
+  boostText, durationLongText, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, metricLabel, metricUnit,
   stakeOf, startsInText, tierLabel, timeLeft,
 } from './duelsFormat';
 import { NOW } from './duels.fixture';
@@ -14,11 +14,11 @@ describe('mått och nivåer', () => {
     expect(tierLabel('legendary')).toBe('Legendary');
   });
 
-  it('värden: km med en decimal, runs och XP som heltal i en-GB', () => {
+  it('värden: km med en decimal, runs och XP som heltal med tusentalsmellanrum', () => {
     expect(formatMetricValue('km', 38.44)).toBe('38.4');
     expect(formatMetricValue('km', 5)).toBe('5.0');
     expect(formatMetricValue('runs', 5)).toBe('5');
-    expect(formatMetricValue('total_xp', 1820.4)).toBe('1,820');
+    expect(formatMetricValue('total_xp', 1820.4)).toBe('1 820');
     expect(formatMetricValue('km', null)).toBe('—');
   });
 
@@ -29,9 +29,7 @@ describe('mått och nivåer', () => {
     expect(formatMetricWithUnit('total_xp', 214)).toBe('214 XP');
   });
 
-  it('förnamn och längd', () => {
-    expect(firstName('Daniel Lindblad Lüthje')).toBe('Daniel');
-    expect(firstName('  Karl  ')).toBe('Karl');
+  it('längd', () => {
     expect(durationLongText(1)).toBe('1 day');
     expect(durationLongText(7)).toBe('7 days');
   });

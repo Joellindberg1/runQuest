@@ -190,9 +190,13 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - Feature-CSS i huvudbunten laddas före index.css (main.tsx-importordningen); de lazy-laddade sidornas CSS (Playbook, Settings, Admin, Features) laddas EFTER. Tailwind 3:s `@layer` blir vanlig CSS i bygget, så ordningen avgör vid lika specificitet — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
-- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
-  nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
-  använder en-GB och är stabil i test men kan skilja mellan miljöer).
+- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU — datumformat använder egna månadsnamn (`MONTHS_SHORT`/`formatDayMonth` i
+  `shared/utils/format`). Sedan formatmodulen samlades finns inget `Intl`/`toLocale*`-anrop kvar i frontendens features; lint (`rq/design-syntax`) och
+  en regel för `format.ts` håller det så.
+- Formatmodulen (`shared/utils/format.ts`): tusentalsavgränsaren är det svenska "1 240" (U+00A0) överallt, även i Events och Duels (ägarbeslut). Antagande: samma
+  mellanrum gäller heltalsdelen av km (`formatKm(1240.5)` = "1 240.5", punkt kvar som decimaltecken), så att XP och km på samma skärm skrivs likadant; det syns
+  först vid 1 000 km eller mer (Runner/Board totalsiffror, Titles). Dagens skilda "tid sedan"- och nedräkningstexter är oförändrade men namngivna stilar
+  (`formatAgo`: spelled, compact, feed, feed-long; `formatCountdown`: hms, hm, coarse, pill). Vill ägaren ha en enhetlig stil är det en separat designfråga.
 - Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
   Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
   gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:

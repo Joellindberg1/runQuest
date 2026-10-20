@@ -2,7 +2,7 @@ import type { User } from '@runquest/types';
 import { MANUAL_RUN_MIN_DISTANCE_KM, MAX_LEVEL, calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
 import { nextCheckpointInfo } from '@/features/profile/frodoModel';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { formatInt, formatKm, formatTimes } from './logFormat';
+import { firstName, formatInt, formatKm, formatTimes } from '@/shared/utils/format';
 import { streakOutlook, validateDate, type StreakOutlook } from './logModel';
 
 // Estimated XP och "What this run does": shared-formeln (`calculateCompleteRunXP`, ADR 004) över XP-konfigen från
@@ -54,7 +54,6 @@ export interface PreviewInput {
 }
 
 const DASH = '—';
-const firstName = (name: string): string => name.split(' ')[0] ?? name;
 
 function breakdownRows(input: PreviewInput, outlook: StreakOutlook): { rows: BreakdownRow[]; totalXp: number | null } {
   const { km, rules } = input;

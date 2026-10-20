@@ -5,7 +5,7 @@ import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { getInitials } from '@/shared/utils/formatters';
 import { useProfilePictureUpload } from '../hooks/useProfilePictureUpload';
-import { formatInt } from '../profileFormat';
+import { formatInt } from '@/shared/utils/format';
 import { xpToNextText, type RunnerHero, type StatCell } from '../profileModel';
 
 /** Profilbilden: avatar + "Change photo". Uppladdningen (bild, högst 5 MB) bekräftas i en permanent live-region. */

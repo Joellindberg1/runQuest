@@ -1,7 +1,7 @@
 import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
-import { formatDay, formatInt, formatKm, formatMultiplier } from './profileFormat';
+import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
 import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
@@ -135,11 +135,11 @@ export const STRAVA_DELETE_HINT = 'Strava runs come back from Strava — delete 
 
 /** Bekräftelsen efter en sparad ändring — siffrorna är serverns (rundan efter omräkningen). */
 export function updateNotice(run: Pick<Run, 'date' | 'distance' | 'xp_gained'>): string {
-  return `Run updated: ${formatKm(Number(run.distance))} km on ${formatDay(run.date)} for ${formatInt(run.xp_gained)} XP. Your streak and XP are recalculated from that day on.`;
+  return `Run updated: ${formatKm(Number(run.distance))} km on ${formatDayMonth(run.date)} for ${formatInt(run.xp_gained)} XP. Your streak and XP are recalculated from that day on.`;
 }
 
 export function deleteNotice(run: Pick<Run, 'date' | 'distance'>): string {
-  return `Run deleted: ${formatKm(run.distance)} km on ${formatDay(run.date)}. Your streak and XP are recalculated from that day on.`;
+  return `Run deleted: ${formatKm(run.distance)} km on ${formatDayMonth(run.date)}. Your streak and XP are recalculated from that day on.`;
 }
 
 /** Uppräkningen som visas i redigeringsrutan: vad rundan gav senast servern räknade. */
