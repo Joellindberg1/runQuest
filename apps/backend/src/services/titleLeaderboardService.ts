@@ -2,7 +2,7 @@ import { supabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 import { rebuildGroupTitleRanking } from './groupRanking.js';
-import type { TitleLeaderboardEntry, TitleRunnerUp, TitleStanding, UserTitleEntry, UserTitleStatus } from '@runquest/shared';
+import type { TitleCatalogEntry, TitleLeaderboardEntry, TitleRunnerUp, TitleStanding, UserTitleEntry, UserTitleStatus } from '@runquest/shared';
 
 // Felhantering, en felhändelse per fel: metoderna här kastar ett fel med databasens kod (errorWithCode) och loggar inte det de kastar.
 // Den som FÅNGAR loggar, en gång: rutten i routes/titles.ts, eller anroparen i tjänsterna. Det som sväljs här (getUserTitles) loggas här.
@@ -216,7 +216,7 @@ export class TitleLeaderboardService {
    * Simple fetch of all available titles. Kolumnerna är uttryckliga (inte select *), så att svarsformen inte hänger på schemat:
    * de två frusna, globala innehavarkolumnerna (släppta i migration 058) läcker inte längre ut.
    */
-  async getAllTitles(): Promise<any[]> {
+  async getAllTitles(): Promise<TitleCatalogEntry[]> {
     logger.info('🏆 Fetching all titles...');
 
     const { data, error } = await supabase.client
