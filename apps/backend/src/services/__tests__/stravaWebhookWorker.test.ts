@@ -1266,14 +1266,15 @@ describe('critical alerts in sentry', () => {
 
   it('a dead deletion says in the Sentry message that the deletion was not completed, without any Strava id', async () => {
     const { store, worker } = setup(async () => done('noop'));
-    store.seed({ received_at: overdue(), object_type: 'athlete', aspect_type: 'update', object_id: 31337, owner_id: 5001 });
+    store.seed({ received_at: overdue(), object_type: 'athlete', aspect_type: 'update', object_id: 31337004217, owner_id: 50019873301 });
 
     await worker.drain();
     const [event] = await sentry.flush();
+    // Långa id: ett kort id som '5001' kan stå i Sentrys slumpade event_id (hex) och fälla testet av en slump.
 
     expect(event.message).toMatch(/deletion not completed/i);
-    expect(JSON.stringify(event)).not.toContain('31337');
-    expect(JSON.stringify(event)).not.toContain('5001');
+    expect(JSON.stringify(event)).not.toContain('31337004217');
+    expect(JSON.stringify(event)).not.toContain('50019873301');
   });
 
   it('a dead event whose status could not be written sends no critical alert', async () => {
