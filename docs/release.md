@@ -171,25 +171,63 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
 - **Rapporten:** artefakten `lighthouse-reports` (14 dygn) innehåller `error/` och `mock/` med HTML- och JSON-rapport per körning.
   Jobbets sammanfattning (Summary-fliken) visar medianen per sida i en tabell, också när budgeten hålls, så att man ser hur långt
   under taket sidorna ligger.
-- **Budgeten** står i `scripts/lighthouse/lighthouserc.json` (gäller båda sidorna):
+- **Budgeten** står i `scripts/lighthouse/lighthouserc.json` som `assertMatrix` med en regelrad per sida (RUN-334, S7): `/` har egna, skarpa rader och
+  `/legal` egna rader. lhci prövar medianen av de tre körningarna per sida (`aggregationMethod: median` i varje rad). En sida som ingen rad
+  matchar prövas inte alls, så `scripts/lighthouse-ci.test.mjs` kräver exakt en regelrad per mätt URL. Felraderna (`::warning::`/`::error::`)
+  anger sida, rad, uppmätt värde och gräns, också per sida (`summarize.mjs --failures` läser `assertion-results.json`).
 
-  | Mått | Gräns | Utgångsvärde kommer från |
-  |---|---|---|
-  | Prestanda (poäng) | minst 0,75 | RUN-212, prod: 85. Lokalt `/` 0,80–0,81 (knappt 5 poängs marginal) och `/legal` 0,91–0,92 (ca 16 poäng) |
-  | Tillgänglighet / SEO | minst 0,95 | RUN-212, prod: 100 |
-  | Best practices | minst 0,90 | RUN-212, prod: 100; lokalt 96 när API:et ger fel (konsolfelet från anslutningen) |
-  | LCP | högst 5 000 ms | lokalt `/` ca 4,36 s (4,32–4,44), alltså ca 0,64 s (ca 13 %) under taket; `/legal` ca 2,9 s. Prod i RUN-212: 3,5 s (lokalt mäts ca 0,9 s högre) |
-  | CLS | högst 0,05 | RUN-212, prod: 0 (lokalt högst 0,018 när API:et ger fel) |
-  | TBT | högst 200 ms | RUN-212, prod: 0 ms; 200 ms är Googles gräns för "bra" |
-  | JS (överförd storlek) | högst 275 kB | lokal körning: 237 kB, ca 15 % marginal (RUN-212 mätte inte vikt) |
-  | CSS (överförd storlek) | högst 50 kB | lokal körning: 42 kB, ca 18 % marginal |
-  | Totalvikt | högst 500 kB | lokal körning: 428 kB (`/`), 303 kB (`/legal`), ca 17 % marginal |
+  **`/` (den förrenderade landningen).** Taken sattes 2026-10-20 enligt ADR 006, punkt 10, ur CI-körningarna efter RUN-343 (Linux, Chrome, jobbet
+  `Lighthouse — prestandabudget`, 6 körningar per sida och läge, båda lägena: API ger fel / falskt API). "CI-median" är den högsta av de två lägenas
+  medianer, "sämsta körning" den sämsta enskilda körningen av alla 12 (en jobbmedian är det lhci prövar, se anmärkningarna under tabellen).
 
-  **Baslinjen är mätt på en Windows-dator med Microsoft Edge** (Lighthouse 12.6.1, medianen av 3), inte på GitHub-runnern
-  (Linux, Chrome): RUN-212 noterade bara prod-poäng, FCP, LCP, TBT och CLS, inte vikter, och en körning på prod ger andra
-  tider än en lokal. Överförda vikter är i princip oberoende av maskinen, men poäng och tider är det inte. **Kalibreringen mot
-  CI-körningarnas siffror måste göras under den icke-blockerande veckan, före omslaget till blockerande** (nedan): ligger en ren
-  `main` nära eller över ett tak på runnern justeras det först då, med ägarens ok om det lättas.
+  | Rad | Förut | Nu | CI-median | Sämsta körning | Marginal mot sämsta körning |
+  |---|---|---|---|---|---|
+  | Prestanda (poäng) | minst 0,75 | **minst 0,90** | 0,99 | 0,78 (ensam körning, TBT 839 ms) | 0,09 mot sämsta jobbmedian (0,99); under 0,90 i den ensamma körningen |
+  | Tillgänglighet / SEO | minst 0,95 | minst 0,95 (oförändrat) | 1 | 1 | 0,05 |
+  | Best practices | minst 0,90 | minst 0,90 (oförändrat) | 0,96 (API ger fel) / 1 | 0,96 | 0,06 |
+  | LCP | högst 5 000 ms | **högst 2 500 ms** | 1 959 / 1 960 ms | 2 106 ms | 394 ms (15,8 %) |
+  | FCP (ny rad) | saknades | **högst 1 950 ms** | 1 507 / 1 511 ms | 1 656 ms | 294 ms (15,1 %) |
+  | CLS | högst 0,05 | **högst 0,02** | 0,0002 | 0,0002 | 0,0198 |
+  | TBT | högst 200 ms | **högst 150 ms** | 29 / 26 ms | 839 ms (ensam körning); sämsta jobbmedian 30 ms | 120 ms mot sämsta jobbmedian |
+  | JS (överförd storlek) | högst 275 kB | **högst 150 kB** | 127 553 B | 127 553 B | 22 447 B (15,0 %) |
+  | CSS (överförd storlek) | högst 50 kB | **högst 30 kB** | 23 338 B | 23 338 B | 6 662 B (22,2 %) |
+  | Totalvikt | högst 500 kB | **högst 355 kB** | 304 866 / 305 135 B | 305 135 B | 49 865 B (14,0 %) |
+
+  Hur taken räknades (ADR 006, punkt 10): LCP-taket blev målet 2 500 ms eftersom medianen (1 960 ms) ligger under 2 250 ms; prestanda
+  `min(0,90; median − 0,03)`; JS uppmätt × 1,15 uppåt till 5 kB; TBT 150 ms eftersom medianen är under 100 ms; CLS 0,02 eftersom medianen är
+  under 0,01; FCP uppmätt × 1,15 uppåt till 50 ms, räknat på den högsta jobbmedianen (1 655 ms, FCP hoppar i steg om ca 150 ms mellan 1 505
+  och 1 655 ms), inte på medianen av alla körningar, som annars hade gett för liten marginal. CSS och totalvikt följer samma regel som JS
+  (× 1,15 uppåt till 5 kB): ADR:n nämner dem inte, men 50 kB för en sida på 23 kB hade låtit stilmallarna fördubblas obemärkt.
+
+  Anmärkningar: (1) *Sämsta körning* räknar den ensamma körningen. lhci prövar medianen av tre, så en enstaka avvikare (prestanda 0,78 och TBT
+  839 ms förekom en gång i 12 körningar efter RUN-343; före RUN-343 sågs TBT 1 748 ms i en av 36) fäller inget; två avvikare i samma jobb
+  hade gjort det. Den sämsta *jobbmedianen* (en jobbmedian är medianen av ett jobbs tre körningar) är det taken prövas mot, och marginalerna
+  mot den är minst de ovan. (2) Tillgänglighet och SEO är 1 och best practices 0,96 respektive 1; ADR:n lämnar dem oförändrade.
+  (3) Uppspelning: CI-körningarnas rapporter kördes mot den nya `lighthouserc.json` med lhci:s egen `assert`. De fyra jobb och lägen efter
+  RUN-343 klarar alla rader; de tolv före RUN-343 (landningen utan uppskjuten ingång) fäller `/` på LCP, FCP och CLS, och `/legal`-raderna klaras i alla sexton.
+
+  **`/legal`** (fullappens `index.html` med laddningsvyn; delar inte landningens vikt) behåller dagens rader, utom LCP som skärps:
+
+  | Rad | Förut | Nu | CI-median | Sämsta körning | Marginal mot sämsta körning |
+  |---|---|---|---|---|---|
+  | Prestanda (poäng) | minst 0,75 | minst 0,75 (oförändrat) | 0,89 | 0,89 | 0,14 |
+  | Tillgänglighet / SEO / best practices | minst 0,95 / 0,95 / 0,90 | oförändrat | 1 | 1 | 0,05 / 0,05 / 0,10 |
+  | LCP | högst 5 000 ms | **högst 3 600 ms** | 3 208 / 3 210 ms | 3 225 ms (före RUN-343: 3 225; efter: 3 215) | 375 ms (10,4 %) |
+  | CLS | högst 0,05 | högst 0,05 (oförändrat) | 0 | 0 | 0,05 |
+  | TBT | högst 200 ms | högst 200 ms (oförändrat) | 1 / 3 ms | 46 ms | 154 ms |
+  | JS | högst 275 kB | högst 275 kB (oförändrat) | 232 577 B | 232 664 B | 42 336 B |
+  | CSS | högst 50 kB | högst 50 kB (oförändrat) | 41 101 B | 41 101 B | 8 899 B |
+  | Totalvikt | högst 500 kB | högst 500 kB (oförändrat) | 312 964 B | 313 052 B | 186 948 B |
+
+  `/legal`-LCP-taket är uppmätt × 1,1 uppåt till 100 ms (3 210 × 1,1 = 3 531 → 3 600 ms), alltså lägre än 5 000 och därmed en skärpning. Målet
+  2 500 ms gäller inte `/legal`: LCP ca 3,2 s ligger över det och är en öppen rad i `docs/performance.md`. Att dela raderna per URL lättar
+  ingenting för `/legal`: alla dess rader är lika med eller strängare än förut.
+
+  **Hur nivåerna kom till.** Första budgeten (RUN-259) mättes lokalt på Windows/Edge: prestanda 0,75 (RUN-212, prod: 85; lokalt `/` 0,80–0,81),
+  tillgänglighet/SEO 0,95 och best practices 0,90 (RUN-212, prod: 100), LCP 5 000 ms (lokalt `/` ca 4,36 s; prod i RUN-212: 3,5 s), CLS 0,05,
+  TBT 200 ms (Googles gräns för "bra") och vikterna 275/50/500 kB (lokalt 237/42/428 kB). Den lokala baslinjen är inte CI-runnerns
+  (Linux, Chrome): poäng och tider skiljer, överförda vikter i princip inte. Kalibreringen mot CI-körningarna gjordes i S7 (RUN-334, ovan);
+  omslaget till blockerande (nedan) är ett eget steg som inte ingår i S7.
 - **Budgeten får aldrig sänkas utan ägarens ok.** "Sänkas" betyder att kravet lättas: en lägre minpoäng, ett högre tak för
   LCP/CLS/TBT/vikt, en borttagen rad eller en sida som tas ur mätningen. Att skärpa budgeten (högre minpoäng, lägre tak) kräver
   inget ok och är önskvärt när CI-värdena visar utrymme. Budgeten är dessutom fäst i `scripts/lighthouse-ci.test.mjs` (golv och

@@ -430,3 +430,49 @@ Mätt 2026-10-20 i CI-jobbet `Lighthouse — prestandabudget` (Linux, Chrome, `r
 | `/legal` efter, falskt API | 0,89 | 3 210 [3 058–3 215] | 2 704 | 0 | 3 |
 
 **Målet nås i CI:** mobil-LCP på `/` 1 959–1 960 ms (−899 ms), 540 ms under 2 500 ms, i båda lägena. CLS på `/` i CI var 0,0205 före (över lokalt, Linux-typsnittsbyte) och är 0,0002 efter. `/legal` är oförändrad (≈ 3,2 s i CI). Lokalt och i CI ger samma LCP på `/` (1 956 mot 1 959 ms) men inte på `/legal` (3,0 mot 3,2 s).
+
+
+## Lighthouse-budgeten skärpt efter mätningen (RUN-334, S7)
+
+ADR 006, punkt 10: taken för landningen sattes ur CI-körningarna efter RUN-343 (Linux, Chrome, jobbet `Lighthouse — prestandabudget`, `run.sh` oförändrat, 3 körningar per jobb). Underlag: två jobb efter RUN-343, alltså **6 körningar per sida och läge** (fler än de fem som ADR:n kräver), i båda lägena (API ger fel / falskt API), och sex jobb före RUN-343 (18 körningar per sida och läge) som jämförelse. Raderna, de gamla och nya taken, CI-medianen, den sämsta körningen och marginalen per rad står i `docs/release.md` ("Lighthouse-budget"); här står resultatet och det som är öppet. `lighthouserc.json` har nu `assertMatrix` med egna rader för `/` och `/legal`.
+
+### Medianer i CI (efter RUN-343, 6 körningar per läge)
+
+| Sida, läge | Perf | LCP (ms) [min–max] | FCP (ms) [min–max] | CLS | TBT (ms) [max] | JS (B) | CSS (B) | Totalt (B) |
+|---|---|---|---|---|---|---|---|---|
+| `/`, API ger fel | 0,99 | 1 959 [1 956–2 106] | 1 507 [1 505–1 656] | 0,0002 | 29 [839] | 127 553 | 23 338 | 304 866 |
+| `/`, falskt API | 0,99 | 1 960 [1 957–2 104] | 1 511 [1 504–1 655] | 0,0002 | 26 [30] | 127 553 | 23 338 | 305 135 |
+| `/legal`, API ger fel | 0,89 | 3 208 [3 058–3 214] | 2 704 | 0 | 1 [7] | 232 577 | 41 101 | 312 964 |
+| `/legal`, falskt API | 0,89 | 3 210 [3 058–3 215] | 2 704 | 0 | 3 [22] | 232 577 | 41 101 | 312 964 |
+
+- **Målet 2 500 ms nåddes på `/`** (medianen 1 960 ms ligger under 2 250 ms, som ADR:n kräver för att målet ska bli taket). Det finns därför ingen öppen rad för `/` mot RUN-260:s mål. Taket är 2 500 ms och den sämsta enskilda körningen (2 106 ms) har 394 ms marginal.
+- **FCP** hoppar i steg om ca 150 ms (1 505 ms eller 1 655 ms; ett jobb i läget falskt API hade medianen 1 655 ms). Därför räknades FCP-taket (1 950 ms) på den högsta jobbmedianen och inte på medianen av alla körningar, som hade gett 1 750 ms och bara 94 ms marginal mot den sämsta körningen.
+- **Före RUN-343** låg `/` på LCP 2 857–2 858 ms, FCP 2 555 ms, CLS 0,0205 och prestanda 0,915–0,92 i CI. De nya raderna hade fällt de tolv jobb som mättes då på LCP, FCP och CLS, och släpper igenom de fyra efter. Det är uppspelat med lhci:s egen `assert` mot de sparade rapporterna, inte bara räknat för hand.
+
+### `/legal` före och efter laddningsvyn i `index.html`
+
+| Mätning | Prestanda | LCP | FCP |
+|---|---|---|---|
+| Före laddningsvyn, S1 (lokalt, Windows/Edge, median av 3) | 0,91–0,92 | 2 909 / 2 961 ms | anges inte i S1 |
+| Efter laddningsvyn, S6 (lokalt, samma maskin) | 0,89 | 3 069 / 3 053 ms | 2 856 / 2 855 ms |
+| Efter laddningsvyn, CI före RUN-343 (18 körningar, median) | 0,89 | 3 197 / 3 202 ms | 2 703 ms |
+| Efter laddningsvyn, CI efter RUN-343 (6 körningar, median) | 0,89 | 3 208 / 3 210 ms | 2 704 ms |
+
+- Det finns **ingen CI-mätning före laddningsvyn**: den kom med v0.8.0 (e3dbc015) samtidigt som Lighthouse-jobbet, så den enda mätningen utan laddningsvyn är den lokala från S1. Lokalt ökade LCP med ca 0,1–0,16 s; CI-skillnaden före/efter RUN-343 (11 ms) är mätbrus, `/legal` rördes inte av RUN-343.
+- `/legal` behåller alla sina rader utom LCP. Taket sänks från 5 000 till 3 600 ms (uppmätt 3 210 × 1,1 = 3 531, uppåt till 100 ms), 375 ms över den sämsta enskilda körningen (3 225 ms). Det är en skärpning, inte en lättnad.
+
+### Planterade regressioner (lokalt, `LIGHTHOUSE_BLOCKING=true`, bara 127.0.0.1)
+
+- *`landing.html` borttagen ur en kopia av `dist`:* `run.sh` avslutar med 1 och säger att `landing.html` saknas innan något mäts (provet finns också i `lighthouse-ci.test.mjs`, i båda lägena av flaggan). I jobbet fäller det PR:en först när `LIGHTHOUSE_BLOCKING` är `'true'`.
+- *200 kB oförpackbar JS tillagd i `landing.html`:* `/` fick JS 237 kB och totalt 414 kB, LCP 2 613 ms. `run.sh` avslutade med 1 och skrev tre anteckningar, bara för `/` (`/legal` med samma 233 kB JS klarar sitt tak 275 kB): `/ largest-contentful-paint … found 2612.924, expected <= 2500`, `/ resource-summary.script.size … found 237076, expected <= 150000`, `/ resource-summary.total.size … found 413823, expected <= 355000`. Med den gamla budgeten (275 kB / 500 kB / 5 000 ms) hade den regressionen gått igenom.
+
+### Öppna rader
+
+- **`/legal` LCP ca 3,2 s i CI ligger över 2,5 s.** Det är inte målet i S7 (`/legal` serveras av fullappens `index.html` och delar inte landningens vikt), men det är öppet: `/legal` och övriga sidor som serveras av `index.html` är inte åtgärdade (samma rad som i RUN-343:s "Öppna rader"). Taket 3 600 ms är ett golv under det som uppmättes, inte ett mål.
+- **Enstaka avvikare i TBT och prestanda.** En av 12 körningar av `/` efter RUN-343 (läget API ger fel) hade TBT 839 ms och prestanda 0,78; före RUN-343 sågs 1 748 ms i en av 36. lhci prövar medianen av tre körningar, så en avvikare fäller inget, men två i samma jobb gör det (prestandagolvet 0,90 och TBT-taket 150 ms). Ett jobb före RUN-343 hade TBT-medianen 128 ms. **Innan jobbet slås om till blockerande:** överväg `numberOfRuns: 5` (medianen av fem tål två avvikare); det kostar ca 2/3 mer körtid i jobbet och ändrar `lighthouse-ci.test.mjs`, så det är ett eget beslut och ingår inte här.
+- **Omslaget till blockerande** (`LIGHTHOUSE_BLOCKING` i `ci.yml`) är orört: det är ett eget steg med egen rutin i `docs/release.md`.
+- **CSS- och totalraderna på `/`** (30 kB och 355 kB) följer samma regel som JS-raden (× 1,15 uppåt till 5 kB). ADR:n nämner bara JS; ägaren eller Lead kan lätta tillbaka dem mot 50/500 kB, men det är då en lättnad som kräver ägarens ok.
+
+### Verktygstestet gjordes robust
+
+`scripts/lighthouse-ci.test.mjs` ("run.sh when a served page cannot be fetched") föll en gång under last och på "något svarar redan på port 3001" när en annan process höll API-porten. Orsaken var fasta portar (API 3001, Caddy 18090) och korta gränser i `run.sh` (portkoll 1 s, 50 försök mot `/health`). Testet tar nu lediga portar (`API_PORT`, nya `SERVE_PORT`), fler försök (`CADDY_WAIT_TRIES`), en rymlig portkoll i det upptagna-porten-testet (`PORT_PROBE_SECONDS`) och en timeout på `spawnSync`; standardvärdena i `run.sh` är oförändrade och CI sätter inga av dem. Provat: porten 3001 upptagen (före: 2 av 2 röda; efter: gröna), 20 körningar i följd (20/20 gröna, 5,3–5,5 s) och 8 körningar under egen CPU-last (32 räkneprocesser på 16 kärnor, 51–83 s per körning, 8/8 gröna).
