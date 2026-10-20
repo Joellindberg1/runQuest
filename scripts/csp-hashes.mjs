@@ -37,6 +37,16 @@ const STYLE_SOURCES = ["'self'", "'unsafe-inline'"];
 // Skripttyper som webbläsaren aldrig kör (datablock); CSP gäller dem inte.
 const DATA_SCRIPT_TYPE = /\btype\s*=\s*["']?(application\/(ld\+)?json|importmap|speculationrules|text\/template)/i;
 
+/**
+ * Värdjokern som täcker hela toppdomäner eller alla värdar: `https://*`, `*:443` och `https://*.com`. En jokeretikett är bara godtagbar under en namngiven domän,
+ * alltså minst två etiketter efter `*.` (`https://*.ingest.de.sentry.io`).
+ */
+function isBroadHostWildcard(token) {
+  const host = token.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/[/:].*$/, '');
+  if (host === '*') return true;
+  return host.startsWith('*.') && host.slice(2).split('.').filter(Boolean).length < 2;
+}
+
 /** Hashen som CSP räknar: sha256 över elementets text, med radbrytningar normaliserade som HTML-tolkaren gör (CRLF och CR blir LF). */
 export function hashOf(text) {
   const normalised = text.replace(/\r\n?/g, '\n');
@@ -59,6 +69,8 @@ export function parseCsp(value) {
   const directives = new Map();
   for (const part of value.split(';')) {
     const tokens = part.trim().split(/\s+/).filter(Boolean);
+    // Direktivnamn är skiftlägesokänsliga i webbläsaren; källorna rörs inte (hashar är skiftlägeskänsliga).
+    if (tokens.length > 0) tokens[0] = tokens[0].toLowerCase();
     // Upprepat direktiv: webbläsaren använder det första och ignorerar resten.
     if (tokens.length > 0 && !directives.has(tokens[0])) directives.set(tokens[0], tokens.slice(1));
   }
@@ -98,7 +110,7 @@ export function checkCsp({ csp, pages }) {
   // Ett jokertecken eller ett bart schema ('https:') öppnar för vilken värd som helst; värdarna ska listas.
   for (const directive of HOST_LIST_DIRECTIVES) {
     for (const token of directives.get(directive) ?? []) {
-      if (token === '*' || BARE_SCHEME.test(token)) problems.push(`${directive} must not contain ${token}: list the hosts instead`);
+      if (token === '*' || BARE_SCHEME.test(token) || isBroadHostWildcard(token)) problems.push(`${directive} must not contain ${token}: list the hosts instead`);
     }
   }
   for (const token of scriptSources) {

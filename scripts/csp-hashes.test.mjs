@@ -123,6 +123,30 @@ describe('checkCsp', () => {
     assert.deepEqual(checkCsp({ csp: policy({ scripts: [script] }), pages }), []); // https://*.ingest.de.sentry.io i POLICY_BASE
   });
 
+  it('reads directive names case-insensitively, as browsers do', () => {
+    const elem = `${POLICY_BASE}; SCRIPT-SRC-ELEM 'unsafe-inline'`;
+    assert.deepEqual(checkCsp({ csp: policy({ scripts: [script], base: elem }), pages }), [
+      'script-src-elem must not be set: it overrides script-src, so the hashes would no longer be what decides',
+    ]);
+    const connect = POLICY_BASE.replace("connect-src 'self'", "CONNECT-SRC 'self' *");
+    assert.ok(checkCsp({ csp: policy({ scripts: [script], base: connect }), pages }).includes('connect-src must not contain *: list the hosts instead'));
+    assert.deepEqual(parseCsp("Script-Src 'self'").get('script-src'), ["'self'"]);
+  });
+
+  it('fails on a host wildcard that covers whole top-level domains, but accepts one under a named domain', () => {
+    for (const directive of ['connect-src', 'img-src']) {
+      for (const token of ['http://*', 'https://*', 'https://*.com', '*.com', 'https://*:443', 'wss://*.org']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        const problems = checkCsp({ csp: policy({ scripts: [script], base }), pages });
+        assert.ok(problems.includes(`${directive} must not contain ${token}: list the hosts instead`), `${directive} ${token}: ${problems.join(' | ')}`);
+      }
+      for (const token of ['https://*.ingest.de.sentry.io', 'https://*.example.com:8443', '*.example.com']) {
+        const base = directive === 'connect-src' ? POLICY_BASE.replace("connect-src 'self'", `connect-src 'self' ${token}`) : `${POLICY_BASE}; img-src 'self' ${token}`;
+        assert.deepEqual(checkCsp({ csp: policy({ scripts: [script], base }), pages }), [], `${directive} ${token}`);
+      }
+    }
+  });
+
   it('fails when a required directive is missing or weaker than the rule', () => {
     const weak = POLICY_BASE.replace("frame-ancestors 'none'", "frame-ancestors 'self'").replace("; object-src 'none'", '');
     const problems = checkCsp({ csp: policy({ scripts: [script], base: weak }), pages }).join('\n');
