@@ -100,6 +100,13 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
     expect(offenders(/T00:00:00Z/, backendQueries)).toEqual([]);
   });
 
+  it('Stravas rundag och km läses bara i utils/stravaActivity.ts: ingen start_date_local.split("T")[0], inget regexdatum ur start_date_local och ingen distance / 1000', () => {
+    const outsideHelper = SOURCES.filter(({ path }) => path.startsWith('apps/backend/src/') && path !== 'apps/backend/src/utils/stravaActivity.ts');
+    expect(offenders(/start_date_local\s*\.\s*split\(\s*['"]T['"]\s*\)\s*\[\s*0\s*\]/, outsideHelper)).toEqual([]);
+    expect(offenders(/\bdistance(?:Metres)?\s*\/\s*1000\b/, outsideHelper)).toEqual([]);
+    expect(offenders(/\\d\{4\}-\\d\{2\}-\\d\{2\}\/\.test\(/, outsideHelper)).toEqual([]);
+  });
+
   it('vakten för lokala klockslag träffar den gamla duellformen men inte UTC-mallar med Z', () => {
     expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${duel.startDate}T00:00:00`)')).toBe(true);
     expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${day} 07:30`)')).toBe(true);

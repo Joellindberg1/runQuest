@@ -8,7 +8,7 @@ import { createRateLimiter } from '../middleware/rateLimit.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import { reprocessRunsFromDate } from './runs.js';
 import { getXpConfig } from '../services/xpConfig.js';
-import { isTreadmillActivity } from '../utils/stravaActivity.js';
+import { isTreadmillActivity, stravaKm, stravaRunDay } from '../utils/stravaActivity.js';
 import { calculateCompleteRunXP, STRAVA_CONSENT_VERSION } from '@runquest/shared';
 import type {
   ApiError, StravaBackfillExtendedResponse, StravaCallbackRequest, StravaCallbackResponse, StravaConfigResponse, StravaDisconnectResponse, StravaStatusResponse,
@@ -766,8 +766,8 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
     if (activities.length > 0) {
       logger.info('🔍 All activities found:');
       activities.forEach((activity: any, index: number) => {
-        const distance = (activity.distance / 1000).toFixed(2);
-        const date = activity.start_date_local.split('T')[0];
+        const distance = stravaKm(activity.distance).toFixed(2);
+        const date = stravaRunDay(activity);
         logger.info(`  ${index + 1}. ${date}: ${distance}km, Type: ${activity.type}`); // never the Strava id (ADR 010 decision 8.6)
       });
     }
@@ -819,7 +819,7 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
           const result = insertResults[index];
           return !(result.status === 'fulfilled' && result.value.status === 'skipped_gone');
         })
-        .map((a: any) => a.start_date_local.split('T')[0])
+        .map((a: any) => stravaRunDay(a))
         .sort();
       // Läkningen (om någon) ingår i samma omräkning: det tidigaste av läkningsdatumet och importdatumet, en gång.
       const earliestDate = healFrom && healFrom < dates[0] ? healFrom : dates[0];
@@ -857,8 +857,8 @@ async function runUserStravaSync(userId: string): Promise<UserSyncResult> {
         checkEventQualification({
           userId,
           runId: run.id,
-          runDate: activity.start_date_local.split('T')[0],
-          distanceKm: activity.distance / 1000,
+          runDate: stravaRunDay(activity),
+          distanceKm: stravaKm(activity.distance),
           isTreadmill: isTreadmillActivity(activity),
         }).catch((e: unknown) => logger.error(`❌ checkEventQualification (strava) error for user ${userId} (${errorCode(e)})`));
       }

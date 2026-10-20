@@ -6,6 +6,7 @@
 //   1. decideBeforeFetch({ aspect_type, paused })  ->  'skip' (finish with the outcome) or 'fetch'
 //   2. decideAction({ ...the Strava answer, the existing run, attempts })  ->  what to do with the database
 import { connectionDay } from '../../utils/stravaLookback.js';
+import { stravaDayIfValid, stravaKm, stravaRunDay } from '../../utils/stravaActivity.js';
 import { exceedsImportDistance, extractExtendedFields, isNamedSport, isRunningActivity } from '../stravaImport.js';
 import { WEBHOOK_BACKOFF_MINUTES, type WebhookAspectType } from './constants.js';
 
@@ -94,7 +95,7 @@ export function decideBeforeFetch(input: { aspect_type: WebhookAspectType; pause
  * days ('YYYY-MM-DD'; a timestamp is cut to its date). Nothing to compare (no connection date, an unreadable date) = not before.
  */
 export function isBeforeConnectionDay(activityLocalDate: string, connectionDate: string | null | undefined): boolean {
-  const activityDay = /^\d{4}-\d{2}-\d{2}/.test(activityLocalDate) ? activityLocalDate.slice(0, 10) : null;
+  const activityDay = stravaDayIfValid(activityLocalDate);
   const connectedOn = connectionDay(connectionDate);
   return activityDay !== null && connectedOn !== null && activityDay < connectedOn;
 }
@@ -163,17 +164,17 @@ function storedDistanceKm(km: number): number {
  * update decision below and of the nightly reconcile's cheap check against the activity list (services/stravaReconcile/plan.ts).
  */
 export function sameStoredDistance(storedKm: number, distanceMetres: number): boolean {
-  return sameNumber(storedKm, storedDistanceKm(distanceMetres / 1000));
+  return sameNumber(storedKm, storedDistanceKm(stravaKm(distanceMetres)));
 }
 
 /** The columns where Strava differs from the run, with Strava's values. Empty = nothing to write. */
 function diffRun(existing: ExistingRun, activity: StravaActivityDetail): RunChanges {
   const changes: RunChanges = {};
-  const date = activity.start_date_local.split('T')[0];
+  const date = stravaRunDay(activity);
   if (existing.date !== date) changes.date = date;
   // The column keeps two decimals: compare what it would store, or a run like 5.2345 km would differ forever. A tolerance
   // would hide real changes that land exactly one step away on a half-step boundary (8575 m -> 8585 m, stored 8.58 -> 8.59).
-  if (!sameStoredDistance(existing.distance, activity.distance)) changes.distance = activity.distance / 1000;
+  if (!sameStoredDistance(existing.distance, activity.distance)) changes.distance = stravaKm(activity.distance);
 
   const fresh = extractExtendedFields(activity);
   const target = changes as Record<string, unknown>;
@@ -236,7 +237,7 @@ export function decideAction(input: DecideInput): ActionDecision {
   const hasDistance = typeof activity.distance === 'number' && Number.isFinite(activity.distance);
   if (!isPrivate && isRunningActivity(activity) && (!hasStartDate || !hasDistance)) return retry('invalid_response', attempts);
 
-  const activityDate = hasStartDate ? activity.start_date_local.split('T')[0] : null;
+  const activityDate = hasStartDate ? stravaRunDay(activity) : null;
   const visibleRun = !isPrivate && isRunningActivity(activity) && hasDistance && exceedsImportDistance(activity);
 
   if (!visibleRun) {

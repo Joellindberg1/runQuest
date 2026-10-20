@@ -2,7 +2,7 @@
 import { logger } from '../utils/logger.js';
 import { errorCode } from '../utils/errorCode.js';
 import { getSupabaseClient } from '../config/database.js';
-import { isTreadmillActivity } from '../utils/stravaActivity.js';
+import { isTreadmillActivity, stravaKm, stravaRunDay } from '../utils/stravaActivity.js';
 import { fetchDetailedActivityResult } from './stravaClient.js';
 import {
   STRAVA_DISTANCE_MUST_EXCEED_KM,
@@ -32,7 +32,7 @@ export function isRunningActivity(activity: any): boolean {
 
 /** The distance rule: a run is imported only when it is longer than the limit in shared/rules.ts. `distance` is in metres. */
 export function exceedsImportDistance(activity: { distance: number }): boolean {
-  return activity.distance / 1000 > STRAVA_DISTANCE_MUST_EXCEED_KM;
+  return stravaKm(activity.distance) > STRAVA_DISTANCE_MUST_EXCEED_KM;
 }
 
 /**
@@ -43,7 +43,7 @@ export function computePaceStdDev(splits?: Array<{ distance: number; moving_time
   if (!splits || splits.length < 2) return null;
   const paces = splits
     .filter(s => s.distance > 0)
-    .map(s => s.moving_time / (s.distance / 1000));
+    .map(s => s.moving_time / stravaKm(s.distance));
   if (paces.length < 2) return null;
   const mean = paces.reduce((a, b) => a + b, 0) / paces.length;
   const variance = paces.reduce((sum, p) => sum + (p - mean) ** 2, 0) / paces.length;
@@ -85,8 +85,8 @@ export const STRAVA_XP_PLACEHOLDERS = {
 export function buildStravaRunRow(userId: string, activity: any, detailed?: any) {
   return {
     user_id: userId,
-    date: activity.start_date_local.split('T')[0] as string,
-    distance: activity.distance / 1000,
+    date: stravaRunDay(activity),
+    distance: stravaKm(activity.distance),
     source: 'strava' as const,
     external_id: activity.id.toString() as string,
     ...extractExtendedFields(detailed ?? activity),

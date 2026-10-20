@@ -11,6 +11,7 @@
 // polling's order, once per batch (stravaWebhookWorker.ts): the handler only reports the run it inserted (`importedRuns`).
 // It never sets a status, never calls syncUserStravaActivities (the worker holds the user lock) and never wakes the worker.
 import { logger } from '../../../utils/logger.js';
+import { stravaKm, stravaRunDay } from '../../../utils/stravaActivity.js';
 import { stravaRateBudget, type StravaRateBudget } from '../../stravaRateBudget.js';
 import { insertStravaRun } from '../../stravaImport.js';
 import { resultForTokenFailure, type WebhookHandler, type WebhookHandlerContext, type WebhookHandlerResult } from '../../stravaWebhookWorker.js';
@@ -51,7 +52,7 @@ export function createActivityCreateHandler(deps: ActivityCreateDeps = {}): Webh
       outcome: decision.outcome,
       recalculateFrom: decision.recalculateFrom,
       // The polling's arguments to checkEventQualification: the date and distance of the Strava activity.
-      importedRuns: [{ ...inserted.run, date: activity.start_date_local.split('T')[0], distance_km: activity.distance / 1000 }],
+      importedRuns: [{ ...inserted.run, date: stravaRunDay(activity), distance_km: stravaKm(activity.distance) }],
     };
   }
 
