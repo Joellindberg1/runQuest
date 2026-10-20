@@ -566,7 +566,7 @@ export function checkDummyHashWarmup(files) {
     : [`${SERVER_FILE}: saknar ett anrop av warmUpDummyPasswordHash() på översta nivån — utan det tar det första inloggningsförsöket mot ett okänt konto en hash längre än övriga och avslöjar att kontot saknas (RUN-365)`];
 }
 
-const PRODUCTION_BLOCK_START =/if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
+const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
 const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;

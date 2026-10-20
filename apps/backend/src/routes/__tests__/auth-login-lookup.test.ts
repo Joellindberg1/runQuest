@@ -133,4 +133,43 @@ describe('POST /api/auth/login lookups', () => {
     expect(byEmail.body.user.id).toBe('u-alice');
     expect(byName.status).toBe(401);
   });
+
+  it('answers 401 when the email lookup fails even though the name lookup would have found the user', async () => {
+    useDb({ failWhen: (q) => (q.filters.some((f) => f.column === 'email') ? { message: 'email lookup failed' } : null) });
+
+    const { status, body } = await login({ name: 'Bob' });
+
+    expect(status).toBe(401);
+    expect(body).toEqual({ error: 'Invalid credentials' });
+  });
+
+  it('answers 401 when both lookups fail', async () => {
+    useDb({ errors: { users: { message: 'connection reset' } } });
+
+    const { status, body } = await login({ email: 'alice@example.com' });
+
+    expect(status).toBe(401);
+    expect(body).toEqual({ error: 'Invalid credentials' });
+  });
+
+  it('logs in the email user when the name lookup throws after an email hit', async () => {
+    useDb({ failWhen: (q) => { if (q.filters.some((f) => f.column === 'name')) throw new Error('network down'); return null; } });
+
+    const { status, body } = await login({ email: 'alice@example.com' });
+
+    expect(status).toBe(200);
+    expect(body.user.id).toBe('u-alice');
+  });
+
+  it('still answers 500 when a lookup throws and there is no email hit to fall back on', async () => {
+    useDb({ failWhen: (q) => { if (q.filters.some((f) => f.column === 'name')) throw new Error('network down'); return null; } });
+    const nameLookupThrows = await login({ email: 'ghost@example.com' });
+
+    useDb({ failWhen: (q) => { if (q.filters.some((f) => f.column === 'email')) throw new Error('network down'); return null; } });
+    const emailLookupThrows = await login({ name: 'Bob' });
+
+    expect(nameLookupThrows.status).toBe(500);
+    expect(emailLookupThrows.status).toBe(500);
+    expect(nameLookupThrows.body).toEqual({ error: 'Internal server error' });
+  });
 });

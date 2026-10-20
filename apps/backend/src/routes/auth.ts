@@ -51,10 +51,21 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
       .select('id, name, email, password_hash, is_admin, group_id')
       .eq(column, nameOrEmail)
       .limit(1);
-    const [{ data: byEmail, error }, { data: byName }] = await Promise.all([lookupBy('email'), lookupBy('name')]);
+    const emailLookup = lookupBy('email');
+    // Namnuppslaget fångar sitt eget kast så att det inte fäller ett svar som e-postuppslaget redan avgjort.
+    const nameLookup = (async () => lookupBy('name'))().then(
+      (result) => ({ result, thrown: null as unknown }),
+      (thrown: unknown) => ({ result: null, thrown }),
+    );
+    const [{ data: byEmail, error }, named] = await Promise.all([emailLookup, nameLookup]);
 
-    // Ett fel i namnuppslaget räknas som "ingen träff", som när uppslaget bara gjordes efter en tom e-posträff.
-    const user = byEmail?.[0] ?? (error ? null : byName?.[0] ?? null);
+    // Som förut: namnet slås bara upp "efter" en tom e-posträff utan fel. Då blir ett returnerat fel ingen träff och
+    // ett kast ett 500 via catch nedan; efter en e-posträff eller ett e-postfel spelar namnuppslaget ingen roll.
+    let user = byEmail?.[0] ?? null;
+    if (!user && !error) {
+      if (named.result === null) throw named.thrown;
+      user = named.result.data?.[0] ?? null;
+    }
 
     // bcrypt-arbetet görs i alla fall (okänt konto, databasfel, fel lösenord) så att svarstiden inte avslöjar
     // vilka konton som finns. Mot dummy-hashen kan jämförelsen aldrig lyckas, och `user` styr utfallet.
