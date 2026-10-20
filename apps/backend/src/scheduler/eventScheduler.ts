@@ -209,6 +209,9 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
 
 // ─── Scheduler entry point ───────────────────────────────────────────────────
 
+/** Timtick som försöker avräkna tävlingar som fortfarande är active efter sitt slut (se startEventScheduler). */
+export const COMPETITION_RETRY_CRON = '35 * * * *';
+
 export function startEventScheduler(): void {
   logger.info('📅 Starting event scheduler...');
 
@@ -261,6 +264,17 @@ export function startEventScheduler(): void {
       await settleCompetitionEvents();
     } catch (e) {
       logger.error(`❌ [EventScheduler] Competition settlement error (${errorCode(e)})`);
+    }
+  }, { timezone: STOCKHOLM_TZ });
+
+  // Varje timme (minut 35, så att måndagens 00:05 alltid går först) — försöker igen med en tävling som inte kunde avräknas (läsfel före claimen
+  // lämnar den active). Samma funktion som måndagskörningen: den läser bara active-tävlingar vars ends_at passerat, rör aldrig ett settlat
+  // event och är idempotent via claimen. När inget har slutat blir det en enda läsning av events och inget mer.
+  cron.schedule(COMPETITION_RETRY_CRON, async () => {
+    try {
+      await settleCompetitionEvents();
+    } catch (e) {
+      logger.error(`❌ [EventScheduler] Competition settlement retry error (${errorCode(e)})`);
     }
   }, { timezone: STOCKHOLM_TZ });
 
