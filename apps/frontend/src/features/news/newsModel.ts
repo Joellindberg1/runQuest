@@ -1,4 +1,4 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, STOCKHOLM_TZ, TIER_NAMES, boostExpiresAt, boostRemaining, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, zoneDay, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, zoneDay, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
@@ -426,8 +426,6 @@ export interface NewsContext {
   /** Den som tittar — "you" när raden handlar om den personen. */
   viewerId: string | null;
   now: Date;
-  /** Gruppens tidszon (groupTimeZone). Utan värde räknas dygnen i standardzonen. */
-  timeZone?: string;
   /** Namn för användare som bara har ett id i payloaden (event_closed.top). Okänd → utelämnas. */
   nameOf?: (userId: string) => string | null | undefined;
   /** Kön för "The Consistent King/Queen"-titlar. Okänt → namnet lämnas som det är. */
@@ -460,15 +458,11 @@ function boostWindow(duration: number | null, type: string): string {
   return ` for ${duration} ${unit}`;
 }
 
-/**
- * Dagsboostar går att räkna ut; körboostar vet klienten inte hur mycket som är kvar av. Fönstret är det som XP-beräkningen använder
- * (boostWindow/boostExpiresAt i shared, gruppens tidszon): live till och med slutdagen, inte ett ögonblick efter `duration * 24 h`.
- */
-function boostIsLive(boost: { type: string; delta: number; duration: number | null }, occurredAt: string, now: Date, timeZone: string): boolean {
-  if (boost.delta === 0 || boost.duration === null || !Number.isInteger(boost.duration) || boost.duration < 0) return false;
+/** Dagsboostar går att räkna ut; körboostar vet klienten inte hur mycket som är kvar av. */
+function boostIsLive(boost: { type: string; delta: number; duration: number | null }, occurredAt: string, now: Date): boolean {
+  if (boost.delta === 0 || boost.duration === null) return false;
   if (boost.type === 'multiplier_runs') return false;
-  const expiresAt = boostExpiresAt(new Date(occurredAt), boost.duration, timeZone);
-  return (boostRemaining({ type: 'multiplier_days', created_at: occurredAt, expires_at: expiresAt }, now, timeZone) ?? 0) > 0;
+  return Date.parse(occurredAt) + boost.duration * MS_DAY > now.getTime();
 }
 
 /** Serienamnet ur BADGE_SERIES; en okänd (pensionerad) nyckel visas som den är hellre än som ett tomt ord. */
@@ -582,7 +576,7 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const { payload } = item;
       const stakes = `${metricText(payload.metric)} · ${durationText(payload.duration_days)}`;
       if (viewerIsTarget) {
-        const live = boostIsLive(payload.winner_boost, item.occurred_at, ctx.now, ctx.timeZone ?? STOCKHOLM_TZ);
+        const live = boostIsLive(payload.winner_boost, item.occurred_at, ctx.now);
         return { kind: 'Challenge lost', text: `${subject(actor, ctx)} beat you in ${stakes}${live ? `. ${possessive(actor, ctx)} boost is live` : ''}` };
       }
       const boost = payload.winner_boost;

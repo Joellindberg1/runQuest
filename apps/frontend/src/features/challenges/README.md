@@ -57,8 +57,9 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   Progress-anropet avgör dessutom en duell som passerat `determine_at` (backend), så kortet kan försvinna vid nästa hämtning.
 - **Match history** är offset-sidor (20 per sida, "Show more"); filtret "My matches" gäller de sidor som hunnit laddas. Hämtas först när fliken visas.
 - **Boosts:** `user_boosts.remaining` är TOTALA laddningar för per-runda-boosts och förbrukas av mina rundor efter skapandet (som `boostCalculation`);
-  dagsboosts går på `expires_at`. Båda räknas i kalenderdagar i gruppens tidszon med `boostWindow`/`boostRemaining` i shared (samma fönster som XP-omräkningen):
-  n + 1 dagar, skapandedagen och slutdagen inräknade, och kvar-räkningen går till och med slutdagen. Bakgrunden ("Won against Adam …") hittas i min egen historik (`/challenges/my` ger 20 senaste) och utelämnas annars.
+  dagsboosts går på `expires_at`. Båda läser boostens SPARADE fönster (`start_date`/`end_date`, migration 059) med `boostWindow`/`boostRemaining` i shared, samma fönster som
+  XP-omräkningen: en ny boost på n dagar gäller exakt n kalenderdagar och visar "n days" på sin startdag och före den; en gammal boost har sitt gamla fönster.
+  Kvar-räkningen tar dagens datum i gruppens tidszon (klienten får ingen zon i payloaden än, så standardzonen; RUN-21). Bakgrunden ("Won against Adam …") hittas i min egen historik (`/challenges/my` ger 20 senaste) och utelämnas annars.
 - **CSS-ordning:** feature-CSS hamnar före `index.css` i kaskaden (main.tsx importerar index.css sist). En override av en delad `.rq-*`-primitiv på
   samma specificitet förlorar därför — använd sammansatta selektorer (`.rq-card.rq-duels-standings`, `.rq-hairgrid > .rq-duels-…`).
 - Vimpeln (`TierRibbon`, svalstjärt, RUN-147) ritas ur samma geometri som Boards challenge-vimpel (`shared/components/challengeMark`: path, text-x/y, viewBox) men har egen stil; den återanvänder `--rq-board-ribbon-*`-måtten. Ingen kod i `apps/frontend/src` får innehålla den gamla sköldens path (vakt i `shared/components/challengeMark.test.ts`).

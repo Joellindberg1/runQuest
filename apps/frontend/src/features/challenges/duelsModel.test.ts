@@ -302,33 +302,44 @@ describe('buildBoosts', () => {
     expect(view.headline).toBe('+0.25×');
   });
 
-  describe('boostfönstret i gruppens dygn (samma boostWindow som XP-beräkningen)', () => {
-    it('a boost created 2026-10-19T23:30Z starts on 2026-10-20 in the run count', () => {
-      const perRun = boost({ id: 'b8', type: 'multiplier_runs', remaining: 2, expires_at: undefined, created_at: '2026-10-19T23:30:00Z' });
+  describe('boostens sparade fönster (samma fönster som XP-omräkningen)', () => {
+    // En ny 3-dagarsboost: duellen slutade den 19:e, boosten gäller 20, 21 och 22 oktober och slutar 00:00 den 23:e svensk tid.
+    const fresh = (over = {}) => boost({ id: 'n1', created_at: '2026-10-20T01:00:00Z', expires_at: '2026-10-22T22:00:00Z', start_date: '2026-10-20', end_date: '2026-10-22', ...over });
+    const headline = (b: ReturnType<typeof boost>, at: string, tz?: string) => buildBoosts([b], [], ME, NAMES, new Date(at), undefined, tz)[0]?.headline;
+
+    it('a new 3-day boost shows "3 days" on its start day and before it', () => {
+      expect(headline(fresh(), '2026-10-18T10:00:00Z')).toBe('+0.25× for 3 days');
+      expect(headline(fresh(), '2026-10-19T21:00:00Z')).toBe('+0.25× for 3 days'); // 23:00 den 19:e svensk tid
+      expect(headline(fresh(), '2026-10-20T10:00:00Z')).toBe('+0.25× for 3 days');
+    });
+
+    it('counts down one day per local midnight and is gone from the midnight after the end day', () => {
+      expect(headline(fresh(), '2026-10-21T10:00:00Z')).toBe('+0.25× for 2 days');
+      expect(headline(fresh(), '2026-10-22T10:00:00Z')).toBe('+0.25× for 1 day');
+      expect(headline(fresh(), '2026-10-22T22:00:00Z')).toBeUndefined();
+    });
+
+    it('another time zone through the group resolver moves the turnover of the days left', () => {
+      const lateEvening = '2026-10-22T22:30:00Z'; // efter midnatt den 23:e i Stockholm, 18:30 den 22:a i New York
+      expect(headline(fresh(), lateEvening)).toBeUndefined();
+      expect(headline(fresh(), lateEvening, groupTimeZone('g1', () => 'America/New_York'))).toBe('+0.25× for 1 day');
+    });
+
+    it('a new run boost counts runs from its stored start day, not from when it was created', () => {
+      const perRun = boost({ id: 'n2', type: 'multiplier_runs', remaining: 2, expires_at: undefined, created_at: '2026-10-20T01:00:00Z', start_date: '2026-10-20', end_date: null });
       const runs = [{ date: '2026-10-19' }, { date: '2026-10-20' }];
-      // Rundan den 19:e ligger före startdagen (01:30 svensk tid den 20:e) och förbrukar ingen laddning.
       expect(buildBoosts([perRun], [], ME, NAMES, new Date('2026-10-21T10:00:00Z'), runs)[0].headline).toBe('+0.25× for 1 run');
     });
 
-    it('another time zone through the group resolver moves the start day of the run count', () => {
-      const perRun = boost({ id: 'b9', type: 'multiplier_runs', remaining: 2, expires_at: undefined, created_at: '2026-10-20T02:30:00Z' });
-      const runs = [{ date: '2026-10-19' }];
-      const now = new Date('2026-10-21T10:00:00Z');
-      expect(buildBoosts([perRun], [], ME, NAMES, now, runs)[0].headline).toBe('+0.25× for 2 runs');
-      expect(buildBoosts([perRun], [], ME, NAMES, now, runs, groupTimeZone('g1', () => 'America/New_York'))[0].headline).toBe('+0.25× for 1 run');
-    });
-
-    it('a day boost counts the calendar days left, today included, to the end day', () => {
-      // Skapad 01:30 svensk tid den 20:e, tre dygn: gäller rundor den 20:e till och med den 23:e = fyra dagar.
-      const dayBoost = boost({ id: 'b10', created_at: '2026-10-19T23:30:00Z', expires_at: '2026-10-22T23:30:00Z' });
-      expect(buildBoosts([dayBoost], [], ME, NAMES, new Date('2026-10-20T10:00:00Z'))[0].headline).toBe('+0.25× for 4 days');
-      expect(buildBoosts([dayBoost], [], ME, NAMES, new Date('2026-10-23T21:00:00Z'))[0].headline).toBe('+0.25× for 1 day');
-    });
-
-    it('a day boost is still shown on its last day after the clock time it was created, and gone from the next midnight', () => {
-      const dayBoost = boost({ id: 'b11', created_at: '2026-10-14T10:00:00Z', expires_at: '2026-10-17T10:00:00Z' });
-      expect(buildBoosts([dayBoost], [], ME, NAMES, new Date('2026-10-17T20:00:00Z'))).toHaveLength(1);
-      expect(buildBoosts([dayBoost], [], ME, NAMES, new Date('2026-10-17T22:00:00Z'))).toEqual([]);
+    it('an old boost without a stored window keeps the days of its old window', () => {
+      // Skapad 01:30 svensk tid den 20:e: det gamla UTC-fönstret är 19-22 oktober (backfyllet i migration 059 är detsamma).
+      const old = boost({ id: 'o1', created_at: '2026-10-19T23:30:00Z', expires_at: '2026-10-22T23:30:00Z' });
+      const backfilled = boost({ id: 'o2', created_at: '2026-10-19T23:30:00Z', expires_at: '2026-10-22T23:30:00Z', start_date: '2026-10-19', end_date: '2026-10-22' });
+      for (const b of [old, backfilled]) {
+        expect(headline(b, '2026-10-20T10:00:00Z')).toBe('+0.25× for 3 days'); // 20, 21, 22
+        expect(headline(b, '2026-10-22T20:00:00Z')).toBe('+0.25× for 1 day');
+        expect(headline(b, '2026-10-22T22:30:00Z')).toBeUndefined(); // efter midnatt den 23:e svensk tid
+      }
     });
   });
 });
