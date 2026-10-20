@@ -91,7 +91,12 @@
 //     skapas hashen först av det första inloggningsförsöket mot ett okänt konto, som då tar en hash längre än alla andra och avslöjar att kontot saknas.
 //     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|media|fonts|all]   (standard: all)
+// 20. Felsvar går via fail (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2): ett handskrivet `res.status(4xx|5xx|207).json(…)` (eller `res.status(variabel)`, `res.sendStatus`,
+//     `res.json({ error … })`) i apps/backend/src/routes, middleware, utils eller app.ts fäller bygget. `fail` (utils/respond.ts) tar en fast text och en kod ur katalogen och
+//     aldrig ett `Error`, så ett felmeddelande, en stack eller Strava- och databastext kan inte ekas av misstag. Undantag: respond.ts själv och Strava-webhookens router
+//     (ERROR_RESPONSE_EXEMPT_FILES). Textbaserad (se checkErrorResponsesViaFail för vad den inte fångar).
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -706,6 +711,74 @@ export function checkRouteResponseContracts(files, exempt = ROUTE_CONTRACT_EXEMP
   return errors;
 }
 
+const ERROR_RESPONSE_FILE = /^apps\/backend\/src\/(?:app\.ts|(?:routes|middleware|utils)\/[^/]+\.[cm]?ts)$/;
+const RESPOND_HELPERS_FILE = 'apps/backend/src/utils/respond.ts';
+/**
+ * Filer där felsvar får skrivas för hand (ADR 007 Addendum 2026-10-20 punkt 4): Strava-webhookens router, där Stravas protokoll styr svaret (verifieringen kräver exakt
+ * `{"hub.challenge": …}`, POST läser bara statuskoden) och även felsvaren (`{error}` med 400, 403, 413, 500, 503) är oförändrade. Hela routern är undantagen utom `/health`,
+ * som svarar i kuvertet; den raden går genom `fail`. En ny avvikelse kräver en ändring här och i testet som fäster listan, alltså en granskad diff.
+ */
+export const ERROR_RESPONSE_EXEMPT_FILES = new Set(['apps/backend/src/routes/stravaWebhook.ts']);
+// `.status(` med en literal 4xx/5xx eller 207 (2xx som inte är ett fel är tillåtna), `.status(` med något annat än en literal (en variabel kan vara en felstatus),
+// `.sendStatus(` och ett felobjekt utan status (`res.json({ error: … })`, `res.json({ success: false, … })`).
+const ERROR_RESPONSE_PATTERNS = [
+  /\.status\(\s*(?:[45]\d\d|207)\s*\)/g,
+  /\.status\(\s*(?![0-9\s])[^)\s]/g,
+  /\.sendStatus\(/g,
+  /\.json\(\s*\{\s*(?:error\s*:|success\s*:\s*false\b)/g,
+];
+
+/**
+ * Regel 20 (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2). Alla felsvar går via `fail` (apps/backend/src/utils/respond.ts): `fail` har en fast text och en kod ur katalogen, och
+ * tar aldrig ett `Error`, så ett felmeddelande, en stack, Strava- eller databastext kan inte ekas av misstag. Ett handskrivet `res.status(4xx|5xx).json(...)` i routes/, middleware/, utils/
+ * eller app.ts fäller bygget. Undantag: respond.ts själv och ERROR_RESPONSE_EXEMPT_FILES.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod (kommentarer hoppas över). Fångas INTE: ett svar som skrivs via en variabel för `res` (`const r = res; r.status(500)`), ett svar i en
+ * annan mapp än de fyra ovan (services/ svarar inte mot klienten), eller ett felsvar som byggs som en sträng och skickas med `res.end`/`res.send`.
+ */
+export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT_FILES) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!ERROR_RESPONSE_FILE.test(path) || path === RESPOND_HELPERS_FILE || exempt.has(path) || TEST_FILE.test(path)) continue;
+    const code = withoutComments(content);
+    const lines = new Set();
+    for (const pattern of ERROR_RESPONSE_PATTERNS) {
+      for (const match of code.matchAll(pattern)) lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+    }
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: ett felsvar skrivs för hand — svara med fail(res, status, text, code?) från utils/respond.ts (ADR 007 Addendum 2026-10-20): fast text, kod ur katalogen, aldrig ett felobjekt`);
+    }
+  }
+  return errors;
+}
+
+// TILLFÄLLIGT (RUN-354, tas bort i den sista routecommiten): filer som ännu inte är omskrivna till fail. Varje domäncommit tar bort sina rader härifrån.
+const TEMPORARILY_UNCONVERTED = new Set([
+  'apps/backend/src/routes/admin.ts',
+  'apps/backend/src/routes/auth.ts',
+  'apps/backend/src/routes/badges.ts',
+  'apps/backend/src/routes/challenges.ts',
+  'apps/backend/src/routes/config.ts',
+  'apps/backend/src/routes/events.ts',
+  'apps/backend/src/routes/groupSettings.ts',
+  'apps/backend/src/routes/groups.ts',
+  'apps/backend/src/routes/leaderboard.ts',
+  'apps/backend/src/routes/news.ts',
+  'apps/backend/src/routes/onboarding.ts',
+  'apps/backend/src/routes/publicStats.ts',
+  'apps/backend/src/routes/runs.ts',
+  'apps/backend/src/routes/settings.ts',
+  'apps/backend/src/routes/strava.ts',
+  'apps/backend/src/routes/titles.ts',
+  'apps/backend/src/routes/users.ts',
+  'apps/backend/src/routes/waitlist.ts',
+  'apps/backend/src/middleware/admin.ts',
+  'apps/backend/src/middleware/auth.ts',
+  'apps/backend/src/middleware/rateLimit.ts',
+  'apps/backend/src/utils/groupAccess.ts',
+  'apps/backend/src/utils/groupScope.ts',
+]);
+
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
 export function collectSourceFiles(root, workspaces) {
   const files = [];
@@ -825,8 +898,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'error-responses', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | error-responses | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -841,7 +914,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts' || mode === 'error-responses') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -890,6 +963,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'route-contracts') {
       errors.push(...checkRouteResponseContracts(files));
       summary.push('varje route svarar mot en kontraktstyp ur shared');
+    }
+    if (mode === 'all' || mode === 'error-responses') {
+      errors.push(...checkErrorResponsesViaFail(files, new Set([...ERROR_RESPONSE_EXEMPT_FILES, ...TEMPORARILY_UNCONVERTED])));
+      summary.push('alla felsvar går via fail');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));
