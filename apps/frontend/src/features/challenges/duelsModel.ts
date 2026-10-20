@@ -127,7 +127,7 @@ const LEGENDARY_AUTO_START_MS = LEGENDARY_AUTO_START_DAYS * MS_DAY;
 const HOURS_PER_DAY = 24;
 
 /** "Auto-starts in 2 d 5 h" — legendary startar av sig själv fyra dagar efter att den skickats (challengeScheduler). */
-export function autoStartText(sentAt: string | undefined, now: Date): string | null {
+export function autoStartText(sentAt: string | null | undefined, now: Date): string | null {
   if (!sentAt) return null;
   const left = new Date(sentAt).getTime() + LEGENDARY_AUTO_START_MS - now.getTime();
   if (left <= 0) return 'Auto-starts soon';

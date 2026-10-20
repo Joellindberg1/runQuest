@@ -81,12 +81,13 @@ export type HeadToHeadApiResponse = ApiSuccess<HeadToHeadResponse>;
 
 /**
  * En rad ur `challenges` (select *) som GET /api/challenges/my skickar. Namnen på parterna följer bara med i `group_active` (servern slår upp dem);
- * övriga listor bär id:n och klienten slår upp namnet i gruppens lista.
+ * övriga listor bär id:n och klienten slår upp namnet i gruppens lista. Kolumnerna utan NOT NULL i schemat (005, 011) skickas som `null` när de är tomma:
+ * token_id, winner_duration, loser_duration, start_date, end_date, determine_at, legendary_sent_at, winner_id, outcome och slutvärdena.
  */
 export interface ChallengeRow {
   id: string;
   group_id: string;
-  token_id?: string;
+  token_id?: string | null;
   tier: ChallengeTier;
   challenger_id: string;
   challenger_name?: string;
@@ -95,22 +96,23 @@ export interface ChallengeRow {
   metric: ChallengeMetric;
   duration_days: number;
   winner_delta: number;
-  winner_duration: number;
+  winner_duration: number | null;
   winner_type: string;
   loser_delta: number;
-  loser_duration: number;
+  loser_duration: number | null;
   loser_type: string;
   challenger_level: number;
   opponent_level: number;
-  start_date?: string;
-  end_date?: string;
-  determine_at?: string;
-  legendary_sent_at?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  determine_at?: string | null;
+  legendary_sent_at?: string | null;
   status: ChallengeStatus;
-  winner_id?: string;
-  outcome?: string;
-  challenger_final_value?: number;
-  opponent_final_value?: number;
+  winner_id?: string | null;
+  outcome?: string | null;
+  challenger_final_value?: number | null;
+  opponent_final_value?: number | null;
+  outdoor_only?: boolean;
   created_at: string;
 }
 
@@ -121,7 +123,7 @@ export interface MyChallengeToken {
   metric: ChallengeMetric;
   duration_days: number;
   earned_at: string;
-  reward_id: string | null;
+  reward_id: string;
   winner_delta: number;
   winner_duration: number;
   winner_type: string;
@@ -137,8 +139,8 @@ export interface MyBoost {
   outcome: 'winner' | 'loser';
   type: string;
   delta: number;
-  remaining?: number;
-  expires_at?: string;
+  remaining?: number | null;
+  expires_at?: string | null;
   created_at: string;
 }
 

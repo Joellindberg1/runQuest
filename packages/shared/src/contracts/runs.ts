@@ -25,7 +25,7 @@ export interface RunRow {
    * (open-assumptions, backend-fråga 6). null/saknas = äldre rad → behandla som 'manual'.
    */
   source?: string | null;
-  external_id?: string;
+  external_id?: string | null;
   // Extended Strava data — all nullable (not all devices/users share this)
   start_time?: string | null;
   /** När raden skapades (users-with-runs, ADR 007 B3): "X h ago" för manuellt loggade rundor utan start_time. */

@@ -23,7 +23,7 @@ export interface UserWithRuns {
   total_km: number;
   current_streak: number;
   longest_streak: number;
-  profile_picture?: string;
+  profile_picture?: string | null;
   group_id?: string;
   runs?: RunRow[];
   wins?: number;
