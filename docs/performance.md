@@ -318,5 +318,101 @@ Caddy-regeln för exakt `/` är på (`Caddyfile`): `/` ger `landing.html`, alla 
 
 - **Förrenderad `/` är det som mäts.** `run.sh` vägrar mäta om `dist/landing.html` saknas och kontrollerar via Caddy att `/` innehåller `landing-title` och `/legal` laddningsvyn (`rq-shell__pending`); dokumentet på `/` är 7,1 kB överfört, `/legal` 2,4 kB. LCP-elementet är fortfarande filmens poster (`landing-film-poster-480`).
 - **Stilmallsbudgeten (50 000 B) har nu 26,3 kB marginal på `/`** (23,7 kB; samma 23 710 B mäter e2e-provet, inklusive svarshuvuden, mot ≈ 3,3 kB marginal före S6 då `index.html` också hämtade den lazy landningschunkens CSS) men bara ≈ 8,5 kB på `/legal` (41,5 kB; `/legal` serveras av fullappen och är oförändrad i vikt). Tillgänglighet 1, SEO 1, best practices 0,96–1.
-- **Målet 2 500 ms nås inte lokalt: LCP 3 011 ms.** Faserna för `/` (första körningen): TTFB 453 ms, load delay 0 ms, load time 83 ms, **render delay 2 474 ms (82 %)**. Postern hämtas alltså direkt och snabbt; det som väntar är första målningen (FCP 2,56 s), dvs. stilmallarna som blockerar ritning under simulerad långsam 4G. Beslut C (ADR 006) handlar om postern, men posterns hämtning är inte flaskhalsen i den här mätningen. Siffran är lokal (release-dokumentet noterar att lokalt mäts ca 0,9 s högre än prod); S7 sätter taket efter minst fem CI-körningar.
+- **Målet 2 500 ms nås inte lokalt: LCP 3 011 ms.** Faserna för `/` (första körningen): TTFB 453 ms, load delay 0 ms, load time 83 ms, **render delay 2 474 ms (82 %)**. Postern hämtas alltså direkt och snabbt; det som väntar är första målningen (FCP 2,56 s), dvs. stilmallarna som blockerar ritning under simulerad långsam 4G. Beslut C (ADR 006) handlar om postern, men posterns hämtning är inte flaskhalsen i den här mätningen. Siffran är lokal (release-dokumentet noterar att lokalt mäts ca 0,9 s högre än prod); S7 sätter taket efter minst fem CI-körningar. [Uppföljning 2026-10-20 (RUN-343): stilmallarna var inte huvudorsaken i simuleringen; JS:et som hämtades före första ritningen var det. Se avsnittet "Landningens LCP mot 2,5 s" längst ner.]
 - **TBT** är högre än baslinjen (54 respektive 86 ms mot 7 respektive 27 ms) men långt under taket 200 ms: hydreringen av hela landningen syns (ADR 006, risk 2). `/legal` ligger något sämre än i S1 lokalt (poäng 0,89 mot 0,91–0,92, LCP 3 069 mot 2 909 ms, ca 0,15 s); laddningsvyn i `index.html` är den enda ändringen av den adressen, men före/efter är mätt i olika sessioner och orsaken är inte utredd. S7 jämför `/legal` före/efter i CI.
+
+## Landningens LCP mot 2,5 s (RUN-343)
+
+Mätt 2026-10-20 på `integration/v0.8.1` (3a2731a1) före och på branchen `perf/run-343-landing-lcp` efter, båda som prodbygge (`npm run build` i `apps/frontend`), med `bash scripts/lighthouse/run.sh` oförändrat i båda lägena (`STATS_MODE=error|mock`), lokalt på Windows. **Medianen av 9 körningar per sida och läge** (`LHCI_COLLECT__NUMBER_OF_RUNS=9`; `lighthouserc.json` är orörd, budgeten likaså), före och efter växelvis på samma maskin i samma session. Lighthouse 12.6.1 via lhci, mobil, simulerad långsam 4G och 4x CPU. Webbläsaren är Playwrights headless-skal (Chromium 151): Edge 155, som S1 och S6 mätte i, startar inte via Lighthouses startare i den här miljön. Absoluta tal går därför inte att jämföra mot S6:s tabell (där `/` låg på LCP 3 011 ms) eller mot CI (Linux, Chrome); före/efter nedan är jämförbara sinsemellan. **CI-siffrorna fyller Lead i** (utkast-PR:er före och efter, minst 6 körningar per läge): se "CI" längst ner.
+
+### Mått (median av 9)
+
+| Sida, läge | Perf | LCP (ms) | FCP (ms) | CLS | TBT (ms) | CSS (B, överfört) | JS (B) | Totalt (B) |
+|---|---|---|---|---|---|---|---|---|
+| `/` före, API ger fel | 0,92 | 2 859 | 2 560 | 0,0006 | 14 | 23 338 | 126 494 | 303 101 |
+| **`/` efter, API ger fel** | **0,99** | **1 956** | **1 506** | 0,0001 | 11 | 23 338 | 127 347 | 304 073 |
+| `/` före, falskt API | 0,92 | 2 856 | 2 559 | 0,0005 | 12 | 23 338 | 126 494 | 303 370 |
+| **`/` efter, falskt API** | **0,99** | **1 955** | **1 505** | 0,0001 | 10 | 23 338 | 127 347 | 304 342 |
+| `/legal` före, API ger fel | 0,90 | 3 011 | 2 706 | 0 | 0 | 41 101 | 232 664 | 312 474 |
+| `/legal` efter, API ger fel | 0,90 | 3 085 | 2 706 | 0 | 2 | 41 101 | 232 664 | 312 474 |
+| `/legal` före, falskt API | 0,90 | 3 011 | 2 705 | 0 | 0 | 41 101 | 232 664 | 312 474 |
+| `/legal` efter, falskt API | 0,90 | 3 011 | 2 705 | 0 | 0 | 41 101 | 232 664 | 312 474 |
+
+- **`/` LCP −903 ms (−32 %), FCP −1 054 ms (−41 %), prestandapoäng 0,92 till 0,99.** Målet 2 500 ms nås lokalt med 544 ms marginal. Spridningen efter är 1 954–1 958 ms över alla 18 körningar; före var 2 855–2 898 ms utom en körning på 2 144 ms (API ger fel).
+- **`/legal` är oförändrad.** Den serveras av `index.html`, som den här ändringen inte rör (samma filer byte för byte; skillnaden 3 011 mot 3 085 ms är mätbrus). `/legal` ligger kvar på ca 3,0 s: den är inte med i det här målet.
+- **Vikt:** JS +853 B (boot-skriptet, se nedan), CSS oförändrad. Stilmallsbudgeten (50 000 B) har samma marginal som förut: 26,7 kB på `/`, 8,9 kB på `/legal`.
+- **LCP-elementet** är fortfarande mobilpostern (`div#film-mobile > … > picture.rq-film__poster > img`) i alla körningar, före och efter.
+
+### LCP-faser, mobil `/` (median av 9, simulerad)
+
+| Fas | Före, fel | **Efter, fel** | Före, falskt API | **Efter, falskt API** |
+|---|---|---|---|---|
+| TTFB | 453 ms | **452 ms** | 452 ms | **452 ms** |
+| Load delay | 151 ms | **0 ms** | 111 ms | **0 ms** |
+| Load time | 233 ms | **143 ms** | 206 ms | **144 ms** |
+| Render delay | 2 034 ms | **1 355 ms** | 2 082 ms | **1 360 ms** |
+
+Faserna är medianer var för sig och summerar därför inte exakt till LCP. Render delay är fortfarande den största fasen men är nu 1,36 s mot 2,03–2,08 s.
+
+### Vad som kostade tiden (och att stilmallarna inte var huvudorsaken)
+
+Hypotesen i S6 var att stilmallarna (tre länkade filer) blockerar första ritningen. De gör det, men i Lighthouses simulering är de inte det som kostar mest. Lighthouse (lantern) räknar in **allt som hämtats före den observerade första ritningen** i FCP och LCP, och landningens ~126 kB JS (ingångsmodulen + sex delade chunkar, alla begärda direkt av modulskriptet och sex `modulepreload`-länkar) delar 1,6 Mbit/s och 4x CPU med stilmallarna, typsnittet och mobilpostern. Mätt med varianter av `dist/landing.html` (5–9 körningar per variant, läget API ger fel, samma maskin; enstaka körningar sprider ±100 ms och är inte lika stränga som tabellen ovan):
+
+| Variant | FCP (ms) | LCP (ms) |
+|---|---|---|
+| Före (länkade stilmallar, JS direkt) | 2 560 | 2 859 |
+| Alla tre stilmallar inline i dokumentet (105 kB `<style>`), JS direkt | 2 300–2 490 | 2 710–2 930 (typiskt 2 855, alltså oförändrad) |
+| JS med `fetchpriority="low"` direkt (ingen annan ändring) | 1 510 | 2 870–2 930 |
+| **JS efter första ritningen** (vald), länkade stilmallar | 1 656 | 1 956 |
+| JS efter första ritningen + Barlow Condensed 400 förladdad (**levererat**) | **1 506** | **1 956** |
+| JS efter första ritningen, stilmallarna inline | 1 505 | 2 105 |
+| JS efter första ritningen + Barlow 400 och 600 förladdade | 1 506 | 2 105 |
+| Golvet: ingen JS alls, länkade stilmallar | 1 654 | 1 954 |
+
+Läsning: det som flyttar LCP är att JS:et inte hämtas före första ritningen. Det levererade resultatet ligger på golvet för en sida med de här stilmallarna, postern och typsnitten (1 956 mot 1 954 ms utan JS).
+
+### Vald åtgärd: ingångsmodulen laddas efter första ritningen
+
+`landing.html` är färdig HTML och syns utan JS, så modulskriptet och de sex `modulepreload`-länkarna byts i bygget mot ett enda litet modulskript (`assets/landing-boot-<hash>.js`, 927 B rått) som lägger in förladdningarna och ingångsmodulen först när `PerformanceObserver` rapporterar `first-contentful-paint`. Vite-pluginet `apps/frontend/deferLandingEntry.ts` gör omskrivningen i `generateBundle` (efter att Vite skrivit HTML-filen), texten kommer ur `src/landing-entry/deferredEntry.ts` (en ren textgenerator som `sessionHintScript`, prövad mot en riktig DOM). Bygget faller om `landing.html` inte har exakt ett modulskript med `src`. `index.html` (fullappen) rörs inte.
+
+**Motivering.** Den enda åtgärden som flyttade LCP i mätningen, och den rör det som faktiskt kostar (JS-bytes före ritningen), inte en gissning om stilmallarna. Skriptet är en separat fil och inget inline-skript: `landing.html` har kvar exakt två inline-skript, inga `on*`-attribut, och en framtida CSP (RUN-344) behöver inget nytt i `script-src` utöver `'self'`. Fallbackerna: webbläsare utan ritningsmätning startar efter nästa bildruta, och en tidsgräns på 1,5 s startar ändå när ingen ritning kommer (en flik som öppnats i bakgrunden).
+
+**Förkastade alternativ.**
+
+- *Kritisk CSS inline i `landing.html`* (hela CSS:en, 105 kB, i ett `<style>`): lägre FCP (−0,07 till −0,26 s) men ingen LCP-vinst med JS direkt, och när JS:et väntar steg LCP med ca 150 ms (1 956 mot 2 105 ms): dokumentet blir 130 kB rått och postern begärs senare i simuleringen. Kostnaden går inte att motivera för ett sämre LCP. Därtill: en inline `<style>` kräver en hash i en framtida CSP (`style-src`), hashen byts vid varje CSS-ändring, och Vites förladdningslista för inloggningsdialogen (`landing-*.js` pekar på `form-*.css`) skulle ha hämtat samma stilmall en gång till när dialogen öppnas, i en annan kaskadordning (`__vitePreload` hittar ingen `<link>`), vilket hade krävt en omskrivning av den listan. En delmängd som "kritisk CSS" kräver dessutom ett verktyg som avgör vilka regler som används och en asynkron laddning av resten utan `onload` (CSP).
+- *`fetchpriority="low"` på JS:et direkt:* FCP 1 510 ms men LCP oförändrad (2 870–2 930 ms), eftersom Lighthouse fortfarande räknar in begäran före ritningen.
+- *Förladda både Barlow Condensed 400 och 600:* tar bort de sista 0,0001 CLS men kostar +150 ms LCP (600 är "Sign in", 14 px).
+- *Färre och mindre stilmallar:* tre filer, 23,3 kB överfört, redan under budgeten med 26,7 kB marginal; utan JS är golvet 1 954 ms med dem på plats, så mindre CSS flyttar högst tiotals millisekunder.
+- *Ett tredje inline-skript som laddar ingången:* gav samma LCP men kräver en hash per bygge (skriptet innehåller ingångens hashade namn) och bryter vakten på exakt två inline-skript (ADR 006, punkt 4).
+
+### Typsnitt och CLS
+
+Ovanför vikningen ritas rubriken med Bebas Neue 400 (redan förladdad), ingress och meny med Barlow Condensed 400, "Sign in" med Barlow 600, logotypen med Oswald och sifferraden (mobil, y = 672) med Share Tech Mono. Barlow Condensed 400 förladdas nu (`/fonts/barlow-condensed-400.v1.woff2`, 21,5 kB, `crossorigin`): utan den byter ingressen och menyn typsnitt efter första ritningen och rubriken med allt under den hoppar. Filnamnen är de manuellt versionerade filerna i `public/fonts` (inte byggets hashar) och prövas mot `@font-face` i `index.css` och mot `public/` i `staticHead.test.ts`. Mätt i Chromium, ostrypt, API-anrop avbrutna, 8 laddningar per bredd (`layout-shift`, det Lighthouse utgår från):
+
+| Bredd | CLS före | CLS efter |
+|---|---|---|
+| 390 px | 0,0006 | 0,0001 |
+| 1 024 px | 0,0014 | 0,0001 |
+| 1 350 px | 0,0174 | 0,0001 |
+
+Återstoden 0,0001 är "Sign in" (Barlow 600). Att förladda den också tog bort den men kostade 150 ms LCP (tabellen ovan).
+
+### Följder att känna till
+
+- **Hydreringen kommer senare.** Under *applicerad* strypning (Chromium DevTools-nät 1,6 Mbit/s, 150 ms latens, 4x CPU, mobil 390 px, median av 7) föll FCP från 1 276 till 1 012 ms och LCP från 1 276 till 1 028 ms, men tiden tills väntelistans formulär är levande (hydrerat, inte längre `inert`) steg från 1 634 till 2 268 ms (+634 ms): JS:et hämtas nu efter ritningen i stället för parallellt med den. Det är priset för mätningen ovan och följer av hur Lighthouse räknar. Landningen är fullt läsbar under tiden; "Sign in" är en vanlig länk (till `/login`, fullappen) och formuläret är `inert` tills hydreringen (`landing-waitlist.spec.ts`).
+- **DOM:en ändras inte** av att hydreringen kommer senare (klientens första rendering är identisk med serverns; `hydrateLanding.test.tsx` och de befintliga hydreringsproven är gröna). e2e: `landing.spec.ts` och `landing-waitlist.spec.ts` kördes lokalt mot ett stagingbygge med `E2E_STUB_API=1` (23 gröna, 4 hoppade enligt `docs/e2e.md`).
+- **`holdLandingScript`** i e2e-hjälparna (`**/assets/landing-*.js`) träffar nu boot-skriptet först; specerna går igenom (de håller hela kedjan och släpper den).
+- **CSP (RUN-344):** inga nya inline-block, ingen ny hash. Oförändrade i `landing.html`: sessionstipset `'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ='` och `next-themes`-skriptet `'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw='` (prodbygget, räknat ur färdig fil). Boot-skriptet är en extern fil under `script-src 'self'`. `landing.html` har 24 `style="…"`-attribut från den förrenderade markupen (före och efter), vilket RUN-344 behöver ta ställning till för `style-src-attr`.
+- **Stagingbannern** är oförändrad (stilmallen länkad i båda HTML-filerna, lazy-chunken startas av hydreringen och ingår inte i boot-skriptets graf; prövat i `landingBuild.test.ts`).
+
+### Öppna rader
+
+- **CI-mätning** (Lead): före = `integration/v0.8.1`, efter = den här branchen, båda lägena. Mål: mobil-LCP ≤ 2 500 ms. Lokalt 1 956 ms.
+- RUN-334 (skärpt budget) kan utgå från CI-siffrorna; budgeten är orörd här. LCP-taket 5 000 ms ligger långt över; ADR 006, punkt 10 anger hur taket sätts efter minst fem CI-körningar.
+- **Hydreringen +0,6 s under riktig strypning** (ovan): värt att följa i Umami/Sentry (första interaktion) efter release; ligger den inte i vägen för väntelistans konvertering behövs inget mer. Alternativet är att starta JS:et tidigare, vilket i Lighthouses modell ger tillbaka LCP (2,87 s), så det går inte att få båda.
+- `/legal` (3,0 s) och övriga sidor som serveras av `index.html` har inte åtgärdats här.
+- Sentry: boot-skriptet har ingen källkarta; uppladdningen (`sentryVitePlugin`) kördes inte här (ingen token). Kontrollera i staging att byggsteget med uppladdning tål en JS-fil utan karta.
+
+### CI
+
+(Lead fyller i: före/efter, båda lägena, minst 6 körningar.)
