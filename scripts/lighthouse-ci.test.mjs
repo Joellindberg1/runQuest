@@ -66,7 +66,7 @@ describe('median', () => {
   });
 });
 
-const lhr = (url, { perf, lcp, cls = 0, tbt = 0, script, style, image = 0, total }) => ({
+const lhr = (url, { perf, fcp = 1000, lcp, cls = 0, tbt = 0, script, style, image = 0, total }) => ({
   finalDisplayedUrl: url,
   categories: {
     performance: { score: perf },
@@ -75,7 +75,7 @@ const lhr = (url, { perf, lcp, cls = 0, tbt = 0, script, style, image = 0, total
     seo: { score: 1 },
   },
   audits: {
-    'first-contentful-paint': { numericValue: 1000 },
+    'first-contentful-paint': { numericValue: fcp },
     'largest-contentful-paint': { numericValue: lcp },
     'cumulative-layout-shift': { numericValue: cls },
     'total-blocking-time': { numericValue: tbt },
@@ -94,9 +94,9 @@ const lhr = (url, { perf, lcp, cls = 0, tbt = 0, script, style, image = 0, total
 
 describe('summarizeLhrs', () => {
   const runs = [
-    lhr('http://127.0.0.1:18090/', { perf: 0.8, lcp: 3000, script: 100, style: 10, total: 500 }),
-    lhr('http://127.0.0.1:18090/', { perf: 0.9, lcp: 4000, script: 300, style: 30, total: 900 }),
-    lhr('http://127.0.0.1:18090/', { perf: 0.7, lcp: 9000, script: 200, style: 20, total: 700 }),
+    lhr('http://127.0.0.1:18090/', { perf: 0.8, fcp: 1500, lcp: 3000, script: 100, style: 10, total: 500 }),
+    lhr('http://127.0.0.1:18090/', { perf: 0.9, fcp: 2500, lcp: 4000, script: 300, style: 30, total: 900 }),
+    lhr('http://127.0.0.1:18090/', { perf: 0.7, fcp: 6000, lcp: 9000, script: 200, style: 20, total: 700 }),
     lhr('http://127.0.0.1:18090/legal', { perf: 1, lcp: 1000, script: 50, style: 5, total: 100 }),
   ];
 
@@ -105,6 +105,7 @@ describe('summarizeLhrs', () => {
     assert.equal(landing.url, 'http://127.0.0.1:18090/');
     assert.equal(landing.runs, 3);
     assert.equal(landing.categories.performance, 0.8);
+    assert.equal(landing.fcp, 2500);
     assert.equal(landing.lcp, 4000);
     assert.deepEqual(landing.bytes, { script: 200, stylesheet: 20, image: 0, total: 700 });
   });
@@ -117,8 +118,13 @@ describe('summarizeLhrs', () => {
 
   it('prints a table with a line per page and the budgeted columns', () => {
     const table = formatTable(summarizeLhrs(runs));
-    assert.match(table, /\| Page \| Runs \| Perf \| A11y \| BP \| SEO \| LCP \(ms\) \| CLS \| TBT \(ms\) \| JS \(kB\) \| CSS \(kB\) \| Total \(kB\) \|/);
+    assert.match(table, /\| Page \| Runs \| Perf \| A11y \| BP \| SEO \| FCP \(ms\) \| LCP \(ms\) \| CLS \| TBT \(ms\) \| JS \(kB\) \| CSS \(kB\) \| Total \(kB\) \|/);
     assert.match(table, /\/legal/);
+  });
+
+  it('shows the median first-contentful-paint of each page in the table', () => {
+    const [landingLine] = formatTable(summarizeLhrs(runs)).split('\n').filter((l) => l.startsWith('| / |'));
+    assert.match(landingLine, /\| 2500 \| 4000 \|/);
   });
 });
 
@@ -223,6 +229,13 @@ describe('formatFailures', () => {
       '/ categories.performance minScore: found 0.6, expected >= 0.75',
       '/legal largest-contentful-paint maxNumericValue: found 6925.642, expected <= 5000',
     ]);
+  });
+
+  // 0,0205 mot taket 0,02 ska aldrig se ut som "found 0.02, expected <= 0.02".
+  it('keeps enough decimals that a failing value never looks equal to its limit', () => {
+    const cls = { url: 'http://127.0.0.1:18090/', auditId: 'cumulative-layout-shift', name: 'maxNumericValue', operator: '<=', expected: 0.02, actual: 0.020512, passed: false };
+    assert.deepEqual(formatFailures([cls]), ['/ cumulative-layout-shift maxNumericValue: found 0.0205, expected <= 0.02']);
+    assert.deepEqual(formatFailures([{ ...cls, actual: 0.0200004 }]), ['/ cumulative-layout-shift maxNumericValue: found 0.0200004, expected <= 0.02']);
   });
 
   it('has nothing to report when every line held', () => {
