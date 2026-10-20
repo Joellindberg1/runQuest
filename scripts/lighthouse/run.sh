@@ -11,7 +11,7 @@
 #   CADDY_BIN    sökväg till en redan hämtad Caddy (CI hämtar den i ett eget steg med install-caddy.sh); saknas den hämtas den här.
 #   CHROME_PATH  webbläsaren som Lighthouse startar (standard: den som chrome-launcher hittar).
 # Bara för verktygstestet (scripts/lighthouse-ci.test.mjs), så att det tål last och en upptagen maskin; CI och lokala körningar ska inte sätta dem:
-#   SERVE_PORT          porten Caddy lyssnar på (standard 18090, den som lighthouserc.json pekar på).
+#   LHCI_SERVE_PORT     porten Caddy lyssnar på (standard 18090, den som lighthouserc.json pekar på).
 #   PORT_PROBE_SECONDS  hur länge portkollen av API-porten väntar på svar (standard 1).
 #   CADDY_WAIT_TRIES    antal försök (à 0,2 s plus anropet) att nå Caddys /health (standard 50).
 # Rapporterna (JSON + HTML per körning) skriver lhci i .lighthouseci i repo-roten (kan inte ändras); skriptet kopierar dem till
@@ -22,7 +22,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATS_MODE="${STATS_MODE:-error}"
 DIST_DIR="${DIST_DIR:-apps/frontend/dist}"
 OUT_DIR=".lighthouseci"
-PORT="${SERVE_PORT:-18090}" # standardvärdet är porten urlerna i lighthouserc.json pekar på; SERVE_PORT är bara till för verktygstestet (låtsas-Caddy på ledig port)
+PORT="${LHCI_SERVE_PORT:-18090}" # standardvärdet är porten urlerna i lighthouserc.json pekar på; LHCI_SERVE_PORT är bara till för verktygstestet (låtsas-Caddy på ledig port)
 API_PORT="${API_PORT:-3001}" # måste vara porten bygget pekar på (VITE_API_URL, annars localhost:3001)
 LHCI="$HERE/node_modules/.bin/lhci"
 

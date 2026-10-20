@@ -345,7 +345,7 @@ createServer((req, res) => {
         CADDY_BIN: posix(join(work, 'fake-caddy')),
         FAKE_FAILING_PAGE: failingPage,
         API_PORT: String(ports.api),
-        SERVE_PORT: String(ports.serve),
+        LHCI_SERVE_PORT: String(ports.serve),
         // Låtsasservern är en nystartad node-process: under last kan den ta många sekunder, och 50 försök räcker då inte.
         CADDY_WAIT_TRIES: '300',
       },
