@@ -7,6 +7,10 @@ set -euo pipefail
 
 CADDY_VERSION="2.11.4"
 PORT="18080"
+# Rubriken som Caddyfilen ska bära CSP i (RUN-344): först Report-Only i staging, sedan skarp. Det här är enda raden som byts när CSP blir skarp
+# (Caddyfilens rubrik byts samtidigt); den andra rubriken får då inte finnas alls.
+CSP_HEADER="content-security-policy-report-only"
+if [[ "$CSP_HEADER" == "content-security-policy" ]]; then CSP_OTHER="content-security-policy-report-only"; else CSP_OTHER="content-security-policy"; fi
 WORK="$(mktemp -d)"
 # Windows (Git Bash): en inbyggd Caddy vill ha C:/-sökvägar i Caddyfilen, inte /tmp/…; på Linux är sökvägen oförändrad.
 native_path() { if command -v cygpath > /dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
@@ -95,6 +99,48 @@ else
   echo "ok   health har tom kropp"
 fi
 check "nosniff och ingen Server-header"           "/"                              200 "^x-content-type-options: nosniff" "^server:"
+
+# Säkerhetshuvuden (RUN-344) ska finnas på ALLA svar, också 404, omdirigeringar och /health. security_headers prövar fem huvuden på ett svar och rapporterar vilka som saknas.
+# HSTS är exakt ett år, utan includeSubDomains och utan preload (underdomänerna är inte inventerade, preload går inte att ångra snabbt).
+security_headers() {
+  local desc="$1" path="$2" headers missing=""
+  shift 2
+  headers="$(curl -s -o /dev/null -D - "$@" "http://127.0.0.1:$PORT$path" | tr -d '\r')"
+  printf '%s\n' "$headers" | grep -qiE '^strict-transport-security: max-age=31536000$' || missing+=" Strict-Transport-Security(max-age=31536000, utan includeSubDomains/preload)"
+  printf '%s\n' "$headers" | grep -qiE '^referrer-policy: strict-origin-when-cross-origin$' || missing+=" Referrer-Policy"
+  printf '%s\n' "$headers" | grep -qiE '^x-frame-options: DENY$' || missing+=" X-Frame-Options"
+  printf '%s\n' "$headers" | grep -qiE "^$CSP_HEADER: default-src 'self'; .*frame-ancestors 'none'\$" || missing+=" $CSP_HEADER"
+  if printf '%s\n' "$headers" | grep -qiE "^$CSP_OTHER:"; then missing+=" (förbjuden $CSP_OTHER)"; fi
+  if [[ -n "$missing" ]]; then
+    echo "FAIL $desc: $path:$missing"; printf '%s\n' "$headers"; failures=$((failures + 1)); return
+  fi
+  echo "ok   $desc"
+}
+security_headers "säkerhetshuvuden på startsidan"                 "/"
+security_headers "säkerhetshuvuden på en SPA-route"               "/titles"
+security_headers "säkerhetshuvuden på en hashad fil"              "/$asset"
+security_headers "säkerhetshuvuden på en saknad hashad fil (404)" "/assets/index-DOESNOTEXIST.js"
+security_headers "säkerhetshuvuden på en källkarta (404)"         "/foo.js.map"
+security_headers "säkerhetshuvuden på /health"                    "/health"
+security_headers "säkerhetshuvuden på Strava-popupen"             "/strava-popup.html"
+security_headers "säkerhetshuvuden på en omdirigering (307)"      "/landing.html"
+security_headers "säkerhetshuvuden på apex-omdirigeringen (308)"  "/titles" -H "Host: runquest.dev"
+
+# CSP-hasharna är fästa i Caddyfilen och måste stämma med det färdiga bygget: ett inline-skript vars hash ändrats blockeras tyst i webbläsaren.
+# scripts/csp-hashes.mjs räknar hasharna ur dist/**/*.html och fäller också en hash som inget längre matchar, eller en policy som släppt på ett grunddirektiv.
+if node scripts/csp-hashes.mjs "$DIST" Caddyfile; then :; else failures=$((failures + 1)); fi
+
+# Umamis tracker (public/vendor, RUN-344) är en versionerad fil på eget ursprung: serveras som JS, cachas för alltid, saknad version ger 404 (aldrig index.html),
+# och filen är oförändrad mot hashen i licensfilen bredvid.
+check "Umami-trackern serveras som JS, cachad för alltid" "/vendor/umami.v1.js" 200 "^content-type: (text|application)/javascript" "content-type: text/html"
+check "Umami-trackern är immutable"                       "/vendor/umami.v1.js" 200 "^cache-control: public, max-age=31536000, immutable"
+check "saknad vendor-fil ger 404, aldrig index.html"      "/vendor/saknas.v1.js" 404 "^cache-control: no-store" "immutable|content-type: text/html"
+umami_sha="$(sha256sum "$DIST/vendor/umami.v1.js" | awk '{print $1}')"
+if grep -q "$umami_sha" "$DIST/vendor/umami.LICENSE.txt"; then
+  echo "ok   Umami-trackern är oförändrad mot hashen i licensfilen"
+else
+  echo "FAIL Umami-trackern ($umami_sha) stämmer inte med hashen i umami.LICENSE.txt: byt namn (.v2) och uppdatera licensfilen om filen medvetet bytts"; failures=$((failures + 1))
+fi
 
 # Apex-domänen skickas till www med sökväg och query kvar; www och Railways egen adress serveras som vanligt.
 host_check() {

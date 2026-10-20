@@ -1,1 +1,2 @@
 apps/frontend/public/brand/*.svg -text
+apps/frontend/public/vendor/umami.v1.js -text

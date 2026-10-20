@@ -1,10 +1,10 @@
 import type { Page } from '@playwright/test';
 
-// Provet av sidvisningarna (tests/landing.spec.ts). Umami-skriptet (https://cloud.umami.is/script.js) ersätts i webbläsaren av en stub som bara rapporterar vad
+// Provet av sidvisningarna (tests/landing.spec.ts). Umami-trackern (appens egen kopia, /vendor/umami.v1.js) ersätts i webbläsaren av en stub som bara rapporterar vad
 // appen skulle ha skickat; ingenting når Umami. Ett stagingbygge laddar aldrig skriptet (umamiWebsiteIdOf), så provet gäller ett bygge med webbplats-id
 // (`E2E_UMAMI_BUILD=1`, se docs/e2e.md): mot staging hoppas det över.
 
-const UMAMI_SCRIPT = 'https://cloud.umami.is/script.js';
+const UMAMI_SCRIPT = '**/vendor/umami.v1.js';
 
 /** Ersätter Umami-skriptet. `window.umami.track` anropas som av riktiga skriptet med en funktion som bygger nyttolasten; den färdiga nyttolasten rapporteras. */
 const STUB_SCRIPT = `(function () {

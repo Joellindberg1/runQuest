@@ -10,6 +10,7 @@
 #   4. Källkartor (.map) ger alltid 404, på alla sökvägar även under /assets, /media och /fonts, också när filen finns (RUN-285). Reglerna ligger i ett route-block för att behålla källordningen.
 #   5. Den förrenderade landningen (RUN-260, ADR 006 addendum 2026-10-19): EXAKT `/` (med valfri query) får landing.html, alla andra adresser index.html (vars #root bara har laddningsvyn).
 #      Saknas landing.html faller `/` tillbaka på index.html. `/landing.html` och `/landing` omdirigeras till `/`, så landningen har en enda adress.
+#   6. Säkerhetshuvuden (RUN-344): HSTS, Referrer-Policy, X-Frame-Options och CSP på alla svar (se header-blocket), och /vendor/* för Umamis tracker (samma mönster som /fonts).
 # Beteendet verifieras i CI mot det byggda dist/ (scripts/verify-static-serving.sh).
 
 {
@@ -41,8 +42,27 @@
 		respond 200
 	}
 
+	# Säkerhetshuvuden (RUN-344) på ALLA svar, också 404, omdirigeringar och /health (header körs före handle/route). Samma Caddyfile i prod och staging.
+	#   - HSTS: ett år, utan includeSubDomains och utan preload. Underdomänerna är inte inventerade, och preload går inte att ångra snabbt (docs/release.md, "Säkerhetshuvuden").
+	#   - X-Frame-Options: DENY gäller skarpt även medan CSP går som Report-Only (frame-ancestors i en Report-Only-policy blockerar inget). Båda finns kvar när CSP blir skarp.
+	#   - CSP: vakten scripts/csp-hashes.mjs (körs av verify-static-serving.sh) fäller bygget om en inline-hash här inte längre stämmer med dist.
+	#     script-src: 'self' + hashar för de fyra inline-skripten (index.html: laddarens fas; landing.html: sessionstips och next-themes; strava-popup.html: OAuth-återkopplingen). Ingen
+	#       unsafe-inline, unsafe-eval eller strict-dynamic (landningens boot-skript lägger in modulskript och modulepreload från samma ursprung, 'self' räcker).
+	#     style-src: 'self' 'unsafe-inline', inga hashar. Det går inte att fästa stilarna: react-remove-scroll (Radix-dialogerna) lägger in en <style> vars text bär uppmätta marginaler och
+	#       scrollistens bredd, sonner lägger in sin CSS som <style> vid import, <noscript><style> i index.html och 28 style-attribut i den förrenderade markupen (landning och laddare) läses före hydrering.
+	#       Hashar hade blockerat dialoger och toasts (provat i Report-Only mot e2e-sviten). En inline-stil kan inte köra skript; det som återstår (CSS som läcker via attributväljare) begränsas
+	#       av img-src, font-src och connect-src. csp-hashes.mjs prövar att style-src är exakt det här, så en ändring blir ett medvetet val.
+	#     connect-src: API:erna för prod och staging (båda listas så att filen är densamma), Sentry EU-ingest (bara inloggade skalet, mönster eftersom DSN-värdet inte läses) och Umamis tracker-endpoint
+	#       (spårskriptet ligger i public/vendor/ och pekas dit med data-host-url, se umamiPageviews.ts). Umami-skriptet kommer från 'self' och behöver ingen plats i script-src.
+	#     img-src: Supabase Storage (profilbilder) för prod- och stagingprojektet. font-src/media-src/manifest-src: bara 'self' (typsnitt, film och manifest är självhostade).
+	#     frame-ancestors, object-src, base-uri och form-action låses; inget formulär postar dokumentet, inloggning och väntelista går via fetch till API:et (connect-src).
+	# Ingen report-uri/report-to: den skulle kräva Sentrys DSN-nyckel. Överträdelser samlas i e2e-proven (apps/e2e/support/cspViolations.ts).
 	header {
 		X-Content-Type-Options "nosniff"
+		Strict-Transport-Security "max-age=31536000"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'sha256-1yYJuvj582gVqQR/dSkeTdHfAS0wEZ/XUOH2vBttgR4=' 'sha256-ZOYfxyHFjZ5/ZypzQqo7o6mVTAHx2LSg5JpFHQYE7bQ=' 'sha256-y6TTgelvIX7DWIP0PdL2CA4Hx4x30cz3z0XnqmSNwpw=' 'sha256-ENgRl/chRPaOunHsdSJWIrmZCfT35J163c/mCMMs+kQ='; style-src 'self' 'unsafe-inline'; img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co; font-src 'self'; media-src 'self'; manifest-src 'self'; connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 	}
 
@@ -130,7 +150,7 @@
 		}
 
 		# Självhostade typsnitt (OFL, se public/fonts/OFL.txt): namnet bär versionen (bebas-neue-400.v1.woff2), så filerna cachas för alltid. Saknade filer ger 404, aldrig index.html (HTML som typsnitt = tyst reservtypsnitt).
-		# Typen sätts explicit eftersom typtabellen i prodcontainern är okänd; file_server skriver bara över Content-Type när den saknas. Ingen CSP begränsar font-src.
+		# Typen sätts explicit eftersom typtabellen i prodcontainern är okänd; file_server skriver bara över Content-Type när den saknas. CSP:ns font-src är 'self'.
 		handle /fonts/* {
 			@exists {
 				file
@@ -142,6 +162,23 @@
 				path *.woff2
 			}
 			header @woff2 Content-Type "font/woff2"
+			@missing not {
+				file
+				not path */
+			}
+			header @missing Cache-Control "no-store"
+			respond @missing "Not found" 404
+			file_server
+		}
+
+		# Tredjepartsfiler vi hostar själva (public/vendor, RUN-344): Umamis tracker. Namnet bär versionen (umami.v1.js), så filen cachas för alltid; en saknad fil ger 404, aldrig index.html
+		# (HTML som skript = tyst stoppad statistik). Skriptet laddas same-origin och släpps in av script-src 'self'.
+		handle /vendor/* {
+			@exists {
+				file
+				not path */
+			}
+			header @exists Cache-Control "public, max-age=31536000, immutable"
 			@missing not {
 				file
 				not path */

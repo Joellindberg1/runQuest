@@ -1,0 +1,33 @@
+Umami tracker (umami.v1.js)
+
+Hämtad 2026-10-21 från https://cloud.umami.is/script.js (ETag W/"5792e6789d3fcc2c4b3594b5bc3e16dc", Last-Modified 2026-10-17 03:32:19 GMT),
+oförändrad: filen är Umamis egen minifierade tracker. sha256: 91a876d767646fd5b7701b6fabf97f8a99ae53b94e7e5b58d465bad1e5d763e0.
+Licens: MIT, Umami Software, Inc. (https://github.com/umami-software/umami, licenstexten nedan hämtad samma dag).
+
+Namnet bär versionen (.v1). Byts filen ut: nytt namn (.v2), ny hash i den här texten och nytt namn i UMAMI_SCRIPT_SRC
+(apps/frontend/src/shared/analytics/umamiPageviews.ts). Trackern skickar till https://gateway.umami.is/api/send (filens eget standardvärde;
+koden sätter det också uttryckligen med data-host-url), och den adressen måste finnas i connect-src i Caddyfile.
+
+----------------------------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2022 Umami Software, Inc. <hello@umami.is>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

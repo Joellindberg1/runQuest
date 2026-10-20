@@ -43,9 +43,10 @@ describe('web analytics on the lean landing', () => {
     render(<LandingApp Router={Router} />);
     await waitFor(() => expect(umamiScript()).not.toBeNull(), { timeout: 3000 });
     const script = umamiScript()!;
-    expect(script.src).toBe('https://cloud.umami.is/script.js');
+    expect(script.getAttribute('src')).toBe('/vendor/umami.v1.js');
     expect(script.dataset).toMatchObject({
       websiteId: WEBSITE_ID,
+      hostUrl: 'https://gateway.umami.is',
       autoTrack: 'false',
       doNotTrack: 'true',
       domains: 'www.runquest.dev,runquest.dev',
