@@ -165,7 +165,7 @@ describe('POST /api/challenges/send', () => {
     use(tables);
     const res = await send(null);
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'Opponent is not in your group' });
+    expect(res.body).toEqual({ success: false, error: 'Opponent is not in your group', code: 'invalid_request' });
     expect(tables.challenges).toHaveLength(0);
     expect(tables.user_challenge_tokens[0].sent_at).toBeNull();
   });

@@ -398,7 +398,7 @@ describe('PUT /api/challenges/:id/respond (accept) → challenge_accepted', () =
       const res = await respond('accept');
 
       expect(res.status).toBe(404);
-      expect(res.body).toEqual({ error: 'Challenge not found or already responded' });
+      expect(res.body).toEqual({ success: false, error: 'Challenge not found or already responded', code: 'not_found' });
       expect(tables.users.map((u) => u.challenge_active)).toEqual([false, false]);
       expect(acceptedRows(tables)).toHaveLength(0);
     });
