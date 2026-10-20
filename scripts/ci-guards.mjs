@@ -82,7 +82,7 @@
 //     Undantaget är Stravas webhookprotokoll (GET och POST `/` i stravaWebhook.ts, ROUTE_CONTRACT_EXEMPT); `/health` i samma fil är en vanlig adminroute.
 //     Vakten är textbaserad: den läser handlerns text (från en `router.<verb>(` till nästa) utan kommentarer och räknar en träff i handlern som
 //     "typad". Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
-//     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn).
+//     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn, men bara när svarets data är typad: Supabase-klienten är otypad, så data som kommer direkt därifrån är `any` och `satisfies` säger då ingenting om serverns faktiska form).
 //     Fångas heller INTE: en route med en icke-literal väg (`router.get(PATH, …)` eller en väg byggd av en variabel; mönstret kräver en sträng direkt
 //     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
 //     routen i en fil får handlertext till filens slut, så en `…Response`-typ i kod efter den (en hjälpfunktion, en annan export) räknas som dess svar.
