@@ -1,4 +1,5 @@
 import type { Run } from '@runquest/types';
+import type { RunIdOnly } from '@runquest/shared';
 import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, stockholmClock } from '@runquest/shared';
 import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
 
@@ -120,8 +121,12 @@ export function streakOutlook(runs: readonly StreakRun[], date: string): StreakO
   return isNextDay(prevDate, date) ? { day: next, kind: 'continue' } : { day: next, kind: 'start' };
 }
 
-/** Bekräftelsen efter en lyckad inlämning — siffrorna är serverns, inte förhandsvisningens. */
-export function confirmationText(run: Pick<Run, 'distance' | 'xp_gained' | 'multiplier' | 'streak_day'>): string {
+/**
+ * Bekräftelsen efter en lyckad inlämning — siffrorna är serverns, inte förhandsvisningens. Kunde servern inte läsa tillbaka rundan (bara `id`)
+ * finns inga siffror att visa, och då står det bara att rundan är loggad.
+ */
+export function confirmationText(run: Pick<Run, 'distance' | 'xp_gained' | 'multiplier' | 'streak_day'> | RunIdOnly): string {
+  if (!('xp_gained' in run)) return 'Run logged';
   const streak = run.streak_day > 1 ? ` · streak day ${run.streak_day} at ${formatMultiplier(run.multiplier)}` : '';
   return `Run logged: ${formatKm(Number(run.distance))} km for ${formatInt(run.xp_gained)} XP${streak}`;
 }

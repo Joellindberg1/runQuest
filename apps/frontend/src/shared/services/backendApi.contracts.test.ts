@@ -43,6 +43,21 @@ describe('login', () => {
   });
 });
 
+describe('createRun', () => {
+  it('rundan kan vara bara { id } när servern inte kunde läsa tillbaka den, så siffrorna kräver en kontroll av formen först', async () => {
+    fetchMock.mockResolvedValue(json(200, { success: true, message: 'Run created successfully', run: { id: 'r9' } }));
+
+    const res = await backendApi.createRun('2026-10-11', 5);
+    const run = res.data;
+    if (!run) throw new Error('rundan skulle skapas');
+
+    // @ts-expect-error distance finns inte på { id }: formen måste kontrolleras först
+    void run.distance;
+    expect('xp_gained' in run).toBe(false);
+    if ('xp_gained' in run) expect(run.xp_gained).toBeDefined();
+  });
+});
+
 describe('updateRun', () => {
   it('PUT-bodyn är exakt date och distance, inga fält som servern ignorerar', async () => {
     fetchMock.mockResolvedValue(json(200, { success: true, message: 'Run updated successfully', run: { id: 'r1' } }));

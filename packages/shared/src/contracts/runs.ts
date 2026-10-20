@@ -86,14 +86,17 @@ export interface CreateRunRequest {
   is_treadmill?: boolean;
 }
 
+/** Det POST /api/runs skickar som `run` när rundan skapades men inte gick att läsa tillbaka (felet varnas i loggen): bara id. */
+export type RunIdOnly = Pick<RunRow, 'id'>;
+
 /**
- * Svar från POST /api/runs: rundan efter omräkningen. Läses rundan inte tillbaka (varnas i loggen) innehåller `run` bara `id`.
- * En upprepning med samma Idempotency-Key ger samma form med den först skapade rundan.
+ * Svar från POST /api/runs: rundan efter omräkningen, eller bara dess id (`RunIdOnly`) om återläsningen föll. Läsaren måste därför kontrollera formen
+ * (`'xp_gained' in run`) innan den läser siffrorna. En upprepning med samma Idempotency-Key ger samma form med den först skapade rundan.
  */
 export interface CreateRunResponse {
   success: true;
   message: string;
-  run: RunRow;
+  run: RunRow | RunIdOnly;
 }
 
 /**

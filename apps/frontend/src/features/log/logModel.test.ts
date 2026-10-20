@@ -144,4 +144,8 @@ describe('confirmationText', () => {
     expect(confirmationText({ distance: 8, xp_gained: 44, multiplier: 1.4, streak_day: 5 })).toBe('Run logged: 8.0 km for 44 XP · streak day 5 at 1.4×');
     expect(confirmationText({ distance: 3, xp_gained: 21, multiplier: 1, streak_day: 1 })).toBe('Run logged: 3.0 km for 21 XP');
   });
+
+  it('en runda som bara har id (servern kunde inte läsa tillbaka den) ger en kort bekräftelse, aldrig NaN', () => {
+    expect(confirmationText({ id: 'r9' })).toBe('Run logged');
+  });
 });
