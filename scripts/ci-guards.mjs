@@ -83,6 +83,9 @@
 //     Vakten är textbaserad: den läser handlerns text (från en `router.<verb>(` till nästa) utan kommentarer och räknar en träff i handlern som
 //     "typad". Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
 //     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn).
+//     Fångas heller INTE: en route med en icke-literal väg (`router.get(PATH, …)` eller en väg byggd av en variabel; mönstret kräver en sträng direkt
+//     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
+//     routen i en fil får handlertext till filens slut, så en `…Response`-typ i kod efter den (en hjälpfunktion, en annan export) räknas som dess svar.
 //
 // Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
