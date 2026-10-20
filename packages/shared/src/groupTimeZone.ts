@@ -6,8 +6,8 @@ import { STOCKHOLM_TZ } from './calendar.js';
  * tidszon får sina dygn flyttade utan att någon räknefunktion ändras.
  *
  * Tidszon per grupp (RUN-21, reserverad nyckel `season.timezone` i group_settings, ADR 012 beslut 2) är inte byggd: utan `source`
- * svarar resolvern STOCKHOLM_TZ för varje grupp, och ingen inställning registreras här. RUN-21 byter bara resolverns källa, genom att
- * skicka en `source` som läser gruppens värde, och ingen anropare behöver ändras.
+ * svarar resolvern STOCKHOLM_TZ för varje grupp, och ingen inställning registreras här. RUN-21 byter resolverns källa (backend: setGroupTimeZoneSource)
+ * och ändrar sedan de ställen som ännu inte går via resolvern. De är listade i apps/backend/src/utils/groupTimeZone.ts, RUN-21:s arbetslista.
  *
  * Fail-safe: en okänd grupp, en tom källa eller ett ogiltigt zonnamn ger STOCKHOLM_TZ, aldrig ett kast. En felstavad zon ska inte
  * ta ner en XP-omräkning; den räknar då som idag.

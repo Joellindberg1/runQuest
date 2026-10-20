@@ -142,6 +142,10 @@ export interface MyBoost {
   remaining?: number | null;
   expires_at?: string | null;
   created_at: string;
+  /** Boostens sparade första dag (YYYY-MM-DD), samma fönster som XP-omräkningen läser. Saknas hos en rad som inte backfyllts. */
+  start_date?: string | null;
+  /** Sparad sista dag (inklusive). null för en körboost. */
+  end_date?: string | null;
 }
 
 export interface MyChallengesData {
