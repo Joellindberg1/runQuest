@@ -27,6 +27,7 @@ vi.mock('../routes/publicStats.js', async () => {
   router.get('/boom-status/:status', (req) => {
     throw Object.assign(new Error(LEAKY_MESSAGE), { status: Number(req.params.status), expose: true, stack: `Error: ${LEAKY_MESSAGE}\n    at secret/path.ts:1:1` });
   });
+  router.get('/partial', (_req, res) => { res.write('partial'); throw new Error(LEAKY_MESSAGE); });
   router.get('/boom-cause', () => { throw new Error('outer', { cause: new Error(LEAKY_MESSAGE) }); });
   return { default: router };
 });
@@ -142,6 +143,16 @@ describe('an error nobody caught in a route', () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
     expectNoSecrets(res.text);
+  });
+
+  it('hands the error on without appending a JSON body when the response has already started (headersSent)', async () => {
+    // Express stänger anslutningen i stället för att skriva en andra kropp: klienten ser antingen ett avbrutet svar eller bara det som redan skrevs.
+    const outcome = await request(app).get('/api/public/partial').then((res) => ({ text: res.text }), (error: unknown) => ({ aborted: error }));
+    if ('text' in outcome) {
+      expect(outcome.text).not.toContain('internal_error');
+      expect(outcome.text).not.toContain('success');
+    }
+    expectNoSecrets(JSON.stringify(outcome));
   });
 
   it('does not echo the cause, the stack or error.expose', async () => {
