@@ -30,7 +30,7 @@ import {
   checkTestNames,
   checkTodos,
   checkUsersGroupIdWrites,
-  ERROR_RESPONSE_EXEMPT_FILES,
+  ERROR_RESPONSE_EXEMPT_ROUTES,
   GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
   listWorkspaces,
@@ -828,10 +828,48 @@ describe('checkErrorResponsesViaFail', () => {
     }
   });
 
-  it('exempts exactly the Strava webhook router (ADR 007 Addendum 2026-10-20 punkt 4) and nothing else', () => {
-    assert.deepEqual([...ERROR_RESPONSE_EXEMPT_FILES].sort(), ['apps/backend/src/routes/stravaWebhook.ts']);
-    assert.deepEqual(scan("res.status(403).json({ error: 'x' });", 'apps/backend/src/routes/stravaWebhook.ts'), []);
-    assert.equal(scan("res.status(403).json({ error: 'x' });", 'apps/backend/src/routes/strava.ts').length, 1);
+  describe('the Strava webhook exemption', () => {
+    const WEBHOOK = 'apps/backend/src/routes/stravaWebhook.ts';
+    const webhook = [
+      'export function createStravaWebhookRouter() {',
+      '  const router = express.Router();',
+      "  router.get('/', (req, res) => {",
+      "    res.status(403).json({ error: 'Forbidden' });",
+      '  });',
+      "  router.get('/health', authenticateJWT, requireAdmin, async (_req, res) => {",
+      "    res.status(500).json({ success: false, error: 'Failed to read webhook health' });",
+      '  });',
+      "  router.post('/', express.json(), async (req, res) => {",
+      "    res.status(400).json({ error: 'Invalid event' });",
+      '  });',
+      '  router.use((err, _req, res, next) => {',
+      "    if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }",
+      '    next(err);',
+      '  });',
+      '  return router;',
+      '}',
+    ].join('\n');
+
+    it('exempts exactly the two Strava protocol routes (ADR 007 Addendum 2026-10-20 punkt 4), GET / and POST /, and nothing else', () => {
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.keys()], [WEBHOOK]);
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.get(WEBHOOK)].sort(), ['GET /', 'POST /']);
+    });
+
+    it('lets the protocol routes (and the router error handler that follows POST /) through and catches a hand-written answer in /health', () => {
+      const errors = scan(webhook, WEBHOOK);
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /stravaWebhook\.ts:7: ett felsvar skrivs för hand/);
+    });
+
+    it('catches a hand-written answer in a webhook route that is not one of the two, and in code before the first route', () => {
+      assert.equal(scan(webhook.replace("router.get('/health'", "router.put('/other'"), WEBHOOK).length, 1);
+      assert.equal(scan("res.status(500).json({ error: 'x' });\n" + webhook, WEBHOOK).length, 2);
+    });
+
+    it('does not exempt the other route files', () => {
+      assert.equal(scan("res.status(403).json({ error: 'x' });", 'apps/backend/src/routes/strava.ts').length, 1);
+      assert.equal(scan("router.get('/', (req, res) => { res.status(403).json({ error: 'x' }); });", 'apps/backend/src/routes/other.ts').length, 1);
+    });
   });
 });
 

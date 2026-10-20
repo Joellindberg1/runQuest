@@ -93,8 +93,8 @@
 //
 // 20. Felsvar går via fail (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2): ett handskrivet `res.status(4xx|5xx|207).json(…)` (eller `res.status(variabel)`, `res.sendStatus`,
 //     `res.json({ error … })`) i apps/backend/src/routes, middleware, utils eller app.ts fäller bygget. `fail` (utils/respond.ts) tar en fast text och en kod ur katalogen och
-//     aldrig ett `Error`, så ett felmeddelande, en stack eller Strava- och databastext kan inte ekas av misstag. Undantag: respond.ts själv och Strava-webhookens router
-//     (ERROR_RESPONSE_EXEMPT_FILES). Textbaserad (se checkErrorResponsesViaFail för vad den inte fångar).
+//     aldrig ett `Error`, så ett felmeddelande, en stack eller Strava- och databastext kan inte ekas av misstag. Undantag: respond.ts själv och Strava-webhookens GET / och POST /
+//     (ERROR_RESPONSE_EXEMPT_ROUTES). Textbaserad (se checkErrorResponsesViaFail för vad den inte fångar).
 //
 // Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|error-responses|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
@@ -715,11 +715,12 @@ export function checkRouteResponseContracts(files, exempt = ROUTE_CONTRACT_EXEMP
 const ERROR_RESPONSE_FILE = /^apps\/backend\/src\/(?:app\.ts|(?:routes|middleware|utils)\/[^/]+\.[cm]?ts)$/;
 const RESPOND_HELPERS_FILE = 'apps/backend/src/utils/respond.ts';
 /**
- * Filer där felsvar får skrivas för hand (ADR 007 Addendum 2026-10-20 punkt 4): Strava-webhookens router, där Stravas protokoll styr svaret (verifieringen kräver exakt
- * `{"hub.challenge": …}`, POST läser bara statuskoden) och även felsvaren (`{error}` med 400, 403, 413, 500, 503) är oförändrade. Hela routern är undantagen utom `/health`,
- * som svarar i kuvertet; den raden går genom `fail`. En ny avvikelse kräver en ändring här och i testet som fäster listan, alltså en granskad diff.
+ * Routes där felsvar får skrivas för hand (ADR 007 Addendum 2026-10-20 punkt 4): Strava-webhookens GET `/` och POST `/`, där Stravas protokoll styr svaret (verifieringen kräver exakt
+ * `{"hub.challenge": …}`, POST läser bara statuskoden) och även felsvaren (`{error}` med 400, 403, 413, 500, 503) är oförändrade. Resten av filen, bland annat `/health`, svarar i
+ * kuvertet och går genom `fail`. Undantaget gäller route-blocket (från `router.<verb>(` till nästa route, den sista till filens slut: routerns egen felhanterare efter POST `/` ingår
+ * alltså), samma blockläsning som regel 18. Nyckeln är "VERB /sökväg". En ny avvikelse kräver en ändring här och i testet som fäster listan, alltså en granskad diff.
  */
-export const ERROR_RESPONSE_EXEMPT_FILES = new Set(['apps/backend/src/routes/stravaWebhook.ts']);
+export const ERROR_RESPONSE_EXEMPT_ROUTES = new Map([['apps/backend/src/routes/stravaWebhook.ts', new Set(['GET /', 'POST /'])]]);
 // `.status(` med en literal 4xx/5xx eller 207 (2xx som inte är ett fel är tillåtna), `.status(` med något annat än en literal (en variabel kan vara en felstatus),
 // `.sendStatus(` och ett felobjekt utan status (`res.json({ error: … })`, `res.json({ success: false, … })`).
 const ERROR_RESPONSE_PATTERNS = [
@@ -732,19 +733,28 @@ const ERROR_RESPONSE_PATTERNS = [
 /**
  * Regel 20 (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2). Alla felsvar går via `fail` (apps/backend/src/utils/respond.ts): `fail` har en fast text och en kod ur katalogen, och
  * tar aldrig ett `Error`, så ett felmeddelande, en stack, Strava- eller databastext kan inte ekas av misstag. Ett handskrivet `res.status(4xx|5xx).json(...)` i routes/, middleware/, utils/
- * eller app.ts fäller bygget. Undantag: respond.ts själv och ERROR_RESPONSE_EXEMPT_FILES.
+ * eller app.ts fäller bygget. Undantag: respond.ts själv och routes i ERROR_RESPONSE_EXEMPT_ROUTES (Strava-webhookens GET och POST `/`).
  * `files`: [{ path, content }]. Returnerar "path:rad: text".
  * Vakten är textbaserad och förstår inte kod (kommentarer hoppas över). Fångas INTE: ett svar som skrivs via en variabel för `res` (`const r = res; r.status(500)`), ett svar i en
  * annan mapp än de fyra ovan (services/ svarar inte mot klienten), eller ett felsvar som byggs som en sträng och skickas med `res.end`/`res.send`.
  */
-export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT_FILES) {
+export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT_ROUTES) {
   const errors = [];
   for (const { path, content } of files) {
-    if (!ERROR_RESPONSE_FILE.test(path) || path === RESPOND_HELPERS_FILE || exempt.has(path) || TEST_FILE.test(path)) continue;
+    if (!ERROR_RESPONSE_FILE.test(path) || path === RESPOND_HELPERS_FILE || TEST_FILE.test(path)) continue;
     const code = withoutComments(content);
+    // Teckenintervallen för de undantagna route-blocken i den här filen.
+    const exemptRoutes = exempt.get(path);
+    const routes = exemptRoutes ? [...code.matchAll(ROUTE_REGISTRATION)] : [];
+    const exemptRanges = routes
+      .map((route, index) => ({ key: `${route[1].toUpperCase()} ${route[3]}`, from: route.index, to: routes[index + 1]?.index ?? code.length }))
+      .filter(({ key }) => exemptRoutes?.has(key));
     const lines = new Set();
     for (const pattern of ERROR_RESPONSE_PATTERNS) {
-      for (const match of code.matchAll(pattern)) lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+      for (const match of code.matchAll(pattern)) {
+        if (exemptRanges.some(({ from, to }) => match.index >= from && match.index < to)) continue;
+        lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+      }
     }
     for (const line of [...lines].sort((a, b) => a - b)) {
       errors.push(`${path}:${line}: ett felsvar skrivs för hand — svara med fail(res, status, text, code?) från utils/respond.ts (ADR 007 Addendum 2026-10-20): fast text, kod ur katalogen, aldrig ett felobjekt`);

@@ -55,6 +55,38 @@ describe('jsonErrorHandler', () => {
     expect(JSON.stringify(calls.body)).not.toContain('must not appear');
   });
 
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'])('treats the inherited object member %s as an unknown type, never as an entry in the type table', (type) => {
+    const { res, calls } = fakeRes();
+    jsonErrorHandler(Object.assign(new Error('x'), { type }), req, res, vi.fn());
+    expect(calls.status).toBe(500);
+    expect(calls.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
+
+    const withStatus = fakeRes();
+    jsonErrorHandler(Object.assign(new Error('x'), { type, status: 404 }), req, withStatus.res, vi.fn());
+    expect(withStatus.calls.status).toBe(404);
+    expect(withStatus.calls.body).toEqual({ success: false, error: 'Invalid request', code: 'invalid_request' });
+  });
+
+  it('answers the fixed 500 JSON, not Express HTML, for an error whose properties throw when they are read', () => {
+    const hostile: unknown[] = [
+      Object.defineProperty(new Error('x'), 'type', { get() { throw new Error('type getter SECRET'); } }),
+      Object.defineProperty(new Error('x'), 'status', { get() { throw new Error('status getter SECRET'); } }),
+      Object.defineProperty(new Error('x'), 'statusCode', { get() { throw new Error('statusCode getter SECRET'); } }),
+      new Proxy({}, { get() { throw new Error('proxy SECRET'); } }),
+      new Proxy(new Error('x'), { get() { throw new Error('proxy SECRET'); }, has() { throw new Error('proxy SECRET'); } }),
+      Object.create(null),
+    ];
+    for (const error of hostile) {
+      const { res, calls } = fakeRes();
+      const next = vi.fn();
+      expect(() => jsonErrorHandler(error, req, res, next)).not.toThrow();
+      expect(next).not.toHaveBeenCalled();
+      expect(calls.status).toBe(500);
+      expect(calls.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
+      expect(JSON.stringify(calls.body)).not.toContain('SECRET');
+    }
+  });
+
   it('maps a thrown value that is not an Error to a fixed 500', () => {
     for (const thrown of ['a string with token SECRET', null, undefined, 42, { message: 'token SECRET', status: 400, type: 'x' }]) {
       const { res, calls } = fakeRes();

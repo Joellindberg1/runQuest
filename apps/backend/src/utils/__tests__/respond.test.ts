@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Response } from 'express';
 import { API_ERROR_CODES, type ApiErrorCode, type DualEnvelope } from '@runquest/shared';
-import { defaultErrorCode, fail, failWithData, failWithLegacy, failWritten, fixedErrorText, ok, okWithLegacy, type ErrorStatus } from '../respond.js';
+import { defaultErrorCode, fail, failWithLegacy, failWritten, fixedErrorText, ok, okWithLegacy, type ErrorStatus } from '../respond.js';
 
 /** Ett res som bara minns status och kropp. `status()` sätter, `json()` skickar, som Express. */
 function fakeRes(initialStatus = 200) {
@@ -127,17 +127,6 @@ describe('fail', () => {
     // fail/ok har inget logger-beroende: loggningen ligger hos anroparen, så en händelse aldrig skickas två gånger.
     const { res } = fakeRes();
     expect(() => fail(res, 500, 'Failed to fetch runs')).not.toThrow();
-  });
-});
-
-describe('failWithData', () => {
-  it('sends the counters in data and the code, with the given status (207 is the only 2xx answer with success: false)', () => {
-    const { res, sent } = fakeRes();
-    failWithData(res, 207, '1 of 3 users failed; the rest were recalculated', 'partial_failure', { total: 3, processed: 2, failed: 1 });
-    expect(sent.status).toBe(207);
-    expect(sent.body).toEqual({
-      success: false, error: '1 of 3 users failed; the rest were recalculated', code: 'partial_failure', data: { total: 3, processed: 2, failed: 1 },
-    });
   });
 });
 

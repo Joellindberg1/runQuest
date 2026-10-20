@@ -2,7 +2,7 @@
 //
 // En kod beskriver UTFALLET för anroparen, aldrig orsaken: databaskoder (PGRST116), nätverkskoder (ECONNRESET), Stravas statusar (strava_401) och
 // interna etiketter (seam_timeout) bor i loggar och Sentry och skickas aldrig till klienten. Katalogen är bara additiv: en kod byter aldrig
-// betydelse och återanvänds aldrig, och en ny kod är en granskad diff i testet som fäster listan (`errors.test.ts`), i samma ändring som dess första användning.
+// betydelse och återanvänds aldrig, och en ny kod är en granskad diff i testet som fäster listan (`apiErrorCodes.test.ts`), i samma ändring som dess första användning.
 //
 // Format: snake_case, `[a-z][a-z0-9_]*`, högst 40 tecken, engelska ord.
 // En specifik kod finns bara när klienten grenar på den, när en fritextjämförelse fanns i dag eller när supporten vill räkna den (punkt 3).

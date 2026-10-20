@@ -33,6 +33,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import * as respondModule from '../utils/respond.js';
 
 const SRC = fileURLToPath(new URL('..', import.meta.url));
 
@@ -80,8 +81,11 @@ function isLoggerCall(node: ts.CallExpression): boolean {
       || (callee.expression.text === 'console' && CONSOLE_METHODS.has(callee.name.text)));
 }
 
-/** Svarshjälparna i utils/respond.ts (ADR 007 Addendum 2026-10-20): `fail(res, 500, text)` och de andra bär svaret lika väl som `res.json`. */
-const RESPOND_HELPERS = new Set(['ok', 'okWithLegacy', 'fail', 'failWithData', 'failWritten', 'failAnyStatus']);
+/**
+ * Svarshjälparna i utils/respond.ts (ADR 007 Addendum 2026-10-20): `fail(res, 500, text)` och de andra bär svaret lika väl som `res.json`. Listan härleds ur modulen, så en
+ * ny exporterad hjälpare omfattas av vakten utan att någon kommer ihåg den (en hjälpare som inte tar `res` först berörs inte: se isResponseCall).
+ */
+const RESPOND_HELPERS = new Set(Object.entries(respondModule).filter(([, value]) => typeof value === 'function').map(([name]) => name));
 
 /** `res.json(...)`, `res.send(...)` och `fail(res, ...)`/`ok(res, ...)` (svarshjälparna). */
 function isResponseCall(node: ts.CallExpression): boolean {
@@ -316,6 +320,13 @@ function scan(source: string, name = 'sample.ts'): string[] {
   return violationsIn(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source, name);
 }
 
+describe('the response helpers the guard reads', () => {
+  it('cover every helper utils/respond.ts exports that writes a response', () => {
+    for (const name of ['ok', 'okWithLegacy', 'fail', 'failAnyStatus', 'failWithLegacy', 'failWritten']) expect(RESPOND_HELPERS.has(name), name).toBe(true);
+    expect(typeof respondModule.failWithLegacy).toBe('function');
+  });
+});
+
 describe('the log hygiene guard itself', () => {
   it.each([
     ["logger.error('x:', error.message)"],
@@ -394,7 +405,9 @@ describe('the log hygiene guard itself', () => {
     ["fail(res, 500, error as any)"],
     ["try {} catch (boom) { fail(res, 500, boom); }"],
     ["failWritten(res, err.message)"],
-    ["failWithData(res, 207, error.message, 'partial_failure', counts)"],
+    ["failWithLegacy(res, 500, error.message, 'internal_error', counts, { message: 'x' })"],
+    ["failWithLegacy(res, 207, String(error), 'partial_failure', counts, { message: error.message })"],
+    ["failAnyStatus(res, 500, error.message, 'internal_error')"],
     ["ok(res, { detail: error.message })"],
     ["okWithLegacy(res, { detail: err.details }, { detail: err.details })"],
     ["issues.push(`x ${error.message}`)"],
@@ -428,7 +441,7 @@ describe('the log hygiene guard itself', () => {
     ["fail(res, 400, page.error)"],
     ["fail(res, 500, 'Failed to fetch titles', 'internal_error')"],
     ["fail(res, 500, errorCode(error))"],
-    ["failWithData(res, 207, 'x of y failed', 'partial_failure', { total, processed, failed })"],
+    ["failWithLegacy(res, 207, 'x of y failed', 'partial_failure', { total, processed, failed }, { message: 'x of y failed', total, processed, failed })"],
     ["ok(res, { events: [] })"],
     ["console.log('plain text')"],
     ["throw Object.assign(new Error(`Failed to fetch runs (user ${userId})`), { code: errorCode(error) })"],

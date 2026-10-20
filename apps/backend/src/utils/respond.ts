@@ -108,21 +108,10 @@ export function failAnyStatus(res: Response, status: number, text: string, code:
 }
 
 /**
- * 207 och 500 i `POST /titles/reprocess-all` är de enda svaren med `success: false` som bär `data` (bara räknare, punkt 4). 207 är ett 2xx-svar
- * med `success: false` (kuvertets enda undantag): några lyckades, några föll.
- */
-export function failWithData<TData>(res: Response, status: 207 | 500, text: string, code: ApiErrorCode, data: TData): void {
-  res.status(status).json({
-    success: false,
-    error: typeof text === 'string' ? text : fixedErrorText(500),
-    code,
-    data,
-  });
-}
-
-/**
- * Steg 1 (dubbelsvar): som `failWithData`, men de gamla toppnivåfälten (`message`, `total`, `processed`, `failed`) finns kvar bredvid `data` (punkt 4:
- * "de nuvarande toppnivåfälten finns kvar under dubbelsvarsfönstret"). Tas bort i steg 2 (RUN-364): sök på `failWithLegacy`.
+ * 207 och 500 i `POST /titles/reprocess-all` är de enda svaren med `success: false` som bär `data` (bara räknare, punkt 4). 207 är ett 2xx-svar med
+ * `success: false` (kuvertets enda undantag): några lyckades, några föll. Under dubbelsvarsfönstret (steg 1) finns de gamla toppnivåfälten (`message`, `total`,
+ * `processed`, `failed`) kvar bredvid `data` (punkt 4: "de nuvarande toppnivåfälten finns kvar under dubbelsvarsfönstret"). Tas bort i steg 2 (RUN-364):
+ * `data` ensam bärs då av en vanlig `fail` med data, och den här funktionen försvinner. Sök på `failWithLegacy`.
  */
 export function failWithLegacy<TData, TLegacy extends object>(
   res: Response, status: 207 | 500, text: string, code: ApiErrorCode, data: TData, legacy: TLegacy & { success?: never; error?: never; code?: never; data?: never },
