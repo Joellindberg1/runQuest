@@ -82,14 +82,14 @@ describe('getTitleLeaderboard', () => {
     };
     fetchMock.mockResolvedValue(json(200, body));
 
-    expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: body.data });
+    expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: body.data, meta: body.meta });
     expect(requestedPath()).toBe('/titles/leaderboard');
   });
 
   it('en tom lista (anroparen saknar grupp) är en lyckad tom lista', async () => {
     fetchMock.mockResolvedValue(json(200, { success: true, data: [], meta: { total_titles: 0, timestamp: '', cache_optimized: true } }));
 
-    expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: [] });
+    expect(await backendApi.getTitleLeaderboard()).toEqual({ success: true, data: [], meta: { total_titles: 0, timestamp: '', cache_optimized: true } });
   });
 });
 

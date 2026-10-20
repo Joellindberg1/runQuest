@@ -26,7 +26,11 @@ const api = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
+// Den riktiga klienten med sessionen och inloggningen ersatta: onboarding-anropen går genom dess authenticatedRequest och därmed fetchMock nedan.
+vi.mock('@/shared/services/backendApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/services/backendApi')>();
+  return { ...actual, backendApi: Object.assign(actual.backendApi, api) };
+});
 vi.mock('@/shared/services/levelService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/services/levelService')>();
   actual.frontendLevelService.refresh = () => Promise.resolve([]);

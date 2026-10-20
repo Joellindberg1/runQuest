@@ -37,7 +37,8 @@ Auth går uteslutande mot backenden (egen JWT) — frontend har ingen Supabase-k
    under `runquest_token` och `runquest_user`.
 2. **Återställning vid appstart:** `AuthProvider` läser `runquest_token`/`runquest_user` (`backendApi.isAuthenticated()`, `getCurrentUser()`);
    `loading` är sant tills det är gjort (App.tsx gate:ar på det).
-3. **Anrop:** `backendApi.authenticatedRequest` skickar `Authorization: Bearer <token>`. Svarar backenden 401 rensas båda nycklarna och
-   `backendApi.onUnauthorized` rensar hela query-cachen och nollställer användaren i `AuthProvider`.
+3. **Anrop:** alla anrop mot servern går genom klientens privata `request` (features utanför klienten via `backendApi.authenticatedRequest`), som skickar
+   `Authorization: Bearer <token>`. Svarar backenden 401 på ett anrop med token rensas båda nycklarna, svaret blir `Session expired. Please log in again.` och
+   `backendApi.onUnauthorized` rensar hela query-cachen och nollställer användaren i `AuthProvider`. En 401 på ett anrop utan token (fel lösenord vid login) loggar inte ut.
 4. **Logout:** `backendApi.logout()` tar bort de två nycklarna; `AuthProvider` rensar hela query-cachen (`queryClient.clear()`, samma som vid login och 401 — inga undantag,
    så att en ny features användardata aldrig glöms bort) och nollställer användaren. `clear()` startar ingen omhämtning; det gör först en observatör som renderas om, så 401 → rensa → omhämtning blir ingen loop.

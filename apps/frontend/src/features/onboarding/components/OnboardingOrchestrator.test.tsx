@@ -20,17 +20,22 @@ const FIXTURE = vi.hoisted((): ChangelogData => ({
 }));
 vi.mock('@/features/changelog/changelogData', () => ({ changelog: FIXTURE }));
 const strava = vi.hoisted(() => ({ connected: false, mode: 'ok' as 'ok' | 'fail' | 'hang' }));
-vi.mock('@/shared/services/backendApi', () => ({
-  backendApi: {
-    getToken: () => 'token',
-    onUnauthorized: undefined,
-    getStravaStatus: async () => {
-      if (strava.mode === 'hang') return new Promise(() => {});
-      if (strava.mode === 'fail') return { success: false, error: 'down' };
-      return { success: true, data: { connected: strava.connected, expired: false } };
-    },
-  },
-}));
+// Den riktiga klienten (onboarding-anropen går genom dess authenticatedRequest och därmed global fetch nedan) med token och Strava-status fejkade.
+vi.mock('@/shared/services/backendApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/services/backendApi')>();
+  return {
+    ...actual,
+    backendApi: Object.assign(actual.backendApi, {
+      getToken: () => 'token',
+      onUnauthorized: undefined,
+      getStravaStatus: async () => {
+        if (strava.mode === 'hang') return new Promise(() => {});
+        if (strava.mode === 'fail') return { success: false, error: 'down' };
+        return { success: true, data: { connected: strava.connected, expired: false } };
+      },
+    }),
+  };
+});
 vi.mock('./OnboardingTour', () => ({
   OnboardingTour: ({ steps, onDone }: { steps: unknown[]; onDone: () => void }) => (
     <div data-testid="onboarding-tour" data-steps={steps.length}><button onClick={onDone}>Finish tour</button></div>
