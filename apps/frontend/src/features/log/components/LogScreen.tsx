@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS } from '@runquest/shared';
+import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, zoneDay } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { useAuth } from '@/providers/authContext';
@@ -16,7 +16,7 @@ import { buildHistoryRows } from '../historyModel';
 import { useLogForm } from '../hooks/useLogForm';
 import { useGroupHistory } from '../hooks/useLogQueries';
 import '../log.css';
-import { DEFAULT_LOG_VIEW, LOG_VIEWS, parseKm, todayOf, type LogView } from '../logModel';
+import { DEFAULT_LOG_VIEW, LOG_VIEWS, parseKm, type LogView } from '../logModel';
 import { buildStravaBanner } from '../stravaModel';
 import { buildXpPreview, type XpRules } from '../xpPreviewModel';
 import { GroupHistory, type HistoryStatus } from './GroupHistory';
@@ -47,7 +47,7 @@ export function LogScreen() {
   const openRunner = useOpenRunner();
   const [view, setView] = useViewParam(LOG_VIEWS, DEFAULT_LOG_VIEW);
   const enabled = !!user;
-  const today = todayOf(now);
+  const today = zoneDay(now);
 
   const log = useLogForm(now);
   const usersQuery = useUsersWithRuns(enabled);

@@ -95,6 +95,18 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
     expect(offenders(LOCAL_WALL_CLOCK_TEMPLATE)).toEqual([]);
   });
 
+  it('inga eventgränser som `${dag}T00:00:00Z` i backendens services och routes: dygnets början är gruppens midnatt (zoneMidnightIso)', () => {
+    const backendQueries = SOURCES.filter(({ path }) => /^apps\/backend\/src\/(services|routes)\//.test(path));
+    expect(offenders(/T00:00:00Z/, backendQueries)).toEqual([]);
+  });
+
+  it('Stravas rundag och km läses bara i utils/stravaActivity.ts: ingen start_date_local.split("T")[0], inget regexdatum ur start_date_local och ingen distance / 1000', () => {
+    const outsideHelper = SOURCES.filter(({ path }) => path.startsWith('apps/backend/src/') && path !== 'apps/backend/src/utils/stravaActivity.ts');
+    expect(offenders(/start_date_local\s*\.\s*split\(\s*['"]T['"]\s*\)\s*\[\s*0\s*\]/, outsideHelper)).toEqual([]);
+    expect(offenders(/\bdistance(?:Metres)?\s*\/\s*1000\b/, outsideHelper)).toEqual([]);
+    expect(offenders(/\\d\{4\}-\\d\{2\}-\\d\{2\}\/\.test\(/, outsideHelper)).toEqual([]);
+  });
+
   it('vakten för lokala klockslag träffar den gamla duellformen men inte UTC-mallar med Z', () => {
     expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${duel.startDate}T00:00:00`)')).toBe(true);
     expect(LOCAL_WALL_CLOCK_TEMPLATE.test('new Date(`${day} 07:30`)')).toBe(true);
@@ -111,7 +123,7 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
         .flatMap((m) => m[1].split(',').map((name) => name.trim().replace(/^type\s+/, '')).filter(Boolean));
     };
     const expected: Record<string, string[]> = {
-      'apps/backend/src/utils/dateUtils.ts': ['addDays', 'mondayOf', 'stockholmDay'],
+      'apps/backend/src/utils/dateUtils.ts': ['addDays', 'mondayOf'],
       'apps/backend/src/scheduler/eventScheduler.ts': ['addDays', 'stockholmWallClockToInstant'],
       'apps/backend/src/routes/challenges.ts': ['groupNextMidnight'],
       'apps/frontend/src/app-shell/rightNowItems.ts': ['addDays', 'stockholmWallClockToInstant'],
@@ -131,11 +143,11 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
 describe('todayStockholm och streakschedulern (T5)', () => {
   const source = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 
-  it('todayStockholm/toStockholmDate i backend delegerar till stockholmDay: ingen egen Intl-formaterare', () => {
+  it('ingen egen "idag"-hjälpare i backend eller frontend: dateUtils har inga todayStockholm/tomorrowStockholm/toStockholmDate och ingen Intl-formaterare', () => {
     const dateUtils = stripComments(source('apps/backend/src/utils/dateUtils.ts'));
-    expect(dateUtils).toMatch(/export function todayStockholm\(\): string \{\s*return stockholmDay\(new Date\(\)\);\s*\}/);
-    expect(dateUtils).toMatch(/export function toStockholmDate\(isoString: string\): string \{\s*return stockholmDay\(new Date\(isoString\)\);\s*\}/);
+    expect(dateUtils).not.toMatch(/\b(?:todayStockholm|tomorrowStockholm|toStockholmDate)\b/);
     expect(dateUtils).not.toMatch(/Intl\./);
+    expect(offenders(/\b(?:function\s+|(?:const|let|var)\s+)(?:todayStockholm|tomorrowStockholm|toStockholmDate|stockholmDate|todayOf)\b/)).toEqual([]);
   });
 
   it('streakScheduler-kommentaren påstår inte längre att StreakService jämför UTC-dagar', () => {

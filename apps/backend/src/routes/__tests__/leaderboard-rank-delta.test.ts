@@ -16,6 +16,7 @@ vi.mock('../../config/database.js', () => ({
 }));
 
 import { getSupabaseClient } from '../../config/database.js';
+import { setGroupTimeZoneSource } from '../../utils/groupTimeZone.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
@@ -28,7 +29,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-01T10:00:00Z')); // torsdag; veckostart 2026-09-28
 });
-afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); setGroupTimeZoneSource(); });
 
 const G1 = 'group-1';
 const G2 = 'group-2';
@@ -140,8 +141,16 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(by('runs').filters).toContainEqual({ op: 'gte', column: 'date', value: '2026-09-28' });
     expect(by('event_entries').filters).toContainEqual({ op: 'eq', column: 'events.group_id', value: G1 });
     // tidsgränsen (veckostart − 14 dagar) och xp > 0 får inte kunna plockas bort tyst
-    expect(by('event_entries').filters).toContainEqual({ op: 'gte', column: 'events.ends_at', value: '2026-09-14T00:00:00Z' });
+    expect(by('event_entries').filters).toContainEqual({ op: 'gte', column: 'events.ends_at', value: '2026-09-13T22:00:00.000Z' });
     expect(by('event_entries').filters).toContainEqual({ op: 'gt', column: 'xp_awarded', value: 0 });
+  });
+
+  it('the event window starts at the midnight of the group time zone, not at UTC midnight', async () => {
+    setGroupTimeZoneSource((groupId) => (groupId === G1 ? 'America/New_York' : undefined));
+    const db = useDb(tables());
+    await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+    const entries = db.queries.find((q) => q.table === 'event_entries')!;
+    expect(entries.filters).toContainEqual({ op: 'gte', column: 'events.ends_at', value: '2026-09-14T04:00:00.000Z' });
   });
 
   it('500 med {error} vid databasfel', async () => {

@@ -6,13 +6,13 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay,
-  type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, boostWindow, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay, zoneDay,
+  type AdminSettings, type StreakMultiplier, type BoostSpec, type BoostRow, type PreviousRunDay,
 } from '@runquest/shared';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
 import type { ApiError, CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse, WrittenApiError } from '@runquest/shared';
 
@@ -45,21 +45,24 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
   const { data: userBoosts, error: boostsError } = await supabase
     .from('user_boosts')
-    .select('type, delta, remaining, created_at, expires_at')
+    .select('type, delta, remaining, created_at, expires_at, start_date, end_date')
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
   // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
   if (boostsError) throw errorWithCode(`Failed to fetch boosts for reprocess (user ${userId})`, boostsError);
 
+  // Boostens fönster är det som sparades på raden när boosten skapades (settleChallenge, gruppens dygn; migration 059 backfyllde de gamla med deras
+  // UTC-dagar). Fönstret räknas inte om här, så en gammal boost ger samma XP som förut och en ny exakt sina n dagar. En rad utan sparat fönster läses
+  // med det gamla UTC-fönstret (shared/boostWindow).
   const boostSpecs: BoostSpec[] = await Promise.all(
-    (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
-      const startDate = b.created_at.slice(0, 10);
+    (userBoosts ?? []).map(async (b: BoostRow & { delta: number; remaining: number | null }) => {
+      const { startDay: startDate, endDay } = boostWindow(b);
       if (b.type === 'multiplier_days') {
         return {
           type: 'multiplier_days' as const,
           delta: Number(b.delta),
           startDate,
-          endDate: b.expires_at ? b.expires_at.slice(0, 10) : null,
+          endDate: endDay,
         };
       }
       // multiplier_runs: räkna laddningar som redan förbrukats av rundor FÖRE
@@ -256,21 +259,21 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
 
 const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-/** Rundans kalenderdag (Stockholm): en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
-function toRunDay(date: string): string {
-  return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
+/** Rundans kalenderdag i gruppens tidszon: en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
+function toRunDay(date: string, timeZone: string): string {
+  return isDateOnly(date) ? date : zoneDay(new Date(date), timeZone);
 }
 
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
  *
- * Datum jämförs som KALENDERDAGAR i Stockholm-tid (open-assumptions backend-fråga 0): "idag" är
- * todayStockholm(), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
+ * Datum jämförs som KALENDERDAGAR i gruppens tidszon (open-assumptions backend-fråga 0): "idag" är
+ * zoneDay(new Date(), timeZone), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
  * ~02:00 svensk tid. En ren YYYY-MM-DD-sträng är dagen i sig; en tidpunkt (ISO med klockslag) omräknas
- * till sin Stockholm-dag.
+ * till sin dag i gruppens zon.
  */
-function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
+function validateRunInput(date: string | undefined, distance: unknown, timeZone: string): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
   if (isNaN(distanceNum) || distanceNum < MANUAL_RUN_MIN_DISTANCE_KM) {
     return { error: `Distance must be at least ${MANUAL_RUN_MIN_DISTANCE_KM.toFixed(1)} km`, distanceNum };
@@ -280,9 +283,9 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
     // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
     if (isDateOnly(date) && !isCalendarDay(date)) return { error: 'Invalid date', distanceNum };
-    const runDay = toRunDay(date);
+    const runDay = toRunDay(date, timeZone);
     if (runDay < MIN_RUN_DATE) return { error: `Cannot log runs before ${MIN_RUN_DATE_LABEL}`, distanceNum };
-    if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
+    if (runDay > zoneDay(new Date(), timeZone)) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };
 }
@@ -321,7 +324,8 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Date and distance are required' } satisfies ApiError); return;
     }
 
-    const { error: invalidInput, distanceNum } = validateRunInput(date, distance);
+    const timeZone = groupTimeZone(req.user!.group_id);
+    const { error: invalidInput, distanceNum } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       res.status(400).json({ error: invalidInput } satisfies ApiError); return;
     }
@@ -405,7 +409,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     checkEventQualification({
       userId,
       runId: newRun.id,
-      runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
+      runDate: toRunDay(date, timeZone), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
       groupId: req.user!.group_id,
     }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
@@ -452,7 +456,8 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       res.status(400).json({ error: 'Distance is required' } satisfies ApiError); return;
     }
 
-    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance);
+    const timeZone = groupTimeZone(req.user!.group_id);
+    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
       res.status(400).json({ error: invalidInput } satisfies ApiError); return;
     }
@@ -528,7 +533,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       checkEventQualification({
         userId,
         runId: id,
-        runDate: toRunDay(date || existingRun.date),
+        runDate: toRunDay(date || existingRun.date, timeZone),
         distanceKm: newDistance,
         groupId: req.user!.group_id,
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av

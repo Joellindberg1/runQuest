@@ -10,9 +10,9 @@
 // Alla funktioner här är icke-kastande: loggen får aldrig fälla titelkedjan.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
-import { todayStockholm } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { recordActivities } from './activityLog.js';
-import { buildTitleDrafts, diffTitleHolders, type TitleHolder, type TitleMeta } from '@runquest/shared';
+import { buildTitleDrafts, diffTitleHolders, zoneDay, type TitleHolder, type TitleMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
 /**
@@ -104,7 +104,8 @@ export async function emitTitleNews(groupId: string, before: TitleHolder[], afte
     if (titlesRes.error) throw titlesRes.error;
     const titles = new Map<string, TitleMeta>((titlesRes.data ?? []).map((t: any) => [t.id, t]));
 
-    await recordActivities(buildTitleDrafts(changes, titles, new Date().toISOString(), todayStockholm(), groupBefore));
+    const now = new Date();
+    await recordActivities(buildTitleDrafts(changes, titles, now.toISOString(), zoneDay(now, groupTimeZone(groupId)), groupBefore));
   } catch (e) {
     logger.error(`❌ [TitleNews] Failed to emit title news (${errorCode(e)})`);
   }

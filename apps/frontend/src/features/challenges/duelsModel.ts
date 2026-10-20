@@ -1,6 +1,6 @@
 import type { Challenge, Run } from '@runquest/types';
 import {
-  LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, compareChallengeStandings, stockholmClock,
+  LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, STOCKHOLM_TZ, boostRemaining, boostWindow, compareChallengeStandings, type BoostRow,
   type ChallengeGroupStat, type ChallengeHistoryItem, type ChallengeMetric, type ChallengeStanding, type ChallengeTier, type MyBoost, type MyChallengesData,
 } from '@runquest/shared';
 import {
@@ -365,6 +365,15 @@ export interface BoostView {
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
+/** Boostens rad i den form shared/boostWindow läser: det sparade fönstret, eller för en rad utan det created_at/expires_at. */
+const boostRow = (boost: MyBoost): BoostRow => ({
+  type: boost.type,
+  created_at: boost.created_at,
+  expires_at: boost.expires_at ?? null,
+  start_date: boost.start_date ?? null,
+  end_date: boost.end_date ?? null,
+});
+
 /** Aktiva boosts. `runs` (mina) behövs bara för boosts per runda: laddningarna är totala och förbrukas av rundor efter skapandet. */
 export function buildBoosts(
   boosts: readonly MyBoost[],
@@ -373,6 +382,7 @@ export function buildBoosts(
   names: Record<string, string>,
   now: Date,
   runs?: ReadonlyArray<Pick<Run, 'date'>>,
+  timeZone: string = STOCKHOLM_TZ,
 ): BoostView[] {
   return boosts.flatMap((boost): BoostView[] => {
     const sign = boost.delta < 0 ? '−' : '+';
@@ -381,13 +391,15 @@ export function buildBoosts(
     let window = '';
     if (boost.type === 'multiplier_runs') {
       const charges = boost.remaining ?? 0;
-      const startedOn = stockholmClock(new Date(boost.created_at)).date;
+      // Samma startdag som XP-beräkningen: boostens sparade fönster (shared/boostWindow).
+      const { startDay: startedOn } = boostWindow(boostRow(boost));
       const used = runs ? runs.filter((run) => run.date >= startedOn).length : 0;
       const left = charges - used;
       if (left <= 0) return [];
       window = ` for ${plural(left, 'run')}`;
-    } else if (boost.expires_at) {
-      const left = Math.ceil((new Date(boost.expires_at).getTime() - now.getTime()) / MS_DAY);
+    } else if (boost.expires_at || boost.end_date) {
+      // Dagar kvar ur det sparade fönstret, idag i gruppens zon: en ny 3-dagarsboost visar 3 före och på sin startdag.
+      const left = boostRemaining({ ...boostRow(boost), type: 'multiplier_days' }, now, timeZone) ?? 0;
       if (left <= 0) return [];
       window = ` for ${plural(left, 'day')}`;
     }

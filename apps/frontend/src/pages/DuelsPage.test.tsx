@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Link, Route, Routes } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
@@ -81,6 +81,8 @@ function renderDuels(entry = '/duels', width = MOBILE) {
 }
 
 const primaryButtons = (container: HTMLElement) => [...container.querySelectorAll('.rq-btn--primary')].map((button) => button.textContent);
+
+afterEach(() => { vi.useRealTimers(); });
 
 beforeEach(() => {
   resetFakeBackend();
@@ -637,17 +639,21 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
 
 describe('Duels — boost och rekord', () => {
   it('"Boost active" med bakgrund ur min historik; straff läses "Penalty active"', async () => {
+    // Fast klocka: boostens dagar räknas i kalenderdagar, så resultatet får inte bero på vilken tid på dygnet testet körs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
     setup({
       my: {
         history: [challenge({ id: 'c-old', challenger_id: ME, opponent_id: ADAM, metric: 'runs', duration_days: 5, status: 'completed' })],
         boosts: [
-          { id: 'b1', challenge_id: 'c-old', outcome: 'winner', type: 'multiplier_days', delta: 0.25, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3.5 * 86_400_000).toISOString() },
-          { id: 'b2', challenge_id: 'c-gone', outcome: 'loser', type: 'multiplier_days', delta: -0.07, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 1.2 * 86_400_000).toISOString() },
+          { id: 'b1', challenge_id: 'c-old', outcome: 'winner', type: 'multiplier_days', delta: 0.25, created_at: '2026-10-04T10:00:00.000Z', expires_at: '2026-10-07T10:00:00.000Z' },
+          { id: 'b2', challenge_id: 'c-gone', outcome: 'loser', type: 'multiplier_days', delta: -0.07, created_at: '2026-10-04T10:00:00.000Z', expires_at: '2026-10-05T10:00:00.000Z' },
         ],
       },
     });
     renderDuels();
     await screen.findByText('2 live · 5 tokens');
+    vi.useRealTimers();
     const boosts = within(screen.getByRole('list', { name: 'Active boosts' })).getAllByRole('listitem');
     expect(boosts[0].textContent).toBe('Boost active+0.25× for 4 daysWon against Adam · most runs · 5 d');
     expect(boosts[1].textContent).toBe('Penalty active−0.07× for 2 days');

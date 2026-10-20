@@ -1,5 +1,6 @@
+import { zoneDay } from '@runquest/shared';
 import { useCallback, useRef, useState } from 'react';
-import { buildSubmission, confirmationText, initialForm, todayOf, validateForm, type FieldErrors, type LogForm, type Surface } from '../logModel';
+import { buildSubmission, confirmationText, initialForm, validateForm, type FieldErrors, type LogForm, type Surface } from '../logModel';
 import { RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
 import { newIdempotencyKey } from '../idempotencyKey';
 import { useCreateRun } from './useCreateRun';
@@ -34,7 +35,7 @@ export function useLogForm(now: Date): LogFormState {
   const [form, setForm] = useState<LogForm>(() => initialForm(now));
   const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const today = todayOf(now);
+  const today = zoneDay(now);
   const idempotencyKey = useRef<string | null>(null);
   const inFlight = useRef(false);
 

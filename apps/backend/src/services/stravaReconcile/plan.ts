@@ -4,6 +4,7 @@
 // The list is the cheap check: one request covers every run in the window. It only ever DECIDES WHAT TO LOOK AT; whether a run
 // goes or is changed is decided by the activity update handler from the single activity (decideAction), never from the list.
 import { addDays, daysBetween, stockholmDay, stockholmMidnightIso } from '@runquest/shared';
+import { stravaDayIfValid } from '../../utils/stravaActivity.js';
 import { exceedsImportDistance, isRunningActivity } from '../stravaImport.js';
 import { sameStoredDistance } from '../stravaWebhook/decideAction.js';
 
@@ -45,8 +46,7 @@ export function nightIndex(now: Date): number {
 }
 
 function listedDate(activity: ListedActivity): string | null {
-  const value = activity.start_date_local;
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null;
+  return stravaDayIfValid(activity.start_date_local);
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { ChallengeMetric, ChallengeTier } from '@runquest/shared';
-import { MS_HOUR, daysBetween, stockholmClock } from '@runquest/shared';
+import { MS_HOUR, daysBetween, stockholmClock, zoneDay } from '@runquest/shared';
+import { formatDayMonth as formatCalendarDayMonth } from '@/features/events/eventsFormat';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
 // Engelskt UI — tal och datum i en-GB (som resten av redesignen).
@@ -88,14 +89,9 @@ export const firstName = (name: string): string => name.trim().split(/\s+/)[0] |
 export const durationText = (days: number): string => `${days} d`;
 export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-/** "21 Aug" i Stockholm-tid. Månadsnamnen är egna: Intl:s förkortningar skiljer mellan ICU-versioner ("Sept"). */
+/** "21 Aug" för ett ögonblick, dagen i appens tidszon. Månadsnamnen är events formatDayMonth (egna: Intl:s förkortningar skiljer mellan ICU-versioner). */
 export function formatDayMonth(iso: string | null): string | null {
-  if (!iso) return null;
-  const { date } = stockholmClock(new Date(iso));
-  const [, month, day] = date.split('-').map(Number);
-  return `${day} ${MONTHS[month - 1]}`;
+  return iso ? formatCalendarDayMonth(zoneDay(new Date(iso))) : null;
 }
 
 export type TimeTone = 'neutral' | 'duel' | 'down';

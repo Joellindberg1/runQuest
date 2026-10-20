@@ -29,7 +29,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { MembershipError, createGroupWithAdmin, getActiveMembership } from '../utils/membership.js';
-import { todayStockholm } from '../utils/dateUtils.js';
+import { stockholmDay } from '@runquest/shared';
 import { supabaseHost } from './lib/supabaseHost.js';
 import { PROD_PROJECT_REF, STAGING_PROJECT_REF, createSay, runIfEntry } from './staging/stagingTarget.js';
 
@@ -230,7 +230,7 @@ export async function runCreateGroup(input: RunCreateGroupInput): Promise<Create
   }
 
   try {
-    const group = await createGroupWithAdmin({ name: options.name, inviteCode, ownerId: owner.id, today: input.today ?? todayStockholm() }, db);
+    const group = await createGroupWithAdmin({ name: options.name, inviteCode, ownerId: owner.id, today: input.today ?? stockholmDay(new Date()) }, db);
     say(`Created the group "${group.name}" (${group.id}) with ${who} as admin.`);
     const done = { ...report, outcome: 'created' as const, groupId: group.id };
     if (options.showInviteCode) {

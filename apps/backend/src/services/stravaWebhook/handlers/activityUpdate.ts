@@ -28,6 +28,7 @@
 //     again and an entry it already earned is never taken back: the handler does not touch event_entries at all.
 //
 // No Strava id, coordinate or title is logged here (ADR 010 8.6): the handler has no log line that carries them.
+import { stravaKm, stravaRunDay } from '../../../utils/stravaActivity.js';
 import { stravaRateBudget, type StravaRateBudget } from '../../stravaRateBudget.js';
 import { insertStravaRun } from '../../stravaImport.js';
 import { resultForTokenFailure, type WebhookHandler, type WebhookHandlerContext, type WebhookHandlerResult } from '../../stravaWebhookWorker.js';
@@ -76,7 +77,7 @@ export function createActivityUpdateHandler(deps: ActivityUpdateDeps = {}): Webh
       outcome: decision.outcome,
       recalculateFrom: decision.recalculateFrom,
       // The polling's arguments to checkEventQualification: the date and distance of the Strava activity.
-      importedRuns: [{ ...inserted.run, date: activity.start_date_local.split('T')[0], distance_km: activity.distance / 1000 }],
+      importedRuns: [{ ...inserted.run, date: stravaRunDay(activity), distance_km: stravaKm(activity.distance) }],
     };
   }
 

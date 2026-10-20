@@ -1,14 +1,15 @@
+import { zoneDay } from '@runquest/shared';
 import { describe, expect, it } from 'vitest';
 import {
   dateRangeText, dayLabel, formatClock, formatCountdown, formatDayMonth, formatEventValue, formatKm, formatMetres, formatMinKm, ordinal,
-  stockholmDate, weekdayOf, windowText,
+  weekdayOf, windowText,
 } from './eventsFormat';
 import { NOW } from './events.fixture';
 
 describe('tider i Stockholm', () => {
   it('klockslag och kalenderdag följer Stockholm, inte UTC', () => {
     expect(formatClock('2026-10-02T16:00:00Z')).toBe('18:00');
-    expect(stockholmDate('2026-10-02T22:30:00Z')).toBe('2026-10-03');
+    expect(zoneDay(new Date('2026-10-02T22:30:00Z'))).toBe('2026-10-03');
     expect(formatClock('2026-10-02T22:00:00Z')).toBe('00:00');
   });
 

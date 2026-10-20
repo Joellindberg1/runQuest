@@ -9,6 +9,7 @@ export * from './activityBackfill.js';
 export * from './rankPasses.js';
 export * from './streak.js';
 export * from './calendar.js';
+export * from './groupTimeZone.js';
 export * from './challengeWindow.js';
 export * from './contracts/index.js';
 export * from './badges.js';

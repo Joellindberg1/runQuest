@@ -1,13 +1,14 @@
+import { zoneDay } from '@runquest/shared';
 import { describe, expect, it } from 'vitest';
 import {
-  buildSubmission, confirmationText, initialForm, parseKm, streakOutlook, todayOf, validateDate, validateDistance, validateForm,
+  buildSubmission, confirmationText, initialForm, parseKm, streakOutlook, validateDate, validateDistance, validateForm,
 } from './logModel';
 
-describe('todayOf / initialForm', () => {
+describe('zoneDay / initialForm', () => {
   it('idag är Stockholm-dagen, inte UTC-dagen', () => {
     // 22:30 UTC den 4 okt = 00:30 CEST den 5 okt.
-    expect(todayOf(new Date('2026-10-04T22:30:00Z'))).toBe('2026-10-05');
-    expect(todayOf(new Date('2026-10-04T10:00:00Z'))).toBe('2026-10-04');
+    expect(zoneDay(new Date('2026-10-04T22:30:00Z'))).toBe('2026-10-05');
+    expect(zoneDay(new Date('2026-10-04T10:00:00Z'))).toBe('2026-10-04');
   });
 
   it('startar tomt, utomhus och med dagens datum', () => {

@@ -1,8 +1,7 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { STOCKHOLM_TZ, addDays, stockholmWallClockToInstant, type DailyDrawResponse } from '@runquest/shared';
-import { tomorrowStockholm, todayStockholm } from '../utils/dateUtils.js';
+import { STOCKHOLM_TZ, addDays, stockholmDay, stockholmWallClockToInstant, type DailyDrawResponse } from '@runquest/shared';
 import {
   maybeCreateEvent,
   getAllGroupIds,
@@ -50,7 +49,7 @@ async function createForAllGroups(
  *   Storm Chaser 30%  (ingår bara om väderprognosen kvalificerar)
  */
 async function runDailyParticipationDraw(): Promise<DailyDrawResponse> {
-  const tomorrow = tomorrowStockholm();
+  const tomorrow = addDays(stockholmDay(new Date()), 1);
 
   const eventPool = await getEventPool('daily');
   if (!eventPool) {
@@ -127,7 +126,7 @@ async function scheduleHangoverRun(): Promise<void> {
   }
 
   const picked = pool.members[0];
-  const tomorrow = tomorrowStockholm();
+  const tomorrow = addDays(stockholmDay(new Date()), 1);
   const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
   const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
@@ -162,7 +161,7 @@ async function scheduleFridayEvent(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
+  const tomorrow = addDays(stockholmDay(new Date()), 1); // torsdag kväll → imorgon = fredag
   const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
   const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
@@ -198,7 +197,7 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const today   = todayStockholm();
+  const today   = stockholmDay(new Date());
   const monday  = addDays(today, 2);
   const sunday  = addDays(today, 8);
   const startsAt = stockholmWallClockToInstant(monday, 0, 1);

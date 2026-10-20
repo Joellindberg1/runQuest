@@ -94,7 +94,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       // Active boosts
       supabase
         .from('user_boosts')
-        .select('id, challenge_id, outcome, type, delta, remaining, expires_at, created_at')
+        .select('id, challenge_id, outcome, type, delta, remaining, expires_at, created_at, start_date, end_date')
         .eq('user_id', userId),
 
       // All active challenges in the group (for Ongoing tab)
