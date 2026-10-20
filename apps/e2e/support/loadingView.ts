@@ -6,7 +6,10 @@ import { waitForStylesApplied } from './stylesApplied';
 /** Fördröjning av fullappens ingångs-JS: så lång att laddningsvyn hinner synas och mätas innan appen ritar. */
 export const APP_SCRIPT_DELAY_MS = 2_000;
 
-/** Fullappens ingångsfil (`/assets/index-<hash>.js`), landningens (`/assets/landing-<hash>.js`). Hashen är okänd, så prov går på mönstret. */
+/**
+ * Fullappens ingångsfil (`/assets/index-<hash>.js`) och landningens JS: boot-skriptet (`/assets/landing-boot-<hash>.js`, RUN-343), som laddar
+ * ingången (`/assets/landing-<hash>.js`) efter första ritning. Mönstret träffar båda och boot-skriptet först. Hashen är okänd, så prov går på mönstret.
+ */
 const APP_ENTRY = '**/assets/index-*.js';
 const LANDING_ENTRY = '**/assets/landing-*.js';
 
@@ -57,7 +60,7 @@ export function delayAppScript(page: Page, delayMs: number = APP_SCRIPT_DELAY_MS
   return hold(page, APP_ENTRY, delayMs);
 }
 
-/** Landningens ingångs-JS hålls tills `release()` anropas: landningen står som ren HTML tills dess. */
+/** Landningens JS (boot-skriptet och därmed ingången) hålls tills `release()` anropas: landningen står som ren HTML tills dess. */
 export function holdLandingScript(page: Page, maxMs: number): Promise<HeldScript> {
   return hold(page, LANDING_ENTRY, maxMs);
 }
