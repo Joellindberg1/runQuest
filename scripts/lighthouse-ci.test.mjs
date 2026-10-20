@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -12,6 +13,20 @@ import { createMockApi, MOCK_STATS } from './lighthouse/mock-api.mjs';
 import { formatFailures, formatTable, median, summarizeLhrs, toAnnotation } from './lighthouse/summarize.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Ett skript som hänger sig ska fälla testet, inte blockera det för alltid; gränsen är så rymlig att last inte fäller ett friskt skript.
+const SPAWN_TIMEOUT_MS = 120_000;
+
+/** En port som är ledig just nu (bindningen släpps direkt). */
+const freePort = () =>
+  new Promise((resolve, reject) => {
+    const probe = createNetServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
 
 describe('mock-api', () => {
   let server;
@@ -231,7 +246,7 @@ describe('run.sh guards', () => {
   });
   after(() => rmSync(dist, { recursive: true, force: true }));
 
-  const run = (env) => spawnSync('bash', ['scripts/lighthouse/run.sh'], { cwd: repoRoot, encoding: 'utf8', env: { ...process.env, ...env } });
+  const run = (env) => spawnSync('bash', ['scripts/lighthouse/run.sh'], { cwd: repoRoot, encoding: 'utf8', timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, ...env } });
 
   it('refuses an unknown STATS_MODE', () => {
     const res = run({ STATS_MODE: 'bogus', DIST_DIR: dist });
@@ -246,24 +261,28 @@ describe('run.sh guards', () => {
   });
 
   // Utan landing.html faller / tillbaka på index.html: mätningen skulle då gälla laddningsvyn och inte den förrenderade landningen.
-  it('refuses to measure / when the build has no prerendered landing page', () => {
-    const bare = mkdtempSync(join(tmpdir(), 'lh-bare-'));
-    try {
-      writeFileSync(join(bare, 'index.html'), '<!doctype html>');
-      const res = run({ STATS_MODE: 'error', DIST_DIR: bare });
-      assert.equal(res.status, 1);
-      assert.match(res.stdout, /landing\.html saknas/);
-    } finally {
-      rmSync(bare, { recursive: true, force: true });
-    }
-  });
+  // Vakten är ett hårt fel oavsett läge: i blockerande läge (steget fäller jobbet) och i icke-blockerande (steget märks orange).
+  for (const blocking of ['true', 'false']) {
+    it(`refuses to measure / when the build has no prerendered landing page (LIGHTHOUSE_BLOCKING=${blocking})`, () => {
+      const bare = mkdtempSync(join(tmpdir(), 'lh-bare-'));
+      try {
+        writeFileSync(join(bare, 'index.html'), '<!doctype html>');
+        const res = run({ STATS_MODE: 'error', DIST_DIR: bare, LIGHTHOUSE_BLOCKING: blocking });
+        assert.equal(res.status, 1);
+        assert.match(res.stdout, /landing\.html saknas/);
+      } finally {
+        rmSync(bare, { recursive: true, force: true });
+      }
+    });
+  }
 
   // spawnSync blockerar händelseslingan, så den upptagna servern måste leva i en egen process medan skriptet kör.
   it('refuses to measure while something else already answers on the API port', async () => {
     const busy = spawn(process.execPath, ['-e', "const s=require('node:http').createServer((q,r)=>r.end('ok'));s.listen(0,'127.0.0.1',()=>console.log(s.address().port))"], { stdio: ['ignore', 'pipe', 'inherit'] });
     try {
       const port = await new Promise((resolve) => busy.stdout.once('data', (d) => resolve(String(d).trim())));
-      const res = run({ STATS_MODE: 'error', DIST_DIR: dist, API_PORT: port });
+      // Portkollen väntar normalt 1 s på svar; under last kan även en redan lyssnande server svara senare än så.
+      const res = run({ STATS_MODE: 'error', DIST_DIR: dist, API_PORT: port, PORT_PROBE_SECONDS: '15' });
       assert.equal(res.status, 1);
       assert.match(res.stdout, /svarar redan på port/);
     } finally {
@@ -278,7 +297,11 @@ describe('run.sh when a served page cannot be fetched', () => {
   const posix = (path) => path.replaceAll('\\', '/');
   let work;
   let dist;
-  before(() => {
+  let ports;
+  before(async () => {
+    // Lediga portar i stället för 3001 och 18090: en annan process (ett lokalt backend, en samtidig Lighthouse-körning) som håller en av dem
+    // fäller annars testet med "något svarar redan på port" fast det som prövas är sidhämtningen.
+    ports = { api: await freePort(), serve: await freePort() };
     work = mkdtempSync(join(tmpdir(), 'lh-fetch-'));
     dist = join(work, 'dist');
     mkdirSync(dist);
@@ -314,7 +337,18 @@ createServer((req, res) => {
     spawnSync('bash', ['lighthouse/run.sh'], {
       cwd: work,
       encoding: 'utf8',
-      env: { ...process.env, STATS_MODE: 'error', DIST_DIR: posix(dist), CADDY_BIN: posix(join(work, 'fake-caddy')), FAKE_FAILING_PAGE: failingPage },
+      timeout: SPAWN_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        STATS_MODE: 'error',
+        DIST_DIR: posix(dist),
+        CADDY_BIN: posix(join(work, 'fake-caddy')),
+        FAKE_FAILING_PAGE: failingPage,
+        API_PORT: String(ports.api),
+        SERVE_PORT: String(ports.serve),
+        // Låtsasservern är en nystartad node-process: under last kan den ta många sekunder, och 50 försök räcker då inte.
+        CADDY_WAIT_TRIES: '300',
+      },
     });
 
   it('says that / could not be fetched instead of exiting without a word', () => {
