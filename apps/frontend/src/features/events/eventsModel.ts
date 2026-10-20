@@ -1,6 +1,6 @@
-import type { EventItem } from '@runquest/shared';
+import { zoneDay, type EventItem } from '@runquest/shared';
 import {
-  dateRangeText, dayLabel, formatClock, formatCountdown, formatEventValue, formatMinKm, stockholmDate, weekdayOf, windowText,
+  dateRangeText, dayLabel, formatClock, formatCountdown, formatEventValue, formatMinKm, weekdayOf, windowText,
 } from './eventsFormat';
 
 // Vymodeller för Events: vad som är öppet, vad som kommer, mitt facit och historikraderna. Rena funktioner — `now` skickas in.
@@ -157,7 +157,7 @@ function openChips(event: EventItem, done: boolean): EventChip[] {
     chips.push({ key: 'closes', label: `Closes ${formatClock(event.endsAt)}`, tone: 'tag' });
   } else {
     chips.push({ key: 'metric', label: event.metric === 'km' ? 'Total distance' : 'Total elevation', tone: 'tag' });
-    chips.push({ key: 'ends', label: `Ends ${weekdayOf(stockholmDate(event.endsAt))} ${formatClock(event.endsAt)}`, tone: 'tag' });
+    chips.push({ key: 'ends', label: `Ends ${weekdayOf(zoneDay(new Date(event.endsAt)))} ${formatClock(event.endsAt)}`, tone: 'tag' });
   }
   weatherTags(template.requiresWeather).forEach((weather) => chips.push({ key: `weather-${weather}`, label: weather, tone: 'tag' }));
   const reward = rewardLabel(event);

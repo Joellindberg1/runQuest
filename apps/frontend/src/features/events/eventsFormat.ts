@@ -1,4 +1,4 @@
-import { MS_DAY, MS_HOUR, MS_MINUTE, dayOfWeek, daysBetween, stockholmClock } from '@runquest/shared';
+import { MS_DAY, MS_HOUR, MS_MINUTE, dayOfWeek, daysBetween, stockholmClock, zoneDay } from '@runquest/shared';
 
 // Rena formatterare för Events: tider i Stockholm, nedräkningar, mått. `now` skickas alltid in så att allt går att testa
 // med fasta klockslag. Engelskt UI — tal och datum i en-GB, egna månads- och veckodagsnamn (Intl:s förkortningar skiljer
@@ -12,9 +12,6 @@ const ONE_DECIMAL = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 1, m
 const WHOLE = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
-
-/** Kalenderdagen (YYYY-MM-DD) i Stockholm för ett ISO-klockslag. */
-export const stockholmDate = (iso: string): string => stockholmClock(new Date(iso)).date;
 
 /** "18:00" i Stockholm-tid. */
 export function formatClock(iso: string): string {
@@ -35,7 +32,7 @@ export function formatDayMonth(date: string): string {
 
 /** "Today" · "Tomorrow" · "Sat" — dagen ett kommande event öppnar, sett från Stockholm-dagen `now`. */
 export function dayLabel(startsAt: string, now: Date): string {
-  const date = stockholmDate(startsAt);
+  const date = zoneDay(new Date(startsAt));
   const days = daysBetween(stockholmClock(now).date, date);
   if (days <= 0) return 'Today';
   if (days === 1) return 'Tomorrow';
@@ -55,8 +52,8 @@ export function formatCountdown(ms: number): string {
  * annars "Mon 00:01 – Sun 23:59" (veckotävlingen).
  */
 export function windowText(startsAt: string, endsAt: string): string {
-  const startDate = stockholmDate(startsAt);
-  const endDate = stockholmDate(endsAt);
+  const startDate = zoneDay(new Date(startsAt));
+  const endDate = zoneDay(new Date(endsAt));
   const start = formatClock(startsAt);
   const end = formatClock(endsAt);
   if (startDate === endDate) {
@@ -67,8 +64,8 @@ export function windowText(startsAt: string, endsAt: string): string {
 
 /** "28 Sep – 4 Oct" (en dag: "21 Aug") — eventets datum i historiken. */
 export function dateRangeText(startsAt: string, endsAt: string): string {
-  const start = stockholmDate(startsAt);
-  const end = stockholmDate(endsAt);
+  const start = zoneDay(new Date(startsAt));
+  const end = zoneDay(new Date(endsAt));
   return start === end ? formatDayMonth(start) : `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
 }
 

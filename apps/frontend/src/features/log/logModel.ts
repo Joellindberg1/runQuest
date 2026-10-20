@@ -1,6 +1,6 @@
 import type { Run } from '@runquest/types';
 import type { RunIdOnly } from '@runquest/shared';
-import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, stockholmClock } from '@runquest/shared';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, zoneDay } from '@runquest/shared';
 import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
 
 // Formulärets ren logik: tillstånd, validering (speglar POST /runs) och streakdagen en ny runda får.
@@ -28,13 +28,9 @@ export interface FieldErrors {
   distance?: string;
 }
 
-/** Idag som Stockholm-dag — samma dygnsgräns som streaken och resten av appen. */
-export function todayOf(now: Date): string {
-  return stockholmClock(now).date;
-}
-
+/** Formuläret börjar på idag: dagen i appens tidszon, samma dygnsgräns som streaken och resten av appen. */
 export function initialForm(now: Date): LogForm {
-  return { date: todayOf(now), distance: '', surface: 'outdoor' };
+  return { date: zoneDay(now), distance: '', surface: 'outdoor' };
 }
 
 /** "8.4" / "8,4" → 8.4. Tomt eller något som inte är ett tal → null. */

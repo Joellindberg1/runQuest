@@ -1,6 +1,6 @@
 import type { Challenge, Run } from '@runquest/types';
 import {
-  LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, compareChallengeStandings, stockholmClock,
+  LEGENDARY_AUTO_START_DAYS, MS_DAY, MS_HOUR, STOCKHOLM_TZ, boostRemaining, boostWindow, compareChallengeStandings,
   type ChallengeGroupStat, type ChallengeHistoryItem, type ChallengeMetric, type ChallengeStanding, type ChallengeTier, type MyBoost, type MyChallengesData,
 } from '@runquest/shared';
 import {
@@ -373,6 +373,7 @@ export function buildBoosts(
   names: Record<string, string>,
   now: Date,
   runs?: ReadonlyArray<Pick<Run, 'date'>>,
+  timeZone: string = STOCKHOLM_TZ,
 ): BoostView[] {
   return boosts.flatMap((boost): BoostView[] => {
     const sign = boost.delta < 0 ? '−' : '+';
@@ -381,13 +382,14 @@ export function buildBoosts(
     let window = '';
     if (boost.type === 'multiplier_runs') {
       const charges = boost.remaining ?? 0;
-      const startedOn = stockholmClock(new Date(boost.created_at)).date;
+      // Samma startdag som XP-beräkningen: boostens skapandedag i gruppens tidszon (shared/boostWindow).
+      const { startDay: startedOn } = boostWindow({ type: boost.type, created_at: boost.created_at, expires_at: null }, timeZone);
       const used = runs ? runs.filter((run) => run.date >= startedOn).length : 0;
       const left = charges - used;
       if (left <= 0) return [];
       window = ` for ${plural(left, 'run')}`;
     } else if (boost.expires_at) {
-      const left = Math.ceil((new Date(boost.expires_at).getTime() - now.getTime()) / MS_DAY);
+      const left = boostRemaining({ type: 'multiplier_days', created_at: boost.created_at, expires_at: boost.expires_at }, now, timeZone) ?? 0;
       if (left <= 0) return [];
       window = ` for ${plural(left, 'day')}`;
     }

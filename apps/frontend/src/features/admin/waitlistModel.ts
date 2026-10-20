@@ -1,4 +1,4 @@
-import { stockholmDate } from '@/features/events/eventsFormat';
+import { zoneDay } from '@runquest/shared';
 import { formatLongDate } from '@/features/log/logFormat';
 
 // Väntelistans texter. Ren logik — ingen DOM, ingen datahämtning.
@@ -12,4 +12,4 @@ export function shownLimitText(shown: number, total: number): string | null {
 }
 
 /** "13 October 2026" — anmälningsdagen i Stockholm, samma kalender som resten av appen. */
-export const signupDateText = (createdAt: string): string => formatLongDate(stockholmDate(createdAt));
+export const signupDateText = (createdAt: string): string => formatLongDate(zoneDay(new Date(createdAt)));

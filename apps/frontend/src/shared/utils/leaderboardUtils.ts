@@ -1,6 +1,6 @@
 
 import type { Run, User } from '@runquest/types'
-import { MS_DAY, weekendAverageKm } from '@runquest/shared';
+import { STOCKHOLM_TZ, addDays, weekendAverageKm, zoneDay } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
 export { getInitials } from '@/shared/utils/formatters';
@@ -75,13 +75,14 @@ export const leaderboardUtils = {
     return weekendAverageKm(runs.map(run => ({ day: run.date.slice(0, 10), km: run.distance })));
   },
 
-  calculateLast14DaysXP(user: User): number {
-    const today = new Date();
-    const fourteenDaysAgo = new Date(today.getTime() - (13 * MS_DAY)); // 13 days ago + today = 14 days
-    
+  /** XP-snittet per dag över 14 kalenderdagar: idag och de 13 dagarna före, dagen i gruppens tidszon. Rundornas datum är kalenderdagar. */
+  calculateLast14DaysXP(user: User, now: Date = new Date(), timeZone: string = STOCKHOLM_TZ): number {
+    const today = zoneDay(now, timeZone);
+    const firstDay = addDays(today, -13); // 13 days ago + today = 14 days
+
     const last14DaysRuns = (user.runs || []).filter(run => {
-      const runDate = new Date(run.date);
-      return runDate >= fourteenDaysAgo && runDate <= today;
+      const runDay = run.date.slice(0, 10);
+      return runDay >= firstDay && runDay <= today;
     });
 
     const totalXP = last14DaysRuns.reduce((sum, run) => sum + (run.xp_gained || 0), 0);

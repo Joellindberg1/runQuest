@@ -1,10 +1,10 @@
-import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, TIER_NAMES, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, MS_DAY, MS_HOUR, MS_MINUTE, STOCKHOLM_TZ, TIER_NAMES, boostExpiresAt, boostRemaining, classifyNotification, daysBetween, isActivityType, isKindEnabled, mondayOf, stockholmClock, zoneDay, type ActivityType, type ClassifiableRow, type NewsItem, type NewsMeta } from '@runquest/shared';
 import type { ChallengeMetric } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import type { RQIconName } from '@/shared/components/icons';
 import { logger } from '@/shared/utils/logger';
 import { deltaText, durationLongText, firstName, metricLabel, startsInText } from '@/features/challenges/duelsFormat';
-import { formatClock, stockholmDate, weekdayOf } from '@/features/events/eventsFormat';
+import { formatClock, weekdayOf } from '@/features/events/eventsFormat';
 import { formatInt } from '@/features/log/logFormat';
 import { SHORT_MONTHS } from '@/features/profile/profileFormat';
 import { resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
@@ -371,7 +371,7 @@ function dateText(day: string, todayKey: string): string {
 export function formatAgo(iso: string, now: Date, long = false): string {
   const ms = Math.max(0, now.getTime() - new Date(iso).getTime());
   const todayKey = stockholmClock(now).date;
-  const dayKey = stockholmDate(iso);
+  const dayKey = zoneDay(new Date(iso));
   if (ms < MS_MINUTE) return long ? 'Just now' : 'now';
   if (ms < MS_HOUR) return long ? `${Math.floor(ms / MS_MINUTE)}m ago` : `${Math.floor(ms / MS_MINUTE)}m`;
   if (ms < MS_DAY) return long ? `${Math.floor(ms / MS_HOUR)}h ago` : `${Math.floor(ms / MS_HOUR)}h`;
@@ -383,7 +383,7 @@ export function formatAgo(iso: string, now: Date, long = false): string {
 
 /** "Fri 2 Oct · 14:05" i Stockholm-tid — raden pekar ut sin exakta tid i `title`. */
 export function fullTime(iso: string, now: Date): string {
-  const day = stockholmDate(iso);
+  const day = zoneDay(new Date(iso));
   return `${weekdayOf(day)} ${dateText(day, stockholmClock(now).date)} · ${formatClock(iso)}`;
 }
 
@@ -412,7 +412,7 @@ export function groupByDay<T extends { occurred_at: string; id: number }>(items:
   const ordered = [...items].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || b.id - a.id);
   const groups: NewsDayGroup<T>[] = [];
   for (const item of ordered) {
-    const bucket = bucketOf(stockholmDate(item.occurred_at), todayKey);
+    const bucket = bucketOf(zoneDay(new Date(item.occurred_at)), todayKey);
     const last = groups[groups.length - 1];
     if (last && last.key === bucket.key) last.rows.push(item);
     else groups.push({ ...bucket, rows: [item] });
@@ -426,6 +426,8 @@ export interface NewsContext {
   /** Den som tittar — "you" när raden handlar om den personen. */
   viewerId: string | null;
   now: Date;
+  /** Gruppens tidszon (groupTimeZone). Utan värde räknas dygnen i standardzonen. */
+  timeZone?: string;
   /** Namn för användare som bara har ett id i payloaden (event_closed.top). Okänd → utelämnas. */
   nameOf?: (userId: string) => string | null | undefined;
   /** Kön för "The Consistent King/Queen"-titlar. Okänt → namnet lämnas som det är. */
@@ -458,11 +460,15 @@ function boostWindow(duration: number | null, type: string): string {
   return ` for ${duration} ${unit}`;
 }
 
-/** Dagsboostar går att räkna ut; körboostar vet klienten inte hur mycket som är kvar av. */
-function boostIsLive(boost: { type: string; delta: number; duration: number | null }, occurredAt: string, now: Date): boolean {
-  if (boost.delta === 0 || boost.duration === null) return false;
+/**
+ * Dagsboostar går att räkna ut; körboostar vet klienten inte hur mycket som är kvar av. Fönstret är det som XP-beräkningen använder
+ * (boostWindow/boostExpiresAt i shared, gruppens tidszon): live till och med slutdagen, inte ett ögonblick efter `duration * 24 h`.
+ */
+function boostIsLive(boost: { type: string; delta: number; duration: number | null }, occurredAt: string, now: Date, timeZone: string): boolean {
+  if (boost.delta === 0 || boost.duration === null || !Number.isInteger(boost.duration) || boost.duration < 0) return false;
   if (boost.type === 'multiplier_runs') return false;
-  return Date.parse(occurredAt) + boost.duration * MS_DAY > now.getTime();
+  const expiresAt = boostExpiresAt(new Date(occurredAt), boost.duration, timeZone);
+  return (boostRemaining({ type: 'multiplier_days', created_at: occurredAt, expires_at: expiresAt }, now, timeZone) ?? 0) > 0;
 }
 
 /** Serienamnet ur BADGE_SERIES; en okänd (pensionerad) nyckel visas som den är hellre än som ett tomt ord. */
@@ -480,7 +486,7 @@ const clockOrMidnight = (iso: string): string => {
 
 /** "until midnight" · "until 18:00" · "until Sun midnight" · "until 12 Oct" — sett från Stockholm-dagen `now`. */
 export function untilText(endsAt: string, now: Date): string {
-  const endDay = stockholmDate(endsAt);
+  const endDay = zoneDay(new Date(endsAt));
   const todayKey = stockholmClock(now).date;
   if (endDay === todayKey) return `until ${clockOrMidnight(endsAt)}`;
   const ahead = daysBetween(todayKey, endDay);
@@ -576,7 +582,7 @@ export function describeNews(wire: WireNewsItem, ctx: NewsContext): NewsText | n
       const { payload } = item;
       const stakes = `${metricText(payload.metric)} · ${durationText(payload.duration_days)}`;
       if (viewerIsTarget) {
-        const live = boostIsLive(payload.winner_boost, item.occurred_at, ctx.now);
+        const live = boostIsLive(payload.winner_boost, item.occurred_at, ctx.now, ctx.timeZone ?? STOCKHOLM_TZ);
         return { kind: 'Challenge lost', text: `${subject(actor, ctx)} beat you in ${stakes}${live ? `. ${possessive(actor, ctx)} boost is live` : ''}` };
       }
       const boost = payload.winner_boost;

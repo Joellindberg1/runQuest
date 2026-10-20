@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '@/shared/utils/logger';
-import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, resolveSettings, type ActivityType, type NewsItem } from '@runquest/shared';
+import { ACTIVITY_TYPES, BADGE_SERIES, TIER_NAMES, groupTimeZone, resolveSettings, type ActivityType, type NewsItem } from '@runquest/shared';
 import {
   CATEGORY_ICON, CATEGORY_OF, NEWS_FILTERS, appendOlder, badgeText, buildNewsGroups, buildNewsRow, buildPopoverRows, classifiableRowOf, countByFilter, dedupeById, describeNews,
   POINTER_SETTLE_MS, READ_DWELL_MS, READ_FLUSH_MS, createReadBatcher, markReadInFeed, markUnreadInFeed,
@@ -507,6 +507,19 @@ describe('texterna ur typ + payload + vem som tittar', () => {
       // Körboost: klienten vet inte hur mycket som är kvar.
       expect(describeNews(challengeWon(1, { occurred_at: at(1) }, { winner_boost: { type: 'multiplier_runs', delta: 0.2, duration: 3 } }), ctx()).text)
         .toBe('Nicklas beat you in Most km · 7 days');
+    });
+
+    it('a boost from a duel settled 01:30 Stockholm time is live through its end day, with the same window as the XP calculation', () => {
+      // Avgjord 01:30 den 5:e, tre dygn: gäller rundor den 5:e till och med den 8:e (NOW är den 8:e). Mätt som ögonblick (+72 h) var den slut.
+      const won = challengeWon(1, { occurred_at: '2026-10-04T23:30:00Z' }, { winner_boost: { type: 'multiplier_days', delta: 0.2, duration: 3 } });
+      expect(describeNews(won, ctx()).text).toBe("Nicklas beat you in Most km · 7 days. Nicklas's boost is live");
+      expect(describeNews(won, ctx({ now: new Date('2026-10-08T22:00:00Z') })).text).toBe('Nicklas beat you in Most km · 7 days');
+    });
+
+    it('the group time zone moves the window of the boost', () => {
+      const won = challengeWon(1, { occurred_at: '2026-10-05T02:30:00Z' }, { winner_boost: { type: 'multiplier_days', delta: 0.2, duration: 3 } });
+      expect(describeNews(won, ctx()).text).toContain('boost is live');
+      expect(describeNews(won, ctx({ timeZone: groupTimeZone('g1', () => 'America/New_York') })).text).not.toContain('boost is live');
     });
 
     it('vunnen (jag är actor): med min boost; tredje part: utan boost', () => {

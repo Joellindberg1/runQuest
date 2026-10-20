@@ -143,11 +143,11 @@ describe('datumaritmetik och Stockholm-tid finns bara i calendar.ts', () => {
 describe('todayStockholm och streakschedulern (T5)', () => {
   const source = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 
-  it('backend har ingen egen "idag"-hjälpare: dateUtils har inga todayStockholm/tomorrowStockholm/toStockholmDate och ingen Intl-formaterare', () => {
+  it('ingen egen "idag"-hjälpare i backend eller frontend: dateUtils har inga todayStockholm/tomorrowStockholm/toStockholmDate och ingen Intl-formaterare', () => {
     const dateUtils = stripComments(source('apps/backend/src/utils/dateUtils.ts'));
     expect(dateUtils).not.toMatch(/\b(?:todayStockholm|tomorrowStockholm|toStockholmDate)\b/);
     expect(dateUtils).not.toMatch(/Intl\./);
-    expect(offenders(/\b(?:function\s+|(?:const|let|var)\s+)(?:todayStockholm|tomorrowStockholm|toStockholmDate)\b/)).toEqual([]);
+    expect(offenders(/\b(?:function\s+|(?:const|let|var)\s+)(?:todayStockholm|tomorrowStockholm|toStockholmDate|stockholmDate|todayOf)\b/)).toEqual([]);
   });
 
   it('streakScheduler-kommentaren påstår inte längre att StreakService jämför UTC-dagar', () => {
