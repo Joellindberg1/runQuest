@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import { errorCode } from './errorCode.js';
+import { logger } from './logger.js';
 
 /** Kostnadsfaktorn för alla lösenordshashar (skapa användare, byta och nollställa lösenord, dummy-hashen). */
 export const BCRYPT_COST = 10;
@@ -18,4 +20,14 @@ export function getDummyPasswordHash(): Promise<string> {
     dummyHash = made;
   }
   return dummyHash;
+}
+
+/**
+ * Anropas en gång när servern startar, så att inget inloggningsförsök betalar för att skapa hashen. Väntar inte på den och
+ * kraschar inte processen om det misslyckas: nästa login försöker då skapa den själv.
+ */
+export function warmUpDummyPasswordHash(): void {
+  getDummyPasswordHash().catch((error: unknown) => {
+    logger.warn('⚠️ Could not warm up the login dummy hash:', errorCode(error));
+  });
 }

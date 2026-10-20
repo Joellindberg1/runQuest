@@ -87,7 +87,11 @@
 //     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
 //     routen i en fil får handlertext till filens slut, så en `…Response`-typ i kod efter den (en hjälpfunktion, en annan export) räknas som dess svar.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|media|fonts|all]   (standard: all)
+// 19. Dummy-hashen värms upp vid start (RUN-365): `apps/backend/src/server.ts` måste anropa `warmUpDummyPasswordHash()` på översta nivån. Utan anropet
+//     skapas hashen först av det första inloggningsförsöket mot ett okänt konto, som då tar en hash längre än alla andra och avslöjar att kontot saknas.
+//     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|frontend-supabase|route-contracts|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -544,7 +548,25 @@ export function checkTokenKeyStartupCheck(files) {
     : [`${SERVER_FILE}: saknar ett anrop av reportTokenKeyAtStartup() på översta nivån — utan det larmar ingenting när tokennyckeln saknas eller är fel och Strava-synken står stilla (ADR 013 beslut 9)`];
 }
 
-const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
+const DUMMY_HASH_WARMUP_CALL = /^warmUpDummyPasswordHash\s*\(\s*\)/m;
+
+/**
+ * Regel 19. `files`: [{ path, content }]. Backendens server.ts måste anropa warmUpDummyPasswordHash() på översta nivån (RUN-365).
+ * Ett repo utan någon backendkälla har inget att kontrollera.
+ */
+export function checkDummyHashWarmup(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så dummy-hashen för login värms aldrig upp vid start`]
+      : [];
+  }
+  return DUMMY_HASH_WARMUP_CALL.test(server.content)
+    ? []
+    : [`${SERVER_FILE}: saknar ett anrop av warmUpDummyPasswordHash() på översta nivån — utan det tar det första inloggningsförsöket mot ett okänt konto en hash längre än övriga och avslöjar att kontot saknas (RUN-365)`];
+}
+
+const PRODUCTION_BLOCK_START =/if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
 const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;
@@ -803,8 +825,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'frontend-supabase', 'route-contracts', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | frontend-supabase | route-contracts | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -819,7 +841,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'route-contracts') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -836,6 +858,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'token-key-startup') {
       errors.push(...checkTokenKeyStartupCheck(files));
       summary.push('tokennyckeln kontrolleras vid start i server.ts');
+    }
+    if (mode === 'all' || mode === 'dummy-hash-warmup') {
+      errors.push(...checkDummyHashWarmup(files));
+      summary.push('dummy-hashen för login värms upp vid start i server.ts');
     }
     if (mode === 'all' || mode === 'group-role-mapping') {
       errors.push(...checkGroupRoleMapping(files));

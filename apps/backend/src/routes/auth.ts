@@ -43,23 +43,18 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
     
-    // Find user by email, then by name. .eq() skickar värdet parametriserat —
+    // Find user by email, then by name (e-post vinner). Båda uppslagen görs alltid och samtidigt, så att antalet
+    // databasrundturer inte skiljer sig mellan känt och okänt konto. .eq() skickar värdet parametriserat —
     // användarinput får aldrig bli en del av filteruttrycket (PostgREST-injektion).
-    const { data: byEmail, error } = await supabase
+    const lookupBy = (column: 'email' | 'name') => supabase
       .from('users')
       .select('id, name, email, password_hash, is_admin, group_id')
-      .eq('email', nameOrEmail)
+      .eq(column, nameOrEmail)
       .limit(1);
+    const [{ data: byEmail, error }, { data: byName }] = await Promise.all([lookupBy('email'), lookupBy('name')]);
 
-    let user = byEmail?.[0] ?? null;
-    if (!user && !error) {
-      const { data: byName } = await supabase
-        .from('users')
-        .select('id, name, email, password_hash, is_admin, group_id')
-        .eq('name', nameOrEmail)
-        .limit(1);
-      user = byName?.[0] ?? null;
-    }
+    // Ett fel i namnuppslaget räknas som "ingen träff", som när uppslaget bara gjordes efter en tom e-posträff.
+    const user = byEmail?.[0] ?? (error ? null : byName?.[0] ?? null);
 
     // bcrypt-arbetet görs i alla fall (okänt konto, databasfel, fel lösenord) så att svarstiden inte avslöjar
     // vilka konton som finns. Mot dummy-hashen kan jämförelsen aldrig lyckas, och `user` styr utfallet.
