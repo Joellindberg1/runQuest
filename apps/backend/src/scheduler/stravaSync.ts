@@ -30,10 +30,13 @@ const syncState: SyncState = {
 // not wait for the next backup check. It reads the same tables the poll's backfill always did, so the load is unchanged.
 const WEATHER_BACKFILL_CRON = '*/30 * * * *';
 
-// node-cron 3 now and then skips a whole second window (about 0.8 % of the ticks measured). With a 12-hour interval that would leave half
-// a day without the backup check, so the 30-minute tick runs the poll once if the estimated slot is this much overdue. A poll that is
-// due is not "late" until this has passed: the slot's own tick may still be about to run. This covers a skipped cron second while the
-// process lives. A restart estimates the NEXT slot, so a slot missed during a deploy is not caught up; webhooks carry that time.
+// node-cron can skip a tick. node-cron 3 skipped a whole second window now and then (about 0.8 % of the ticks measured, on version 3).
+// node-cron 4 arms one timer for the next slot and runs the tick only if the timer fires within 1 s of the slot (missedExecutionTolerance);
+// a later tick, such as a blocked event loop causes, is reported as a missed execution and not run (read in its source; the skip rate
+// is not measured on version 4). With a 12-hour interval a skipped tick would leave half a day without the backup check, so the
+// 30-minute tick runs the poll once if the estimated slot is this much overdue. A poll that is due is not "late" until this has passed:
+// the slot's own tick may still be about to run. This covers a skipped tick while the process lives.
+// A restart estimates the NEXT slot, so a slot missed during a deploy is not caught up; webhooks carry that time.
 const CATCH_UP_GRACE_MS = 10 * 60 * 1000;
 
 // The cron fires at fixed Stockholm clock times, so the next sync is the next slot, not the attempt plus the interval. A tick that
