@@ -99,6 +99,16 @@ describe('lastRunOfWeek', () => {
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 9, 4, 23, 30) / 1000)).toBe('4 Oct');
     expect(formatTitleValue('lastRunOfWeek', Date.UTC(2026, 6, 5, 23, 0) / 1000)).toBe('5 Jul');
   });
+
+  // En titelrad ritas av render och får aldrig kasta: ett värde som inte är ett datum visas som tankstreck, som övriga saknade värden.
+  it.each([
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['ett värde utanför datumintervallet', 9e12],
+  ])('%s ger tankstreck i stället för ett kast', (_name, value) => {
+    expect(formatTitleValue('lastRunOfWeek', value)).toBe('—');
+    expect(titleValueText('lastRunOfWeek', value)).toBe('—');
+  });
 });
 
 describe('resolveGenderedTitle', () => {

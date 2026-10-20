@@ -50,6 +50,8 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
     }
     case 'lastRunOfWeek': {
       const encoded = new Date(decodeTitleMetric(metricKey, value));
+      // Ett värde som inte är ett datum (NaN, oändligt, utanför datumintervallet) får inte kasta i render: tankstreck som övriga saknade värden.
+      if (Number.isNaN(encoded.getTime())) return '—';
       // Värdet är väggklockan kodad som UTC-sekunder (se calendar.ts): läs dagen i UTC, annars glider
       // sena kvällsrundor till nästa dag i zoner öster om UTC.
       return formatDayMonth(zoneDay(encoded, 'UTC'));

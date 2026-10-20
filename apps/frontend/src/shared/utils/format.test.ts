@@ -50,6 +50,32 @@ describe('formatKm', () => {
     expect(formatKm(12.345, 2)).toBe('12.35');
     expect(formatKm(12.3, 0)).toBe('12');
   });
+
+  it('avrundar halv uppåt på det decimaltal som skrivs, inte på det binära värdet (som Intl gjorde)', () => {
+    expect(formatKm(0.95)).toBe('1.0');
+    expect(formatKm(9.95)).toBe('10.0');
+    expect(formatKm(12.35)).toBe('12.4');
+    expect(formatKm(1.15)).toBe('1.2');
+    expect(formatKm(1000.05)).toBe(`1${NBSP}000.1`);
+    expect(formatKm(1.005, 2)).toBe('1.01');
+    expect(formatKm(2.5, 0)).toBe('3');
+  });
+
+  it('negativa tal avrundas på beloppet, och noll, NaN och oändlighet skrivs som förut', () => {
+    expect(formatKm(-12.35)).toBe('-12.4');
+    expect(formatKm(-0.04)).toBe('-0.0');
+    expect(formatKm(0)).toBe('0.0');
+    expect(formatKm(-1240.46)).toBe(`-1${NBSP}240.5`);
+    expect(formatKm(Number.NaN)).toBe('NaN');
+    expect(formatKm(Number.POSITIVE_INFINITY)).toBe('Infinity');
+    expect(formatKm(Number.NEGATIVE_INFINITY)).toBe('-Infinity');
+  });
+
+  it('tal som skrivs med exponent (mycket små eller stora) kraschar inte och skrivs som toFixed', () => {
+    expect(formatKm(1e-7)).toBe('0.0');
+    expect(formatKm(5e-324)).toBe('0.0');
+    expect(formatKm(1e21)).toBe('1e+21');
+  });
 });
 
 describe('formatMultiplier och formatTimes', () => {

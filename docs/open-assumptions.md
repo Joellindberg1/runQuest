@@ -197,6 +197,14 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   mellanrum gäller heltalsdelen av km (`formatKm(1240.5)` = "1 240.5", punkt kvar som decimaltecken), så att XP och km på samma skärm skrivs likadant; det syns
   först vid 1 000 km eller mer (Runner/Board totalsiffror, Titles). Dagens skilda "tid sedan"- och nedräkningstexter är oförändrade men namngivna stilar
   (`formatAgo`: spelled, compact, feed, feed-long; `formatCountdown`: hms, hm, coarse, pill). Vill ägaren ha en enhetlig stil är det en separat designfråga.
+- `formatKm` avrundar halv uppåt på det decimaltal som skrivs, utan Intl (`toFixedHalfUp`), och är därmed identisk med den gamla Intl en-GB i Events och Duels
+  (differentialprovat mot 2 miljoner tal, 0 avvikelser). `toFixed` avrundar däremot det binära värdet, så Log, Board, Runner, Profile, Playbook och Titles ger nu
+  ny text för ungefär 4 % av tvådecimalstal: 0.95 skrivs "1.0" (förut "0.9"), 12.35 "12.4" (förut "12.3"), 1.15 "1.2" (förut "1.1"), 9.95 "10.0" (förut "9.9").
+  Ytorna är alla som visar km via `formatKm`: rundans distans och XP-förhandsvisningen (Log), veckans och säsongens km (Board), Runner card och Profile,
+  Playbook och titelvärden för km (Titles). Multiplikatorn (`formatMultiplier`/`formatTimes`) behåller `toFixed(1)`: halv uppåt skulle ändra text för 36 av 900
+  tvådecimalsvärden mellan 1.00 och 9.99 (1.15, 1.45, 1.65 …), och standardtrappan (ett decimal) är oberörd.
+- Titles skriver "Sep" för september i "senaste söndagsrundan" (`lastRunOfWeek`); den gamla `toLocaleDateString('en-GB')` gav "Sept" i nyare ICU. Godtaget: egna
+  månadsnamn överallt. Ett värde som inte är ett datum (NaN, oändligt, utanför datumintervallet) visas som "—" i stället för att kasta i render.
 - Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
   Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
   gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:

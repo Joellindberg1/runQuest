@@ -14,9 +14,21 @@ export function formatInt(value: number): string {
   return groupThousands(String(Math.round(value)));
 }
 
-/** "8.0" — km med en decimal (punkt som decimaltecken) och samma tusentalsmellanrum som formatInt: "1 240.5". */
+/**
+ * Fast antal decimaler med halv uppåt på det decimaltal som skrivs ("12.35" blir "12.4"). `toFixed` avrundar det binära värdet
+ * (12.35 ligger strax under) och ger "12.3". Går via exponentskrivning, utan Intl. Tal som skrivs med exponent, NaN och
+ * oändlighet faller tillbaka på `toFixed`.
+ */
+function toFixedHalfUp(value: number, digits: number): string {
+  const shifted = Number(`${Math.abs(value)}e${digits}`);
+  const rounded = Number(`${Math.round(shifted)}e-${digits}`);
+  if (!Number.isFinite(shifted) || !Number.isFinite(rounded)) return value.toFixed(digits);
+  return `${value < 0 ? '-' : ''}${rounded.toFixed(digits)}`;
+}
+
+/** "8.0" — km med en decimal (punkt som decimaltecken) och samma tusentalsmellanrum som formatInt: "1 240.5". Halv uppåt. */
 export function formatKm(km: number, digits = 1): string {
-  const [whole, decimals] = km.toFixed(digits).split('.');
+  const [whole, decimals] = toFixedHalfUp(km, digits).split('.');
   return decimals === undefined ? groupThousands(whole) : `${groupThousands(whole)}.${decimals}`;
 }
 
