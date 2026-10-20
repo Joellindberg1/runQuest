@@ -32,7 +32,7 @@ rekord + historik, ring till höger, fakta-taggar). `pages/EventsPage.tsx` är t
   aktivt (`eventPhase`). Ett participation-event som passerat sitt slut visas inte (avräknas inom fem minuter → historiken); en tävling
   efter slutdatum visas som "Settling" tills söndagens avräkning har körts.
 - **Ringen** = andel av fönstret som återstår (`ringFraction`), siffran är nedräkningen (`6h 14m`, `2d 5h`; useNow tickar var 30:e s).
-- **Backend skickar "Du" som namn för mig** i tävlingstabellen — modellen visar "You".
+- **Servern skickar det riktiga namnet och `isMe`** i tävlingstabellen — modellen visar "You" för den raden. Priset per plats kommer ur `prizeForRank` (shared), samma funktion som avräkningen delar ut efter.
 - **"Your record" är all-time** (ägarbeslut 2: begreppet *season* finns inte i datamodellen). Endpointen har inget aggregat, så
   `useEventRecordSource` läser hela historiken i sidor om 50 (endpointens max, högst tio sidor) och `buildRecord` räknar: klarade/avslutade
   participation-event, XP från events (participation + tävlingspriser) och XP för de event jag missade ("left on the table"). Räknaren i

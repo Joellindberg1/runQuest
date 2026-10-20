@@ -117,7 +117,7 @@ describe('buildEventsView — tävling', () => {
     expect(view.open.map((card) => card.kind)).toEqual(['participation', 'competition']);
   });
 
-  it('tabellen: rank, "You" i stället för Du, värde i höjdmeter och pris för topp tre', () => {
+  it('tabellen: rank, "You" utifrån isMe (servern skickar det riktiga namnet), värde i höjdmeter och pris för topp tre', () => {
     const board = view.open[1].board;
     expect(board?.map((entry) => [entry.rank, entry.name, entry.mine, entry.value, entry.prize])).toEqual([
       [1, 'Karl Persson', false, '612 m', '+100 XP'],
@@ -125,6 +125,14 @@ describe('buildEventsView — tävling', () => {
       [3, 'Adam Einstein', false, '198 m', '+30 XP'],
     ]);
     expect(view.open[1].boardNote).toBeNull();
+  });
+
+  it('namnet "Du" betyder inget särskilt: bara isMe gör raden till "You"', () => {
+    const board = buildEventsView([{ ...LIVE_ELEVATION, leaderboard: [
+      { userId: 'a', userName: 'Du', totalValue: 5, rank: 1, isMe: false },
+      { userId: 'b', userName: 'Joel Lindberg', totalValue: 4, rank: 2, isMe: true },
+    ] satisfies EventItem['leaderboard'] }], NOW).open[0].board;
+    expect(board?.map((entry) => [entry.name, entry.mine])).toEqual([['Du', false], ['You', true]]);
   });
 
   it('fjärde plats får inget pris; saknad rank faller tillbaka på ordningen', () => {
