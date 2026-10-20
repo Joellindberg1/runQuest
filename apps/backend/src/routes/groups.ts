@@ -6,7 +6,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
 import { MembershipError, getActiveMembership, joinGroup } from '../utils/membership.js';
 import { rebuildGroupRankingAfterJoin } from '../services/groupRanking.js';
-import type { JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
+import type { ApiError, JoinGroupRequest, JoinGroupResponse, MyGroupResponse } from '@runquest/shared';
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
     const groupId = req.user!.group_id;
 
     if (!groupId) {
-      res.status(404).json({ error: 'You are not a member of any group' }); return;
+      res.status(404).json({ error: 'You are not a member of any group' } satisfies ApiError); return;
     }
 
     logger.info(`👥 Fetching group info for user ${userId}, group ${groupId}`);
@@ -29,10 +29,10 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
       membership = await getActiveMembership(userId);
     } catch (error) {
       logger.error(`❌ Error fetching membership (${errorCode(error)})`);
-      res.status(500).json({ error: 'Internal server error' }); return;
+      res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
     }
     if (!membership || membership.group_id !== groupId) {
-      res.status(404).json({ error: 'You are not a member of any group' }); return;
+      res.status(404).json({ error: 'You are not a member of any group' } satisfies ApiError); return;
     }
 
     const supabase = getSupabaseClient();
@@ -45,7 +45,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
     if (groupError || !group) {
       logger.error(`❌ Error fetching group (${errorCode(groupError)})`);
-      res.status(404).json({ error: 'Group not found' }); return;
+      res.status(404).json({ error: 'Group not found' } satisfies ApiError); return;
     }
 
     const { data: members, error: membersError } = await supabase
@@ -56,7 +56,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
     if (membersError) {
       logger.error(`❌ Error fetching group members (${errorCode(membersError)})`);
-      res.status(500).json({ error: 'Failed to fetch group members' }); return;
+      res.status(500).json({ error: 'Failed to fetch group members' } satisfies ApiError); return;
     }
 
     const isOwner = group.owner_id === userId;
@@ -80,7 +80,7 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 
   } catch (error) {
     logger.error(`❌ Error fetching group (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
   }
 });
 
@@ -88,10 +88,10 @@ router.get('/my', authenticateJWT, async (req, res): Promise<void> => {
 router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId = req.user!.user_id;
-    const { invite_code } = req.body ?? {};
+    const { invite_code }: Partial<JoinGroupRequest> = req.body ?? {};
 
     if (typeof invite_code !== 'string' || invite_code.trim() === '') {
-      res.status(400).json({ error: 'invite_code is required' }); return;
+      res.status(400).json({ error: 'invite_code is required' } satisfies ApiError); return;
     }
 
     // Invite-koden är en hemlighet som ger tillträde till gruppen: aldrig i loggen.
@@ -107,7 +107,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (groupError || !group) {
-      res.status(404).json({ error: 'Invalid invite code' }); return;
+      res.status(404).json({ error: 'Invalid invite code' } satisfies ApiError); return;
     }
 
     // Medlemskapet och pekaren users.group_id skrivs av join_group i en transaktion. Ett aktivt medlemskap ger 409: man flyttas inte tyst.
@@ -116,13 +116,13 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
     } catch (error) {
       if (error instanceof MembershipError && error.kind === 'already_member') {
         logger.info(`👥 User ${userId} already has an active membership`);
-        res.status(409).json({ error: 'You are already a member of a group' }); return;
+        res.status(409).json({ error: 'You are already a member of a group' } satisfies ApiError); return;
       }
       if (error instanceof MembershipError && error.kind === 'not_found') {
-        res.status(404).json({ error: 'Group or user not found' }); return;
+        res.status(404).json({ error: 'Group or user not found' } satisfies ApiError); return;
       }
       logger.error(`❌ Error joining group (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to join group' }); return;
+      res.status(500).json({ error: 'Failed to join group' } satisfies ApiError); return;
     }
 
     // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte joinen: medlemskapet är redan sparat.
@@ -141,7 +141,7 @@ router.post('/join', authenticateJWT, async (req, res): Promise<void> => {
 
   } catch (error) {
     logger.error(`❌ Error joining group (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError); return;
   }
 });
 

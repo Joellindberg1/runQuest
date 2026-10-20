@@ -7,7 +7,7 @@ import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
 import { toStockholmDate } from '../utils/dateUtils.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import type { EventsHistoryResponse, EventsResponse, OffsetPageMeta } from '@runquest/shared';
+import type { ApiError, DailyDrawResponse, EventsHistoryResponse, EventsResponse, OffsetPageMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
@@ -47,7 +47,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     const groupId = req.user!.group_id;
 
     if (!groupId) {
-      res.json({ events: [] });
+      res.json({ events: [] } satisfies EventsResponse);
       return;
     }
 
@@ -81,12 +81,12 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) {
       logger.error(`❌ [EventsRoute] Fetch events error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch events' });
+      res.status(500).json({ error: 'Failed to fetch events' } satisfies ApiError);
       return;
     }
 
     if (!events?.length) {
-      res.json({ events: [] });
+      res.json({ events: [] } satisfies EventsResponse);
       return;
     }
 
@@ -209,7 +209,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
   } catch (err) {
     logger.error(`❌ [EventsRoute] Unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -225,13 +225,13 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
 
     const page = parseOffsetPage(req.query, HISTORY_PAGE);
     if (!page.ok) {
-      res.status(400).json({ error: page.error });
+      res.status(400).json({ error: page.error } satisfies ApiError);
       return;
     }
     const { limit, offset } = page;
 
     if (!groupId) {
-      res.json({ events: [], meta: buildPageMeta(0, limit, offset) });
+      res.json({ events: [], meta: buildPageMeta(0, limit, offset) } satisfies EventsHistoryResponse);
       return;
     }
 
@@ -263,11 +263,11 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       meta = buildPageMeta(paged.total, limit, offset);
     } catch (error) {
       logger.error(`❌ [EventsRoute] History fetch error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch history' });
+      res.status(500).json({ error: 'Failed to fetch history' } satisfies ApiError);
       return;
     }
     if (!events.length) {
-      res.json({ events: [], meta });
+      res.json({ events: [], meta } satisfies EventsHistoryResponse);
       return;
     }
 
@@ -363,7 +363,7 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
   } catch (err) {
     logger.error(`❌ [EventsRoute] History unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 
@@ -374,10 +374,10 @@ router.post('/admin/trigger-daily-draw', authenticateJWT, requireAdmin, async (_
   try {
     logger.info('🎲 [EventsRoute] Manual daily draw triggered by admin');
     const result = await scheduleDailyParticipationEventTest();
-    res.json(result);
+    res.json(result satisfies DailyDrawResponse);
   } catch (err) {
     logger.error(`❌ [EventsRoute] Manual daily draw error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' } satisfies ApiError);
   }
 });
 

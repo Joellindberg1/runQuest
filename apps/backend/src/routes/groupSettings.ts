@@ -45,6 +45,7 @@ import {
   groupRoleCan,
   resolveSettings,
   sanitizePatch,
+  type ApiError,
   type GroupSettingsApiResponse,
   type SanitizedPatch,
   type SettingDefinition,
@@ -115,7 +116,7 @@ export function createGroupSettingsRouter(
       res.json(body);
     } catch (e) {
       logger.error(`❌ GET /api/groups/settings misslyckades (${errorCode(e)})`);
-      res.status(500).json({ error: 'Failed to fetch group settings' });
+      res.status(500).json({ error: 'Failed to fetch group settings' } satisfies ApiError);
     }
   });
 
@@ -129,7 +130,7 @@ export function createGroupSettingsRouter(
 
     const patch = sanitizePatch(req.body, 'group', registry());
     if (!patch.ok) {
-      res.status(400).json({ error: patch.error });
+      res.status(400).json({ error: patch.error } satisfies ApiError);
       return;
     }
 
@@ -140,7 +141,7 @@ export function createGroupSettingsRouter(
     if (outcome.event) await announceWithTimeout(outcome.event);
 
     if (outcome.failed) {
-      res.status(500).json({ error: 'Failed to save group settings' });
+      res.status(500).json({ error: 'Failed to save group settings' } satisfies ApiError);
       return;
     }
     const body: GroupSettingsApiResponse = {

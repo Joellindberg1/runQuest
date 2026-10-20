@@ -4,7 +4,7 @@ import { authenticateJWT } from '../middleware/auth.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { levelService } from '../services/levelService.js';
 import { logger } from '../utils/logger.js';
-import type { XpConfigApiResponse, LevelsApiResponse } from '@runquest/shared';
+import type { ApiError, XpConfigApiResponse, LevelsApiResponse } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
@@ -19,7 +19,7 @@ router.get('/xp', authenticateJWT, async (_req, res): Promise<void> => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ Error fetching XP config (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch XP config' });
+    res.status(500).json({ error: 'Failed to fetch XP config' } satisfies ApiError);
   }
 });
 
@@ -35,7 +35,7 @@ router.get('/levels', authenticateJWT, async (_req, res): Promise<void> => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ Error fetching level requirements (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch level requirements' });
+    res.status(500).json({ error: 'Failed to fetch level requirements' } satisfies ApiError);
   }
 });
 

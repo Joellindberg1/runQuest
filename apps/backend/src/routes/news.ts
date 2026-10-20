@@ -16,10 +16,12 @@ import {
   NEWS_MAX_LIMIT,
   isActivityType,
   type ActivityType,
+  type ApiError,
   type NewsApiResponse,
   type NewsItem,
   type NewsMeta,
   type NewsReadApiResponse,
+  type NewsSeenRequest,
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
@@ -108,7 +110,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (rawLimit !== undefined) {
       const n = parsePositiveInt(rawLimit);
       if (n === null || n > MAX_LIMIT) {
-        res.status(400).json({ error: `limit must be an integer between 1 and ${MAX_LIMIT}` }); return;
+        res.status(400).json({ error: `limit must be an integer between 1 and ${MAX_LIMIT}` } satisfies ApiError); return;
       }
       limit = n;
     }
@@ -117,14 +119,14 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     let after: number | null = null;
     if (rawBefore !== undefined) {
       before = parsePositiveInt(rawBefore);
-      if (before === null) { res.status(400).json({ error: 'before must be a positive integer' }); return; }
+      if (before === null) { res.status(400).json({ error: 'before must be a positive integer' } satisfies ApiError); return; }
     }
     if (rawAfter !== undefined) {
       after = parsePositiveInt(rawAfter);
-      if (after === null) { res.status(400).json({ error: 'after must be a positive integer' }); return; }
+      if (after === null) { res.status(400).json({ error: 'after must be a positive integer' } satisfies ApiError); return; }
     }
     if (before !== null && after !== null) {
-      res.status(400).json({ error: 'before and after cannot be combined' }); return;
+      res.status(400).json({ error: 'before and after cannot be combined' } satisfies ApiError); return;
     }
 
     let types: ActivityType[] | null = null;
@@ -132,14 +134,14 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       const parts = typeof rawType === 'string' ? rawType.split(',').map((t) => t.trim()) : null;
       const bad = parts === null ? ['type'] : parts.filter((t) => !isActivityType(t));
       if (parts === null || parts.length === 0 || bad.length > 0) {
-        res.status(400).json({ error: `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}` }); return;
+        res.status(400).json({ error: `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}` } satisfies ApiError); return;
       }
       types = [...new Set(parts as ActivityType[])];
     }
 
     // Exakt "me" (versalkänsligt); tomt, andra värden och upprepade parametrar (array) är 400.
     if (rawInvolves !== undefined && rawInvolves !== 'me') {
-      res.status(400).json({ error: 'involves must be "me"' }); return;
+      res.status(400).json({ error: 'involves must be "me"' } satisfies ApiError); return;
     }
     const involvesMe = rawInvolves === 'me';
 
@@ -155,11 +157,11 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
     if (involvesMe && !isUuid(userId)) {
-      res.status(400).json({ error: 'involves requires a valid user id' }); return;
+      res.status(400).json({ error: 'involves requires a valid user id' } satisfies ApiError); return;
     }
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
 
     const supabase = getSupabaseClient();
     let query = supabase
@@ -212,7 +214,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     res.json(body);
   } catch (error) {
     logger.error(`❌ Error fetching news (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch news' });
+    res.status(500).json({ error: 'Failed to fetch news' } satisfies ApiError);
   }
 });
 
@@ -221,10 +223,10 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 // eller omkastad request inte kan sänka märket). Utan up_to_id = senaste raden i gruppen ("Mark all read").
 router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const body = (req.body ?? {}) as { up_to_id?: unknown };
+    const body = (req.body ?? {}) as Partial<Record<keyof NewsSeenRequest, unknown>>;
     const upTo = body.up_to_id;
     if (upTo !== undefined && !(typeof upTo === 'number' && Number.isSafeInteger(upTo) && upTo > 0)) {
-      res.status(400).json({ error: 'up_to_id must be a positive integer' }); return;
+      res.status(400).json({ error: 'up_to_id must be a positive integer' } satisfies ApiError); return;
     }
 
     const userId = req.user!.user_id;
@@ -232,7 +234,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     const supabase = getSupabaseClient();
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
 
     if (!groupId) {
       const empty: NewsSeenApiResponse = { success: true, data: { last_seen_id: reader.news_last_seen_id, unread_count: 0 } };
@@ -277,7 +279,7 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     res.json(result);
   } catch (error) {
     logger.error(`❌ Error marking news as seen (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update news state' });
+    res.status(500).json({ error: 'Failed to update news state' } satisfies ApiError);
   }
 });
 
@@ -316,7 +318,7 @@ export function createNewsRouter(): express.Router {
     try {
       const ids = parseReadIds(req.body);
       if (!ids) {
-        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' }); return;
+        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' } satisfies ApiError); return;
       }
 
       const empty: NewsReadApiResponse = { success: true, data: { unread_count: 0 } };
@@ -325,7 +327,7 @@ export function createNewsRouter(): express.Router {
 
       const userId = req.user!.user_id;
       const reader = await readReader(userId);
-      if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+      if (!reader) { res.status(404).json({ error: 'User not found' } satisfies ApiError); return; }
 
       await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
       await pruneReadReceipts(userId, reader.news_last_seen_id);
@@ -337,7 +339,7 @@ export function createNewsRouter(): express.Router {
       res.json(body);
     } catch (error) {
       logger.error(`❌ Error marking news rows as read (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update news state' });
+      res.status(500).json({ error: 'Failed to update news state' } satisfies ApiError);
     }
   });
 
