@@ -45,7 +45,10 @@ afterAll(() => {
   rmSync(workDir, { recursive: true, force: true });
 });
 
-describe('the staging guard at build time', () => {
+// Varje fall bygger ett riktigt Vite-bygge (som landingBuild.test.ts); standardtaket 5 s räcker inte när sviten kör parallellt på en belastad maskin.
+const BUILD_TIMEOUT_MS = 60_000;
+
+describe('the staging guard at build time', { timeout: BUILD_TIMEOUT_MS }, () => {
   it('a staging build tells search engines not to index and blocks every crawler in robots.txt', async () => {
     const dist = await buildFixture('staging', 'staging');
     const html = readFileSync(join(dist, 'index.html'), 'utf8');
