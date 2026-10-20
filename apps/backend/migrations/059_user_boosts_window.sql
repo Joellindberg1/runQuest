@@ -1,5 +1,5 @@
 -- 059: user_boosts.start_date och end_date — boostens fönster sparas på raden (RUN-355, ägarbeslut 2026-10-20, v0.8.1).
--- Datum: 2026-10-20. EJ APPLICERAD (varken i staging eller i prod). Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
+-- Datum: 2026-10-20. APPLICERAD i staging 2026-10-20 (ägar-ja i chatten); EJ APPLICERAD i prod. Kräver ägar-ja per miljö: först staging (supabase-staging, projekt aormctqrmguvncxrigwy), sedan prod
 -- (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 059_user_boosts_window, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --

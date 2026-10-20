@@ -17,7 +17,8 @@
 //   - shared/challengeWindow.ts  challengeWindow(...).determineAt: 03:00 via stockholmWallClockToInstant, utan zon.
 //   Streak och XP-liggare
 //   - services/streakService.ts:57  currentStreak(days, stockholmDay(new Date())).
-//   - shared/xpLedger.ts:57  event-XP:ns datum, stockholmDay(new Date(at)) (buildXpLedger saknar zon, så rank-delta och rank_passed blandar gruppens zon och Stockholm).//   Aktivitetsloggen
+//   - shared/xpLedger.ts:57  event-XP:ns datum, stockholmDay(new Date(at)) (buildXpLedger saknar zon, så rank-delta och rank_passed blandar gruppens zon och Stockholm).
+//   Aktivitetsloggen
 //   - shared/activity.ts  streakBrokenOccurredAt (streak_broken kl 00:00 Stockholm dag last_run_date + 2, stockholmMidnightIso) och dedupe-nyckelns dag för
 //     rank_passed (stockholmDay(new Date(occurredAt)), rad ~506).
 //   - shared/activityBackfill.ts  fyra stockholmMidnightIso (utmaningens slut, rundors datum, cutoff).
