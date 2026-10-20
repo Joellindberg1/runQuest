@@ -116,10 +116,11 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     if (competitionEventIds.length > 0) {
       // Hämta alla deltagare för dessa events
-      const { data: allEntries } = await supabase
+      const { data: allEntries, error: allEntriesError } = await supabase
         .from('event_entries')
         .select('event_id, user_id')
         .in('event_id', competitionEventIds);
+      if (allEntriesError) throw allEntriesError; // en tom tabell vore ett felaktigt svar, inte ett tomt
 
       // Hämta användarnamn
       const participantUserIds: string[] = [...new Set<string>((allEntries ?? []).map((e: any) => e.user_id))];

@@ -299,11 +299,14 @@ export async function checkEventQualification(params: {
 /** Namnet som tabellen visar (och tie-breaken ordnar efter) för en deltagare vars användarrad saknas eller saknar namn. */
 export const UNKNOWN_NAME = 'Unknown';
 
-/** Id till namn för de angivna användarna. Ett fel i läsningen ger en tom karta: poängen ändras inte, bara namnen faller tillbaka på UNKNOWN_NAME. */
+/**
+ * Id till namn för de angivna användarna. Namnen avgör ordningen vid lika totaler, så ett läsfel KASTAR (med databaskoden, aldrig databastexten):
+ * en karta utan namn skulle låta id avgöra och ge priset till en annan än live-tabellen. Anroparen avgör vad som händer med svaret eller utbetalningen.
+ */
 export async function fetchUserNames(supabase: ReturnType<typeof getSupabaseClient>, userIds: readonly string[]): Promise<Map<string, string>> {
   if (userIds.length === 0) return new Map();
   const { data, error } = await supabase.from('users').select('id, name').in('id', [...userIds]);
-  if (error) logger.error(`❌ [EventService] Fetch participant names error (${errorCode(error)})`);
+  if (error) throw errorWithCode('Could not read the names of the participants', error);
   return new Map((data ?? []).map((u: any) => [u.id as string, (u.name ?? UNKNOWN_NAME) as string]));
 }
 
@@ -324,7 +327,9 @@ async function fetchCompetitionRuns(
 
   if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
 
-  const { data: runs } = await runsQuery;
+  // Ett läsfel kastas: en tom lista vore "0 km" och skulle ge en felaktig placering (och en utbetalning som inte går att köra om).
+  const { data: runs, error } = await runsQuery;
+  if (error) throw errorWithCode('Could not read the runs of a participant', error);
   return (runs ?? []) as CompetitionRun[];
 }
 
@@ -358,7 +363,8 @@ export async function scoreCompetitionEntries<E extends { user_id: string }>(
  * Rankar deltagarna efter total_value (lika totaler: namn, sedan id, som live-tabellen; scoreCompetition) och delar ut XP per plats
  * ur mallen via prizeForRank (reward_xp_1st/2nd/3rd,
  * seed 40/30/20 XP — absoluta belopp, ingen pool). Färre än 3 deltagare: saknade placeringar delas
- * inte ut. Eventet claimas före utbetalning (idempotens, bugg #6).
+ * inte ut. Entries, rundor och namn läses och placeringarna räknas fram före claimen (ett läsfel lämnar eventet active och försöks igen
+ * nästa körning); eventet claimas före utbetalning (idempotens, bugg #6).
  */
 export async function settleCompetitionEvents(): Promise<void> {
   const supabase = getSupabaseClient();
@@ -391,6 +397,37 @@ export async function settleCompetitionEvents(): Promise<void> {
 
   for (const event of events) {
     try {
+      const tmpl = event.event_templates as any;
+      const xpPerRank = [
+        Number(tmpl?.reward_xp_1st ?? 0),
+        Number(tmpl?.reward_xp_2nd ?? 0),
+        Number(tmpl?.reward_xp_3rd ?? 0),
+      ];
+
+      // Allt som ska läsas läses och räknas fram FÖRE claimen. Ett läsfel hamnar då i failedEvents medan eventet fortfarande är active, så
+      // nästa körning försöker igen. Efter claimen går avräkningen inte att köra om; en placering byggd på halva data (alla med total 0,
+      // eller id i stället för namn vid lika totaler) skulle betalas ut till fel personer.
+      let participants: Array<{ id: string; user_id: string }>;
+      let scored: Array<{ entryId: string; userId: string; totalValue: number; rank: number }>;
+      try {
+        const { data: entries, error: entryErr } = await supabase
+          .from('event_entries')
+          .select('id, user_id')
+          .eq('event_id', event.id);
+        if (entryErr) throw errorWithCode('Could not read the entries of the event', entryErr);
+        participants = entries ?? [];
+
+        // Total per användare utifrån faktiska runs under eventet. Samma ranking som live-tabellen (scoreCompetitionEntries):
+        // lika totaler avgörs av namn och id, så utbetalningen beror inte på i vilken ordning databasen listade entries.
+        const names = await fetchUserNames(supabase, participants.map((p) => p.user_id));
+        scored = (await scoreCompetitionEntries(supabase, event, participants, names, groupTimeZone(event.group_id)))
+          .map(({ participant, totalValue, rank }) => ({ entryId: participant.entry.id, userId: participant.id, totalValue, rank }));
+      } catch (readError) {
+        logger.error(`❌ [Settlement] Could not read the standings of event ${event.id}, nothing claimed or paid (${errorCode(readError)})`);
+        failedEvents.push({ what: `event ${event.id}: could not read the standings (${errorCode(readError)})`, code: errorCode(readError) });
+        continue;
+      }
+
       // Idempotens (bugg #6): claima eventet FÖRE utbetalning — vid
       // överlappande instanser (t.ex. deploy-överlapp) vinner exakt en.
       // Krasch efter claim ger ett settlat event utan utbetalning, vilket
@@ -407,37 +444,12 @@ export async function settleCompetitionEvents(): Promise<void> {
         continue;
       }
 
-      const tmpl = event.event_templates as any;
-      const xpPerRank = [
-        Number(tmpl?.reward_xp_1st ?? 0),
-        Number(tmpl?.reward_xp_2nd ?? 0),
-        Number(tmpl?.reward_xp_3rd ?? 0),
-      ];
-
-      // Hämta entries
-      const { data: entries, error: entryErr } = await supabase
-        .from('event_entries')
-        .select('id, user_id')
-        .eq('event_id', event.id);
-
-      if (entryErr) {
-        logger.error(`❌ [Settlement] Fetch entries for event ${event.id} (${errorCode(entryErr)})`);
-        continue;
-      }
-
-      const participants: Array<{ id: string; user_id: string }> = entries ?? [];
       const activityEvent = toActivityEvent({ ...event, type: 'competition' }, asTemplate(event.event_templates));
       if (!participants.length) {
         // redan markerat settled i claimen ovan. Ingen event_closed-rad: ett event utan deltagare är inte
         // en nyhet ("0 of 6 finished it" varje dag vore brus; Lead-beslut).
         continue;
       }
-
-      // Beräkna total_value per användare utifrån faktiska runs under eventet. Samma ranking som live-tabellen (scoreCompetitionEntries):
-      // lika totaler avgörs av namn och id, så utbetalningen beror inte på i vilken ordning databasen listade entries.
-      const names = await fetchUserNames(supabase, participants.map((p) => p.user_id));
-      const scored = (await scoreCompetitionEntries(supabase, event, participants, names, groupTimeZone(event.group_id)))
-        .map(({ participant, totalValue, rank }) => ({ entryId: participant.entry.id, userId: participant.id, totalValue, rank }));
 
       // Dela ut XP per placering
       const payoutFailures: Failure[] = [];
