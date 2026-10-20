@@ -1,5 +1,6 @@
-// Delade API-svarstyper (ADR 007). Endast typer.
+// Delade API-svarstyper (ADR 007). Typer, och felkodskatalogen i errors.ts (den enda runtime-koden här).
 export * from './common.js';
+export * from './errors.js';
 export * from './leaderboard.js';
 export * from './config.js';
 export * from './challenges.js';

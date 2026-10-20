@@ -27,6 +27,13 @@ export interface WrittenApiError extends ApiError {
   written: true;
 }
 
+/**
+ * Steg 1 av kuvertbytet (ADR 007 Addendum 2026-10-20, expand): ett svar med nyttolast utanför `data` bär `data` BREDVID de gamla nycklarna, så att en gammal och en
+ * ny klient läser samma svar. `TLegacy` är den gamla formen (utan `success`), `TData` det som ligger i `data`. Tas bort i steg 2 (contract, RUN-364):
+ * då är svaret bara `ApiSuccess<TData>`.
+ */
+export type DualEnvelope<TLegacy extends object, TData = TLegacy, TMeta = undefined> = TLegacy & { success: true; data: TData; meta?: TMeta };
+
 /** Offset-paginering (`?limit=&offset=`) — meta-blocket (ADR 007 A5). */
 export interface OffsetPageMeta {
   total: number;
