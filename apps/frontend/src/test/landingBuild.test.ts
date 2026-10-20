@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createElement } from 'react';
+import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { build, type Plugin } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RoutePending } from '@/app-shell/RoutePending';
+import { StagingBanner } from '@/app-shell/StagingBanner';
 import { sessionHintScript } from '@/landing-entry/sessionHint';
 import { LANDING_MARKER, LOADER_MARKER, LOADER_PHASE_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
@@ -30,6 +31,7 @@ interface ChunkInfo {
 
 let workDir: string;
 const chunksByBuild = new Map<string, ChunkInfo[]>();
+const builtDists = new Map<string, string>();
 
 function collectChunks(name: string): Plugin {
   return {
@@ -60,6 +62,7 @@ async function buildApp(name: string, appEnv: string): Promise<string> {
   const distDir = join(workDir, name);
   await build({ root: frontend, logLevel: 'silent', publicDir: false, plugins: [collectChunks(name)], build: { outDir: distDir, emptyOutDir: true } });
   await prerenderLanding({ root: frontend, distDir });
+  builtDists.set(name, distDir);
   return distDir;
 }
 
@@ -278,15 +281,38 @@ describe('the production build', () => {
 });
 
 describe('the staging build', () => {
-  it('puts noindex in both files and the banner in landing.html only', async () => {
-    const dist = await buildApp('staging', 'staging');
+  let dist: string;
+  beforeAll(async () => {
+    dist = await buildApp('staging', 'staging');
+  }, BUILD_TIMEOUT_MS);
+
+  it('puts noindex in both files and the banner in the root of both', () => {
     for (const file of ['index.html', 'landing.html']) {
       expect(read(dist, file)).toContain('<meta name="robots" content="noindex, nofollow">');
+      expect(rootMarkup(read(dist, file))).toContain('Staging environment');
     }
-    expect(rootMarkup(read(dist, 'landing.html'))).toContain('Staging environment');
     expect(inlineScripts(read(dist, 'landing.html'))[0].body).toBe(sessionHintScript());
-    expect(rootMarkup(read(dist, 'index.html'))).not.toContain('Staging environment');
-  }, BUILD_TIMEOUT_MS);
+  });
+
+  it('index.html draws the banner above the loading view before any script runs, so the loader is already where the app will put it', () => {
+    const html = read(dist, 'index.html');
+    expect(rootMarkup(html)).toBe(renderToStaticMarkup(createElement(Fragment, null, createElement(StagingBanner), createElement(RoutePending))));
+    expect(html).not.toContain(LOADER_MARKER);
+  });
+
+  it('both files link the stylesheet with the banner and its reserved height, in the same sheets that carry the loading view', () => {
+    for (const file of ['index.html', 'landing.html']) {
+      const css = stylesheetText(dist, read(dist, file));
+      expect(css, file).toContain('.rq-staging-banner');
+      expect(css, file).toMatch(/html:root\{--rq-staging-banner-h:\s*calc\(/);
+    }
+  });
+
+  it('adds no inline script to index.html: the runner phase script is still the only one, byte for byte the production one (same hash)', () => {
+    const inIndex = (distDir: string) => inlineScripts(read(distDir, 'index.html')).map((script) => script.body);
+    expect(inIndex(dist)).toHaveLength(1);
+    expect(inIndex(dist)).toEqual(inIndex(builtDists.get('prod')!));
+  });
 });
 
 // Webbanalysen laddas av koden (umamiPageviews.ts) när sidan visats, aldrig av en tagg i HTML-filerna: S5:s krav på exakt två inline-skript och tipset före

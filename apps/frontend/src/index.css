@@ -789,7 +789,7 @@
   /* Landingens fasta header: ovanför innehållet och dekoren, under skalets lager (.rq-scrim 65, .rq-modal/.rq-sheet 66), så inloggningsdialogen ritas över den. */
   --rq-z-landing-header: 20;
   /* Stagingbannern (v0.8.0): höjden på remsan överst, som sidans 100dvh-ytor (skal, landing, legal, sidonavigering) räknar bort så sidan inte blir högre än fönstret. 0 i prod, där remsan inte finns;
-     StagingBanner.tsx sätter den till remsans uppmätta höjd på <html> medan den är monterad. */
+     I ett stagingbygge räknar staging-banner.css ut höjden för en rad (så att laddningsvyn ligger rätt redan i index.html före all JS) och StagingBanner.tsx sätter remsans uppmätta höjd på <html> medan den är monterad. */
   --rq-staging-banner-h: 0px;
   /* Väntelistans kort (RUN-211, landingen): mått ur Landing-designens kort "Start a pack in a minute", ombyggt till ett e-postfält. Mobil = standard (en kolumn; designen saknar mobil), desktop skriver över i avsnitt 2. Konsument: features/landing/landingWaitlist.css. */
   --rq-landing-waitlist-pad:       24px 20px;                         /* kortets inre marginal (desktop 44 40) */

@@ -105,7 +105,12 @@ stället för mot prod-databasen:
     exempel via en länk), och `canonical` och `og:url` i `index.html` och `landing.html` pekar fortfarande mot prod (`www.runquest.dev`),
     vilket inte skadar eftersom staging är noindex.
   - Remsan är en vanlig rad överst som scrollar bort med sidan (den ligger aldrig över sidhuvudenas knappar). Dess
-    uppmätta höjd läggs på `<html>` som `--rq-staging-banner-h` (0 i prod), och sidans 100dvh-ytor räknar bort den.
+    höjd läggs på `<html>` som `--rq-staging-banner-h` (0 i prod), och sidans 100dvh-ytor räknar bort den. Remsan står
+    förrenderad i `#root` i både `index.html` (över laddningsvyn) och `landing.html`, och dess stilmall länkas i båda
+    filerna bara i stagingbygget (`apps/frontend/stagingBannerStyle.ts`). `staging-banner.css` räknar ut höjden för en rad
+    (`html:root { --rq-staging-banner-h: calc(...) }`), så laddningsvyn ligger rätt redan före all JS; `StagingBanner.tsx`
+    mäter sedan den verkliga höjden (en smal skärm kan bryta över två rader). Laddarens rektangel är därför densamma
+    (±1 px) i `index.html` och efter monteringen; prodbygget har varken bannerns markup, stil eller kod.
   - Inga utskick når riktiga människor: appen skickar varken mejl, SMS eller push (bara notiser i appen och
     Pack News-rader i databasen), och Strava är avstängt i staging. Väntelistan sparar en adress men skickar ingen
     bekräftelse. En riktig e-postadress som skrivs in i stagingformuläret hamnar bara i stagingdatabasen. Skulle ett
@@ -205,7 +210,7 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   Skriptet vägrar köra om något redan svarar på port 3001 (ett riktigt lokalt backend ska aldrig mätas).
 - **Fäller budgeten:** öppna HTML-rapporten i artefakten för sidan och körningen som avviker. Vanliga orsaker: ny blockerande
   resurs i `<head>`, bild utan `width`/`height` (CLS), en stor ny beroende i entry-chunken (JS-vikt, LCP) eller ett nytt typsnitt.
-  Stagingremsan (`VITE_APP_ENV=staging`) är en egen chunk som inte finns i prodbygget och påverkar inte budgeten.
+  Stagingremsan (`VITE_APP_ENV=staging`) finns inte i prodbygget (varken kod, markup eller stil) och påverkar inte budgeten.
 - **Verktyget** har ett eget beroendeträd (`scripts/lighthouse/package.json` och egen lockfil, utanför workspaces) så att de andra
   jobbens `npm ci` och cache inte växer. Uppgradera `@lhci/cli` medvetet: en ny Lighthouse-version kan flytta poängen, så läs
   tabellen före och efter och justera inte budgeten för att dölja det.

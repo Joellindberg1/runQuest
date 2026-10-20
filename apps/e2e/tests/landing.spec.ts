@@ -307,8 +307,8 @@ test.describe('a signed-in visitor', () => {
         expect(Math.abs(after.width - before.width), 'width, index.html vs gate').toBeLessThanOrEqual(1);
         expect(Math.abs(after.height - before.height), 'height, index.html vs gate').toBeLessThanOrEqual(1);
         expect(Math.abs(after.x - before.x), 'left edge, index.html vs gate').toBeLessThanOrEqual(1);
-        // Ett prodbygge har ingen banner (noll): kanten står stilla. Ett stagingbygge ritar den först i React och flyttar ovalen en halv bannerhöjd ned.
-        expect(Math.abs(after.y - before.y - after.stagingBannerHeight / 2), 'top edge, index.html vs gate (less half the staging banner)').toBeLessThanOrEqual(1);
+        // Strikt också mot ett stagingbygge: bannerns höjd är reserverad i index.html, så ovalen flyttar sig inte när appen ritar banner och gate.
+        expect(Math.abs(after.y - before.y), 'top edge, index.html vs gate').toBeLessThanOrEqual(1);
         // Ryms i fönstret och gör inte sidan bredare: ingen sidled scroll, ingen överlappning mot kanten.
         expect(before.x).toBeGreaterThanOrEqual(0);
         expect(before.x + before.width).toBeLessThanOrEqual(width);
@@ -338,10 +338,9 @@ test.describe('a signed-in visitor', () => {
     const releasedAt = script.releasedAt() ?? Number.POSITIVE_INFINITY;
     expect(withLoader.filter((frame) => frame.at < releasedAt).length, 'painted frames with the loader from index.html').toBeGreaterThan(0);
     const near = (a: number, b: number) => Math.abs(a - b) <= FRAME_RECT_TOLERANCE_PX;
-    const misplaced = withLoader.filter(({ loaderRect, at }) => {
+    const misplaced = withLoader.filter(({ loaderRect }) => {
       const rect = loaderRect!;
-      // I höjdled flyttar stagingbannern ovalen en halv bannerhöjd när appen ritat gaten: före det står den stilla, i sidled och storlek hela vägen.
-      return !(near(rect.x, final!.x) && near(rect.width, final!.width) && near(rect.height, final!.height) && (at >= releasedAt || near(rect.y, final!.y)));
+      return !(near(rect.x, final!.x) && near(rect.y, final!.y) && near(rect.width, final!.width) && near(rect.height, final!.height));
     });
     expect(
       misplaced.map(({ loaderRect, at }) => ({ ...loaderRect, msBeforeScript: Math.round(releasedAt - at) })),
