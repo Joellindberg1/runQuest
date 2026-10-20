@@ -62,6 +62,8 @@ Ny router `routes/stravaWebhook.ts`, monterad i `createApp()` på **`/api/strava
 | `POST /api/strava/webhook` | `subscription_id` måste matcha (beslut 3) | Validera form, spara händelsen (beslut 5), svara **200 inom 2 s** och bearbeta *efteråt* (beslut 6). |
 | `GET /api/strava/webhook/health` | `authenticateJWT` + `requireAdmin` | Hälsa (beslut 11). Svar `{ success, data }` (ADR 007). |
 
+Webhook-rutterna GET/POST / är undantagna från svarskuvertet (ADR 007 Addendum 2026-10-20, punkt 4).
+
 **Miljövariabler** (backend; båda läggs in av ägaren i Railway-UI:t. Permissions: Railway-variabler = ask, hemliga värden aldrig i chatt eller kod):
 - `STRAVA_WEBHOOK_VERIFY_TOKEN` — slumpsträng (minst 32 byte), hemlig, används bara vid prenumerationens verifiering. Roteras genom att ta bort och återskapa prenumerationen.
 - `STRAVA_WEBHOOK_SUBSCRIPTION_ID` — id som Strava returnerar när prenumerationen skapats. Inte hemlig, men egen variabel enligt RUN-162.
