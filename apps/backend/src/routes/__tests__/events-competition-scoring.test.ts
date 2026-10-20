@@ -20,20 +20,22 @@ vi.mock('../../services/levelService.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import app from '../../app.js';
 import { settleCompetitionEvents } from '../../services/eventService.js';
+import { setGroupTimeZoneSource } from '../../utils/groupTimeZone.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
 afterAll(async () => { await server.close(); });
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => { vi.clearAllMocks(); setGroupTimeZoneSource(); });
 
 const G1 = 'group-1';
 const ME = 'u-anna';
 const token = () => mintToken({ user_id: ME, group_id: G1 });
 
-function useDb(tables: Record<string, Row[]>) {
+function useDb(tables: Record<string, Row[]>, failWhen?: NonNullable<Parameters<typeof createFakeDb>[1]>['failWhen']) {
   const db = createFakeDb(tables, {
+    failWhen,
     autoIds: true,
     numericIds: ['activity_log'],
     rpc: {
@@ -122,5 +124,53 @@ describe('live table and settlement', () => {
 
     expect(liveRanking).toEqual([['u-bertil', 1], [ME, 2], ['u-cecilia', 3], ['u-david', 4]]);
     expect(settledRanking).toEqual(liveRanking);
+  });
+});
+
+describe('GET /api/events — live table in the group time zone', () => {
+  // Eventet börjar 18:00 den 12:e i New York (00:00 den 13:e svensk tid). En runda den 12:e räknas bara i New Yorks dygn.
+  const world = (): Record<string, Row[]> => ({
+    users: people(),
+    events: [{ ...liveCompetition(), starts_at: '2026-10-12T22:00:00Z' }],
+    event_entries: [entryOf(ME), entryOf('u-bertil')],
+    runs: [{ ...run(ME, 20), date: '2026-10-12' }, { ...run('u-bertil', 5), date: '2026-10-14' }],
+  });
+  const ranking = (body: Row) => body.events[0].leaderboard.map((r: Row) => [r.userId, r.totalValue, r.rank]);
+
+  it('counts the event days in Stockholm when the group has no other zone', async () => {
+    useDb(world());
+    const res = await server.request('GET', '/api/events', { token: token() });
+    expect(ranking(res.body)).toEqual([['u-bertil', 5, 1], [ME, 0, 2]]);
+  });
+
+  it('counts the event days in the zone the resolver gives the group', async () => {
+    setGroupTimeZoneSource((groupId) => (groupId === G1 ? 'America/New_York' : undefined));
+    useDb(world());
+    const res = await server.request('GET', '/api/events', { token: token() });
+    expect(ranking(res.body)).toEqual([[ME, 20, 1], ['u-bertil', 5, 2]]);
+  });
+});
+
+describe('GET /api/events — a read that fails', () => {
+  const world = (): Record<string, Row[]> => ({
+    users: people(), events: [liveCompetition()],
+    event_entries: [entryOf(ME), entryOf('u-bertil')],
+    runs: [run(ME, 10), run('u-bertil', 20)],
+  });
+  const timeout = { message: 'canceling statement due to statement timeout row secret-9876', code: '57014' };
+
+  it.each([
+    ['the runs of a participant', (q: { table: string }) => (q.table === 'runs' ? timeout : null)],
+    ['the names of the participants', (q: { table: string; select: string | null }) => (q.table === 'users' && q.select === 'id, name' ? timeout : null)],
+    ['the entries of the competition', (() => {
+      // Samma select görs två gånger (deltagarantal först, sedan tävlingens deltagare): bara den andra ska fallera.
+      let reads = 0;
+      return (q: { table: string; select: string | null }) => (q.table === 'event_entries' && q.select === 'event_id, user_id' && ++reads === 2 ? timeout : null);
+    })()],
+  ])('answers 500 internal_error instead of a table of zeros when it cannot read %s', async (_what, failWhen) => {
+    useDb(world(), failWhen);
+    const res = await server.request('GET', '/api/events', { token: token() });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
   });
 });
