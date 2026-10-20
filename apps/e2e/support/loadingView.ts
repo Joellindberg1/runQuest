@@ -216,7 +216,12 @@ export async function logFrames(page: Page): Promise<FrameLog> {
       // Stagingbannern, aviseringsytan och temaskriptet (next-themes) står kvar vid varje övergång och räknas inte som innehåll: bredvid dem kan sidan ändå vara tom.
       const content = root ? Array.from(root.children).filter((child) => !child.matches('script, [aria-label="Staging environment"], section[aria-label^="Notifications"]')) : [];
       // Måttet tas bara i en ritad bildruta: en layout som räknats före stilmallen (som blockerar ritningen men inte DOMContentLoaded) målas aldrig och ska inte räknas.
-      const box = painted ? root?.querySelector('.rq-shell__pending [role="status"]')?.getBoundingClientRect() : undefined;
+      // En laddare som Suspense gömt (display: none, 0 x 0 px) bredvid fallbackens räknas inte: den syns inte, så dess rektangel är ingen bild.
+      const box = painted
+        ? Array.from(root?.querySelectorAll('.rq-shell__pending [role="status"]') ?? [])
+            .map((status) => status.getBoundingClientRect())
+            .find((rect) => rect.width > 0)
+        : undefined;
       (window as unknown as { __rqReportFrame: (sample: unknown) => void }).__rqReportFrame({
         document: performance.timeOrigin,
         path: location.pathname,

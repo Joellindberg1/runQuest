@@ -1,6 +1,7 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/authContext';
+import { PendingNavigate } from '@/app-shell/PendingNavigate';
 import { resolveLegacyRedirect } from '@/app-shell/legacyRedirects';
 import { resolveNextPath } from '@/app-shell/safeNext';
 import { LoginDialog } from '@/features/auth/components/LoginDialog';
@@ -21,7 +22,7 @@ const Index: React.FC<IndexProps> = ({ loginOpen = false }) => {
   const { user } = useAuth();
   const { search } = useLocation();
 
-  if (user) return <Navigate to={loginOpen ? resolveNextPath(search) : resolveLegacyRedirect(search)} replace />;
+  if (user) return <PendingNavigate to={loginOpen ? resolveNextPath(search) : resolveLegacyRedirect(search)} />;
   return (
     <>
       <LandingPage />
