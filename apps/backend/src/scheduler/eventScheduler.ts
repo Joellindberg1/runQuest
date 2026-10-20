@@ -1,7 +1,7 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { STOCKHOLM_TZ, addDays, stockholmDay, stockholmWallClockToInstant, type DailyDrawResponse } from '@runquest/shared';
+import { STOCKHOLM_TZ, addDays, stockholmDay, stockholmWallClockToInstant, type DailyDraw } from '@runquest/shared';
 import {
   maybeCreateEvent,
   getAllGroupIds,
@@ -48,7 +48,7 @@ async function createForAllGroups(
  *   Kvällsrunda  10%
  *   Storm Chaser 30%  (ingår bara om väderprognosen kvalificerar)
  */
-async function runDailyParticipationDraw(): Promise<DailyDrawResponse> {
+async function runDailyParticipationDraw(): Promise<DailyDraw> {
   const tomorrow = addDays(stockholmDay(new Date()), 1);
 
   const eventPool = await getEventPool('daily');
@@ -102,7 +102,7 @@ async function scheduleDailyParticipationEvent(): Promise<void> {
 }
 
 /** Exponerad för admin-endpoint — kör draget och returnerar resultat. */
-export async function scheduleDailyParticipationEventTest(): Promise<DailyDrawResponse> {
+export async function scheduleDailyParticipationEventTest(): Promise<DailyDraw> {
   return runDailyParticipationDraw();
 }
 

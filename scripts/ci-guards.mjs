@@ -758,7 +758,6 @@ const TEMPORARILY_UNCONVERTED = new Set([
   'apps/backend/src/routes/admin.ts',
   'apps/backend/src/routes/badges.ts',
   'apps/backend/src/routes/config.ts',
-  'apps/backend/src/routes/events.ts',
   'apps/backend/src/routes/groupSettings.ts',
   'apps/backend/src/routes/groups.ts',
   'apps/backend/src/routes/leaderboard.ts',
