@@ -294,6 +294,19 @@ describe('evaluateBadges — badge_earned (T2)', () => {
     expect(await newsOf(db)).toEqual([]);
   });
 
+  it('läsfel på users.group_id: felet loggas med databaskoden, aldrig databastexten', async () => {
+    setup(
+      { runs: [run({ distance: 5 })] },
+      { failWhen: (q) => (q.table === 'users' && q.select === 'group_id' ? { message: 'row value secret-4711 leaked', code: '57014' } : null) },
+    );
+
+    await evaluateBadges(USER, { now: NOW, longestStreak: 0 });
+
+    const logged = errorSpy.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n');
+    expect(logged).toContain('57014');
+    expect(logged).not.toContain('secret-4711');
+  });
+
   it('partiell skrivning: insert faller men uppgraderingen lyckades — bara uppgraderingen ger news', async () => {
     // 120 km på en runda: milestoner 1→6 (upgrade) och earth_trotter tier 1 (insert).
     const db = setup(

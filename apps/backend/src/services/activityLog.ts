@@ -22,6 +22,7 @@ import {
   type ChallengeActivityRow,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { readUserGroupId } from './userGroupId.js';
 
 export const ACTIVITY_LOG_TABLE = 'activity_log';
 
@@ -116,11 +117,13 @@ export async function recordChallengeSettled(challenge: ChallengeActivityRow, oc
 
 // ─── Level och milstolpar ────────────────────────────────────────────────────
 
-/** Gruppen läses ur users.group_id, aldrig ur funktionsparametrar (Strava-importen saknar groupId). */
-async function lookupGroupId(userId: string): Promise<string | null> {
-  const { data } = await getSupabaseClient().from('users').select('group_id').eq('id', userId).single();
-  return data?.group_id ?? null;
-}
+/**
+ * Gruppen läses ur users.group_id, aldrig ur funktionsparametrar (Strava-importen saknar groupId). Felbeteendet här: en användare som inte
+ * finns ger ingen rad (som förut); ett läsfel kastas och fångas av anroparens catch, som loggar databaskoden, och ingen rad skrivs. Förut
+ * sväljdes läsfelet tyst som "ingen grupp".
+ */
+const groupOfUser = (userId: string): Promise<string | null> =>
+  readUserGroupId(userId, { onError: (error) => { if (error.code !== 'user_not_found') throw error; } });
 
 /**
  * level_up: en rad per uppnådd nivå i (prev, new]. `groupId` kan skickas med om anroparen redan läst
@@ -132,7 +135,7 @@ export async function recordLevelUps(
 ): Promise<void> {
   try {
     if (!(typeof prevLevel === 'number' && typeof newLevel === 'number' && newLevel > prevLevel)) return;
-    const group = groupId === undefined ? await lookupGroupId(userId) : groupId;
+    const group = groupId === undefined ? await groupOfUser(userId) : groupId;
     if (!group) return;
     await recordActivities(buildLevelUpDrafts(userId, group, prevLevel, newLevel, new Date().toISOString()));
   } catch (e) {
@@ -147,7 +150,7 @@ export async function recordRunMilestones(
 ): Promise<void> {
   try {
     if (!(typeof prevKm === 'number' && typeof newKm === 'number' && newKm > prevKm)) return;
-    const group = groupId === undefined ? await lookupGroupId(userId) : groupId;
+    const group = groupId === undefined ? await groupOfUser(userId) : groupId;
     if (!group) return;
     await recordActivities(buildRunMilestoneDrafts(userId, group, prevKm, newKm, new Date().toISOString()));
   } catch (e) {
