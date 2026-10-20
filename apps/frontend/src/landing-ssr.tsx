@@ -1,6 +1,7 @@
 import { renderToStaticMarkup, renderToString } from 'react-dom/server';
 import { RoutePending } from '@/app-shell/RoutePending';
 import { StagingBanner } from '@/app-shell/StagingBanner';
+import { runnerPhaseScript } from '@/shared/components/loaders/runnerPhase';
 import { LandingApp } from './landing-entry/LandingApp';
 import { ServerRouter } from './landing-entry/ServerRouter';
 import { sessionHintScript } from './landing-entry/sessionHint';
@@ -21,4 +22,9 @@ export function renderSessionHint(): string {
 /** Appens laddningsvy för `#root` i index.html: samma komponent som App.tsx, AppShell och överlämningen ritar. */
 export function renderLoader(): string {
   return renderToStaticMarkup(<RoutePending />);
+}
+
+/** Texten i inline-skriptet i `<head>` i index.html som lägger laddarens prickar på klockan när markupen tolkas, före första bildrutan (runnerPhase.ts). */
+export function renderLoaderPhase(): string {
+  return runnerPhaseScript();
 }

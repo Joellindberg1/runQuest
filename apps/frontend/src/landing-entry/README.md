@@ -25,7 +25,7 @@ Landningens egen ingång (ADR 006, addendum 2026-10-19). `landing.html` + `landi
 - **Gamla dokumentet ritar ingenting när tipset skickar iväg besökaren.** Mätt i headless Chromium med replace-målet fördröjt 1,2 s: det gamla dokumentet kör JS (en timer hinner gå) men får aldrig `.rq-landing` i DOM:en, ingen first-contentful-paint och ingen bildruta, eftersom webbläsaren avbryter parsningen när navigeringen startar. Ingen `display: none` behövs. Chromium-specifikt; Safari och Firefox prövas manuellt på staging (ADR 006, risk 10).
 - **Ingen CSP finns, så de två inline-skripten är tillåtna.** Införs en CSP gäller `script-src 'self' 'sha256-…'` med hashar bygget räknar ur färdig `landing.html` (ADR 006, punkt 4); tipset är en konstant ur `sessionHintScript()`.
 - **Blockerad lagring ska inte tömma landningen.** `backendApi.isAuthenticated/getCurrentUser/getToken` läser via ett skydd (`readStoredSession`): `AuthProvider` läser sessionen i en effekt direkt efter hydreringen, och en kastad `SecurityError` där avmonterade hela trädet (landningen försvann efter första ritning).
-- **Bygget faller hellre än levererar ett trasigt förrenderat bygge:** saknad markör (`<!--app-landing-->`, `<!--app-loader-->`, `<!--app-session-hint-->`), en markör utanför `#root` eller (tipset) utanför `<head>`, en modul som rör `window` vid import, ett kastat renderingsfel.
+- **Bygget faller hellre än levererar ett trasigt förrenderat bygge:** saknad markör (`<!--app-landing-->`, `<!--app-loader-->`, `<!--app-session-hint-->`, `<!--app-loader-phase-->`), en markör utanför `#root` eller (tipset och laddarens fas) utanför `<head>`, en modul som rör `window` vid import, ett kastat renderingsfel.
 
 ## Sidvisningar (webbanalys)
 

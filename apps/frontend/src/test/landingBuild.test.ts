@@ -8,7 +8,7 @@ import { build, type Plugin } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RoutePending } from '@/app-shell/RoutePending';
 import { sessionHintScript } from '@/landing-entry/sessionHint';
-import { LANDING_MARKER, LOADER_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
+import { LANDING_MARKER, LOADER_MARKER, LOADER_PHASE_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
 // Bygget av de två HTML-ingångarna (ADR 006, addendum 2026-10-19, punkt 1, 2 och 11): `vite build` följt av prerender-landing, med samma konfiguration som
 // `npm run build`, mot en tillfällig utkatalog (public/ hoppas över, filmen är stor). Landningens rubrik, stegen och sifferraden prövas i sin modell och
@@ -246,6 +246,18 @@ describe('the production build', () => {
     });
   });
 
+  it('index.html has one inline script, the runner phase, in the head before every stylesheet and module script, so it runs before the stylesheet and not after it', () => {
+    const html = read(dist, 'index.html');
+    const scripts = inlineScripts(html);
+    expect(scripts).toHaveLength(1);
+    // Funktionens text är byggets egen omskrivning (inte vitests), så innehållet prövas i grova drag här; skriptets beteende prövas i runnerPhase.test.ts och i webbläsaren (loader-continuity.spec.ts).
+    for (const part of ['function alignRunnersWithClock', 'rqOrbit', 'rq-phase-pending', 'MutationObserver', 'performance.timeOrigin', 'DOMContentLoaded']) expect(scripts[0].body).toContain(part);
+    expect(scripts[0].body).not.toMatch(/<\/script/i);
+    expect(html).not.toContain(LOADER_PHASE_MARKER);
+    expect(scripts[0].index).toBeLessThan(html.indexOf('</head>'));
+    expect(firstIndexOf(html, [/<link\b[^>]*rel="(?:stylesheet|modulepreload|preload)"/, /<script\b[^>]*\bsrc=/])).toBeGreaterThan(scripts[0].index);
+  });
+
   it('#root in index.html is exactly the loading view, with no landing text and no marker left', () => {
     const html = read(dist, 'index.html');
     expect(rootMarkup(html)).toBe(renderToStaticMarkup(createElement(RoutePending)));
@@ -309,10 +321,10 @@ describe('the build guards', () => {
   const page = (root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
 
   /** En minimal dist med de två filerna; guarden prövas utan ett helt bygge eftersom markörerna kontrolleras före SSR-steget. Landningens head har sessionstipsets markör om inget annat anges. */
-  function fakeDist(name: string, files: { index: string; landing: string; landingHead?: string; landingTail?: string }): string {
+  function fakeDist(name: string, files: { index: string; indexHead?: string; indexTail?: string; landing: string; landingHead?: string; landingTail?: string }): string {
     const dist = join(workDir, name);
     mkdirSync(dist, { recursive: true });
-    writeFileSync(join(dist, 'index.html'), page(files.index));
+    writeFileSync(join(dist, 'index.html'), page(files.index + (files.indexTail ?? ''), files.indexHead ?? LOADER_PHASE_MARKER));
     writeFileSync(join(dist, 'landing.html'), page(files.landing + (files.landingTail ?? ''), files.landingHead ?? SESSION_HINT_MARKER));
     return dist;
   }
@@ -341,6 +353,16 @@ describe('the build guards', () => {
   it('fails when the session hint marker appears twice', async () => {
     const distDir = fakeDist('two-hint-markers', { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER), landingHead: SESSION_HINT_MARKER + SESSION_HINT_MARKER });
     await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(SESSION_HINT_MARKER);
+  });
+
+  it('fails when the loader phase marker is missing from the head of index.html', async () => {
+    const distDir = fakeDist('no-phase-marker', { index: inRoot(LOADER_MARKER), indexHead: '', landing: inRoot(LANDING_MARKER) });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LOADER_PHASE_MARKER);
+  });
+
+  it('fails when the loader phase marker is in the body of index.html, where the script would wait for the stylesheet', async () => {
+    const distDir = fakeDist('phase-marker-in-body', { index: inRoot(LOADER_MARKER), indexHead: '', indexTail: LOADER_PHASE_MARKER, landing: inRoot(LANDING_MARKER) });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LOADER_PHASE_MARKER);
   });
 
   it('fails when a marker is outside #root', async () => {
