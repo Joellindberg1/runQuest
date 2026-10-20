@@ -7,6 +7,7 @@ import { stagingGuard } from "./stagingGuard";
 import { stagingBannerStyle } from "./stagingBannerStyle";
 import { stripSourceMaps } from "./stripSourceMaps";
 import { stylesheetOrder, THEME_CHUNK_NAME } from "./stylesheetOrder";
+import { deferLandingEntry } from "./deferLandingEntry";
 import { currentSentryRelease, sentryUploadOptions, uploadNotice } from "../../scripts/sentry-build.mjs";
 
 const SENTRY_PROJECT = "runquest-frontend";
@@ -43,6 +44,8 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
             ...(upload ? [sentryVitePlugin(upload)] : []),
             stripSourceMaps(),
             stylesheetOrder(),
+            // landing.html laddar ingångsmodulen först efter första ritningen (RUN-343); index.html rörs inte.
+            deferLandingEntry(),
             {
               name: "rq-sentry-upload-notice",
               apply: "build" as const,
