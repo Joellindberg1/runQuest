@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, groupNextMidnight, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
+  MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, groupNextMidnight, isoWeekNumber, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
   wallClockMinutes, wallClockMsAt, wallClockToInstantMs, zoneOffsetMs,
 } from '../calendar.js';
 
@@ -132,6 +132,20 @@ describe('mondayOf / addDays / daysBetween hänger ihop över hela kalendern', (
       expect(daysBetween(day, addDays(day, 37))).toBe(37);
       day = addDays(day, 1);
     }
+  });
+});
+
+describe('isoWeekNumber — mån–sön, vecka 1 är veckan med årets första torsdag', () => {
+  it.each([
+    ['2026-01-01', 1], ['2026-01-04', 1], ['2026-01-05', 2], ['2025-12-29', 1], ['2024-12-30', 1], ['2027-01-03', 53],
+    ['2026-12-31', 53], ['2021-01-03', 53], ['2020-12-31', 53], ['2021-01-04', 1], ['2026-03-29', 13], ['2026-10-04', 40],
+    ['2026-10-05', 41], ['2026-10-25', 43], ['2026-10-26', 44],
+  ])('%s är vecka %i', (day, week) => {
+    expect(isoWeekNumber(day)).toBe(week);
+  });
+
+  it('ogiltigt datum ger RangeError (som addDays och mondayOf), inte en tyst felaktig vecka', () => {
+    expect(() => isoWeekNumber('inte-ett-datum')).toThrow(RangeError);
   });
 });
 
