@@ -223,6 +223,28 @@ describe('the inline script for the pre-rendered loader', () => {
     expect(calls).toHaveBeenCalledTimes(1);
   });
 
+  it('aligns a dot that is parsed after its loader was aligned, when index.html arrives in several pieces', () => {
+    // Första biten av dokumentet har laddaren med en prick: den rättas och sidan visas. Nästa bit ger prick två, som ska rättas lika.
+    const first = orbit(2_400);
+    const second = orbit(3_240);
+    const dots: unknown[] = [{}];
+    const animations = [first];
+    const loader = { getAnimations: () => animations, querySelectorAll: () => dots } as unknown as Element;
+    const node = { closest: () => loader };
+    const { classes, loaders, insert } = runScript();
+    loaders.push(loader);
+
+    insert(node);
+    expect(classes.has(RUNNER_PHASE_PENDING_CLASS)).toBe(false);
+    expect(first.startTime).toBeCloseTo(onTheClock, 6);
+
+    dots.push({});
+    animations.push(second);
+    insert(node);
+
+    expect(second.startTime).toBeCloseTo(-(1_760_000_000_000 % 3_240), 6);
+  });
+
   it('does not throw out of the observer or the load listener when the browser throws', () => {
     const loader = { getAnimations: () => { throw new Error('no animations here'); }, querySelectorAll: () => [] } as unknown as Element;
     const { listeners, loaders, insert } = runScript();

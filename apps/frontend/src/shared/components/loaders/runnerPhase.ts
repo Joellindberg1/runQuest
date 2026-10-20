@@ -68,7 +68,8 @@ export function alignRunnersOnMount(loader: Element | null): void {
  * laddaren fick då heller inte finnas i DOM:en före stilen (e2e-proven med fördröjda stilmallar). Ett `animationstart`-lyssnande provades och räckte inte: händelsen skickas
  * först i bildrutan efter den där animationen börjat. Utan Web Animations, och med minskad rörelse (prickarnas animationer har då redan tagit slut och finns inte i
  * `getAnimations`, så "alla prickar rättade" kunde aldrig inträffa), gör skriptet ingenting och döljer ingenting. Varje laddare rättas högst en gång per omgång inkomna noder
- * och aldrig igen när den ligger rätt (varje `getAnimations` tvingar en stilberäkning). Skriptet och refen kastar aldrig.
+ * och inte igen så länge antalet prickar den har är detsamma som när den senast rättades (varje `getAnimations` tvingar en stilberäkning; en prick som parsas senare, när
+ * dokumentet kommer i bitar, ändrar antalet och rättas då). Skriptet och refen kastar aldrig.
  *
  * Funktionens text kommer ur `alignRunnersWithClock` självt, så regeln finns på ett ställe; runnerPhase.test.ts kör skriptet. Samma slags skript som sessionstipset
  * (landing-entry/sessionHint.ts): en CSP som införs senare behöver dess sha256-hash (texten är densamma i varje bygge) eller en nonce.
@@ -80,10 +81,12 @@ export function runnerPhaseScript(): string {
     '(function(){try{',
     // Med minskad rörelse har prickarnas animationer redan tagit slut (en iteration på 0,01 ms) och finns inte i getAnimations: det finns ingen fas att vänta på, så ingenting döljs.
     'if(typeof Element.prototype.getAnimations!=="function"||(typeof matchMedia==="function"&&matchMedia("(prefers-reduced-motion: reduce)").matches))return;',
-    `var d=document.documentElement,f=${alignRunnersWithClock.toString()},s=new WeakSet(),`,
+    `var d=document.documentElement,f=${alignRunnersWithClock.toString()},s=new WeakMap(),`,
     `c=function(){d.classList.remove(${pending})},`,
-    // En laddare är klar när antalet rättade animationer är lika med antalet prickar (rotens div-barn), och rättas då inte igen (varje getAnimations tvingar en stilberäkning).
-    `a=function(l){if(s.has(l))return;try{var n=f(l,performance.timeOrigin);if(n&&n===l.querySelectorAll(":scope > div[aria-hidden]").length){s.add(l);c()}}catch(e){}},`,
+    // Alla prickar som FINNS är rättade när antalet rättade animationer är lika med antalet prickar (rotens div-barn). Antalet minns per laddare, och laddaren rättas inte igen
+    // förrän det ändras (varje getAnimations tvingar en stilberäkning). Kommer dokumentet i flera bitar och parsern hunnit skapa bara någon av prickarna är laddaren alltså
+    // inte klar: en prick som parsas senare ändrar antalet och rättas då. Stilen är tillämpad när något är rättat, så en senare prick får sin animation i samma uppgift som den sätts in.
+    `a=function(l){try{var k=l.querySelectorAll(":scope > div[aria-hidden]").length;if(s.get(l)===k)return;var n=f(l,performance.timeOrigin);if(n&&n===k){s.set(l,k);c()}}catch(e){}},`,
     `all=function(){document.querySelectorAll(${selector}).forEach(a)},`,
     // En gång per laddare och omgång noder, inte en gång per tillagd nod.
     'o=new MutationObserver(function(r){try{var u=[];r.forEach(function(m){m.addedNodes.forEach(function(n){',

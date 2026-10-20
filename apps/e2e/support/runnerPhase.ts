@@ -18,6 +18,8 @@ export interface RunnerSample {
   progress: number;
   /** Prickens varvtid i ms. */
   lapMs: number;
+  /** Prickens animationsfördröjning i ms (negativ: TrackLoader skjuter varje bana -i * 0,7 s fram). */
+  delayMs: number;
   /** Banans längd i skärm-px (rigid transform, så samma som prickens väg). */
   lapPx: number;
 }
@@ -60,6 +62,7 @@ export async function logRunnerPhases(page: Page, scope: string = LOADING_VIEW_S
             lane,
             progress: timing.progress,
             lapMs: Number(timing.duration),
+            delayMs: Number(timing.delay),
             lapPx: path.getTotalLength() * Math.hypot(matrix.a, matrix.b),
           });
         });
@@ -117,6 +120,25 @@ export function runnerHops(samples: readonly RunnerSample[]): RunnerHop[] {
     }
   }
   return hops;
+}
+
+/** En ritad pricks avstånd från sin plats på klockan. */
+export interface ClockError {
+  lane: number;
+  px: number;
+}
+
+/**
+ * Hur långt varje ritad prick ligger från platsen klockan ger den: andelen av varvet ska vara `((väggklocka - fördröjning) / varvtid) mod 1`, alltså samma plats i varje
+ * dokument och nod. Till skillnad från `runnerHops` (som jämför en bildruta med den förra) fångar det en prick som aldrig hoppar men hela tiden ligger fel, till exempel en som
+ * skapades senare än de andra och började på sin egen nolla.
+ */
+export function runnerClockErrors(samples: readonly RunnerSample[]): ClockError[] {
+  return samples.map((sample) => {
+    const expected = (((sample.at - sample.delayMs) / sample.lapMs) % 1 + 1) % 1;
+    const error = sample.progress - expected;
+    return { lane: sample.lane, px: Math.abs(error - Math.round(error)) * sample.lapPx };
+  });
 }
 
 /** Hur många olika laddare (DOM-noder) som visat prickar: ett byte per ny. */
