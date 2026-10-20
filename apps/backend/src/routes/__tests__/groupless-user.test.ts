@@ -15,7 +15,24 @@ vi.mock('../../services/weatherService.js', () => ({
   WeatherService: { fetchAndSaveWeatherForRuns: vi.fn().mockResolvedValue(undefined), backfillMissingWeather: vi.fn() },
 }));
 
+vi.mock('../../services/eventService.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/eventService.js')>()),
+  checkEventQualification: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../../services/xpConfig.js', async () => {
+  const shared = await import('@runquest/shared');
+  return {
+    getXpConfig: vi.fn(async () => ({
+      settings: shared.DEFAULT_ADMIN_SETTINGS,
+      streak_multipliers: shared.DEFAULT_STREAK_MULTIPLIERS,
+      meta: { settings_source: 'defaults', multipliers_source: 'defaults' },
+    })),
+    invalidateXpConfigCache: vi.fn(),
+  };
+});
+
 import { getSupabaseClient } from '../../config/database.js';
+import { checkEventQualification } from '../../services/eventService.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
@@ -57,7 +74,8 @@ function world(): Record<string, Row[]> {
     group_members: [{ id: 'm1', group_id: GA, user_id: A1, role: 'admin', left_at: null }, { id: 'm2', group_id: GB, user_id: B1, role: 'admin', left_at: null }],
     events: [event('ev-a', GA, 'active'), event('ev-a-old', GA, 'settled'), event('ev-b', GB, 'active'), event('ev-b-old', GB, 'settled')],
     event_entries: [],
-    runs: [runIn('run-a1', A1, GA), runIn('run-b1', B1, GB)],
+    runs: [runIn('run-a1', A1, GA), runIn('run-b1', B1, GB), { ...runIn('run-ng', NO_GROUP, GA), users: { name: 'Nogroup', current_level: 3, profile_picture: null, total_xp: 100, group_id: null } }],
+    run_weather: [],
     activity_log: [
       { id: 1, group_id: GA, type: 'level_up', actor_user_id: A1, target_user_id: null, payload: { level: 2 }, payload_version: 1, dedupe_key: 'k1', is_backfill: false, occurred_at: '2026-06-01T00:00:00Z', created_at: '2026-06-01T00:00:00Z' },
       { id: 2, group_id: GB, type: 'level_up', actor_user_id: B1, target_user_id: null, payload: { level: 2 }, payload_version: 1, dedupe_key: 'k2', is_backfill: false, occurred_at: '2026-06-01T00:00:00Z', created_at: '2026-06-01T00:00:00Z' },
@@ -157,6 +175,52 @@ describe('a user without a group, in every route that reads the group\'s data', 
     expect(res.body).toEqual({ success: false, error: 'Opponent is not in your group', code: 'invalid_request' });
     expect(tables.challenges).toHaveLength(2);
     expect(tables.user_challenge_tokens[0].sent_at).toBeNull();
+  });
+});
+
+// Beslut (Lead, v0.8.1): skrivningar utan grupp beter sig som i dag. Rundor loggas och redigeras även med en token utan grupp; gruppen ger bara zonen och
+// eventkvalificeringen, som läser gruppen färskt när den inte skickas med. Ett 403 group_required här vore ett eget produktbeslut efter v0.8.1.
+describe('a user without a group, in the routes that write runs (behaviour kept as it is)', () => {
+  const NEW_RUN = { date: '2026-10-01', distance: 5 };
+  const runsOf = (tables: Record<string, Row[]>, userId: string) => tables.runs.filter((r) => r.user_id === userId);
+
+  it('POST /api/runs logs the run for the caller, and event qualification is called without a group so that it reads the group fresh', async () => {
+    const { tables } = use();
+    const res = await server.request('POST', '/api/runs', { token: asNoGroup, body: NEW_RUN });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: 'Run created successfully', run: { user_id: NO_GROUP, distance: 5 } });
+    expect(runsOf(tables, NO_GROUP)).toHaveLength(2);
+    const [qualification] = vi.mocked(checkEventQualification).mock.calls[0];
+    expect(qualification).toMatchObject({ userId: NO_GROUP });
+    expect(qualification.groupId).toBeUndefined();
+    expect(runsOf(tables, A1)).toHaveLength(1);
+    expect(runsOf(tables, B1)).toHaveLength(1);
+  });
+
+  it('POST /api/runs for a caller with a group passes that group on to event qualification', async () => {
+    use();
+    const res = await server.request('POST', '/api/runs', { token: asA, body: NEW_RUN });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(checkEventQualification).mock.calls[0][0]).toMatchObject({ userId: A1, groupId: GA });
+  });
+
+  it('PUT /api/runs/:id edits the own run, and event qualification is called without a group', async () => {
+    const { tables } = use();
+    const res = await server.request('PUT', '/api/runs/run-ng', { token: asNoGroup, body: { date: '2026-09-29', distance: 6 } });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: 'Run updated successfully', run: { id: 'run-ng', user_id: NO_GROUP } });
+    expect(tables.runs.find((r) => r.id === 'run-ng')!.distance).toBe(6);
+    const [qualification] = vi.mocked(checkEventQualification).mock.calls[0];
+    expect(qualification).toMatchObject({ userId: NO_GROUP, enforceRunDateWindow: true });
+    expect(qualification.groupId).toBeUndefined();
+  });
+
+  it('PUT /api/runs/:id still answers 403 for a run that belongs to someone in a group', async () => {
+    const { tables } = use();
+    const res = await server.request('PUT', '/api/runs/run-a1', { token: asNoGroup, body: { date: '2026-09-29', distance: 6 } });
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ success: false, error: 'Not authorized to update this run', code: 'forbidden' });
+    expect(tables.runs.find((r) => r.id === 'run-a1')!.distance).toBe(5);
   });
 });
 
