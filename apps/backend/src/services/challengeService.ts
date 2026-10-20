@@ -4,7 +4,8 @@ import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
-import { MS_DAY, type ChallengeProgressEntry } from '@runquest/shared';
+import { boostExpiresAt, type ChallengeProgressEntry } from '@runquest/shared';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { todayStockholm } from '../utils/dateUtils.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
@@ -279,28 +280,32 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   // ännu inte rörts kan omförsöket inte dubbelräkna något. En draw ger inga boostar.
   if (outcome !== 'draw') {
     const now = new Date();
+    // Boostens dygn räknas i duellens grupps tidszon (boostWindow läser samma zon i XP-omräkningen och i vyerna).
+    const timeZone = groupTimeZone(challenge.group_id);
 
     const winnerBoost = {
       user_id: winnerId!,
       challenge_id: challengeId,
+      created_at: now.toISOString(),
       outcome: 'winner',
       type: challenge.winner_type,
       delta: Number(challenge.winner_delta),
       remaining: challenge.winner_type === 'multiplier_runs' ? challenge.winner_duration : null,
       expires_at: challenge.winner_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.winner_duration * MS_DAY).toISOString()
+        ? boostExpiresAt(now, challenge.winner_duration, timeZone)
         : null,
     };
 
     const loserBoost = {
       user_id: loserId!,
       challenge_id: challengeId,
+      created_at: now.toISOString(),
       outcome: 'loser',
       type: challenge.loser_type,
       delta: Number(challenge.loser_delta), // negative
       remaining: challenge.loser_type === 'multiplier_runs' ? challenge.loser_duration : null,
       expires_at: challenge.loser_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.loser_duration * MS_DAY).toISOString()
+        ? boostExpiresAt(now, challenge.loser_duration, timeZone)
         : null,
     };
 
