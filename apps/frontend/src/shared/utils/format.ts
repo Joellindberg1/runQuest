@@ -15,15 +15,22 @@ export function formatInt(value: number): string {
 }
 
 /**
- * Fast antal decimaler med halv uppåt på det decimaltal som skrivs ("12.35" blir "12.4"). `toFixed` avrundar det binära värdet
- * (12.35 ligger strax under) och ger "12.3". Går via exponentskrivning, utan Intl. Tal som skrivs med exponent, NaN och
- * oändlighet faller tillbaka på `toFixed`.
+ * Fast antal decimaler med halv uppåt på talets kortaste decimalskrivning ("12.35" blir "12.4", "104.94999999999999" blir "104.9").
+ * `toFixed` avrundar det binära värdet (12.35 ligger strax under) och ger "12.3". Att flytta decimalpunkten som tal
+ * (`Number("104.94999999999999e1")`) duger inte heller: produkten avrundas till 1049.5 och rundas sedan upp. Därför räknar vi
+ * på siffrorna som text: kapa vid `digits`, höj med ett om nästa siffra är 5 eller mer (minnessiffran går genom heltalsdelen
+ * via BigInt). Det är samma regel som Intl en-GB följde, utan Intl. Tal som skrivs med exponent, NaN och oändlighet faller
+ * tillbaka på `toFixed`.
  */
 function toFixedHalfUp(value: number, digits: number): string {
-  const shifted = Number(`${Math.abs(value)}e${digits}`);
-  const rounded = Number(`${Math.round(shifted)}e-${digits}`);
-  if (!Number.isFinite(shifted) || !Number.isFinite(rounded)) return value.toFixed(digits);
-  return `${value < 0 ? '-' : ''}${rounded.toFixed(digits)}`;
+  const text = String(Math.abs(value));
+  if (!/^\d+(\.\d+)?$/.test(text)) return value.toFixed(digits);
+  const [whole, fraction = ''] = text.split('.');
+  const padded = fraction.padEnd(digits + 1, '0');
+  const roundUp = padded.charAt(digits) >= '5';
+  const scaled = String(BigInt(whole + padded.slice(0, digits)) + BigInt(roundUp ? 1 : 0)).padStart(digits + 1, '0');
+  const sign = value < 0 ? '-' : '';
+  return digits === 0 ? `${sign}${scaled}` : `${sign}${scaled.slice(0, -digits)}.${scaled.slice(-digits)}`;
 }
 
 /** "8.0" — km med en decimal (punkt som decimaltecken) och samma tusentalsmellanrum som formatInt: "1 240.5". Halv uppåt. */

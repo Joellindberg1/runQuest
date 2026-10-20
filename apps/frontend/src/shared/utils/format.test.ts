@@ -61,6 +61,24 @@ describe('formatKm', () => {
     expect(formatKm(2.5, 0)).toBe('3');
   });
 
+  it('flyttalssummor strax under en halvgräns avrundas nedåt, som Intl gjorde (avrundningen går på den kortaste decimalskrivningen)', () => {
+    expect(formatKm(104.94999999999999)).toBe('104.9');
+    expect(formatKm(28.349999999999998)).toBe('28.3');
+    expect(formatKm(3.4499999999999997)).toBe('3.4');
+    expect(formatKm(63.449999999999996)).toBe('63.4');
+    expect(formatKm([1.15, 2.3].reduce((a, b) => a + b))).toBe('3.4');
+    expect(formatKm([12.35, 9.6].reduce((a, b) => a + b))).toBe('22.0');
+    expect(formatKm([10.1, 18.25].reduce((a, b) => a + b))).toBe('28.4');
+    expect(formatKm(0.1 + 0.2)).toBe('0.3');
+  });
+
+  it('minnessiffran ökar genom heltalsdelen: 9.95, 99.95 och 999.95', () => {
+    expect(formatKm(99.95)).toBe('100.0');
+    expect(formatKm(999.95)).toBe(`1${NBSP}000.0`);
+    expect(formatKm(999.949)).toBe('999.9');
+    expect(formatKm(0.999, 2)).toBe('1.00');
+  });
+
   it('negativa tal avrundas på beloppet, och noll, NaN och oändlighet skrivs som förut', () => {
     expect(formatKm(-12.35)).toBe('-12.4');
     expect(formatKm(-0.04)).toBe('-0.0');
