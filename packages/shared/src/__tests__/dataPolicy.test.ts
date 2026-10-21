@@ -20,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-21', sha256: '18d8592182e2181ce53be83e3f12262a1a1f0fcd7abeb5d8760376eb546435cd' };
+const PINNED_POLICY = { version: '2026-10-22', sha256: 'a123d57df7be6674e23d99095ed0d07b38571c6e60a1f3c44722dfc8df6e176c' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -334,7 +334,7 @@ describe('dataPolicy', () => {
     for (const id of ['statistics', 'errors']) {
       const text = textOf(getDataPolicySection(id));
       expectSentence(text, /legal basis/i, /legitimate interest/i);
-      expectSentence(text, /right to object/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
+      expectSentence(text, /right to object/i, /on grounds relating to your particular situation/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
     }
     expectSentence(textOf(getDataPolicySection('statistics')), /legitimate interest/i, /how the site is used/i);
     expectSentence(textOf(getDataPolicySection('errors')), /legitimate interest/i, /finding and fixing errors/i);
@@ -349,7 +349,7 @@ describe('dataPolicy', () => {
 
   it('rights section says processing based on legitimate interest can be objected to by email', () => {
     const rights = getDataPolicySection('rights');
-    expectParagraph(rights, /legitimate interest/i, /right to object/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
+    expectParagraph(rights, /legitimate interest/i, /right to object/i, /on grounds relating to your particular situation/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
   });
 
   it('processors section says Umami and Sentry are US companies and how transfers outside the EU are covered', () => {
@@ -363,6 +363,16 @@ describe('dataPolicy', () => {
     // Sentrys DPA bygger på ramverket först; klausulerna gäller bara när det inte gäller.
     // Ramverkets namn har punkter ("EU-U.S.") som meningsdelaren klyver: prövas per stycke.
     expectParagraph(getDataPolicySection('processors'), /Sentry/, /Data Privacy Framework/i, /where that does not apply/i, /standard contractual clauses/i);
+  });
+
+  it('statistics legal basis states cookies and IP storage only as far as RunQuest and Umami support it', () => {
+    const text = textOf(getDataPolicySection('statistics'));
+    expectParagraph(getDataPolicySection('statistics'), /legal basis/i, /RunQuest sets no cookies/i, /according to Umami/i, /uses none/i);
+    expect(text).not.toMatch(/It is done without cookies/i);
+  });
+
+  it('processors section offers a copy of the safeguards for the transfers by email', () => {
+    expectSentence(textOf(getDataPolicySection('processors')), /ask for a copy of the safeguards/i, /transfers/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
   });
 
   it('statistics and error sections point to the processors section for transfers outside the EU', () => {

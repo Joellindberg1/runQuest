@@ -34,7 +34,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-21';
+export const DATA_POLICY_VERSION = '2026-10-22';
 
 /**
  * Var Umami Cloud lagrar statistiken: EU, Frankfurt (ägaren bekräftade regionen i Umami-kontot 2026-10-19).
@@ -204,7 +204,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'A few actions on the site are counted as events, such as pressing a button or changing a setting. An event is a fixed name chosen by RunQuest, sometimes with the name of the setting that was changed, never the value you chose and never anything you typed. It is counted without any link to you or your account.',
       'If your browser sends the Do Not Track signal, nothing is counted.',
       `The statistics are used only to see how many people visit and which pages are used. Umami Cloud stores the statistics in ${UMAMI_DATA_LOCATION}.`,
-      `Legal basis: legitimate interest, in understanding how the site is used. It is done without cookies and, according to Umami, without storing your IP address in the statistics. You have the right to object to this: email ${CONTACT}.`,
+      `Legal basis: legitimate interest, in understanding how the site is used. RunQuest sets no cookies for it and, according to Umami, Umami uses none and its standard statistics do not store your IP address. You have the right to object, on grounds relating to your particular situation: email ${CONTACT}.`,
       'Umami is a US company, so data can also be handled outside the EU; see "Who else handles data" for how that is covered.',
     ],
   },
@@ -221,7 +221,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'To follow how fast the app is, Sentry also receives timings for a sample of page loads and server requests (at most one in ten), labelled with the page name or route and never with an ID.',
       'There are no session recordings.',
       'Sentry stores the reports in the EU, in its German region.',
-      `Legal basis: legitimate interest, in finding and fixing errors. You have the right to object to this: email ${CONTACT}.`,
+      `Legal basis: legitimate interest, in finding and fixing errors. You have the right to object, on grounds relating to your particular situation: email ${CONTACT}.`,
       'Sentry is a US company, so data can also be handled outside the EU; see "Who else handles data" for how that is covered.',
     ],
   },
@@ -237,6 +237,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Open-Meteo receives the start coordinates and time of a run and returns the weather.',
       'Umami Cloud counts visits and provides the visitor statistics. It receives page types, never user IDs or names. Umami Cloud is run by Umami Software, Inc., a US company, and uses subprocessors in the United States and the EU. Umami acts as RunQuest\'s data processor under its data processing agreement, which applies automatically to Umami Cloud customers and includes the EU standard contractual clauses for transfers to countries without an adequate level of protection.',
       'Sentry receives the error reports and stores them in the EU. Sentry (Functional Software, Inc.) is a US company and acts as RunQuest\'s data processor under its data processing addendum, which RunQuest has accepted. The addendum allows Sentry to process data in the United States as well. Transfers of EU personal data to the United States rely on the EU-U.S. Data Privacy Framework and, where that does not apply, on the EU standard contractual clauses in the addendum.',
+      `You can ask for a copy of the safeguards for these transfers: email ${CONTACT}.`,
       'Vercel provides DNS for runquest.dev, which turns the domain name into an address. It does not host RunQuest.',
     ],
   },
@@ -258,7 +259,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     title: 'Your rights',
     paragraphs: [
       'You have the right to ask for access to your data, to have it corrected and to have it deleted. You can also ask to limit how it is used, object to its use, and withdraw consent at any time, for example for the waitlist.',
-      `Visitor statistics and error reports are based on legitimate interest, so you have the right to object to them. To object, email ${CONTACT}.`,
+      `Visitor statistics and error reports are based on legitimate interest, so you have the right to object to them on grounds relating to your particular situation. To object, email ${CONTACT}.`,
       `Email ${CONTACT} to use any of these rights. You can also complain to your national data protection authority (in Sweden, IMY).`,
     ],
   },
