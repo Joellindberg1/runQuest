@@ -7,6 +7,9 @@
 // "Turn sync back on"); "Pause or disconnect" är popupens rubrik och används inte som knappnamn.
 // v0.8.0 (RUN-293): avsnitten 'statistics' (Umami) och 'errors' (Sentry) beskriver vad koden skickar (observability/scrub.ts i backend,
 // shared/observability/ i frontend). Umami-uppgifterna kommer från ägarbeslut och RUN-290..292; regionen är en platshållare tills ägaren fyllt i den.
+// v0.8.1 (RUN-345): rättslig grund (berättigat intresse) för 'statistics' och 'errors', rätten att invända, och överföring utanför EU i 'processors'.
+// Umamis DPA ingår automatiskt (https://umami.is/dpa, SCC Module Two/Three). Sentrys DPA (https://sentry.io/legal/dpa/, ägaren accepterade den 2026-10-21)
+// bygger överföringen på EU-US Data Privacy Framework och använder SCC först när ramverket inte gäller: skriv inte "SCC" som huvudväg för Sentry.
 // Språk: engelska, klartext. Ingen HTML och ingen markdown i styckena.
 
 import { WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '../rules.js';
@@ -31,7 +34,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-19.1';
+export const DATA_POLICY_VERSION = '2026-10-21';
 
 /**
  * Var Umami Cloud lagrar statistiken: EU, Frankfurt (ägaren bekräftade regionen i Umami-kontot 2026-10-19).
@@ -132,7 +135,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     title: 'What is stored',
     paragraphs: [
       'Everything below is used to run the game: to log you in, to work out XP, levels, streaks, titles and badges, and to show them to your pack.',
-      'Legal basis: these details, including runs imported from Strava, are needed to provide the game you joined (performance of a contract). The waitlist is the exception and is based on your consent (see the Waitlist section).',
+      'Legal basis: these details, including runs imported from Strava, are needed to provide the game you joined (performance of a contract). The waitlist is an exception and is based on your consent (see the Waitlist section). Visitor statistics and error reports are another exception and are based on legitimate interest (see their sections).',
       'Account: your username, your email address and a hashed password (the password itself is never stored). Accounts are created by the administrator; there is no public sign-up. An account can also hold a gender, which the title standings use.',
       'Runs: the date and distance of each run, whether it was on a treadmill, and the XP, level and streak worked out from them. Runs come from Strava (see the Strava section) or are added by hand in the app.',
       'Profile picture: if you upload one, the file is stored in Supabase Storage in a public bucket. Anyone who has the address of the picture can open it.',
@@ -197,10 +200,12 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       "RunQuest counts visits with Umami Cloud, a visitor statistics service that, according to Umami, uses no cookies; RunQuest's own code stores nothing in your browser for it. It is loaded only on the live site, not while the app is built or tested.",
       'What is counted is which page was opened, as the page type and never the exact address (for example /runner/:id for a runner card), together with where you came from (only the name of the website that linked to RunQuest, never the full link), your screen size and browser language, and the kind of browser, operating system and device and the approximate location (such as the country), which Umami works out from the request. The address never carries a query or a fragment into the statistics, with one exception: on the landing page, a campaign tag in the link (such as utm_source) is counted if it is one of a few fixed values RunQuest has chosen, such as the name of the site where the link was shared; any other value is dropped.',
       'Nothing that identifies you is sent: no user ID, no name, no email address and no figures, places, times or IDs from your runs or your Strava data. A visit is not linked to your account.',
-      'Your IP address reaches Umami as part of every request, as with any web page; according to Umami it is not stored. According to Umami, visits are told apart by a one-way code made from details of the request, which changes regularly and cannot be traced back to you.',
+      'Your IP address reaches Umami as part of every request, as with any web page; according to Umami its standard statistics do not store it. It is used briefly to handle the request, and Umami and its infrastructure providers may record it in their operational and security logs, which are separate from the statistics. According to Umami, visits are told apart by a one-way code made from details of the request, which changes regularly and cannot be traced back to you.',
       'A few actions on the site are counted as events, such as pressing a button or changing a setting. An event is a fixed name chosen by RunQuest, sometimes with the name of the setting that was changed, never the value you chose and never anything you typed. It is counted without any link to you or your account.',
       'If your browser sends the Do Not Track signal, nothing is counted.',
       `The statistics are used only to see how many people visit and which pages are used. Umami Cloud stores the statistics in ${UMAMI_DATA_LOCATION}.`,
+      `Legal basis: legitimate interest, in understanding how the site is used. It is done without cookies and, according to Umami, without storing your IP address in the statistics. You have the right to object to this: email ${CONTACT}.`,
+      'Umami is a US company, so data can also be handled outside the EU; see "Who else handles data" for how that is covered.',
     ],
   },
   {
@@ -216,6 +221,8 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'To follow how fast the app is, Sentry also receives timings for a sample of page loads and server requests (at most one in ten), labelled with the page name or route and never with an ID.',
       'There are no session recordings.',
       'Sentry stores the reports in the EU, in its German region.',
+      `Legal basis: legitimate interest, in finding and fixing errors. You have the right to object to this: email ${CONTACT}.`,
+      'Sentry is a US company, so data can also be handled outside the EU; see "Who else handles data" for how that is covered.',
     ],
   },
   {
@@ -228,8 +235,8 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Supabase provides the database and the file storage for profile pictures. All stored data described on this page, including the waitlist, lives there.',
       'Strava is where your runs come from. Strava\'s own terms and privacy policy apply to your data there.',
       'Open-Meteo receives the start coordinates and time of a run and returns the weather.',
-      'Umami Cloud counts visits and provides the visitor statistics. It receives page types, never user IDs or names.',
-      'Sentry receives the error reports and stores them in the EU.',
+      'Umami Cloud counts visits and provides the visitor statistics. It receives page types, never user IDs or names. Umami Cloud is run by Umami Software, Inc., a US company, and uses subprocessors in the United States and the EU. Umami acts as RunQuest\'s data processor under its data processing agreement, which applies automatically to Umami Cloud customers and includes the EU standard contractual clauses for transfers to countries without an adequate level of protection.',
+      'Sentry receives the error reports and stores them in the EU. Sentry (Functional Software, Inc.) is a US company and acts as RunQuest\'s data processor under its data processing addendum, which RunQuest has accepted. The addendum allows Sentry to process data in the United States as well. Transfers of EU personal data to the United States rely on the EU-U.S. Data Privacy Framework and, where that does not apply, on the EU standard contractual clauses in the addendum.',
       'Vercel provides DNS for runquest.dev, which turns the domain name into an address. It does not host RunQuest.',
     ],
   },
@@ -251,6 +258,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
     title: 'Your rights',
     paragraphs: [
       'You have the right to ask for access to your data, to have it corrected and to have it deleted. You can also ask to limit how it is used, object to its use, and withdraw consent at any time, for example for the waitlist.',
+      `Visitor statistics and error reports are based on legitimate interest, so you have the right to object to them. To object, email ${CONTACT}.`,
       `Email ${CONTACT} to use any of these rights. You can also complain to your national data protection authority (in Sweden, IMY).`,
     ],
   },
