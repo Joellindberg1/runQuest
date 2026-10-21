@@ -2,7 +2,7 @@
 
 Intern förvaltningsdokumentation (svenska, för Lead och ägaren). ADR 001 sköt Playwright tills en miljö skild från prod fanns; sedan
 2026-10-17 finns staging ([`docs/release.md`](release.md), "Preview på staging"), och sviten bor i `apps/e2e`. Den är en rök, inte en
-regressionssvit: åtta specfiler, kortaste kedjan som bevisar att flödena i `STATE.md` ("Kritiska flöden") lever.
+regressionssvit: specfilerna i `apps/e2e/tests`, kortaste kedjan som bevisar att flödena i `STATE.md` ("Kritiska flöden") lever.
 
 ## Det viktigaste: sviten körs aldrig mot prod
 

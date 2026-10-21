@@ -120,7 +120,7 @@ stället för mot prod-databasen:
     `curl https://runquest-frontend-staging-staging.up.railway.app/robots.txt` ger `Disallow: /`.
 - **Säkerhetshuvuden i staging (RUN-344).** Stagingfrontenden serveras av samma `Caddyfile` som prod och får samma huvuden. Kontroll:
   `curl -sI https://runquest-frontend-staging-staging.up.railway.app/` ska visa `Strict-Transport-Security: max-age=31536000`,
-  `Referrer-Policy`, `X-Frame-Options: DENY` och CSP (först `Content-Security-Policy-Report-Only`, sedan skarp). Stagingbygget laddar aldrig Umamis tracker (`umamiWebsiteIdOf`);
+  `Referrer-Policy`, `X-Frame-Options: DENY` och skarp `Content-Security-Policy` (sedan 2026-10-21; Report-Only-steget är avklarat, se "Säkerhetshuvuden"). Stagingbygget laddar aldrig Umamis tracker (`umamiWebsiteIdOf`);
   `gateway.umami.is` står ändå i `connect-src` eftersom filen är gemensam. Se "Säkerhetshuvuden" i steg 3 för CSP-strängen och införandet.
 - **Migrationer provas i staging före prod.** Release-PR:ens nya migrationer appliceras först på staging-databasen
   (`supabase-staging`), koden provas mot dem, och först därefter söker Lead ägarens ja per migration för prod (steg 5).
@@ -306,7 +306,7 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
   still en kort stund (så att en omdirigering inte räknas som en sidvisning). En blockerad eller misslyckad laddning tystas.
 - **Lighthouse:** CI:s Lighthouse-jobb bygger frontend utan `VITE_UMAMI_WEBSITE_ID` (jobbet sätter ingen) och mäter mot 127.0.0.1, så
   skriptet laddas aldrig där och budgeten (RUN-259) påverkas bara av den lilla koden i huvudbunten (ca 0,9 kB gzip). Bygg inte med
-  variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): skriptet hämtas då utifrån och mätningen slutar vara hermetisk.
+  variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): trackern (självhostad, `/vendor/umami.v1.js`) laddas då i mätningen och ändrar vikten.
 - **Kontroll efter att variabeln satts i prod (Lead och ägaren):** öppna `https://www.runquest.dev` i ett privat fönster med DevTools →
   Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `umami.v1.js` från
   `www.runquest.dev` och en POST till `gateway.umami.is/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
@@ -368,7 +368,7 @@ Frontend-tjänstens Caddy (repo-rotens `Caddyfile`, ett `header`-block) sätter 
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Adressen med sökväg lämnar aldrig sajten; utanför den följer bara ursprunget med. |
 | `X-Frame-Options` | `DENY` | Skarp redan medan CSP går som Report-Only (`frame-ancestors` i en Report-Only-policy blockerar inget). Finns kvar när CSP blir skarp. |
 | `X-Content-Type-Options` | `nosniff` | Fanns sedan tidigare. |
-| `Content-Security-Policy-Report-Only`, sedan `Content-Security-Policy` | se nedan | Två steg, se "Införandet". |
+| `Content-Security-Policy` | se nedan | Skarp sedan 2026-10-21 efter Report-Only-steget på staging, se "Införandet". |
 
 Huvudena ligger i en Caddy-snippet (`security_headers`) som importeras både i sajtblocket och i `handle_errors`, så att också fel som `file_server` själv svarar med (405 på `POST`/`OPTIONS`) får dem och inte visar `Server`. Policysträngen står alltså på ett ställe och steg 2 nedan är fortfarande en rad.
 Ett undantag går inte att täcka i Caddyfilen: en felformad adress som `/%zz` avvisas av Go:s http-server (400, fast kropp) innan Caddy läst den. Svaret har inga säkerhetshuvuden men inte heller någon `Server`-header; `verify-static-serving.sh` låser det.
@@ -398,12 +398,12 @@ object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 - **connect-src** listar båda miljöernas API, Sentrys EU-ingest (mönster, eftersom DSN-värdet aldrig läses; bara det inloggade skalet startar Sentry, och koden använder ingen `tunnel`) och Umamis tracker-endpoint.
   Prod får alltså tala med staging-API:et och tvärtom; det är ofarligt eftersom `script-src` hindrar främmande kod från att köra, och det håller filen densamma (Railpack renderar den som Go-mall, och nya Railway-variabler kräver ägarens ja).
 - **img-src** är Supabase Storage för profilbilder (uppladdningen går via `apps/backend/src/routes/users.ts`), prod- och stagingprojektet. Ingen annan bildkälla finns i koden; Strava är bara navigering (OAuth), inga bilder därifrån.
-  Har en äldre profilbild en adress någon annanstans syns den som överträdelse under Report-Only-steget.
+  Staging har inga profilbilder på annan adress, men prod är inte kontrollerad (inga riktiga bilder i e2e). En äldre profilbild på en annan adress blockeras därför först i prod; prod-röken (steg 4) kontrollerar det.
 - Inga `data:`- eller `blob:`-adresser och inga Workers finns i bygget; inget formulär postar dokumentet (inloggning och väntelista går via `fetch`, alltså `connect-src`).
 - **Ingen `report-uri`/`report-to`** i v0.8.1: det kräver Sentrys DSN-nyckel. Överträdelser samlas i stället av e2e-sviten (`apps/e2e/support/cspViolations.ts`, fixturen `cspGuard`): skarp CSP fäller provet, Report-Only skriver ut dem (`CSP report-only: …`) och lägger dem som anteckning.
   `tests/security-headers.spec.ts` prövar huvudena på `/`, `/login` och en 404 mot det som serveras.
 
-**Införandet i två steg.** Steg 1 (Report-Only): allt ovan är skarpt utom CSP, som går som `Content-Security-Policy-Report-Only`; Lead låter staging deploya, kör e2e mot staging och läser överträdelserna.
+**Införandet i två steg.** Steg 1 (Report-Only): allt ovan är skarpt utom CSP, som går som `Content-Security-Policy-Report-Only`; Lead låter staging deploya, kör e2e mot staging och läser överträdelserna. Genomfört 2026-10-21: Report-Only (körning 39515140506) och skarp (39518816200), båda med 0 överträdelser.
 Steg 2 (skarp): rubriken byts till `Content-Security-Policy` på en rad i `Caddyfile` och `CSP_HEADER` överst i `scripts/verify-static-serving.sh` följer med; inget annat ändras. Rollback av steg 2 är samma rad tillbaka.
 
 **Lokala körningar.** Caddyfilen renderas med `{{.DIST_DIR}}` ersatt (som Railpack gör). Bygget pekar på det falska API:et på `http://localhost:3001`, som inte står i `connect-src`; `scripts/lighthouse/run.sh` lägger därför till det i sin renderade kopia, och samma `sed` behövs vid e2e mot stubben
@@ -419,6 +419,8 @@ Kör rök-raden för varje kritiskt flöde i `STATE.md` ("Kritiska flöden", nio
 flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sida (inklusive en direktladdad djup länk som
 `/board`), `GET /health` svarar, nya endpoints svarar 401 utan token, och den nya funktionen syns. Muterande rök i prod
 (loggad runda, utmaning) görs bara om ägaren säger ja, eftersom det är den riktiga gruppens data.
+
+**Skarp CSP i prod (RUN-344).** e2e når aldrig prod, och CSP:n har ingen `report-uri`, så två antaganden prövas först här: profilbilderna ligger på prodprojektets Supabase Storage (`img-src`) och Sentrys host matchar `https://*.ingest.de.sentry.io` (`connect-src`). Öppna inloggad Board i prod med utvecklarverktygen: ingen konsolrad om Content Security Policy, avatarerna syns, och Strava-kopplingens popup (Settings) fungerar. Svarshuvudena på `/` ska vara `Content-Security-Policy` (inte Report-Only), HSTS `max-age=31536000`, `Referrer-Policy` och `X-Frame-Options: DENY`.
 
 **Förrenderad landning och laddningsvy (v0.8.0, RUN-333, ADR 006 addendum 2026-10-19).** `/` serveras av `landing.html` (Caddyfilen, exakt `/` med valfri
 fråga; `/landing` och `/landing.html` omdirigeras till `/` med 307; utan `landing.html` faller `/` tillbaka på `index.html`), alla andra adresser av `index.html`

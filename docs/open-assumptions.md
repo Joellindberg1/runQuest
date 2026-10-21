@@ -269,6 +269,12 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **`activity_log.dedupe_key` saknar grupp.** Nyckeln för `title_taken`, `title_unlocked` och `title_revoked` bär användare, titel, värde och dag men inte gruppen. Med flera
   medlemskap (RUN-95) kan samma användare, titel, värde och dag i två grupper kollidera och den andra raden tappas. Ofarligt med ett medlemskap per användare i v0.8.0.
 
+## Säkerhetshuvuden och CSP (RUN-344, v0.8.1)
+- Profilbilder ligger bara på Supabase Storage i prod- och stagingprojektet (`img-src` i `Caddyfile`). Antaget ur koden (`apps/backend/src/routes/users.ts`), inte ur data: en äldre `users.profile_picture` på annan adress blockeras i prod. Prövas i prod-röken (`docs/release.md`, steg 4).
+- Sentrys host matchar `https://*.ingest.de.sentry.io` (`connect-src`). DSN-värdet läses aldrig; EU-regionen antas ur `docs/release.md`. Fel host = inga felrapporter från det inloggade skalet. Prövas i prod-röken.
+- Umamis tracker skickar till `https://gateway.umami.is` (`data-host-url`, trackerns eget standardvärde i `public/vendor/umami.v1.js`). Flyttar Umami endpointen slutar statistiken tyst tills filen och `connect-src` uppdateras (`docs/release.md`, Umami).
+- Inga användarstyrda inline-stilar eller HTML finns i appen; därför är `style-src 'unsafe-inline'` godtaget. Blir fel om användarskriven HTML eller CSS någonsin renderas.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
