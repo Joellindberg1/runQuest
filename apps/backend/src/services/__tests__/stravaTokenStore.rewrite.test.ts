@@ -109,8 +109,8 @@ describe('encrypting a row', () => {
     expect(stored.expires_at).toBe(1_900_000_000);
     expect(stored.connection_date).toBe('2026-09-01');
     // The test ring is not the vitest key: open with the ring the row was sealed with.
-    expect(openStravaToken('u1', 'access_token', stored.access_token, ACTIVE)).toEqual({ ok: true, token: legacyToken('access-u1'), legacy: false });
-    expect(openStravaToken('u1', 'refresh_token', stored.refresh_token, ACTIVE)).toEqual({ ok: true, token: legacyToken('refresh-u1'), legacy: false });
+    expect(openStravaToken('u1', 'access_token', stored.access_token, ACTIVE)).toEqual({ ok: true, token: legacyToken('access-u1') });
+    expect(openStravaToken('u1', 'refresh_token', stored.refresh_token, ACTIVE)).toEqual({ ok: true, token: legacyToken('refresh-u1') });
   });
 
   it('is conditional on BOTH stored strings, so a refresh that landed after the listing is never overwritten', async () => {
@@ -249,6 +249,24 @@ describe('encrypting a row', () => {
     expect(JSON.stringify(outcome)).not.toContain('secret-looking');
   });
 
+  it('a plaintext value found after the write is verify_failed: the reader does not read plaintext, so it is no newer save', async () => {
+    let written = false;
+    const { tables } = use([legacyRow('u1')], (q) => {
+      if (q.mutation) {
+        written = true;
+        return null;
+      }
+      if (written) {
+        Object.assign(tables.strava_tokens[0], { access_token: legacyToken('written-by-someone-else'), refresh_token: legacyToken('written-by-someone-else') });
+        written = false;
+      }
+      return null;
+    });
+    const [row] = await listTokenRows();
+
+    expect(await rewriteTokenRow(row, 'encrypt', ACTIVE, { dryRun: false })).toEqual({ status: 'failed', code: 'verify_failed', column: 'access_token' });
+  });
+
   it('a row that changed to something readable after the write is superseded, not an error', async () => {
     let written = false;
     const { tables } = use([legacyRow('u1')], (q) => {
@@ -324,6 +342,20 @@ describe('decrypting a row (the emergency exit)', () => {
     expect(writes(db)[0].filters.filter((f) => f.op === 'eq').map((f) => f.column).sort()).toEqual(['access_token', 'refresh_token', 'user_id']);
     const [after] = await listTokenRows();
     expect([after.access.form, after.refresh.form]).toEqual(['plaintext', 'plaintext']);
+  });
+
+  it('a database that refuses plaintext (the CHECK constraint of the encrypted-tokens migration) is check_violation, with nothing written and nothing of the error in the answer', async () => {
+    const { tables } = use([sealedRow('u1')], (q) =>
+      q.mutation ? { message: 'new row for relation "strava_tokens" violates check constraint "strava_tokens_tokens_encrypted_chk": Failing row contains (secret-looking)', code: '23514' } : null,
+    );
+    const before = JSON.stringify(tables);
+    const [row] = await listTokenRows();
+
+    const outcome = await rewriteTokenRow(row, 'decrypt', ACTIVE, { dryRun: false });
+
+    expect(outcome).toEqual({ status: 'failed', code: 'check_violation' });
+    expect(JSON.stringify(outcome)).not.toContain('secret-looking');
+    expect(JSON.stringify(tables)).toBe(before);
   });
 
   it('a dry run writes nothing; a plaintext row has nothing to do; a changed row is a conflict', async () => {

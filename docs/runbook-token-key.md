@@ -74,7 +74,7 @@ still (KRITISKT-larm vid start, webhook-händelser väntar i högst 48 timmar), 
 | `config_error` | `null`, eller `key_missing`, `key_invalid`, `kid_not_allowed` när `configured` är `false`. |
 | `active_kid` / `retired_kids` | Nyckel-id (aldrig nyckelmaterial). `active_kid` är `null` om ingen nyckel kunde läsas. |
 | `encrypted_rows` | Rader där alla lagrade tokenkolumner är `enc:v1`-värden. |
-| `plaintext_rows` | Rader med klartext (legacy) kvar. Ska vara 0 när backfillen körts. |
+| `plaintext_rows` | Rader med en klartextkolumn. **Invariant: alltid 0.** Backfillen har krypterat allt och databasen vägrar klartext (migration 060). Appen läser inte klartext (värdet är `token_unreadable`), så ett värde över 0 betyder att invarianten brutits och att den användarens Strava-synk står still: kör backfillen (avsnitt 5a) eller se avsnitt 9. |
 | `unrecognised_rows` | Rader med ett värde av okänd form eller en trasig `enc:`-sträng. Ska vara 0. |
 | `rows_on_other_kid` | Krypterade rader på ett annat nyckel-id än det aktiva (pensionerad nyckel, eller en som saknas). `null` utan nyckel. Ska vara 0 efter en rotation. |
 | `unreadable_since_start` | Antal token-läsningar sedan processen startade som slutade i `token_unreadable`. Ska vara 0; ett tal som växer betyder att något är fel. |
@@ -103,8 +103,8 @@ Görs enligt ADR 013 beslut 3. Varje steg som ändrar Railway är `ask`.
 ## 5a. Backfill: kryptera befintliga rader (utrullning, rotation, nödutgång)
 
 Skriptet `apps/backend/src/scripts/backfillStravaTokenEncryption.ts` (ADR 013 beslut 7, npm-skript `backfill:strava-token-encryption`) flyttar
-varje rad i `strava_tokens` till den aktiva nyckeln: klartext (legacy) blir `enc:v1`, och en rad på en pensionerad nyckel omkrypteras till
-den aktiva. **Ägaren kör det, i en egen terminal.** Varje kommando nedan körs via `railway run`, som ger skriptet tjänstens miljö (nyckeln
+varje rad i `strava_tokens` till den aktiva nyckeln: klartext blir `enc:v1`, och en rad på en pensionerad nyckel omkrypteras till
+den aktiva. Appen läser inte längre klartext (RUN-316): en rad som ligger kvar som klartext är `token_unreadable` tills skriptet krypterat den. **Ägaren kör det, i en egen terminal.** Varje kommando nedan körs via `railway run`, som ger skriptet tjänstens miljö (nyckeln
 och databasen) utan att något värde passerar chatten eller skrivs till disk. Basen är densamma i alla kommandon:
 
 ```
@@ -116,7 +116,7 @@ hör inte hemma där.) Flaggorna skrivs efter det sista `--`. Skriptet skriver u
 rätt databas innan du fortsätter.
 
 **Ordning (ADR 013 beslut 13), fast:** nyckeln i Railway → deploy av S1–S4 → hälsoblocket visar `configured: true` och några dygn utan
-`token_unreadable` → dry-run → ägaren läser rapporten → `--apply` → verifiering → (migrationen med CHECK-constraint, S7).
+`token_unreadable` → dry-run → ägaren läser rapporten → `--apply` → verifiering (`plaintext_rows: 0`) → migration 060 (CHECK-constraint, `ask`, staging först) → koden utan klartextläsning (RUN-316, S7) deployas. Den sista koden får inte komma före backfillen: den läser en kvarvarande klartextrad som oläsbar. Ordningen står också i `docs/release.md`, avsnitt 5.
 
 1. **Dry-run (skriver ingenting, anropar inte Strava).** Ingen flagga:
 
@@ -125,10 +125,10 @@ rätt databas innan du fortsätter.
    ```
 
    Rapporten har host, aktivt och pensionerade nyckel-id, antal rader per klass (`empty`, krypterade på aktiv nyckel, krypterade på annan
-   nyckel, `legacy plaintext`, `unrecognised`), en rad per användare (`user_id`, form per kolumn, vad `--apply` skulle göra) och en
+   nyckel, klartext som appen inte kan läsa, `unrecognised`), en rad per användare (`user_id`, form per kolumn, vad `--apply` skulle göra) och en
    sammanfattning med felkoder. **Aldrig** token, chiffertext eller nyckel. Dry-run bevisar i minnet att varje rad som ska skrivas går att
    kryptera och läsa tillbaka, och att nyckeln är giltig (annars stoppar den direkt med skälet). Utgångskod 1 betyder att något är fel
-   (en rad som inte går att läsa, tom tabell = troligen fel databas); en dry-run som bara hittar klartext att kryptera är 0.
+   (en rad som inte går att läsa, tom tabell = troligen fel databas); en dry-run som bara hittar klartext att kryptera är 0. Efter migration 060 finns ingen klartext kvar att hitta: rapporten ska säga `plaintext 0`.
    Läs särskilt: `unrecognised` och felkoderna ska vara 0 före `--apply`. `auth_failed`, `unknown_key_id` och `unrecognised` betyder en rad som
    skriptet inte rör och som behöver ägarens blick (avsnitt 7 och 9).
 
@@ -188,7 +188,8 @@ rätt databas innan du fortsätter.
 4. **Verifiera via hälsoblocket** (avsnitt 4, `GET /api/strava/webhook/health`, admin): `configured: true`, `plaintext_rows: 0`,
    `unrecognised_rows: 0`, `rows_on_other_kid: 0` (efter en rotation), `unreadable_since_start` står still. Blocket klassar efter form och
    dekrypterar inget, så bevisa också att det går att öppna: en manuell synk lyckas och en webhook-händelse bearbetas. Först då är det
-   dags för migrationen (CHECK-constraint, egen `ask`) och sedan S7 (legacy-läsningen bort).
+   dags för migration 060 (`060_strava_tokens_encrypted_check`, CHECK-constraint, egen `ask`, staging först; förkontrollen i filen stoppar med ett antal om en enda rad har klartext) och sedan RUN-316/S7 (klartextläsningen bort).
+   **Efter 060 och RUN-316:** databasen vägrar klartext (`check_violation`, `23514`), och appen läser inget värde utan `enc:v1:`. En klartextrad kan inte längre uppstå av appen; skulle en ändå finnas (en rad skriven med SQL, eller 060 ej applicerad) visar hälsoblocket `plaintext_rows` över 0, Strava-synken står still för den användaren (`token_unreadable`, aldrig "återkallad", ingen radering, inget Strava-anrop) och backfillen (`--apply`) krypterar raden (constrainten hindrar bara klartext, inte kryptering).
 
 5. **Nödutgång `--decrypt`** (om en release måste backas till kod före S2 och någon rad är krypterad; ADR 013 beslut 13.5). Det gäller redan från deployen av v0.8.0: `stravaTokenStore` skriver alltid krypterat, så varje ny eller förnyad token blir `enc:v1:` även innan backfillens `--apply` körts. Kör alltså dry-run först och se om raderna är fler än noll. Den
    **skriver klartext-tokens till databasen** och kräver därför två saker: `--apply` och den uttryckliga bekräftelsen
@@ -199,8 +200,9 @@ rätt databas innan du fortsätter.
    railway run --service runQuest-backend -- npm run backfill:strava-token-encryption --workspace=@runquest/backend -- --decrypt --apply --confirm-write-plaintext
    ```
 
-   Samma villkorade skrivning på båda strängarna och samma tillbakaläsning som `--apply`; det skriver bara ett värde som läsaren själv
-   godtar som klartext (annars `plaintext_shape` och raden lämnas), och går inte att kombinera med `--refresh-tokens`. Kör den **före**
+   Samma villkorade skrivning på båda strängarna och samma tillbakaläsning som `--apply`; det skriver bara ett värde av klartextformen
+   (annars `plaintext_shape` och raden lämnas), och går inte att kombinera med `--refresh-tokens`.
+   **Efter migration 060 vägrar databasen all klartext:** varje rad slutar då som `check_violation` och inget ändras (dry-run säger det i förväg). Nödutgången kräver att constrainten släpps FÖRST (rollback-SQL:en i huvudet av `060_strava_tokens_encrypted_check.sql`, ägar-ja), och att 060 körs om efter att `--apply` krypterat raderna igen. Koden efter RUN-316 läser dessutom inte klartext, så en klartextrad är oläsbar för den tills den krypterats om. Kör den **före**
    kod-rollbacken. Därefter innehåller databasen klartext igen (som före backfillen): kryptera om med `--apply` när releasen är på plats
    igen, och räkna klartexten som exponerad (avsnitt 6) om den legat där längre än rollbacken krävde.
 
@@ -274,5 +276,6 @@ raden `Strava disconnect: the revoke at Strava failed for user <id> (strava_toke
 | `... godtar inte nyckel-id test-1 i den här miljön` | Testnyckeln eller en nyckel från fel miljö (`stg-` i prod, `prod-` i staging) | Sätt miljöns egen nyckel; i staging ska `SENTRY_ENVIRONMENT=staging` vara satt |
 | `❌ Strava sync skipped: the token key is not usable` | Samma problem, nu som påminnelse vid varje schemalagd synk (högst ett larm per körning) | Åtgärda enligt larmet vid start |
 | `unreadable_since_start` växer men `configured` är `true` | En enskild rad går inte att öppna (flyttad, skadad, fel nyckel under samma `kid`) | Loggen har `user_id`, kolumn och orsakskod (`Strava token unreadable for user ...`): ett fel (Sentry-händelse) första gången per orsakskod och process, därefter en varning i loggen. Räknaren i hälsoblocket ser alla. En rad på fel nyckel hanteras som avsnitt 7 |
-| `plaintext_rows` > 0 efter backfill | En förnyelse hann emellan (`CONFLICT` i rapporten) eller en användare anslöt under körningen | Kör backfillen igen (idempotent, avsnitt 5a) |
+| `plaintext_rows` > 0 efter backfill | En förnyelse hann emellan (`CONFLICT` i rapporten) eller en användare anslöt under körningen. Efter 060 och RUN-316: invarianten är bruten (060 ej applicerad i miljön, eller en rad skriven med SQL) och den användarens synk är `token_unreadable` | Kör backfillen igen (idempotent, avsnitt 5a). Ändra ingen rad för hand och radera ingen: raden hör till en användare |
+| Backfillen med `--decrypt --apply` slutar med `check_violation` | Migration 060 är applicerad: databasen vägrar klartext | Släpp constrainten med rollbacken i 060:s huvud (ägar-ja), kör om `--decrypt --apply`, lägg tillbaka 060 efter `--apply` (avsnitt 5a, punkt 5) |
 | Backfillen slutar med `Not done` och felkod `auth_failed`, `unknown_key_id` eller `unrecognised` | Raden går inte att öppna (flyttad, skadad, nyckel som saknas) och lämnas orörd | Avsnitt 7 för en förlorad nyckel; annars hör raden till en användare som får koppla om Strava |

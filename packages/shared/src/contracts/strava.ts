@@ -113,7 +113,10 @@ export interface StravaTokenEncryptionHealth {
   retired_kids: string[];
   /** Rader där varje lagrad tokenkolumn är ett välformat enc:v1-värde. */
   encrypted_rows: number;
-  /** Rader med en gammal klartextkolumn och ingen oigenkänd (tills backfillen körts). Invarianten efteråt är 0. */
+  /**
+   * Rader med en klartextkolumn och ingen oigenkänd. Invarianten är 0: backfillen har krypterat allt och databasen vägrar klartext (migration 060). Appen läser inte klartext
+   * (värdet är token_unreadable), så ett värde över 0 betyder att invarianten brutits (060 ej applicerad, eller en rad skriven med SQL) och att en användares Strava-synk står still.
+   */
   plaintext_rows: number;
   /** Rader med en kolumn som varken är krypterad eller klartext: ett trasigt enc:-värde eller ett värde utan känd form. */
   unrecognised_rows: number;

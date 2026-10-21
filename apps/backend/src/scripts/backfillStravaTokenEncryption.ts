@@ -1,7 +1,8 @@
 /**
  * backfillStravaTokenEncryption.ts — moves the Strava tokens in strava_tokens to the active encryption key (ADR 013 decision 7).
- * Before it has run, rows hold legacy plaintext; after a key rotation they hold values under a retired key. Every row that is not on
- * the active key is encrypted again, one row at a time, and checked.
+ * Before it has run, rows hold plaintext (the app no longer reads it: such a row is token_unreadable); after a key rotation they hold values
+ * under a retired key. Every row that is not on the active key is encrypted again, one row at a time, and checked. It is the way to get
+ * plaintext rows out of the table BEFORE migration 060 makes the database refuse them (docs/release.md, section 5).
  *
  * Run (the owner or Lead, never an agent; the key comes from the service's environment, so it never passes through a chat):
  *   railway run --service runQuest-backend -- npm run backfill:strava-token-encryption --workspace=@runquest/backend [-- <flags>]
@@ -18,8 +19,11 @@
  *                    older database backups is then dead at Strava. Without --apply it only says how many calls it would make.
  *   --decrypt        THE EMERGENCY EXIT, for backing out a release to code that cannot read `enc:` values. Dry-run unless --apply.
  *                    With --apply it needs the extra flag --confirm-write-plaintext, because it writes PLAINTEXT tokens to the database.
- *                    Same compare-and-swap and read-back; it only writes a token the reader accepts as plaintext. Cannot be combined
- *                    with --refresh-tokens. After it the database holds exactly what it held before the backfill: run --apply again.
+ *                    Same compare-and-swap and read-back; it only writes a token of the plaintext shape. Cannot be combined with
+ *                    --refresh-tokens. After it the database holds exactly what it held before the backfill: run --apply again.
+ *                    While migration 060 (the CHECK constraint strava_tokens_tokens_encrypted_chk) is in place the database refuses every
+ *                    plaintext write: each row then ends as check_violation and nothing is changed. Drop the constraint first (the rollback
+ *                    in the header of migration 060, the owner's yes), run --decrypt, and add it back (run 060 again) after --apply.
  *
  * Tokens are only ever handled inside services/stravaTokenStore.ts (listTokenRows, rewriteTokenRow): this script gets forms, status
  * codes and counts, so it has nothing to print by accident. The report holds user ids, key ids, counts and error codes; never a token,
@@ -218,7 +222,7 @@ function countClasses(rows: ListedTokenRow[], activeKid: string): RowClassCounts
 
 const describeCounts = (counts: RowClassCounts): string =>
   `empty ${counts.empty}, encrypted on the active key ${counts.encryptedActive}, encrypted on another key ${counts.encryptedOtherKid}, ` +
-  `legacy plaintext ${counts.plaintext}, unrecognised ${counts.unrecognised}`;
+  `plaintext (not readable by the app) ${counts.plaintext}, unrecognised ${counts.unrecognised}`;
 
 const tally = (counts: Record<string, number>, code: string): void => {
   counts[code] = (counts[code] ?? 0) + 1;
@@ -274,6 +278,12 @@ export async function runBackfill({ options, host, log, signal, rateGuard = { is
   log(`Target database: ${host}`);
   log(`Active key: ${ring.activeKid}; retired keys: ${retiredKids.length > 0 ? retiredKids.join(', ') : 'none'}`);
   log(`Rows: ${rows.length}`);
+  if (options.decrypt) {
+    log(
+      'Note: while migration 060 is applied (the CHECK constraint strava_tokens_tokens_encrypted_chk) the database refuses every plaintext write, so every row ends as check_violation. ' +
+        "Drop the constraint first (the rollback in the header of migration 060, the owner's yes).",
+    );
+  }
   log(`Before: ${describeCounts(before)}`);
   if (rows.length === 0) log('No token rows found: check that the target database is the right one.');
 
@@ -451,6 +461,12 @@ function printSummary(report: BackfillReport, log: (line: string) => void): void
     log(
       `${report.apply ? 'Not renewed' : 'Would not be renewed'} because of an error in the row: ${report.refresh.notAttempted.join(', ')}. Their old refresh token stays alive at Strava; ` +
         'fix the row (or have the user reconnect) and run again with --apply --refresh-tokens.',
+    );
+  }
+  if ((report.errorsByCode.check_violation ?? 0) > 0) {
+    log(
+      `The database refused the plaintext for ${report.errorsByCode.check_violation} row(s) (check_violation): the CHECK constraint strava_tokens_tokens_encrypted_chk of migration 060 is in place. ` +
+        "Nothing was changed. Drop the constraint first (the rollback in the header of migration 060, the owner's yes), then run --decrypt --apply again.",
     );
   }
   if (report.after) log(`After: ${describeCounts(report.after)}`);
