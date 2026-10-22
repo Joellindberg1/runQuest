@@ -1,6 +1,7 @@
 /**
- * Test helpers for token rows (ADR 013): a stored value is `enc:v1:...` or, until the backfill has run, legacy plaintext of the strict
- * shape. The key is the open test key of vitest.config.ts, so these helpers use the same key the code under test reads.
+ * Test helpers for token rows (ADR 013): a stored value is `enc:v1:...`. A plaintext value is not a token to the reader (`legacy_shape`, which is
+ * token_unreadable to the callers); the backfill still finds and encrypts one. The key is the open test key of vitest.config.ts, so these helpers
+ * use the same key the code under test reads.
  */
 import { buildSecretAad, open, parseKeyRing, seal } from '../utils/secretBox.js';
 
@@ -24,16 +25,16 @@ export function plainOfStored(userId: string, column: TokenColumn, stored: strin
 }
 
 /**
- * A legacy plaintext value (the form before the backfill) that passes the strict shape check: `label` padded with zeros to 24 characters.
- * Strava's own tokens are 40 hexadecimal characters; the label keeps a test readable.
+ * A plaintext token value of the shape the store lists as `plaintext` (the form before the backfill): `label` padded with zeros to 24 characters.
+ * Also used as the plain token that a test seals. Strava's own tokens are 40 hexadecimal characters; the label keeps a test readable.
  */
 export function legacyToken(label: string): string {
   return label.padEnd(24, '0');
 }
 
 /**
- * A copy of a token row with both token columns decrypted, for assertions on what was saved. Null columns stay null, and a legacy
- * plaintext column (not `enc:`) stays as it is, so one assertion fits a row before and after a refresh.
+ * A copy of a token row with both token columns decrypted, for assertions on what was saved. Null columns stay null, and a plaintext
+ * column (not `enc:`) stays as it is, so one assertion fits a row before and after a refresh.
  */
 export function plainRow<T extends Record<string, any>>(row: T): T {
   const userId = String(row.user_id);

@@ -20,7 +20,6 @@ import {
   checkSealingReady,
   openStravaToken,
   readStoredTokenRow,
-  resetLegacyTokenWarnings,
   saveRotatedTokens,
   sealStravaToken,
   sealStravaTokenPair,
@@ -37,7 +36,6 @@ const REFRESH = legacyToken('plain-refresh');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetLegacyTokenWarnings();
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
   vi.spyOn(logger, 'info').mockImplementation(() => {});
   vi.spyOn(logger, 'error').mockImplementation(() => {});
@@ -62,7 +60,7 @@ describe('sealing and opening a token', () => {
 
     expect(stored.startsWith('enc:v1:stg-1:')).toBe(true);
     expect(stored).not.toContain(REFRESH);
-    expect(openStravaToken('user-1', 'refresh_token', stored, k1)).toEqual({ ok: true, token: REFRESH, legacy: false });
+    expect(openStravaToken('user-1', 'refresh_token', stored, k1)).toEqual({ ok: true, token: REFRESH });
   });
 
   it('a token moved to another user or another column does not open', () => {
@@ -98,23 +96,22 @@ describe('sealing and opening a token', () => {
   });
 });
 
-describe('the legacy plaintext shape', () => {
+describe('a value without enc: (the legacy plaintext read is gone)', () => {
   const k1 = ring(`stg-1:${newKey()}`);
 
-  it('a plaintext token of the strict shape is read as it is and warned about once per user', () => {
+  it('a plaintext token of the old strict shape is legacy_shape: it is not handed on, and nothing is logged', () => {
     const forty = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 
-    expect(openStravaToken('user-1', 'access_token', forty, k1)).toEqual({ ok: true, token: forty, legacy: true });
-    expect(openStravaToken('user-1', 'refresh_token', forty, k1)).toMatchObject({ ok: true, legacy: true });
-    expect(openStravaToken('user-2', 'access_token', forty, k1)).toMatchObject({ ok: true, legacy: true });
+    expect(openStravaToken('user-1', 'access_token', forty, k1)).toEqual({ ok: false, code: 'legacy_shape' });
+    expect(openStravaToken('user-1', 'refresh_token', forty, k1)).toEqual({ ok: false, code: 'legacy_shape' });
+    expect(openStravaToken('user-2', 'access_token', forty, k1)).toEqual({ ok: false, code: 'legacy_shape' });
 
-    const warnings = vi.mocked(logger.warn).mock.calls.map((call) => String(call[0]));
-    expect(warnings).toHaveLength(2); // user-1 once, user-2 once
-    expect(warnings.join('\n')).toContain('legacy plaintext token read');
-    expect(warnings.join('\n')).not.toContain(forty);
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalled();
+    expect(vi.mocked(logger.info)).not.toHaveBeenCalled();
   });
 
-  it('anything else is legacy_shape and is never handed on: too short, too long, a colon, a space, an empty string', () => {
+  it('anything else without enc: is legacy_shape too and is never handed on: too short, too long, a colon, a space, an empty string', () => {
     const shapes = ['short', 'x'.repeat(19), 'x'.repeat(129), 'abc:defghijklmnopqrstuvwxyz', 'has a space inside it 123456789', ''];
     for (const value of shapes) {
       expect(openStravaToken('user-1', 'access_token', value, k1), JSON.stringify(value)).toEqual({ ok: false, code: 'legacy_shape' });
@@ -235,9 +232,9 @@ describe('reading and writing the token row', () => {
     expect(await storedRefreshTokenEquals('user-1', REFRESH, parseKeyRing())).toBe(false);
   });
 
-  it('storedRefreshTokenEquals reads a legacy plaintext row too', async () => {
+  it('storedRefreshTokenEquals does not read a plaintext row: it is "no", whatever the plaintext is', async () => {
     use([{ user_id: 'user-1', refresh_token: REFRESH }]);
 
-    expect(await storedRefreshTokenEquals('user-1', REFRESH, parseKeyRing())).toBe(true);
+    expect(await storedRefreshTokenEquals('user-1', REFRESH, parseKeyRing())).toBe(false);
   });
 });

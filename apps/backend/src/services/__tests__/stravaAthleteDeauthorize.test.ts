@@ -47,7 +47,7 @@ vi.mock('../xpConfig.js', async () => {
 });
 
 import { getSupabaseClient } from '../../config/database.js';
-import { plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
+import { legacyToken, plainRow, tokenCols } from '../../test-utils/stravaTokens.js';
 import { reprocessRunsFromDate } from '../../routes/runs.js';
 import { calculateUserTotals } from '../../utils/calculateUserTotals.js';
 import { logger } from '../../utils/logger.js';
@@ -253,6 +253,8 @@ describe('athlete deauthorize', () => {
       { label: 'a damaged refresh token on an expired token', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: 'enc:v1:test-1:AAAA' })], strava: { athlete: stravaError(401) } } },
       { label: 'a refresh token sealed for another user', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: tokenCols('user-2', 'x', 'y').refresh_token })], strava: { athlete: stravaError(401) } } },
       { label: 'a damaged access token on a token that has not expired', setup: { tokens: [tokenRow({ access_token: 'enc:v2:something' })], strava: { athlete: stravaError(401) } } },
+      { label: 'an old plaintext access token on a token that has not expired', setup: { tokens: [tokenRow({ access_token: legacyToken('old-at') })], strava: { athlete: stravaError(401) } } },
+      { label: 'an old plaintext refresh token on an expired token', setup: { tokens: [tokenRow({ expires_at: 1, refresh_token: legacyToken('old-rt') })], strava: { athlete: stravaError(401) } } },
       { label: 'a plaintext of the wrong shape', setup: { tokens: [tokenRow({ access_token: 'short' })], strava: { athlete: stravaError(401) } } },
     ];
 

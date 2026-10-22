@@ -273,7 +273,7 @@ const MAX_FOLLOWS_OF_A_SEALED_AGAIN_ROW = 3;
 
 /**
  * The save of a refresh matched no row. If the row still holds the refresh token the refresh started from (`oldPlain`), only under another
- * string (it was sealed again, plaintext to `enc:` or one key to another), the new tokens are saved there with a new compare-and-swap, a
+ * string (it was sealed again, one key to another), the new tokens are saved there with a new compare-and-swap, a
  * few times at most (the row can be sealed again once more). Compares plaintexts, never ciphertexts.
  *   - saved: the new tokens are in the row (by this save, or by an earlier one whose answer was lost).
  *   - superseded: no row, or a row with another refresh token (a newer connection): nothing to save.

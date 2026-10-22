@@ -505,6 +505,15 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
      Rollbacken står i huvudet och kräver att koden är tillbakarullad först.
    - **Release-röken** kör konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och, efter 055, att en runda i
      en grupp inte ändrar en annan grupps topplista (staging, `create:group`).
+6. **Tokenkrypteringens slutsteg i v0.8.1: migration 060 (RUN-315) och borttagen klartextläsning (RUN-316; ADR 013 beslut 8, S6 och S7).** Ordningen är fast, i varje miljö,
+   och 060 är en `ask` som alla prod-migrationer (ett ägar-ja, staging först):
+   1. **Ägaren kör backfillen** (`backfill:strava-token-encryption`, dry-run, sedan `--apply` med ägar-ja; [`runbook-token-key.md`](runbook-token-key.md)) i prod, och i staging om staging har tokenrader (Strava körs inte i staging, så den har normalt inga).
+   2. **Hälsoblocket visar `plaintext_rows: 0` och `unrecognised_rows: 0`** (`GET /api/strava/webhook/health`, `token_encryption`). Det är villkoret för steg 3. Dry-run av backfillen ska säga samma sak.
+   3. **060 appliceras** (`060_strava_tokens_encrypted_check`, staging först, sedan prod med ägar-ja). Förkontrollen i filen stoppar med ett tydligt fel (bara antal, aldrig värden) om en enda rad ändå har klartext; ändra då ingen data för att få den att gå igenom,
+      utan kör om backfillen. Därefter Q1–Q4 i filens huvud (constrainten validerad, 0 rader utanför villkoret, RLS och policyer oförändrade, klartext avvisas med `23514` på en tillfällig tabell) och `get_advisors` (security). Rök i staging och prod: en Strava-synk och en webhook-händelse går igenom (de skriver `enc:v1:`, som constrainten tillåter).
+      Medan constrainten gäller avvisar databasen även nödutgången `--decrypt --apply` (`check_violation`); rollbacken i filhuvudet släpper constrainten först om den behövs.
+   4. **RUN-316-koden deployas** (läsvägen har ingen klartextgren; ett värde utan `enc:v1:` ger `token_unreadable`, aldrig "återkallad"). Koden får inte komma före steg 1–3: den läser en kvarvarande klartextrad som oläsbar.
+   **Staging deployar integrationsbranchen automatiskt.** Lead mergar därför RUN-316 till `integration/v0.8.1` först när staging har 0 klartextrader (steg 1–2 klara för staging); annars blir en kvarvarande rad `token_unreadable` i staging så fort grenen deployas.
 
 ### 6. `announce:release`
 

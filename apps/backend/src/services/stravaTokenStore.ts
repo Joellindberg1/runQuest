@@ -2,8 +2,9 @@
  * The Strava token store (ADR 013 decisions 2, 4, 5, 6 and 9): the one place that encrypts and decrypts Strava tokens, and the one place
  * that reads or writes the token columns of `strava_tokens` (access_token, refresh_token). Everything else asks this module.
  *
- * A stored value is `enc:v1:...` (utils/secretBox.ts, bound to the table, column and user) or, until the backfill has run, legacy
- * plaintext of one strict shape. Writing is always encrypted; there is no path and no switch that writes plaintext.
+ * A stored value is `enc:v1:...` (utils/secretBox.ts, bound to the table, column and user). Writing is always encrypted; there is no
+ * path and no switch that writes plaintext, and the database refuses it too (the CHECK constraint of migration 060). Reading has no
+ * plaintext branch either: a value that does not start with `enc:` is `legacy_shape`, which is `token_unreadable` to the callers.
  *
  * A token that cannot be read is NEVER evidence that Strava withdrew the authorisation. `openStravaToken` says why in a code (the
  * `SecretBoxError` codes plus `legacy_shape`) and the callers turn it into `token_unreadable`, which nobody may read as "revoked": a
@@ -12,14 +13,13 @@
  */
 import type { StravaTokenEncryptionHealth } from '@runquest/shared';
 import { getSupabaseClient } from '../config/database.js';
-import { logger } from '../utils/logger.js';
 import { buildSecretAad, kidOfStored, open, parseKeyRing, seal, SecretBoxError, type KeyRing, type SecretAad, type SecretBoxErrorCode } from '../utils/secretBox.js';
 
 const TABLE = 'strava_tokens';
 
 export type StravaTokenColumn = 'access_token' | 'refresh_token';
 
-/** Why a stored token could not be read: the secretBox codes, plus `legacy_shape` for a value that is neither `enc:` nor a plausible plaintext token. */
+/** Why a stored token could not be read: the secretBox codes, plus `legacy_shape` for any value that does not start with `enc:` (an old plaintext token, or anything else). */
 export type TokenUnreadableCode = SecretBoxErrorCode | 'legacy_shape';
 
 const aadFor = (userId: string, column: StravaTokenColumn): SecretAad => buildSecretAad({ table: TABLE, column, userId });
@@ -119,42 +119,26 @@ export function sealStravaTokenPair(userId: string, tokens: { accessToken: strin
   };
 }
 
-// The legacy shape of ADR 013 decision 6. Strava's tokens are 40 hexadecimal characters; this is wider but has no `:`, so nothing that
-// looks like a broken ciphertext passes for a token.
-const LEGACY_PLAINTEXT = /^[A-Za-z0-9_-]{20,128}$/;
+// The shape a plaintext Strava token had before the encryption (ADR 013 decision 6). Strava's tokens are 40 hexadecimal characters; this is
+// wider but has no `:`, so nothing that looks like a broken ciphertext matches. It is used ONLY to tell a stored plaintext value from a value of
+// no known shape (the health counts and the backfill report); it never makes a value readable.
+const PLAINTEXT_SHAPE = /^[A-Za-z0-9_-]{20,128}$/;
 
-// One warning per process and user (the user ids of a handful of connections), never the value.
-const warnedAboutLegacy = new Set<string>();
-
-/** For tests: the warning is once per process, so a test that counts warnings starts from here. */
-export function resetLegacyTokenWarnings(): void {
-  warnedAboutLegacy.clear();
-}
-
-export type OpenedToken = { ok: true; token: string; legacy: boolean } | { ok: false; code: TokenUnreadableCode };
+export type OpenedToken = { ok: true; token: string } | { ok: false; code: TokenUnreadableCode };
 
 /**
  * The plaintext behind a stored value. Never throws.
- *   - `enc:...`: decrypted; a failure is the secretBox code (`bad_format`, `unknown_key_id`, `auth_failed`, ...). It is never read as plaintext.
- *   - the strict legacy shape: used as it is (and warned about once per user), until the backfill and S7 remove this branch.
- *   - anything else: `legacy_shape`. It is not sent to Strava as if it were a token.
+ *   - `enc:...`: decrypted; a failure is the secretBox code (`bad_format`, `unknown_key_id`, `auth_failed`, ...).
+ *   - anything else, an old plaintext token included: `legacy_shape`. It is not sent to Strava as if it were a token, not logged, not
+ *     rewritten and not deleted; to the callers it is `token_unreadable`, never "revoked" (ADR 013 decisions 8 and 9).
  */
 export function openStravaToken(userId: string, column: StravaTokenColumn, stored: unknown, ring: KeyRing): OpenedToken {
-  if (typeof stored === 'string' && stored.startsWith('enc:')) {
-    try {
-      return { ok: true, token: open(stored, aadFor(userId, column), ring), legacy: false };
-    } catch (error) {
-      return { ok: false, code: codeOf(error) };
-    }
+  if (typeof stored !== 'string' || !stored.startsWith('enc:')) return { ok: false, code: 'legacy_shape' };
+  try {
+    return { ok: true, token: open(stored, aadFor(userId, column), ring) };
+  } catch (error) {
+    return { ok: false, code: codeOf(error) };
   }
-  if (typeof stored === 'string' && LEGACY_PLAINTEXT.test(stored)) {
-    if (!warnedAboutLegacy.has(userId)) {
-      warnedAboutLegacy.add(userId);
-      logger.warn(`⚠️ Strava legacy plaintext token read for user ${userId} (legacy plaintext token read)`);
-    }
-    return { ok: true, token: stored, legacy: true };
-  }
-  return { ok: false, code: 'legacy_shape' };
 }
 
 /** The user's connection as stored: the token columns as the raw strings the database holds, and the connection state. */
@@ -246,7 +230,10 @@ export async function upsertStravaConnection(
   return { error };
 }
 
-/** What a stored column holds, by shape alone (nothing is decrypted): no value, `enc:v1` under a key id, legacy plaintext, or neither. */
+/**
+ * What a stored column holds, by shape alone (nothing is decrypted): no value, `enc:v1` under a key id, plaintext, or neither. A `plaintext`
+ * column is a finding and not a readable token: the reader gives `legacy_shape` for it, and migration 060 keeps new ones out.
+ */
 export type TokenColumnForm = { form: 'empty' } | { form: 'encrypted'; kid: string } | { form: 'plaintext' } | { form: 'unrecognised' };
 
 function formOfStored(stored: unknown): TokenColumnForm {
@@ -255,7 +242,7 @@ function formOfStored(stored: unknown): TokenColumnForm {
     const kid = kidOfStored(stored);
     return kid ? { form: 'encrypted', kid } : { form: 'unrecognised' };
   }
-  return typeof stored === 'string' && LEGACY_PLAINTEXT.test(stored) ? { form: 'plaintext' } : { form: 'unrecognised' };
+  return typeof stored === 'string' && PLAINTEXT_SHAPE.test(stored) ? { form: 'plaintext' } : { form: 'unrecognised' };
 }
 
 /** PostgREST answers at most 1000 rows per request (the project default); a table larger than that is read in pages of this size. */
@@ -362,18 +349,30 @@ export async function listTokenRows(pageSize: number = TOKEN_ROWS_PAGE_SIZE): Pr
   return rows.map((row) => new ListedTokenRow(row.user_id, row.access_token, row.refresh_token));
 }
 
-/** The shape a plaintext token must have to be read back as one (decision 6), so that a decrypted value is never one the reader refuses. */
-export const isLegacyPlaintextShape = (value: string): boolean => LEGACY_PLAINTEXT.test(value);
+/** The shape a plaintext token must have to be listed as one (not `unrecognised`) after `--decrypt` has written it; the emergency exit writes nothing else. */
+export const isPlaintextShape = (value: string): boolean => PLAINTEXT_SHAPE.test(value);
 
 export type TokenRewriteMode = 'encrypt' | 'decrypt';
 
 /**
  * Why a row was not rewritten or not verified. The first group are the codes of `openStravaToken`/secretBox (the value or the key);
  * `unrecognised` is a column of no known shape; `plaintext_shape` (decrypt) a token the reader would not take for plaintext;
- * `roundtrip_failed` a sealing that did not open to its own input; `write_failed` a database error on the write; `verify_read_failed`
+ * `roundtrip_failed` a sealing that did not open to its own input; `write_failed` a database error on the write; `check_violation` the
+ * database refused the value (while migration 060 holds, that is every plaintext write of `--decrypt`); `verify_read_failed`
  * a read-back that failed; `verify_failed` a stored value that does not open after the write. None carries a value.
  */
-export type TokenRewriteFailure = TokenUnreadableCode | 'unrecognised' | 'plaintext_shape' | 'roundtrip_failed' | 'write_failed' | 'verify_read_failed' | 'verify_failed';
+export type TokenRewriteFailure =
+  | TokenUnreadableCode
+  | 'unrecognised'
+  | 'plaintext_shape'
+  | 'roundtrip_failed'
+  | 'write_failed'
+  | 'check_violation'
+  | 'verify_read_failed'
+  | 'verify_failed';
+
+/** SQLSTATE of a CHECK violation: what the database answers when the encrypted-tokens constraint (migration 060) refuses a plaintext write. */
+const CHECK_VIOLATION = '23514';
 
 export type TokenRewriteOutcome =
   | { status: 'nothing_to_do' }
@@ -434,7 +433,7 @@ function planRewrite(row: ListedTokenRow, strings: { accessRaw: string | null; r
       if (form.form === 'plaintext') continue;
       const opened = openStravaToken(row.userId, column, stored, ring);
       if (!opened.ok) return { ok: false, failure: failedOutcome(opened.code, column) };
-      if (!isLegacyPlaintextShape(opened.token)) return { ok: false, failure: failedOutcome('plaintext_shape', column) };
+      if (!isPlaintextShape(opened.token)) return { ok: false, failure: failedOutcome('plaintext_shape', column) };
       changes[column] = opened.token;
       plains[column] = opened.token;
     }
@@ -442,10 +441,14 @@ function planRewrite(row: ListedTokenRow, strings: { accessRaw: string | null; r
   return { ok: true, changes, plains };
 }
 
-/** Can this stored value be read (decrypted, or a plaintext of the legacy shape) with the ring? Never warns. */
-function isReadable(userId: string, column: StravaTokenColumn, stored: unknown, ring: KeyRing): boolean {
+/**
+ * Can this stored value be read with the ring? An empty column and an encrypted value that opens can. A plaintext value cannot, as the
+ * reader sees it; it counts as readable only where plaintext is what the run is writing (`decrypt`, the emergency exit).
+ */
+function isReadable(userId: string, column: StravaTokenColumn, stored: unknown, ring: KeyRing, plaintextIsExpected: boolean): boolean {
   const form = formOfStored(stored);
-  if (form.form === 'empty' || form.form === 'plaintext') return true;
+  if (form.form === 'empty') return true;
+  if (form.form === 'plaintext') return plaintextIsExpected;
   if (form.form === 'unrecognised' || typeof stored !== 'string') return false;
   try {
     open(stored, aadFor(userId, column), ring);
@@ -458,7 +461,7 @@ function isReadable(userId: string, column: StravaTokenColumn, stored: unknown, 
 
 /**
  * Rewrites one listed row (ADR 013 decision 7):
- *   - `encrypt`: every column that is legacy plaintext or on a key id other than the active one is sealed under the active key
+ *   - `encrypt`: every column that is plaintext or on a key id other than the active one is sealed under the active key
  *     (a column already on the active key is left as it is);
  *   - `decrypt`: every encrypted column is written back as plaintext, the emergency exit before a rollback to code that reads no `enc:`.
  * The new strings are worked out and proved in memory first. The write is a compare-and-swap on BOTH stored strings the listing saw
@@ -480,7 +483,7 @@ export async function rewriteTokenRow(row: ListedTokenRow, mode: TokenRewriteMod
   query = strings.accessRaw === null ? query.is('access_token', null) : query.eq('access_token', strings.accessRaw);
   query = strings.refreshRaw === null ? query.is('refresh_token', null) : query.eq('refresh_token', strings.refreshRaw);
   const { data, error } = await query.select('user_id');
-  if (error) return failedOutcome('write_failed');
+  if (error) return failedOutcome((error as { code?: unknown }).code === CHECK_VIOLATION ? 'check_violation' : 'write_failed');
   if (!Array.isArray(data) || data.length === 0) return { status: 'conflict' };
 
   let now: StoredTokenRow | null;
@@ -506,7 +509,7 @@ export async function rewriteTokenRow(row: ListedTokenRow, mode: TokenRewriteMod
 
   // Something else is stored now. Readable: a refresh landed after our write. Not readable: the write damaged the row.
   for (const column of TOKEN_COLUMNS) {
-    if (!isReadable(row.userId, column, column === 'access_token' ? now.accessRaw : now.refreshRaw, ring)) return failedOutcome('verify_failed', column);
+    if (!isReadable(row.userId, column, column === 'access_token' ? now.accessRaw : now.refreshRaw, ring, mode === 'decrypt')) return failedOutcome('verify_failed', column);
   }
   return { status: 'superseded' };
 }
