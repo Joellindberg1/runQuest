@@ -1,6 +1,6 @@
 -- 060: strava_tokens — databasen vägrar spara en token som inte är krypterad (CHECK-constraint på access_token och refresh_token).
 -- ADR 013 beslut 8 och S6 (RUN-315, v0.8.1; Ö3 godkänd av ägaren 2026-10-17: "i en egen migration med ägarens ja, först när backfill är verifierad").
--- Datum: 2026-10-21. EJ APPLICERAD i staging och prod. Kräver ägar-ja per miljö (docs/permissions.md: CHECK-migrationen för tokenkrypteringen är `ask`): först staging (supabase-staging, projekt
+-- Datum: 2026-10-21. APPLICERAD i staging 2026-10-22 och i prod 2026-10-22 (ägar-ja i chatten; prod hade 6 rader, alla enc:v1:, backfillens dry-run 0 klartext). Kräver ägar-ja per miljö (docs/permissions.md: CHECK-migrationen för tokenkrypteringen är `ask`): först staging (supabase-staging, projekt
 -- aormctqrmguvncxrigwy), sedan prod (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 060_strava_tokens_encrypted_check, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --
