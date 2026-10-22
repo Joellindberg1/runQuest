@@ -276,7 +276,7 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 
 ## Integritetstexten /legal (RUN-345, v0.8.1, `DATA_POLICY_VERSION` 2026-10-22)
 - **Umamis lagringsregion "EU, Frankfurt" vilar på ägarens uppgift** (`UMAMI_DATA_LOCATION` i `packages/shared/src/legal/dataPolicy.ts`; ägaren bekräftade senast 2026-10-22). Umami publicerar ingen region, så texten kan inte beläggas mot en offentlig källa. Blir fel om kontot flyttas eller Umami byter lagringsplats: då ändras texten, versionen höjs och snapshotpinnen byts (`docs/release.md`, steg 1.5).
-- **Sentrys överföringsgrund är belagd mot Sentrys offentliga DPA-sidor** (https://sentry.io/legal/dpa/, version 5.1.0, som ägaren bekräftade 2026-10-22 är accepterad): EU-US Data Privacy Framework som huvudväg och standardavtalsklausulerna (SCC) som reserv. Blir fel om DPF upphävs eller ändras, eller om Sentry byter DPA-version: kontrollera då formuleringen mot DPA:n och ändra texten med höjd version.
+- **Sentrys överföringsgrund är belagd mot Sentrys offentliga DPA-sidor** (https://sentry.io/legal/dpa/, version 5.1.0; ägaren accepterade den 2026-10-21 och bekräftade versionen 2026-10-22): EU-US Data Privacy Framework som huvudväg och standardavtalsklausulerna (SCC) som reserv. Blir fel om DPF upphävs eller ändras, eller om Sentry byter DPA-version: kontrollera då formuleringen mot DPA:n och ändra texten med höjd version.
 - **Invändningar (art. 21.1) hanteras manuellt per e-post** till den personuppgiftsansvariga (ägaren 2026-10-22). Det finns ingen knapp eller automatik; blir fel om volymen växer så att manuell hantering inte hinner.
 
 ## Övergångar i v0.8.1

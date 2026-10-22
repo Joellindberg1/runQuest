@@ -160,7 +160,7 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
                     </div>
                     <div data-tone="muted">
                       <dt>Starts</dt>
-                      <dd>{combo.tier === 'legendary' ? `When accepted, or in ${LEGENDARY_AUTO_START_DAYS} d` : 'When accepted'}</dd>
+                      <dd>{combo.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
                     </div>
                   </dl>
                 </section>

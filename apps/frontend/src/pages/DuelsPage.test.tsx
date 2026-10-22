@@ -518,7 +518,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(within(sheet()).getByText('Most km vs Adam · 10 days')).toBeInTheDocument();
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
 
-    expect(await screen.findByText('Challenge sent to Adam. It starts when they accept.')).toBeInTheDocument();
+    expect(await screen.findByText('Challenge sent to Adam. It starts at midnight after they accept.')).toBeInTheDocument();
     expect(calls).toEqual([['t-major', ADAM]]);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/duels?view=live');

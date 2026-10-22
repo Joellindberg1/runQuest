@@ -47,6 +47,8 @@ Under deployfönstret (frontend och backend byts var för sig) kan en NY Strava-
 - Koden tillbaka till v0.8.0 (revert av merge-PR:en; `docs/release.md` avsnitt 9) fungerar mot 058, 059 och 060: v0.8.0 läser inte boostfönstrets kolumner (fallback på det gamla UTC-fönstret), anropar inget som 058 släpper och skriver bara `enc:v1:`-tokens.
 - Migrationerna rullas inte tillbaka vid en kodrollback. Rollback-SQL finns i varje filhuvud och kräver ägar-ja.
 - Nödutgången `--decrypt --apply` är spärrad av 060 tills constrainten släpps (`docs/release.md` avsnitt 5 punkt 6).
+- Bryter skarp CSP något i prod (vit sida, blockerad popup, avatarer eller Sentry/Umami): byt rubriken tillbaka till `Content-Security-Policy-Report-Only` på en rad i `Caddyfile` (och `CSP_HEADER` i `scripts/verify-static-serving.sh`), push, deploy. Resten av releasen står kvar.
+- Senaste friska deploy före v0.8.1: v0.8.0 på `main` @ 45184576 (båda tjänsterna; Railway Redeploy är snabbvägen, revert-PR:en den varaktiga).
 
 ## v0.8.0 — Titlar per grupp, förrenderad landning, Sentry och Umami (2026-10-19)
 

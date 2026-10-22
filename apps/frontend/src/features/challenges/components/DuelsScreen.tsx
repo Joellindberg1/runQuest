@@ -148,7 +148,7 @@ export function DuelsScreen() {
   const sendChallenge = async (tokenId: string, opponentId: string) => {
     await actions.send.mutateAsync({ tokenId, opponentId });
     const opponent = names[opponentId];
-    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts when they accept.` });
+    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts at midnight after they accept.` });
     closeSend();
   };
 
