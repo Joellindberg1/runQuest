@@ -103,6 +103,12 @@ plats FÖRE backend-deployen: ny kod markerar före varje radering i avstämning
 Q1–Q5 (och Q4b för sekvensen) står i filhuvudet; efter apply ska Q5 ge 0 rader. Strava är avstängt i staging, så flödet bevisas i tester och PGlite,
 inte där.
 
+**v0.8.1:s migrationer 058, 059 och 060** är applicerade i staging (058 2026-10-19, 059 2026-10-20, 060 2026-10-22) och körs även de i filnamnsordning. I prod gäller en egen ordning
+(`docs/release.md`, avsnitt 5, punkt 6 och 7): **059 `user_boosts_window`** (RUN-355) är additiv och körs FÖRE deployen av v0.8.1; den är bakåtkompatibel, eftersom
+`start_date` och `end_date` får vara null och äldre kod inte känner till dem. **058** är en contract-migration som körs efter deployen (filhuvudet). **060** (CHECK på
+`strava_tokens`) är applicerad i staging och prod 2026-10-22, efter backfillen (staging hade 0 tokenrader). Var och en kräver ägar-ja per miljö. Mellan 059:s apply i staging och i prod
+visar `staging:schema-diff` kolumnerna `user_boosts.start_date` och `user_boosts.end_date` som `only_in_staging`, oförklarat och väntat (apply i prod stänger det).
+
 ### 2. `staging:seed-reference`
 
 Kopierar de här tabellerna från prod (och inget annat):
