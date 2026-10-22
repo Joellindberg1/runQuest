@@ -270,13 +270,18 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
   medlemskap (RUN-95) kan samma användare, titel, värde och dag i två grupper kollidera och den andra raden tappas. Ofarligt med ett medlemskap per användare i v0.8.0.
 
 ## Säkerhetshuvuden och CSP (RUN-344, v0.8.1)
-- Profilbilder ligger bara på Supabase Storage i prod- och stagingprojektet (`img-src` i `Caddyfile`). Antaget ur koden (`apps/backend/src/routes/users.ts`), inte ur data: en äldre `users.profile_picture` på annan adress blockeras i prod. Prövas i prod-röken (`docs/release.md`, steg 4).
 - Sentrys host matchar `https://*.ingest.de.sentry.io` (`connect-src`). DSN-värdet läses aldrig; EU-regionen antas ur `docs/release.md`. Fel host = inga felrapporter från det inloggade skalet. Prövas i prod-röken.
 - Umamis tracker skickar till `https://gateway.umami.is` (`data-host-url`, trackerns eget standardvärde i `public/vendor/umami.v1.js`). Flyttar Umami endpointen slutar statistiken tyst tills filen och `connect-src` uppdateras (`docs/release.md`, Umami).
 - Inga användarstyrda inline-stilar eller HTML finns i appen; därför är `style-src 'unsafe-inline'` godtaget. Blir fel om användarskriven HTML eller CSS någonsin renderas.
 
+## Integritetstexten /legal (RUN-345, v0.8.1, `DATA_POLICY_VERSION` 2026-10-22)
+- **Umamis lagringsregion "EU, Frankfurt" vilar på ägarens uppgift** (`UMAMI_DATA_LOCATION` i `packages/shared/src/legal/dataPolicy.ts`; ägaren bekräftade senast 2026-10-22). Umami publicerar ingen region, så texten kan inte beläggas mot en offentlig källa. Blir fel om kontot flyttas eller Umami byter lagringsplats: då ändras texten, versionen höjs och snapshotpinnen byts (`docs/release.md`, steg 1.5).
+- **Sentrys överföringsgrund är belagd mot Sentrys offentliga DPA-sidor** (https://sentry.io/legal/dpa/, version 5.1.0, som ägaren bekräftade 2026-10-22 är accepterad): EU-US Data Privacy Framework som huvudväg och standardavtalsklausulerna (SCC) som reserv. Blir fel om DPF upphävs eller ändras, eller om Sentry byter DPA-version: kontrollera då formuleringen mot DPA:n och ändra texten med höjd version.
+- **Invändningar (art. 21.1) hanteras manuellt per e-post** till den personuppgiftsansvariga (ägaren 2026-10-22). Det finns ingen knapp eller automatik; blir fel om volymen växer så att manuell hantering inte hinner.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
+- **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).

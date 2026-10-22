@@ -409,7 +409,7 @@ Ovanför vikningen ritas rubriken med Bebas Neue 400 (redan förladdad), ingress
 
 ### Öppna rader
 
-- RUN-334 (skärpt budget) kan utgå från CI-siffrorna; budgeten är orörd här. LCP-taket 5 000 ms ligger långt över; ADR 006, punkt 10 anger hur taket sätts efter minst fem CI-körningar.
+- ~~RUN-334 (skärpt budget) kan utgå från CI-siffrorna; budgeten är orörd här.~~ Genomförd i RUN-334: budgeten är skärpt per sida efter CI-mätningen (LCP på `/` ≤ 2 500 ms i stället för 5 000 ms), se avsnittet "Lighthouse-budgeten skärpt efter mätningen (RUN-334, S7)" nedan.
 - **Hydreringen +0,6 s under riktig strypning** (ovan): ägaren godtog avvägningen 2026-10-20 ("snabbare text"). Värt att följa i Umami/Sentry (första interaktion) efter release; ligger den inte i vägen för väntelistans konvertering behövs inget mer. Alternativet är att starta JS:et tidigare, vilket i Lighthouses modell ger tillbaka LCP (2,87 s), så det går inte att få båda.
 - `/legal` (3,0 s) och övriga sidor som serveras av `index.html` har inte åtgärdats här.
 - Sentry: boot-skriptet har ingen källkarta; uppladdningen (`sentryVitePlugin`) kördes inte här (ingen token). Kontrollera i staging att byggsteget med uppladdning tål en JS-fil utan karta.

@@ -118,6 +118,8 @@ rätt databas innan du fortsätter.
 **Ordning (ADR 013 beslut 13), fast:** nyckeln i Railway → deploy av S1–S4 → hälsoblocket visar `configured: true` och några dygn utan
 `token_unreadable` → dry-run → ägaren läser rapporten → `--apply` → verifiering (`plaintext_rows: 0`) → migration 060 (CHECK-constraint, `ask`, staging först) → koden utan klartextläsning (RUN-316, S7) deployas. Den sista koden får inte komma före backfillen: den läser en kvarvarande klartextrad som oläsbar. Ordningen står också i `docs/release.md`, avsnitt 5.
 
+**Utrullningen är gjord (2026-10-22).** Ägarens dry-run i prod visade 6 rader, alla krypterade på `prod-1`, 0 klartext och 0 fel; staging hade 0 rader. `--apply` behövdes därför inte, och ägaren valde att inte köra `--refresh-tokens`. Migration 060 är applicerad i staging och prod samma dag, och RUN-316 (klartextläsningen bort) deployas med v0.8.1. Stegen nedan gäller nu en rotation, en rad som ändå har klartext (avsnitt 9) och nödutgången.
+
 1. **Dry-run (skriver ingenting, anropar inte Strava).** Ingen flagga:
 
    ```

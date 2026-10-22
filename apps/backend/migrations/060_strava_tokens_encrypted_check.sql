@@ -2,7 +2,7 @@
 -- ADR 013 beslut 8 och S6 (RUN-315, v0.8.1; Ö3 godkänd av ägaren 2026-10-17: "i en egen migration med ägarens ja, först när backfill är verifierad").
 -- Datum: 2026-10-21. APPLICERAD i staging 2026-10-22 och i prod 2026-10-22 (ägar-ja i chatten; prod hade 6 rader, alla enc:v1:, backfillens dry-run 0 klartext). Kräver ägar-ja per miljö (docs/permissions.md: CHECK-migrationen för tokenkrypteringen är `ask`): först staging (supabase-staging, projekt
 -- aormctqrmguvncxrigwy), sedan prod (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 060_strava_tokens_encrypted_check, aldrig av en builder.
--- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
+-- Lead har applicerat filen i båda miljöerna (raden Datum ovan) och kontrollerat Q1–Q4 nedan i båda; get_advisors (security) gav inga nya fynd. Inget mer att applicera.
 --
 -- ORDNING (fast, ADR 013 beslut 8 och 13; samma ordning står i docs/release.md, avsnitt 5)
 --   1. Ägaren kör backfillen i prod (`backfill:strava-token-encryption`, dry-run, sedan --apply med ägar-ja), och i staging om staging har rader.
@@ -10,7 +10,7 @@
 --   3. 060 appliceras med ägar-ja, staging först. Förkontrollen nedan stoppar om en enda rad ändå har klartext.
 --   4. EFTER 060: koden som tar bort klartextläsningen (RUN-316) deployas. Tidigare inte: den koden läser ett värde utan enc:v1: som token_unreadable, så den får inte komma
 --      före backfillen, och den ska heller inte komma före 060, eftersom 060 är det som gör att noll klartextrader stannar noll (ingen väg, ingen gammal instans och ingen manuell SQL-rad kan skriva klartext igen).
---   Koden som kör nu (v0.8.0 och v0.8.1 före RUN-316) skriver redan bara enc:v1:-värden och läser både enc:v1: och klartext. 060 är därför bakåtkompatibel mot den: inget i koden skriver något constrainten avvisar.
+--   Koden som körde när 060 applicerades (v0.8.0, och v0.8.1 före RUN-316) skriver redan bara enc:v1:-värden och läser både enc:v1: och klartext. 060 är därför bakåtkompatibel mot den: inget i koden skriver något constrainten avvisar.
 --
 -- VAD MIGRATIONEN GÖR (i den här ordningen, allt i en transaktion; ett fel rullar tillbaka HELA migrationen)
 --   1. lock_timeout 5 s (som 048 och 053-059): misslyckas hellre än att köa skrivtrafiken. Misslyckas den: kör om.
@@ -76,7 +76,8 @@
 -- Q4-END
 -- Q5. Efter att RUN-316-koden är deployad (hälsoblocket, inte SQL): token_encryption.plaintext_rows och unrecognised_rows är 0 och förblir 0; unreadable_since_start rör sig inte av sig själv.
 --
--- Statiskt test: stravaTokensEncryptedCheckMigration060.test.ts. Körning i en riktig Postgres-motor (PGlite) med påhittade rader: se slutrapporten för RUN-315.
+-- Statiskt test: stravaTokensEncryptedCheckMigration060.test.ts. I en riktig Postgres-motor har filen körts av byggaren i PGlite med påhittade rader (körningen ligger inte i repot)
+-- och vid apply i staging och prod 2026-10-22, där slutkontrollens prov gick igenom (annars hade apply rullats tillbaka) och Q4 gav 23514.
 
 set local lock_timeout = '5s';
 

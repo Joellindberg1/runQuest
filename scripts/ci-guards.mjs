@@ -905,7 +905,6 @@ export const DOC_PATH_EXEMPT = [
   { pattern: /^assertion-results\.json$/, reason: 'Lighthouse CI skriver filen vid en körning' },
   { pattern: /^(?:script|driver)\.js$/, reason: 'tredjepartsfiler (Umamis spårningsskript, driver.js-biblioteket)' },
   { pattern: /^docs\/design\/landing-media\/$/, reason: 'originalen till filmen ligger utanför git (.gitignore, vakt 4)' },
-  { doc: 'STATE.md', pattern: /^utils\/xpCalculation\.ts$/, reason: 'raden beskriver att filen raderades (ADR 004); Lead formulerar om raden i releasesteget, ta bort posten då' },
 ];
 
 /** Filhänvisningarna i ett dokument som saknar en spårad fil, som `dokument:rad: sökväg`. `used` samlar de undantag som träffat något. */

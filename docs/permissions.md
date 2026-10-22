@@ -20,7 +20,7 @@ att sänka kraven.
 | Push till `main` | Triggar Railway-deploy av BÅDA tjänsterna = produktionsdeploy. Kräver grön verifiering lokalt (backend-tester + frontend-build) före push |
 | Ändra Railway-variabler för tjänsterna | **ask**; hemliga värden (secret keys) klistras aldrig i chatt/kod — ägaren lägger in dem i Railway-UI:t själv |
 | Radera data i produktion (users/runs/etc.) | **ask**, alltid med exakt omfattning angiven |
-| Backfill-skript mot produktion (`backfill:activity-log`, `backfill:strava-athlete` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
+| Backfill-skript mot produktion (`backfill:activity-log`, `backfill:badges` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
 | Stravas webhook-prenumeration (`strava:webhook create` och `strava:webhook delete`, `--apply`) | **ask**. Prenumerationen är EN per Strava-app och gemensam för alla miljöer, så en `create` eller `delete` gäller även de andra miljöerna; en `delete` stoppar alla nya händelser. Utan `--apply` är båda dry-run (fritt) och `view` är bara läsning. Skriptet skriver ut vad det gör och sätter aldrig en Railway-variabel |
 | Staging-skripten (`staging:migrate`, `staging:seed-reference`, `staging:seed-group`, `staging:schema-diff`) | Skriver bara till staging (projekt `aormctqrmguvncxrigwy`, hårdkodat), `--apply` fritt, inget ägar-ja. Prod läses bara med `--read-prod`, med en egen token (`RUNQUEST_PROD_READ_TOKEN`), via Management-API:ts skrivskyddade endpoint och ur en fast lista av SELECT-satser (konfigurationstabellerna och katalogfrågorna). Läsning av annat i prod = ask. Skripten körs aldrig av CI eller av builders mot riktiga projekt, bara av Lead |
 | Skriptet `create:group` (`apps/backend/src/scripts/createGroup.ts`, ADR 012) | Går mot den databas som `SUPABASE_URL` pekar på, så målet avgörs av URL:en, inte av en flagga. Staging (`aormctqrmguvncxrigwy`): dry-run och `--apply` fritt, bara för Lead. Prod (`yrrqaxdngayakcivfrck`): **ask** för både dry-run och `--apply`, eftersom även en dry-run läser användare och medlemskap där. Båda vägras utan `--allow-prod`, och `--apply` kräver dessutom `--confirm-prod=I-HAVE-THE-OWNERS-YES-FOR-yrrqaxdngayakcivfrck`. Lead använder flaggorna först efter ägarens uttryckliga ja i den aktuella tråden, och **aldrig för en testgrupp i prod** (ägarbeslut F5). Skriptet skriver ut måldatabasens host, skriver aldrig ut inbjudningskoden utan `--show-invite-code` och körs aldrig av CI eller av builders |
@@ -94,6 +94,14 @@ att sänka kraven.
   Ingen ny tabell, funktion, policy eller grant. Efter 058 skriver appen `title_leaderboard` bara via
   `update_group_title_leaderboards` (en gång per gruppomräkning); en skrivning till `user_titles` utanför appen
   bygger inte längre om rankingen automatiskt.
+- Migration 059 (RUN-355, v0.8.1; ask per miljö, applicerad i staging 2026-10-20, inte i prod) är additiv: kolumnerna
+  `user_boosts.start_date` och `end_date` (date, får vara null, ingen default) och ett backfyll av befintliga rader med
+  samma fönster som koden räknade förut. Ingen ny tabell, funktion, policy eller grant, och RLS-ytan är oförändrad. Körs
+  i prod före deployen av v0.8.1.
+- Migration 060 (RUN-315, v0.8.1, ADR 013 S6; ask per miljö, applicerad i staging och prod 2026-10-22 med ägar-ja)
+  lägger CHECK-constrainten `strava_tokens_tokens_encrypted_chk`: databasen vägrar spara en token som inte börjar med
+  `enc:v1:`. Ingen ny tabell, funktion, policy eller grant, och RLS-ytan är oförändrad. Att släppa constrainten
+  (rollbacken i filhuvudet, krävs för nödutgången `--decrypt --apply`) är ask.
 
 ## Kvarvarande `requireAdmin`-rutter (underlag för fas 2: RUN-267 och RUN-95)
 
@@ -172,12 +180,28 @@ rollen och inte `requireAdmin`.
 
 ## CI-grind
 
-Alla steg i `.github/workflows/ci.yml` är blockerande (på push och PR mot `main`):
+`.github/workflows/ci.yml` körs på push och PR mot `main`. Jobben Backend, Shared och Frontend är
+blockerande, alla steg i dem:
 
-- Backend: typecheck, build, tester.
-- Shared: tester.
-- Frontend: versionsvakt (`scripts/check-versions.mjs`), build, statisk
-  serveringskontroll (Caddy), `tsc -b`, `eslint . --max-warnings 0`, tester.
+- Backend: typecheck (`tsc --noEmit`), typecheck av testerna som importerar över paketgräns
+  (`tsc --noEmit -p tsconfig.test.json`), build, tester.
+- Shared: typecheck (`tsc --noEmit -p packages/shared`), tester, och på PR:ar från `integration/*` och
+  `release/*` releasegrinden för integritetstexten (`RUNQUEST_RELEASE_CHECK=1`, dataPolicy-testet).
+- Frontend, i den här ordningen: Version guard (`scripts/check-versions.mjs` och dess test), Repo guards
+  (`scripts/ci-guards.mjs` och dess test), Sentry build settings, CSP guard (`scripts/csp-hashes.test.mjs`),
+  Backup runbook SQL guard, Loadtest script, Lighthouse tooling, E2E target guard, `npm ci`, build,
+  Static serving (Caddy) (`scripts/verify-static-serving.sh`, som också prövar CSP-hasharna mot bygget),
+  `tsc -b`, E2E suite (typecheck and listing; sviten körs inte), `eslint . --max-warnings 0`,
+  Stylelint (`lint:css`), tester.
+
+Jobbet Lighthouse (prestandabudget för `/` och `/legal`) är icke-blockerande: `LIGHTHOUSE_BLOCKING: 'false'`
+ger `continue-on-error` på mätstegen, och jobbet är inte en required check. Omslaget står i
+`docs/release.md` ("Lighthouse-budget").
+
+`.github/workflows/e2e-staging.yml` (Playwright mot staging, manuellt och nattligt 03:20 UTC) blockerar
+ingenting: den har ingen PR-trigger och körs aldrig mot prod. Den typkontrollerar sviten, prövar att vakten
+vägrar en prod-adress, kör sviten och laddar vid fel bara upp skärmbilder, efter en kontroll att de inte bär
+testkontots uppgifter.
 
 Typ- och lintstegen är blockerande sedan 2026-10-04 (typskulden betalades i
 Fas 2, ADR 001): 0 fel/0 varningar är baslinjen och får inte regressa.
