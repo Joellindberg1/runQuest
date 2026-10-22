@@ -1,8 +1,8 @@
 # Changelog
 
-## Ej släppt: v0.8.1 — Städvarvet
+## v0.8.1 — Städvarvet (2026-10-22)
 
-Ej släppt (förbereds 2026-10-22 på `integration/v0.8.1`, som staging kör). Rubriken byts till `## v0.8.1 — … (datum)` i release-PR:en tillsammans med versionsbumpen: versionsvakten (`scripts/check-versions.mjs`) kräver att den översta `## v`-rubriken är `package.json`-versionen, som är 0.8.0 tills dess. Ingen post i `changelog.json` än (What's new är ett eget beslut). Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
+Underhållsversion (patch). Släpps 2026-10-22 via release-PR:en från `release/v0.8.1` (= `integration/v0.8.1` plus versionsbumpen). Ingen post i `changelog.json` och ingen What's new (ägarbeslut 2026-10-22). Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
 
 ### Spelregler
 - Duellen startar vid gruppens nästa midnatt efter accept, aldrig i samma ögonblick, och en duell på N dagar räknar exakt N dagar (slutdag = startdag + N − 1, avgörande 03:00 dagen efter). Legendariska autostarten följer samma regel. Regeln finns på ett ställe i `packages/shared` (`groupNextMidnight`, `challengeWindow`); pågående dueller behåller sitt slutdatum (RUN-228, ägarbeslut 2026-10-19).
@@ -35,11 +35,12 @@ Ej släppt (förbereds 2026-10-22 på `integration/v0.8.1`, som staging kör). R
 ### /legal (RUN-345, `DATA_POLICY_VERSION` 2026-10-22)
 - Integritetstexten anger berättigat intresse för statistiken (Umami) och felrapporterna (Sentry), rätten att invända (art. 21.1, per e-post), överföringsgrunden (Sentry: Data Privacy Framework med SCC som reserv enligt DPA 5.1.0; Umami: SCC) och att man kan be om en kopia av skyddsåtgärderna. Ägaren bekräftade 2026-10-22 att Sentrys DPA 5.1.0 är accepterad, att Umami-datan ligger i EU (Frankfurt) och att invändningar hanteras manuellt per e-post.
 
-### Prod-steg (utkast)
+### Prod-steg
 1. **KÖRT 2026-10-22.** Backfillens dry-run i prod (ägaren) och migration 060 i staging och prod (ägar-ja), `docs/release.md` avsnitt 5 punkt 6.
-2. Migration 059 i prod FÖRE deployen (ägar-ja), `docs/release.md` avsnitt 5 punkt 7.
+2. **KÖRT 2026-10-22 21:44.** Migration 059 i prod FÖRE deployen (ägar-ja): Q1 kolumnerna date och NULL-bara, Q2 8 rader, 0 utan fönster, 0 avvikande, Q3 RLS oförändrad, `get_advisors security` utan nya fynd. `docs/release.md` avsnitt 5 punkt 7.
 3. Release-PR mot `main`, grön CI, merge (= deploy). Rök enligt `docs/release.md` steg 4, med Sentrys host under skarp CSP och hälsoblocket (`plaintext_rows` och `unrecognised_rows` 0).
-4. Migration 058 i prod EFTER deployen (ägar-ja), sedan röken C1 i filhuvudet.
+4. Migration 058 i prod EFTER grön rök (ägar-ja), sedan röken C1 i filhuvudet.
+5. Tagg `v0.8.1` på merge-commiten, stagingtjänsterna pekas om till `integration/v0.8.2`, docs-PR "live". Ingen `announce:release`.
 
 Under deployfönstret (frontend och backend byts var för sig) kan en NY Strava-koppling få 400 `consent_required`: samtyckesversionen går från `2026-10-19.1` till `2026-10-22` och callbacken kräver exakt likhet. Redan kopplade berörs inte. Koppla inte Strava förrän båda tjänsterna är deployade.
 

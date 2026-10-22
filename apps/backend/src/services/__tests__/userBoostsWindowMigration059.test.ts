@@ -37,8 +37,8 @@ function headerBlock(name: string): string {
 }
 
 describe(`migration ${file}: form och ordning`, () => {
-  it('är märkt EJ APPLICERAD och säger att bara Lead applicerar den', () => {
-    expect(sql).toMatch(/EJ APPLICERAD/);
+  it('anger var den är applicerad och säger att bara Lead applicerar den', () => {
+    expect(sql).toMatch(/APPLICERAD i staging 2026-10-20 och i prod 2026-10-22/);
     expect(sql).toMatch(/aldrig av en builder/);
     expect(sql).toContain('name: 059_user_boosts_window');
   });
