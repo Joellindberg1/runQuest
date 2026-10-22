@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ChallengeGroupStat, ChallengeTier } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat, type ChallengeTier } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
@@ -11,8 +11,6 @@ import { buildOpponents, resolveOpponentParam, type OpponentOption, type SendBlo
 import { TierRibbon } from './TierRibbon';
 
 const ICON_HEAD = 21;
-/** Legendary startar av sig själv efter fyra dagar utan svar (challengeScheduler). */
-const LEGENDARY_AUTO_START_DAYS = 4;
 
 interface SendSheetProps {
   groups: TierGroup[];

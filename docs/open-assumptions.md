@@ -279,6 +279,11 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **Sentrys överföringsgrund är belagd mot Sentrys offentliga DPA-sidor** (https://sentry.io/legal/dpa/, version 5.1.0, som ägaren bekräftade 2026-10-22 är accepterad): EU-US Data Privacy Framework som huvudväg och standardavtalsklausulerna (SCC) som reserv. Blir fel om DPF upphävs eller ändras, eller om Sentry byter DPA-version: kontrollera då formuleringen mot DPA:n och ändra texten med höjd version.
 - **Invändningar (art. 21.1) hanteras manuellt per e-post** till den personuppgiftsansvariga (ägaren 2026-10-22). Det finns ingen knapp eller automatik; blir fel om volymen växer så att manuell hantering inte hinner.
 
+## Övergångar i v0.8.1
+- Samtyckesversionen jämförs med exakt likhet i Strava-callbacken (`apps/backend/src/routes/strava.ts`). Under deployfönstret, eller i en gammal flik, får en ny koppling 400 `consent_required` tills båda tjänsterna kör samma version. Antaget ofarligt (bara nya kopplingar, övergående); blir fel om versionen byts ofta eller kopplingar sker mitt i en deploy.
+- `groupTimeZone` ger Stockholm för alla grupper tills RUN-21 (`apps/backend/src/utils/groupTimeZone.ts`). Blir fel den dag en grupp i en annan tidszon finns före RUN-21.
+- Svarskuvertet går med dubbelsvar (gamla toppnivånycklar bredvid `data`) tills steg 2 (RUN-364, ADR 007 Addendum 2026-10-20). Blir fel om steg 2 tas innan alla klienter läser `data`.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).

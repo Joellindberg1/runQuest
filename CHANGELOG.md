@@ -41,6 +41,13 @@ Ej släppt (förbereds 2026-10-22 på `integration/v0.8.1`, som staging kör). R
 3. Release-PR mot `main`, grön CI, merge (= deploy). Rök enligt `docs/release.md` steg 4, med Sentrys host under skarp CSP och hälsoblocket (`plaintext_rows` och `unrecognised_rows` 0).
 4. Migration 058 i prod EFTER deployen (ägar-ja), sedan röken C1 i filhuvudet.
 
+Under deployfönstret (frontend och backend byts var för sig) kan en NY Strava-koppling få 400 `consent_required`: samtyckesversionen går från `2026-10-19.1` till `2026-10-22` och callbacken kräver exakt likhet. Redan kopplade berörs inte. Koppla inte Strava förrän båda tjänsterna är deployade.
+
+### Rollback
+- Koden tillbaka till v0.8.0 (revert av merge-PR:en; `docs/release.md` avsnitt 9) fungerar mot 058, 059 och 060: v0.8.0 läser inte boostfönstrets kolumner (fallback på det gamla UTC-fönstret), anropar inget som 058 släpper och skriver bara `enc:v1:`-tokens.
+- Migrationerna rullas inte tillbaka vid en kodrollback. Rollback-SQL finns i varje filhuvud och kräver ägar-ja.
+- Nödutgången `--decrypt --apply` är spärrad av 060 tills constrainten släpps (`docs/release.md` avsnitt 5 punkt 6).
+
 ## v0.8.0 — Titlar per grupp, förrenderad landning, Sentry och Umami (2026-10-19)
 
 Användarversion (minor). What's new-posten i `changelog.json` har ingen `announce` (ägarbeslut 2026-10-19: ingen popup och ingen Pack News-rad). Releasedatumet sätts till deploydagen om den inte är 2026-10-19. Grundversionen för flera grupper: epic RUN-229 (ADR 012), tokenkrypteringens kod (epic RUN-96, ADR 013; utrullningen RUN-314–316 görs efter deploy), Sentry, Umami, staging med e2e och lasttest, förrendering av landningen (RUN-260, ADR 006 addendum 2026-10-19), säkerhetsfixar och felhygien. Migrationerna 052–057 är redan applicerade och verifierade i prod (Prod-steg 1). RUN-334 (skärpt Lighthouse-budget, S7) är flyttad till v0.8.1.
