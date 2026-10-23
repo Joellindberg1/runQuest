@@ -29,8 +29,8 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 2. Versionsbump enligt releasechecklistan i `docs/dokumentation.md`: `version` i rotens `package.json` och
    `apps/frontend/package.json` till användarversionens tre delar, ny överst-post i `CHANGELOG.md`
    (med avsnittet "Prod-steg" i den ordning som steg 5 nedan följer, och "Rollback"), och en post i
-   `apps/frontend/src/data/changelog.json` om gruppen märker något (`"announce": true` om den ska ge popupen och
-   Pack News-raden). `STATE.md` och ADR-addendum uppdateras om arkitekturen eller ett beslut ändras.
+   `apps/frontend/src/data/changelog.json` för VARJE användarversion (ägarbeslut 2026-10-23; versionsvakten fäller annars). En patch är tyst,
+   alltså utan `announce`, om ägaren inte säger annat; `"announce": true` ger popupen och Pack News-raden. `STATE.md` och ADR-addendum uppdateras om arkitekturen eller ett beslut ändras.
 3. Lokal verifiering före push till `main`: minst backend-tester och frontend-bygge (`docs/permissions.md`); hela sviten grön enligt `STATE.md`, "Verifieringsnivå".
 4. CI-vakterna fångar de vanliga felen: `scripts/check-versions.mjs` (versionerna hänger ihop),
    `scripts/ci-guards.mjs` (tom testsvit, TODO utan RUN-nyckel, Jira-ID i testnamn).

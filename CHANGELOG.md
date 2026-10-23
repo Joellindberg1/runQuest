@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.8.1 — Städvarvet (2026-10-22)
+## v0.8.1 — Städvarvet (2026-10-23)
 
-Underhållsversion (patch). Släpps 2026-10-22 via release-PR:en från `release/v0.8.1` (= `integration/v0.8.1` plus versionsbumpen). Ingen post i `changelog.json` och ingen What's new (ägarbeslut 2026-10-22). Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
+Underhållsversion (patch), live 2026-10-23 via release-PR #54 från `release/v0.8.1`. Tyst: posten i `changelog.json` (Feature & Version) har ingen `announce`, alltså ingen popup och ingen Pack News-rad. Posten lades till i efterhand (#56): ägarbeslut 2026-10-23, varje användarversion får en post och patchar är tysta om ägaren inte säger annat; versionsvakten kräver det sedan dess. Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
 
 ### Spelregler
 - Duellen startar vid gruppens nästa midnatt efter accept, aldrig i samma ögonblick, och en duell på N dagar räknar exakt N dagar (slutdag = startdag + N − 1, avgörande 03:00 dagen efter). Legendariska autostarten följer samma regel. Regeln finns på ett ställe i `packages/shared` (`groupNextMidnight`, `challengeWindow`); pågående dueller behåller sitt slutdatum (RUN-228, ägarbeslut 2026-10-19).

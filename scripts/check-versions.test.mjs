@@ -167,6 +167,13 @@ describe('checkVersions', () => {
     assert.equal(only(duplicate, /0\.5\.2 förekommer två gånger/).length, 1);
   });
 
+  it('fäller när package.json har en användarversion utan post i changelog.json (även en tyst patch ska ha en post)', () => {
+    const errors = errorsFor((input) => {
+      input.changelog.releases.shift();
+    });
+    assert.equal(only(errors, /package\.json är 0\.5\.2 men översta posten är 0\.5\.1/).length, 1);
+  });
+
   it('fäller när changelog.json är nyare än package.json', () => {
     const errors = errorsFor((input) => {
       input.changelog.releases.unshift(release('0.5.3'));
