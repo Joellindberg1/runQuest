@@ -4,9 +4,9 @@ import { hasDoubleRunGap } from '@runquest/shared';
 const MIN_DISTANCE_KM = 5;
 
 /**
- * Bästa dubbeldagen i km. Bara en dag som uppfyller regeln räknas: minst två rundor på minst 5 km var, med starttid,
+ * Bästa dubbeldagen i km. Bara en dag som uppfyller regeln räknas: minst två rundor på minst 5 km var, med giltig starttid,
  * och minst 4 timmar mellan starterna (delade `hasDoubleRunGap`). Dagens värde är summan av de kvalificerande rundorna
- * (rundor under 5 km eller utan starttid räknas inte). Bästa kvalificerande dagen vinner.
+ * (rundor under 5 km eller utan giltig starttid räknas inte). Bästa kvalificerande dagen vinner.
  * Kvalar ingen dag finns inget värde: motorn ger 0, som ligger under varje tröskel, så titeln blir vakant.
  */
 export const bestDoubleDayKmEngine: TitleEngine = {
@@ -20,7 +20,7 @@ export const bestDoubleDayKmEngine: TitleEngine = {
 
     let best = 0;
     for (const dayRuns of byDate.values()) {
-      const qualifying = dayRuns.filter(r => r.distance_km >= MIN_DISTANCE_KM && r.start_time);
+      const qualifying = dayRuns.filter(r => r.distance_km >= MIN_DISTANCE_KM && r.start_time && Number.isFinite(new Date(r.start_time).getTime()));
       if (qualifying.length < 2) continue;
       if (!hasDoubleRunGap(qualifying.map(r => new Date(r.start_time!).getTime()))) continue;
 

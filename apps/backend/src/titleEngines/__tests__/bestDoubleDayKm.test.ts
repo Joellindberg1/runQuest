@@ -23,6 +23,15 @@ describe('bestDoubleDayKm', () => {
     expect(calc([run('2026-07-04', '07:00', 6), run('2026-07-04', null, 5)])).toBe(0);
   });
 
+  it('ignores a run whose start time is not a valid time', () => {
+    const garbage: RunData = { date: '2026-07-04', distance_km: 6, start_time: 'garbage' };
+    expect(calc([garbage, run('2026-07-04', '07:00', 6), run('2026-07-04', '12:00', 6)])).toBe(12);
+  });
+
+  it('sums all qualifying runs of a day with three runs of 5 km or more', () => {
+    expect(calc([run('2026-07-04', '07:00', 6), run('2026-07-04', '12:00', 5), run('2026-07-04', '18:00', 7)])).toBe(18);
+  });
+
   it('gives no value without any runs', () => {
     expect(calc([])).toBe(0);
   });
