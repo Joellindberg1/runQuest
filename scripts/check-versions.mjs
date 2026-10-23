@@ -7,7 +7,7 @@
 //  1. rotens package.json version == apps/frontend/package.json version == de tre första delarna av översta `## v...` i CHANGELOG.md
 //     (`v0.5.1.2` -> 0.5.1, `v0.5.2` -> 0.5.2)
 //  2. CHANGELOG.md-rubriker: `vX.Y.Z` eller `vX.Y.Z.N` (N >= 1), strikt fallande (en fyrdelad sorteras efter sin tredelade bas)
-//  3. changelog.json: endast tredelade versioner, strikt fallande, den översta <= package-versionen, och varje version som ligger inom
+//  3. changelog.json: endast tredelade versioner, strikt fallande, den översta == package-versionen (varje användarversion har en post), och varje version som ligger inom
 //     CHANGELOG.md:s spann (>= dess äldsta rubrik) finns som rubrik där (äldre versioner finns bara i changelog.json)
 //  4. poster med `announce` har minst en ändring; typ följer versionsnumret, datum "5 October 2026", ändringstyper, features/workingOn
 //  5. inga förreleaser (-rc.1); rubriker i kodstaket i CHANGELOG.md räknas inte
@@ -209,6 +209,10 @@ export function checkVersions({ rootVersion, frontendVersion, changelogMd, chang
   }
   if (packageVersion && valid.length > 0 && compareSemver(valid[0], packageVersion) > 0) {
     errors.push(`changelog.json: översta versionen ${valid[0]} är nyare än package.json (${packageVersion}). Bumpa package.json eller ta bort posten.`);
+  }
+  // Ägarbeslut 2026-10-23: varje användarversion får en post på Feature & Version; patchar är tysta (ingen announce) om inte ägaren säger annat.
+  if (packageVersion && valid.length > 0 && compareSemver(valid[0], packageVersion) < 0) {
+    errors.push(`changelog.json: package.json är ${packageVersion} men översta posten är ${valid[0]}. Varje användarversion ska ha en post (utan announce om den är en tyst patch).`);
   }
 
   if (headings.length > 0) {

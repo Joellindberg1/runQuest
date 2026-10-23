@@ -89,6 +89,34 @@
   ],
   "releases": [
     {
+      "version": "0.8.1",
+      "type": "patch",
+      "date": "23 October 2026",
+      "title": "Clearer duel rules and a quicker start page",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "A duel now starts at midnight after it is accepted and lasts exactly its number of days. A boost of n days lasts exactly n days, from midnight after the duel's last day. Boosts you already had keep their days."
+        },
+        {
+          "type": "improvement",
+          "description": "Numbers look the same everywhere, for example 1 240 XP, and distances are rounded the same way on every page."
+        },
+        {
+          "type": "improvement",
+          "description": "The start page shows its text sooner, especially on a phone."
+        },
+        {
+          "type": "improvement",
+          "description": "Privacy & Terms now say why each kind of data is used, how you can object, and how Sentry and Umami handle data outside the EU."
+        },
+        {
+          "type": "improvement",
+          "description": "Better protection behind the scenes: stricter rules for what the site may load, and every Strava connection is stored encrypted."
+        }
+      ]
+    },
+    {
       "version": "0.8.0",
       "type": "minor",
       "date": "19 October 2026",
