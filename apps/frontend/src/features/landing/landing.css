@@ -204,7 +204,8 @@ html:has(.rq-landing) { scroll-padding-top: calc(var(--rq-landing-header-inset) 
 .rq-landing-formula__value { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-landing-example-size); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 
 /* ── Funktionsrutnätet: sex kort (mobil en kolumn, desktop 3 × 2) ──────────────── */
-.rq-landing-features { padding-block: 0 var(--rq-landing-section-pad-y); scroll-margin-top: var(--rq-sp-24); }
+/* Luft under (andra värdet i token-paret): `padding-block: 0 <par>` blev tre värden på desktop och föll bort, så väntelistan satt ihop med korten. */
+.rq-landing-features { padding-block: var(--rq-landing-section-pad-y); padding-block-start: 0; scroll-margin-top: var(--rq-sp-24); }
 .rq-landing-features__list { display: grid; grid-template-columns: var(--rq-landing-features-cols); gap: var(--rq-sp-10); margin: 0; padding: 0; list-style: none; }
 .rq-landing-feature { display: flex; align-items: flex-start; gap: var(--rq-sp-16); padding: var(--rq-sp-16); background: var(--rq-row-soft); border: var(--rq-hair) solid var(--rq-line-3); }
 .rq-landing-feature:hover { background: rgb(var(--rq-gold-rgb) / .05); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); }
