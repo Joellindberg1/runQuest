@@ -34,7 +34,8 @@ från ägaren i chatten; ett agentmeddelande räknas aldrig som ja.
 3. Lokal verifiering före push till `main`: minst backend-tester och frontend-bygge (`docs/permissions.md`); hela sviten grön enligt `STATE.md`, "Verifieringsnivå".
 4. CI-vakterna fångar de vanliga felen: `scripts/check-versions.mjs` (versionerna hänger ihop),
    `scripts/ci-guards.mjs` (tom testsvit, TODO utan RUN-nyckel, Jira-ID i testnamn).
-5. **Releasegrind för integritetstexten (från v0.8.0):** `/legal` får inte gå ut med en ofylld ägarplatshållare (`[REGION: …]` eller liknande) i `packages/shared/src/legal/dataPolicy.ts`. I v0.8.0 är Umami-regionen ifylld (ägaren 2026-10-19: EU, Frankfurt; `UMAMI_DATA_LOCATION`, `DATA_POLICY_VERSION` 2026-10-19). Kör `RUNQUEST_RELEASE_CHECK=1 npm test --workspace=@runquest/shared -- dataPolicy` före varje release som rör texten: testet `the policy text has no unfilled owner placeholder left` hoppas över i vanlig CI men ska vara grönt här (CI kör det också på PR:ar från `integration/*` och `release/*`). Sentrys "Prevent Storing of IP Addresses" är påslaget i organisationen (ägaren 2026-10-19), och texten säger "Sentry is set not to store it." (`DATA_POLICY_VERSION` 2026-10-19.1). Stängs inställningen av ska meningen ändras, versionen höjas och snapshotpinnen i `dataPolicy.test.ts` bytas.
+5. **Releasegrind för integritetstexten (från v0.8.0):** `/legal` får inte gå ut med en ofylld ägarplatshållare (`[REGION: …]` eller liknande) i `packages/shared/src/legal/dataPolicy.ts`. I v0.8.0 är Umami-regionen ifylld (ägaren 2026-10-19: EU, Frankfurt; `UMAMI_DATA_LOCATION`, `DATA_POLICY_VERSION` 2026-10-19). Kör `RUNQUEST_RELEASE_CHECK=1 npm test --workspace=@runquest/shared -- dataPolicy` före varje release som rör texten: testet `the policy text has no unfilled owner placeholder left` hoppas över i vanlig CI men ska vara grönt här (CI kör det också på PR:ar från `integration/*` och `release/*`). Sentrys "Prevent Storing of IP Addresses" är påslaget i organisationen (ägaren 2026-10-19), och texten säger "Sentry is set not to store it." (sedan `DATA_POLICY_VERSION` 2026-10-19.1). Stängs inställningen av ska meningen ändras, versionen höjas och snapshotpinnen i `dataPolicy.test.ts` bytas.
+   **Rättslig grund och överföring utanför EU (v0.8.1, `DATA_POLICY_VERSION` 2026-10-22):** texten anger berättigat intresse för statistiken (Umami) och felrapporterna (Sentry), rätten att invända på skäl som hänför sig till den egna situationen (art. 21.1; e-post till den personuppgiftsansvariga), hur överföringen skyddas och att man kan be om en kopia av skyddsåtgärderna (art. 13.1 f). Den bygger på tre fakta som ska stämma vid varje release som rör texten: (1) ägaren accepterade Sentrys DPA i organisationen 2026-10-21 (Settings → Legal & Compliance; https://sentry.io/legal/dpa/, version 5.1.0), och Sentry skyddar överföringen till USA med EU-US Data Privacy Framework, med EU:s standardavtalsklausuler (SCC) bara som reserv när ramverket inte gäller; (2) Umamis DPA (https://umami.is/dpa) ingår automatiskt för Umami Cloud-kunder och använder SCC (Module Two/Three) vid överföring till länder utan adekvat skydd; Umamis underbiträden finns i USA och EU (https://umami.is/subprocessors); (3) Umami har ingen publicerad lagringsregion, så "EU, Frankfurt" (`UMAMI_DATA_LOCATION`) vilar på ägarens uppgift i Umami-kontot. Byter vi leverantör, ändras DPA:n eller regionen ska texten ändras, versionen höjas och snapshotpinnen bytas. En höjd version låser inte ut någon som redan kopplat Strava: versionen jämförs bara när en ny koppling görs (`POST /api/strava/callback`), inte vid synk, webhooks eller status.
 6. **Releasegrind för Strava-webhooks (v0.7.0, integrationskritikern F2):** testet `every Strava webhook event kind has a registered handler` (`apps/backend/src/services/stravaWebhook/__tests__/webhookHandlersRegistered.test.ts`) ska vara grönt FÖRE deploy. Workern kör i produktion från `server.ts`, och en händelsetyp utan registrerad handler slutar som `done`/`noop` med bara en varning, alltså en radering som aldrig skedde. Kör det explicit: `npm test --workspace=@runquest/backend -- webhookHandlersRegistered`; det ingår också i hela backend-sviten.
 
 ### 2. Preview mot prod
@@ -105,7 +106,12 @@ stället för mot prod-databasen:
     exempel via en länk), och `canonical` och `og:url` i `index.html` och `landing.html` pekar fortfarande mot prod (`www.runquest.dev`),
     vilket inte skadar eftersom staging är noindex.
   - Remsan är en vanlig rad överst som scrollar bort med sidan (den ligger aldrig över sidhuvudenas knappar). Dess
-    uppmätta höjd läggs på `<html>` som `--rq-staging-banner-h` (0 i prod), och sidans 100dvh-ytor räknar bort den.
+    höjd läggs på `<html>` som `--rq-staging-banner-h` (0 i prod), och sidans 100dvh-ytor räknar bort den. Remsan står
+    förrenderad i `#root` i både `index.html` (över laddningsvyn) och `landing.html`, och dess stilmall länkas i båda
+    filerna bara i stagingbygget (`apps/frontend/stagingBannerStyle.ts`). `staging-banner.css` räknar ut höjden för en rad
+    (`html:root { --rq-staging-banner-h: calc(...) }`), så laddningsvyn ligger rätt redan före all JS; `StagingBanner.tsx`
+    mäter sedan den verkliga höjden (en smal skärm kan bryta över två rader). Laddarens rektangel är därför densamma
+    (±1 px) i `index.html` och efter monteringen; prodbygget har varken bannerns markup, stil eller kod.
   - Inga utskick når riktiga människor: appen skickar varken mejl, SMS eller push (bara notiser i appen och
     Pack News-rader i databasen), och Strava är avstängt i staging. Väntelistan sparar en adress men skickar ingen
     bekräftelse. En riktig e-postadress som skrivs in i stagingformuläret hamnar bara i stagingdatabasen. Skulle ett
@@ -113,6 +119,10 @@ stället för mot prod-databasen:
     previewn).
   - Kontroll vid previewn: öppna stagingadressen och bekräfta att remsan syns, och att
     `curl https://runquest-frontend-staging-staging.up.railway.app/robots.txt` ger `Disallow: /`.
+- **Säkerhetshuvuden i staging (RUN-344).** Stagingfrontenden serveras av samma `Caddyfile` som prod och får samma huvuden. Kontroll:
+  `curl -sI https://runquest-frontend-staging-staging.up.railway.app/` ska visa `Strict-Transport-Security: max-age=31536000`,
+  `Referrer-Policy`, `X-Frame-Options: DENY` och skarp `Content-Security-Policy` (sedan 2026-10-21; Report-Only-steget är avklarat, se "Säkerhetshuvuden"). Stagingbygget laddar aldrig Umamis tracker (`umamiWebsiteIdOf`);
+  `gateway.umami.is` står ändå i `connect-src` eftersom filen är gemensam. Se "Säkerhetshuvuden" i steg 3 för CSP-strängen och införandet.
 - **Migrationer provas i staging före prod.** Release-PR:ens nya migrationer appliceras först på staging-databasen
   (`supabase-staging`), koden provas mot dem, och först därefter söker Lead ägarens ja per migration för prod (steg 5).
   Prod-regeln om ett ja per migration ändras inte, och staging kräver inget ägar-ja. Skripten för att läsa, återställa
@@ -166,25 +176,68 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
 - **Rapporten:** artefakten `lighthouse-reports` (14 dygn) innehåller `error/` och `mock/` med HTML- och JSON-rapport per körning.
   Jobbets sammanfattning (Summary-fliken) visar medianen per sida i en tabell, också när budgeten hålls, så att man ser hur långt
   under taket sidorna ligger.
-- **Budgeten** står i `scripts/lighthouse/lighthouserc.json` (gäller båda sidorna):
+- **Budgeten** står i `scripts/lighthouse/lighthouserc.json` som `assertMatrix` med en regelrad per sida (RUN-334, S7): `/` har egna, skarpa rader och
+  `/legal` egna rader. lhci prövar medianen av de tre körningarna per sida (`aggregationMethod: median` i varje rad). En sida som ingen rad
+  matchar prövas inte alls, så `scripts/lighthouse-ci.test.mjs` kräver exakt en regelrad per mätt URL. Felraderna (`::warning::`/`::error::`)
+  anger sida, rad, uppmätt värde och gräns, också per sida (`summarize.mjs --failures` läser `assertion-results.json`).
 
-  | Mått | Gräns | Utgångsvärde kommer från |
-  |---|---|---|
-  | Prestanda (poäng) | minst 0,75 | RUN-212, prod: 85. Lokalt `/` 0,80–0,81 (knappt 5 poängs marginal) och `/legal` 0,91–0,92 (ca 16 poäng) |
-  | Tillgänglighet / SEO | minst 0,95 | RUN-212, prod: 100 |
-  | Best practices | minst 0,90 | RUN-212, prod: 100; lokalt 96 när API:et ger fel (konsolfelet från anslutningen) |
-  | LCP | högst 5 000 ms | lokalt `/` ca 4,36 s (4,32–4,44), alltså ca 0,64 s (ca 13 %) under taket; `/legal` ca 2,9 s. Prod i RUN-212: 3,5 s (lokalt mäts ca 0,9 s högre) |
-  | CLS | högst 0,05 | RUN-212, prod: 0 (lokalt högst 0,018 när API:et ger fel) |
-  | TBT | högst 200 ms | RUN-212, prod: 0 ms; 200 ms är Googles gräns för "bra" |
-  | JS (överförd storlek) | högst 275 kB | lokal körning: 237 kB, ca 15 % marginal (RUN-212 mätte inte vikt) |
-  | CSS (överförd storlek) | högst 50 kB | lokal körning: 42 kB, ca 18 % marginal |
-  | Totalvikt | högst 500 kB | lokal körning: 428 kB (`/`), 303 kB (`/legal`), ca 17 % marginal |
+  **`/` (den förrenderade landningen).** Taken sattes 2026-10-20 enligt ADR 006, punkt 10, ur CI-körningarna efter RUN-343 (Linux, Chrome, jobbet
+  `Lighthouse — prestandabudget`, 6 körningar per sida och läge, båda lägena: API ger fel / falskt API). "CI-median" är den högsta av de två lägenas
+  medianer, "sämsta körning" den sämsta enskilda körningen av alla 12 (en jobbmedian är det lhci prövar, se anmärkningarna under tabellen).
 
-  **Baslinjen är mätt på en Windows-dator med Microsoft Edge** (Lighthouse 12.6.1, medianen av 3), inte på GitHub-runnern
-  (Linux, Chrome): RUN-212 noterade bara prod-poäng, FCP, LCP, TBT och CLS, inte vikter, och en körning på prod ger andra
-  tider än en lokal. Överförda vikter är i princip oberoende av maskinen, men poäng och tider är det inte. **Kalibreringen mot
-  CI-körningarnas siffror måste göras under den icke-blockerande veckan, före omslaget till blockerande** (nedan): ligger en ren
-  `main` nära eller över ett tak på runnern justeras det först då, med ägarens ok om det lättas.
+  | Rad | Förut | Nu | CI-median | Sämsta körning | Marginal mot sämsta körning |
+  |---|---|---|---|---|---|
+  | Prestanda (poäng) | minst 0,75 | **minst 0,90** | 0,99 | 0,78 (ensam körning, TBT 839 ms) | 0,09 mot sämsta jobbmedian (0,99); under 0,90 i den ensamma körningen |
+  | Tillgänglighet / SEO | minst 0,95 | minst 0,95 (oförändrat) | 1 | 1 | 0,05 |
+  | Best practices | minst 0,90 | minst 0,90 (oförändrat) | 0,96 (API ger fel) / 1 | 0,96 | 0,06 |
+  | LCP | högst 5 000 ms | **högst 2 500 ms** | 1 959 / 1 960 ms | 2 106 ms | 394 ms (15,8 %) |
+  | FCP (ny rad) | saknades | **högst 1 950 ms** | 1 507 / 1 511 ms | 1 656 ms | 294 ms (15,1 %) |
+  | CLS | högst 0,05 | **högst 0,02** | 0,0002 | 0,0002 | 0,0198 |
+  | TBT | högst 200 ms | **högst 150 ms** | 29 / 26 ms | 839 ms (ensam körning); sämsta jobbmedian 30 ms | 120 ms mot sämsta jobbmedian |
+  | JS (överförd storlek) | högst 275 kB | **högst 150 kB** | 127 553 B | 127 553 B | 22 447 B (15,0 %) |
+  | CSS (överförd storlek) | högst 50 kB | **högst 30 kB** | 23 338 B | 23 338 B | 6 662 B (22,2 %) |
+  | Totalvikt | högst 500 kB | **högst 355 kB** | 304 866 / 305 135 B | 305 135 B | 49 865 B (14,0 %) |
+
+  Hur taken räknades (ADR 006, punkt 10): LCP-taket blev målet 2 500 ms eftersom medianen (1 960 ms) ligger under 2 250 ms; prestanda
+  `min(0,90; median − 0,03)`; JS uppmätt × 1,15 uppåt till 5 kB; TBT 150 ms eftersom medianen är under 100 ms; CLS 0,02 eftersom medianen är
+  under 0,01; FCP uppmätt × 1,15 uppåt till 50 ms, räknat på den högsta jobbmedianen (1 655 ms, FCP hoppar i steg om ca 150 ms mellan 1 505
+  och 1 655 ms), inte på medianen av alla körningar, som annars hade gett för liten marginal. CSS och totalvikt följer samma regel som JS
+  (× 1,15 uppåt till 5 kB): ADR:n nämner dem inte, men 50 kB för en sida på 23 kB hade låtit stilmallarna fördubblas obemärkt.
+
+  Anmärkningar: (1) *Sämsta körning* räknar den ensamma körningen. Avvikarna är ett **kallstartsmönster**: i CI efter RUN-343 hade 2 av 12
+  körningar av `/` avvikande TBT och prestanda, båda i läget API ger fel och båda den *första* körningen av `/` i jobbet (kall Chrome och
+  kall Caddy): TBT 489 ms och prestanda 0,86 (jobb 39495701891) respektive 839 ms och 0,78 (after2). I de åtta jobb i läget API ger fel som
+  mättes (sex före och två efter RUN-343) har första körningen TBT över 150 ms i fyra jobb och prestanda under 0,90 i fem (värst 1 748 ms och
+  0,63). Läget falskt API, som körs efteråt, har 0 avvikare på 24 körningar. lhci prövar medianen av tre, så en enda avvikare fäller inget,
+  men två i samma jobb gör det. Kritikerns uppskattning: ca 6–8 % risk per CI-jobb att medianen av tre fäller TBT 150 ms eller prestanda 0,90
+  (intervall ca 1–20 %); med `numberOfRuns: 5` eller en uppvärmningskörning ca 1–2 %, se omslaget till blockerande nedan. Den sämsta
+  *jobbmedianen* (en jobbmedian är medianen av ett jobbs tre körningar) är det taken prövas mot, och marginalerna
+  mot den är minst de ovan. (2) Tillgänglighet och SEO är 1 och best practices 0,96 respektive 1; ADR:n lämnar dem oförändrade.
+  (3) Uppspelning: CI-körningarnas rapporter kördes mot den nya `lighthouserc.json` med lhci:s egen `assert`. De fyra jobb och lägen efter
+  RUN-343 klarar alla rader; de tolv före RUN-343 (landningen utan uppskjuten ingång) fäller `/` på LCP, FCP och CLS, och `/legal`-raderna klaras i alla sexton.
+
+  **`/legal`** (fullappens `index.html` med laddningsvyn; delar inte landningens vikt) behåller dagens rader, utom LCP som skärps:
+
+  | Rad | Förut | Nu | CI-median | Sämsta körning | Marginal mot sämsta körning |
+  |---|---|---|---|---|---|
+  | Prestanda (poäng) | minst 0,75 | minst 0,75 (oförändrat) | 0,89 | 0,89 | 0,14 |
+  | Tillgänglighet / SEO / best practices | minst 0,95 / 0,95 / 0,90 | oförändrat | 1 | 1 | 0,05 / 0,05 / 0,10 |
+  | LCP | högst 5 000 ms | **högst 3 600 ms** | 3 208 / 3 210 ms | 3 225 ms (före RUN-343: 3 225; efter: 3 215) | 375 ms (10,4 %) |
+  | CLS | högst 0,05 | högst 0,05 (oförändrat) | 0 | 0 | 0,05 |
+  | TBT | högst 200 ms | högst 200 ms (oförändrat) | 1 / 3 ms | 46 ms | 154 ms |
+  | JS | högst 275 kB | högst 275 kB (oförändrat) | 232 577 B | 232 664 B | 42 336 B |
+  | CSS | högst 50 kB | högst 50 kB (oförändrat) | 41 101 B | 41 101 B | 8 899 B |
+  | Totalvikt | högst 500 kB | högst 500 kB (oförändrat) | 312 964 B | 313 052 B | 186 948 B |
+
+  `/legal`-LCP-taket är uppmätt × 1,1 uppåt till 100 ms (3 210 × 1,1 = 3 531 → 3 600 ms), alltså lägre än 5 000 och därmed en skärpning. Målet
+  2 500 ms gäller inte `/legal`: LCP ca 3,2 s ligger över det och är en öppen rad i `docs/performance.md`. Att dela raderna per URL lättar
+  ingenting för `/legal`: alla dess rader är lika med eller strängare än förut.
+
+  **Hur nivåerna kom till.** Första budgeten (RUN-259) mättes lokalt på Windows/Edge: prestanda 0,75 (RUN-212, prod: 85; lokalt `/` 0,80–0,81),
+  tillgänglighet/SEO 0,95 och best practices 0,90 (RUN-212, prod: 100), LCP 5 000 ms (lokalt `/` ca 4,36 s; prod i RUN-212: 3,5 s), CLS 0,05,
+  TBT 200 ms (Googles gräns för "bra") och vikterna 275/50/500 kB (lokalt 237/42/428 kB). Den lokala baslinjen är inte CI-runnerns
+  (Linux, Chrome): poäng och tider skiljer, överförda vikter i princip inte. Kalibreringen mot CI-körningarna gjordes i S7 (RUN-334, ovan);
+  omslaget till blockerande (nedan) är ett eget steg som inte ingår i S7.
 - **Budgeten får aldrig sänkas utan ägarens ok.** "Sänkas" betyder att kravet lättas: en lägre minpoäng, ett högre tak för
   LCP/CLS/TBT/vikt, en borttagen rad eller en sida som tas ur mätningen. Att skärpa budgeten (högre minpoäng, lägre tak) kräver
   inget ok och är önskvärt när CI-värdena visar utrymme. Budgeten är dessutom fäst i `scripts/lighthouse-ci.test.mjs` (golv och
@@ -198,14 +251,17 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   jobbet första gången körts på `main` och efter att Lead jämfört veckans siffror med taken (en ren `main` ska ligga under taken med
   marginal), ändra värdet till `'true'` i en liten PR och lägg `Lighthouse — prestandabudget` bland required checks i branch
   protection. Därefter fäller ett budgetbrott PR:en. **Tillbaka till icke-blockerande** är samma rad (kräver ägarens ja, eftersom det
-  lättar kontrollen).
+  lättar kontrollen). **Uppvärmning eller fem körningar måste in först:** utan det fäller kallstartsavvikarna (anmärkning 1 under
+  budgettabellen) ca 6–8 % av jobben (intervall ca 1–20 %, kritikerns uppskattning) på TBT 150 ms eller prestanda 0,90 utan att något har
+  blivit sämre. Med `numberOfRuns: 5` eller en uppvärmningskörning (en kasserad första körning) sjunker risken till ca 1–2 %. Det ändrar
+  `numberOfRuns` eller `run.sh` och det fästa testet, och är ett eget steg före omslaget (uppföljning hos Lead), inte en del av S7.
 - **Köra lokalt:** `npm ci` i `scripts/lighthouse`, bygg frontend, och kör sedan `bash scripts/lighthouse/run.sh` från repo-roten
   (`STATS_MODE=error|mock`, `DIST_DIR`, `CADDY_BIN`, `CHROME_PATH`, `API_PORT`, se skriptets huvud). Är port 3001 upptagen: bygg
   frontend med `VITE_API_URL=http://localhost:<port>/api` och kör med `API_PORT=<port>`. Rapporterna hamnar i `lighthouse-reports/`.
   Skriptet vägrar köra om något redan svarar på port 3001 (ett riktigt lokalt backend ska aldrig mätas).
 - **Fäller budgeten:** öppna HTML-rapporten i artefakten för sidan och körningen som avviker. Vanliga orsaker: ny blockerande
   resurs i `<head>`, bild utan `width`/`height` (CLS), en stor ny beroende i entry-chunken (JS-vikt, LCP) eller ett nytt typsnitt.
-  Stagingremsan (`VITE_APP_ENV=staging`) är en egen chunk som inte finns i prodbygget och påverkar inte budgeten.
+  Stagingremsan (`VITE_APP_ENV=staging`) finns inte i prodbygget (varken kod, markup eller stil) och påverkar inte budgeten.
 - **Verktyget** har ett eget beroendeträd (`scripts/lighthouse/package.json` och egen lockfil, utanför workspaces) så att de andra
   jobbens `npm ci` och cache inte växer. Uppgradera `@lhci/cli` medvetet: en ny Lighthouse-version kan flytta poängen, så läs
   tabellen före och efter och justera inte budgeten för att dölja det.
@@ -237,15 +293,24 @@ Sidvisningar på landningen och i appen räknas av Umami Cloud (Hobby). Ägarbes
 - **Cookiefritt:** Umami sätter inga cookies och koden skriver varken till cookies eller localStorage/sessionStorage (testat i
   `umamiPageviews.test.ts`). `data-do-not-track="true"` är påslaget: besökare som skickar Do Not Track räknas inte. Valet kostar
   några procent av sidvisningarna och stämmer med att tjänsten ska vara integritetsvänlig; det stör inte målet (trender, inte exakta tal).
+- **Trackern är vår egen kopia (RUN-344):** `apps/frontend/public/vendor/umami.v1.js` är Umamis egen minifierade tracker (MIT, licens och
+  ursprung i `umami.LICENSE.txt` bredvid), serverad från appens eget ursprung och inte hämtad från `cloud.umami.is`. Skriptet där har ingen version
+  och byts utan förvarning (Last-Modified 2026-10-17 när vi tittade), så SRI hade tyst stoppat statistiken vid nästa uppdatering, och
+  CSP:ns `script-src` hade fått släppa in en tredje parts kod på samma ursprung som inloggningen. Trackern skickar till
+  `https://gateway.umami.is/api/send` (filens eget standardvärde; koden sätter det också med `data-host-url`), som därför står i `connect-src`.
+  Uppdatera trackern så här: hämta nya `https://cloud.umami.is/script.js` med `curl`, läs igenom ändringen, spara den som en ny fil med nästa versionsnummer (`.v2`;
+  `.gitattributes` håller radbrytningarna orörda), uppdatera hash och datum i `umami.LICENSE.txt` och namnet i `UMAMI_SCRIPT_SRC`, och kontrollera att
+  `data-host-url`-adressen fortfarande är den filen skickar till. `scripts/verify-static-serving.sh` jämför filen med hashen i licensfilen.
+  Kostnaden: ingen automatisk uppdatering, och slutar `gateway.umami.is` svara syns det först som tomma siffror i Umami-panelen.
 - **Laddningen:** skriptet läggs in från koden (inte från `index.html`) som `<script async defer>` först när dokumentet laddats klart,
   med automatisk spårning avstängd (`data-auto-track="false"`); koden skickar själv en sidvisning per ny sida efter att adressen legat
   still en kort stund (så att en omdirigering inte räknas som en sidvisning). En blockerad eller misslyckad laddning tystas.
 - **Lighthouse:** CI:s Lighthouse-jobb bygger frontend utan `VITE_UMAMI_WEBSITE_ID` (jobbet sätter ingen) och mäter mot 127.0.0.1, så
   skriptet laddas aldrig där och budgeten (RUN-259) påverkas bara av den lilla koden i huvudbunten (ca 0,9 kB gzip). Bygg inte med
-  variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): skriptet hämtas då utifrån och mätningen slutar vara hermetisk.
+  variabeln när budgeten mäts lokalt (`scripts/lighthouse/run.sh`): trackern (självhostad, `/vendor/umami.v1.js`) laddas då i mätningen och ändrar vikten.
 - **Kontroll efter att variabeln satts i prod (Lead och ägaren):** öppna `https://www.runquest.dev` i ett privat fönster med DevTools →
-  Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `script.js` från
-  `cloud.umami.is` och en POST till Umamis `/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
+  Application: *Cookies* ska vara tomma och *Local/Session storage* utan Umami-nycklar; Network ska visa `umami.v1.js` från
+  `www.runquest.dev` och en POST till `gateway.umami.is/api/send` vars payload har `url` som routemönster (till exempel `/login`, inte en adress
   med id). Gå sedan in i appen och öppna en löpare: payloaden ska visa `/runner/:id`. Ägaren bekräftar att sidvisningarna syns i
   Umami-panelen. Integritetstexten på `/legal` uppdateras i en egen story i samma epic (S3), inte här.
 - **Två ingångar (v0.8.0, RUN-335):** den förrenderade `landing.html` räknar sina egna sidvisningar (`/`, `/legal`, `/login` via lean routern) med samma sändare och normalisering som appen; `/landing` och `/landing.html` rapporteras som `/`. Vid överlämningen till appen (inloggning, sessionstipset, okänd adress) skickar landningen ingen visning, så samma besök räknas inte två gånger. Kontrollen ovan görs därför på både `/` och `/board`.
@@ -294,12 +359,69 @@ enstaka gemena ord. En ny händelse eller ett nytt värde kräver en ändring i 
   `"name":"waitlist-click"` och en `url` som `/`; en inställningsändring ska ge `"name":"setting-changed"` med `data` som bara har `setting`.
   Ingen payload ska innehålla ett id, ett namn, en e-postadress eller ett tal.
 
+#### Säkerhetshuvuden (RUN-344, epic RUN-96)
+
+Frontend-tjänstens Caddy (repo-rotens `Caddyfile`, ett `header`-block) sätter fem huvuden på **alla** svar, också 404, omdirigeringar och `/health`:
+
+| Huvud | Värde | Varför |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000` | Ett år. **Utan `includeSubDomains` och utan `preload`** i v0.8.1: underdomänerna är inte inventerade, och `preload` går inte att ångra snabbt (en webbläsare som fått domänen i sin lista kräver https i månader). Tas upp igen när underdomänerna är kartlagda. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Adressen med sökväg lämnar aldrig sajten; utanför den följer bara ursprunget med. |
+| `X-Frame-Options` | `DENY` | Skarp redan medan CSP går som Report-Only (`frame-ancestors` i en Report-Only-policy blockerar inget). Finns kvar när CSP blir skarp. |
+| `X-Content-Type-Options` | `nosniff` | Fanns sedan tidigare. |
+| `Content-Security-Policy` | se nedan | Skarp sedan 2026-10-21 efter Report-Only-steget på staging, se "Införandet". |
+
+Huvudena ligger i en Caddy-snippet (`security_headers`) som importeras både i sajtblocket och i `handle_errors`, så att också fel som `file_server` själv svarar med (405 på `POST`/`OPTIONS`) får dem och inte visar `Server`. Policysträngen står alltså på ett ställe och steg 2 nedan är fortfarande en rad.
+Ett undantag går inte att täcka i Caddyfilen: en felformad adress som `/%zz` avvisas av Go:s http-server (400, fast kropp) innan Caddy läst den. Svaret har inga säkerhetshuvuden men inte heller någon `Server`-header; `verify-static-serving.sh` låser det.
+
+**CSP-strängen** (en rad i `Caddyfile`; samma fil i prod och staging, så listorna täcker båda miljöerna):
+
+```
+default-src 'self';
+script-src 'self' 'sha256-1yYJ…' (index.html: laddarens fas) 'sha256-ZOYf…' (landing.html: sessionstips) 'sha256-y6TT…' (landing.html: next-themes) 'sha256-ENgR…' (strava-popup.html);
+style-src 'self' 'unsafe-inline';
+img-src 'self' https://yrrqaxdngayakcivfrck.supabase.co https://aormctqrmguvncxrigwy.supabase.co;
+font-src 'self'; media-src 'self'; manifest-src 'self';
+connect-src 'self' https://api.runquest.dev https://runquest-backend-staging-staging.up.railway.app https://*.ingest.de.sentry.io https://gateway.umami.is;
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+- **script-src** släpper bara in `'self'` och fyra hashar: det är de fyra inline-skripten i bygget. Ingen `unsafe-inline`, `unsafe-eval` eller `strict-dynamic`
+  (landningens boot-skript lägger in modulskript och `modulepreload` från samma ursprung, så `'self'` räcker). Umamis tracker är en egen fil på eget ursprung (se Webbanalys ovan) och behöver ingen värd i `script-src`.
+  `strava-popup.html` (OAuth-återkopplingen när Strava kopplas) har ett inline-skript som inte stod i underlaget; utan dess hash hade Strava-kopplingen slutat fungera.
+- **Hasharna prövas mot bygget.** `scripts/csp-hashes.mjs` läser Caddyfilens CSP-rad och räknar sha256 över varje inline `<script>` i `dist/**/*.html` (radbrytningar normaliserade som webbläsaren gör).
+  Den fäller på tre saker: ett inline-skript utan hash (`FAIL index.html: inline script 'sha256-…' is missing from script-src`), en hash som inget längre matchar
+  (`stale hash`), och en policy som släppt på ett grunddirektiv (`unsafe-inline` i `script-src`, `frame-ancestors` som inte är `'none'`, Umami-värden borta ur `connect-src`, `script-src-elem`/`script-src-attr` satta (de går före `script-src`), eller `*` eller ett bart schema som `https:` i `connect-src`/`img-src`). Den körs av `scripts/verify-static-serving.sh`
+  (CI-steget "Static serving (Caddy)") och logiken har enhetstester i `scripts/csp-hashes.test.mjs`. Laddarens hash (`index.html`) kommer ur `alignRunnersWithClock.toString()` via esbuild: ändras funktionen eller byts esbuild-version ändras hashen
+  och CI fäller bygget. Åtgärd: kopiera den nya hashen ur FAIL-raden till Caddyfilen (och ta bort den gamla) i samma PR.
+- **style-src är `'self' 'unsafe-inline'`, inga hashar, medvetet.** Det prövades i Report-Only mot e2e-sviten: `react-remove-scroll` (Radix-dialogerna, bland annat inloggningsrutan) lägger in en `<style>` vars text bär uppmätta marginaler och scrollistens bredd och därför inte går att fästa, `sonner` lägger in sin CSS som `<style>` vid import, och den förrenderade markupen har 28 `style`-attribut (24 på landningen, 4 i laddaren) som webbläsaren läser före hydrering.
+  Hashar hade blockerat dialoger och toasts. En inline-stil kan inte köra skript; det som återstår (CSS som läcker data via attributväljare) begränsas av `img-src`, `font-src` och `connect-src`. `csp-hashes.mjs` prövar att `style-src` är exakt det här, så en ändring blir ett medvetet val.
+- **connect-src** listar båda miljöernas API, Sentrys EU-ingest (mönster, eftersom DSN-värdet aldrig läses; bara det inloggade skalet startar Sentry, och koden använder ingen `tunnel`) och Umamis tracker-endpoint.
+  Prod får alltså tala med staging-API:et och tvärtom; det är ofarligt eftersom `script-src` hindrar främmande kod från att köra, och det håller filen densamma (Railpack renderar den som Go-mall, och nya Railway-variabler kräver ägarens ja).
+- **img-src** är Supabase Storage för profilbilder (uppladdningen går via `apps/backend/src/routes/users.ts`), prod- och stagingprojektet. Ingen annan bildkälla finns i koden; Strava är bara navigering (OAuth), inga bilder därifrån.
+  Staging har inga profilbilder på annan adress, och i prod har ägaren kontrollerat 2026-10-21 att alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`. Ingen befintlig bild blockeras alltså av `img-src`.
+- Inga `data:`- eller `blob:`-adresser och inga Workers finns i bygget; inget formulär postar dokumentet (inloggning och väntelista går via `fetch`, alltså `connect-src`).
+- **Ingen `report-uri`/`report-to`** i v0.8.1: det kräver Sentrys DSN-nyckel. Överträdelser samlas i stället av e2e-sviten (`apps/e2e/support/cspViolations.ts`, fixturen `cspGuard`): skarp CSP fäller provet, Report-Only skriver ut dem (`CSP report-only: …`) och lägger dem som anteckning.
+  `tests/security-headers.spec.ts` prövar huvudena på `/`, `/login` och en 404 mot det som serveras.
+
+**Införandet i två steg.** Steg 1 (Report-Only): allt ovan är skarpt utom CSP, som går som `Content-Security-Policy-Report-Only`; Lead låter staging deploya, kör e2e mot staging och läser överträdelserna. Genomfört 2026-10-21: Report-Only (körning 39515140506) och skarp (39518816200), båda med 0 överträdelser.
+Steg 2 (skarp): rubriken byts till `Content-Security-Policy` på en rad i `Caddyfile` och `CSP_HEADER` överst i `scripts/verify-static-serving.sh` följer med; inget annat ändras. Rollback av steg 2 är samma rad tillbaka.
+
+**Lokala körningar.** Caddyfilen renderas med `{{.DIST_DIR}}` ersatt (som Railpack gör). Bygget pekar på det falska API:et på `http://localhost:3001`, som inte står i `connect-src`; `scripts/lighthouse/run.sh` lägger därför till det i sin renderade kopia, och samma `sed` behövs vid e2e mot stubben
+(`docs/e2e.md`). Repo-rotens Caddyfile ändras aldrig för det.
+
+**API:ets egna huvuden** (`helmet()`, `apps/backend/src/app.ts`, helmet 8.1.0, oförändrat i RUN-344): `Content-Security-Policy` (helmets standard: `default-src 'self'`, `frame-ancestors 'self'`, `script-src 'self'`, `upgrade-insecure-requests` m.fl.), `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Resource-Policy: same-origin`, `Origin-Agent-Cluster: ?1`, `Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000; includeSubDomains` (gäller bara API-värden), `X-Content-Type-Options: nosniff`, `X-DNS-Prefetch-Control: off`,
+`X-Download-Options: noopen`, `X-Frame-Options: SAMEORIGIN`, `X-Permitted-Cross-Domain-Policies: none`, `X-XSS-Protection: 0`; `X-Powered-By` tas bort.
+
 ### 4. Rök mot de kritiska flödena
 
 Kör rök-raden för varje kritiskt flöde i `STATE.md` ("Kritiska flöden", nio stycken) som releasen rör, och alltid
 flöde 1 (login → JWT → skyddade anrop). Minst: frontend laddar utan vit sida (inklusive en direktladdad djup länk som
 `/board`), `GET /health` svarar, nya endpoints svarar 401 utan token, och den nya funktionen syns. Muterande rök i prod
 (loggad runda, utmaning) görs bara om ägaren säger ja, eftersom det är den riktiga gruppens data.
+
+**Skarp CSP i prod (RUN-344).** e2e når aldrig prod, och CSP:n har ingen `report-uri`, så ett antagande prövas först här: att Sentrys host matchar `https://*.ingest.de.sentry.io` (`connect-src`). Profilbildernas host är redan verifierad (ägaren 2026-10-21: alla 6 på `yrrqaxdngayakcivfrck.supabase.co`, `img-src`), så avatarerna är här en kontroll av att inget ändrats. Öppna inloggad Board i prod med utvecklarverktygen: ingen konsolrad om Content Security Policy, avatarerna syns, och Strava-kopplingens popup (Settings) fungerar. Svarshuvudena på `/` ska vara `Content-Security-Policy` (inte Report-Only), HSTS `max-age=31536000`, `Referrer-Policy` och `X-Frame-Options: DENY`.
 
 **Förrenderad landning och laddningsvy (v0.8.0, RUN-333, ADR 006 addendum 2026-10-19).** `/` serveras av `landing.html` (Caddyfilen, exakt `/` med valfri
 fråga; `/landing` och `/landing.html` omdirigeras till `/` med 307; utan `landing.html` faller `/` tillbaka på `index.html`), alla andra adresser av `index.html`
@@ -357,7 +479,7 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    gäller inleder migrationsfilens huvud med körordningen.
 3. Körs via Supabase MCP `apply_migration` med `name` = `NNN_kort_beskrivning`. Därefter `list_migrations` (posten
    finns) och, efter RLS- eller policyändring, `get_advisors` (security). Filen ligger redan i release-PR:en.
-4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`, `convert:wind-ms`): dry-run fritt, `--apply` kräver
+4. Backfill- och omräkningsskript (`backfill:*`, `reveal:badges`): dry-run fritt, `--apply` kräver
    ägar-ja med dry-run-rapporten som underlag. Skripten skriver ut måldatabasens host.
 5. **Migrationerna 053–057 i v0.8.0 (ADR 012; 057 är RUN-322)** körs i den här ordningen, först i staging och sedan i prod med ett ja per migration:
    053 `group_members`, 054 `group_settings`, 055 `title_scope_group`, 056 `revoke_legacy_title_function_execute`, 057 `create_recalculation_marks`.
@@ -376,13 +498,26 @@ EU, `https://de.sentry.io`; projekten `runquest-frontend` och `runquest-backend`
    - **056:** kör katalogfrågan (`QUERY-START` i huvudet) FÖRE apply i varje miljö och spara `proacl` per funktion: rollbacken ska ge exakt
      utgångsläget tillbaka, och miljöerna skiljer sig (staging har PUBLIC-execute, prod saknar det). Efter apply samma fråga igen (förväntat: public_execute,
      anon och authenticated false, service_role true), triggerkontrollen i huvudet och `get_advisors` (security). Rök: en runda som bygger om topplistan
-     och en event-utbetalning går igenom. När 056 är applicerad i båda miljöerna tas den tillfälliga schemadiff-regeln bort (`docs/staging.md`, avsnitt 4).
+     och en event-utbetalning går igenom. Den tillfälliga schemadiff-regeln för 056 är borttagen sedan 056 finns i båda miljöerna (`docs/staging.md`, avsnitt 4).
    - **057 `create_recalculation_marks`** (RUN-322, återhämtning av omräkning efter en radering) är additiv och körs FÖRE backend-deployen, efter 056
      (ny kod anropar `mark_recalculation`; saknas den raderar avstämningen ingenting). Efter apply: katalogfrågorna Q1–Q5 och Q4b i huvudet (RLS på,
      0 policyer, ingen klientåtkomst till tabellen, funktionerna och sekvensen bara för `service_role`, Q5 = 0 rader) och `get_advisors` (security).
      Rollbacken står i huvudet och kräver att koden är tillbakarullad först.
    - **Release-röken** kör konsistenskontrollen från 053 (inga avvikelser mellan `users.group_id` och aktivt medlemskap) och, efter 055, att en runda i
      en grupp inte ändrar en annan grupps topplista (staging, `create:group`).
+6. **Tokenkrypteringens slutsteg i v0.8.1: migration 060 (RUN-315) och borttagen klartextläsning (RUN-316; ADR 013 beslut 8, S6 och S7).** Ordningen är fast, i varje miljö,
+   och 060 är en `ask` som alla prod-migrationer (ett ägar-ja, staging först):
+   1. **Ägaren kör backfillen** (`backfill:strava-token-encryption`, dry-run, sedan `--apply` med ägar-ja; [`runbook-token-key.md`](runbook-token-key.md)) i prod, och i staging om staging har tokenrader (Strava körs inte i staging, så den har normalt inga).
+   2. **Hälsoblocket visar `plaintext_rows: 0` och `unrecognised_rows: 0`** (`GET /api/strava/webhook/health`, `token_encryption`). Det är villkoret för steg 3. Dry-run av backfillen ska säga samma sak.
+   3. **060 appliceras** (`060_strava_tokens_encrypted_check`, staging först, sedan prod med ägar-ja). Förkontrollen i filen stoppar med ett tydligt fel (bara antal, aldrig värden) om en enda rad ändå har klartext; ändra då ingen data för att få den att gå igenom,
+      utan kör om backfillen. Därefter Q1–Q4 i filens huvud (constrainten validerad, 0 rader utanför villkoret, RLS och policyer oförändrade, klartext avvisas med `23514` på en tillfällig tabell) och `get_advisors` (security). Rök i staging och prod: en Strava-synk och en webhook-händelse går igenom (de skriver `enc:v1:`, som constrainten tillåter).
+      Medan constrainten gäller avvisar databasen även nödutgången `--decrypt --apply` (`check_violation`); rollbacken i filhuvudet släpper constrainten först om den behövs.
+   4. **RUN-316-koden deployas** (läsvägen har ingen klartextgren; ett värde utan `enc:v1:` ger `token_unreadable`, aldrig "återkallad"). Koden får inte komma före steg 1–3: den läser en kvarvarande klartextrad som oläsbar.
+   **Staging deployar integrationsbranchen automatiskt.** Lead mergar därför RUN-316 till `integration/v0.8.1` först när staging har 0 klartextrader (steg 1–2 klara för staging); annars blir en kvarvarande rad `token_unreadable` i staging så fort grenen deployas.
+   **Utfall 2026-10-22.** Steg 1: ägarens dry-run (via `railway run`) gav i prod 6 rader, alla krypterade på `prod-1`, 0 klartext och 0 fel; staging hade 0 rader. `--apply` behövdes inte, och ägaren valde att inte köra `--refresh-tokens`. Steg 2: villkoret uppfyllt. Steg 3: 060 applicerad i staging och prod 2026-10-22 med ägar-ja; Q1–Q3 och provet (`23514`) kontrollerade i båda miljöerna, `get_advisors` (security) utan nya fynd. Steg 4: RUN-316 är mergad till `integration/v0.8.1` (staging kör den) och når prod med v0.8.1-deployen. Kvar efter deployen: Q5 (hälsoblocket visar `plaintext_rows` och `unrecognised_rows` 0) och röken med en Strava-synk och en webhook-händelse i prod.
+7. **Migrationerna 059 och 058 i v0.8.1.** Ett ägar-ja per migration och miljö, staging först. Båda är applicerade i staging (058 2026-10-19, 059 2026-10-20) men inte i prod.
+   - **059 `user_boosts_window`** (RUN-355) är additiv och körs i prod FÖRE deployen. Den är bakåtkompatibel: kolumnerna `start_date` och `end_date` får vara null och har ingen default, så v0.8.0 påverkas inte, och en rad som äldre kod skriver under deployen läses med det gamla fönstret. v0.8.1-koden kräver kolumnerna (utan dem misslyckas boost-läsningen i omräkningen). Efter apply: katalogfrågorna Q1–Q3 i filhuvudet (Q4 efter första avgjorda duellen med ny kod) och `get_advisors` (security).
+   - **058 `contract_title_ranking`** (RUN-309) är en contract-migration och släpper kolumner (destruktivt). Filhuvudet rekommenderar ordningen v0.8.1 deployad, sedan 058, sedan röken. Frågorna står i huvudet: A1–A6 före apply (spara A4–A6), A1, A3–A5 och B1–B4 efter, och C1 som röken efter en rundloggning eller nattens synk. Båda ordningarna är säkra eftersom ingen kod (v0.8.0 eller v0.8.1) anropar något som släpps.
 
 ### 6. `announce:release`
 
@@ -431,6 +566,10 @@ Beslutas av ägaren; snabbast först. Varje releases egen "Rollback" i `CHANGELO
    läcka den: [`docs/runbook-token-key.md`](runbook-token-key.md). En release som deployar tokenkrypteringen kräver att nyckeln är satt
    i Railway **före** deployen av S1–S4 tillsammans (ADR 013 beslut 13); utan den startar appen men Strava-synken är avstängd och Sentry får ett
    `🚨 KRITISKT`-larm med `source:token_key`.
+   Sätt aldrig `TZ` på backendtjänsten; processen ska köra i UTC. Stockholm-jobben får sin zon av `timezone`-optionen på varje schema, och
+   ett `TZ` med sommartid får node-cron att räkna fel under timmen som upprepas när klockan ställs tillbaka (uppmätt: ett jobb utan
+   `timezone` körde inget på ungefär en timme). Backend loggar en
+   varning vid start (produktionsläge) om `TZ` är satt till något annat än UTC eller tomt.
 6. **Data som gått förlorad** (databasen, profilbilder, hemligheter): koden rullas inte tillbaka för det. Vad Pro-backupen täcker och
    inte täcker, återställningsövningen och RPO/RTO står i [`docs/runbook-backup.md`](runbook-backup.md).
 

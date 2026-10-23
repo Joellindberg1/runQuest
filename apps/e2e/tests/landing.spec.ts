@@ -166,7 +166,8 @@ test.describe('the prerendered landing page', () => {
   });
 
   test('/landing.html/ with a trailing slash ends on / without a reload loop', async ({ page }) => {
-    // Caddy omdirigerar bara /landing och /landing.html; med avslutande snedstreck serveras index.html, och adressen ska ändå landa på landningen utan att sidan laddar om sig själv.
+    // Caddy kedjar två omdirigeringar: filservern tar bort snedstrecket på filen (308 från /landing.html/ till /landing.html), och Caddyfilens regel skickar den vidare (307 till /).
+    // Adressen ska landa på landningen utan att sidan laddar om sig själv; tre dokumentbegäranden är taket (/landing.html/, /landing.html, /).
     const documents: string[] = [];
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(new URL(request.url()).pathname);
@@ -306,8 +307,8 @@ test.describe('a signed-in visitor', () => {
         expect(Math.abs(after.width - before.width), 'width, index.html vs gate').toBeLessThanOrEqual(1);
         expect(Math.abs(after.height - before.height), 'height, index.html vs gate').toBeLessThanOrEqual(1);
         expect(Math.abs(after.x - before.x), 'left edge, index.html vs gate').toBeLessThanOrEqual(1);
-        // Ett prodbygge har ingen banner (noll): kanten står stilla. Ett stagingbygge ritar den först i React och flyttar ovalen en halv bannerhöjd ned.
-        expect(Math.abs(after.y - before.y - after.stagingBannerHeight / 2), 'top edge, index.html vs gate (less half the staging banner)').toBeLessThanOrEqual(1);
+        // Strikt också mot ett stagingbygge: bannerns höjd är reserverad i index.html, så ovalen flyttar sig inte när appen ritar banner och gate.
+        expect(Math.abs(after.y - before.y), 'top edge, index.html vs gate').toBeLessThanOrEqual(1);
         // Ryms i fönstret och gör inte sidan bredare: ingen sidled scroll, ingen överlappning mot kanten.
         expect(before.x).toBeGreaterThanOrEqual(0);
         expect(before.x + before.width).toBeLessThanOrEqual(width);
@@ -337,10 +338,9 @@ test.describe('a signed-in visitor', () => {
     const releasedAt = script.releasedAt() ?? Number.POSITIVE_INFINITY;
     expect(withLoader.filter((frame) => frame.at < releasedAt).length, 'painted frames with the loader from index.html').toBeGreaterThan(0);
     const near = (a: number, b: number) => Math.abs(a - b) <= FRAME_RECT_TOLERANCE_PX;
-    const misplaced = withLoader.filter(({ loaderRect, at }) => {
+    const misplaced = withLoader.filter(({ loaderRect }) => {
       const rect = loaderRect!;
-      // I höjdled flyttar stagingbannern ovalen en halv bannerhöjd när appen ritat gaten: före det står den stilla, i sidled och storlek hela vägen.
-      return !(near(rect.x, final!.x) && near(rect.width, final!.width) && near(rect.height, final!.height) && (at >= releasedAt || near(rect.y, final!.y)));
+      return !(near(rect.x, final!.x) && near(rect.y, final!.y) && near(rect.width, final!.width) && near(rect.height, final!.height));
     });
     expect(
       misplaced.map(({ loaderRect, at }) => ({ ...loaderRect, msBeforeScript: Math.round(releasedAt - at) })),
@@ -481,7 +481,7 @@ test.describe('the onboarding tour', () => {
   test('the close button shows a focus ring when it is reached with the keyboard', async ({ page }) => {
     // Kontot har sett turen. Statusen byts ut mot "inget sett" så att förstagångsturen startar; ingenting skrivs (turen stängs aldrig här).
     await page.route('**/onboarding/status', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ seen: [] } satisfies OnboardingStatusResponse) }),
+      route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }, body: JSON.stringify({ success: true, seen: [], data: { seen: [] } } satisfies OnboardingStatusResponse) }),
     );
     await page.goto('/board');
     await page.locator('.driver-popover').waitFor({ state: 'visible', timeout: 15_000 });

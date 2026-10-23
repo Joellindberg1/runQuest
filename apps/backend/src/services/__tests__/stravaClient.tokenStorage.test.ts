@@ -217,17 +217,6 @@ describe('the row is encrypted again while a refresh is under way (the backfill 
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('does the same when the row was plaintext and has been encrypted meanwhile', async () => {
-    const legacy = { ...TOKEN_ROW, access_token: legacyToken('old-at'), refresh_token: legacyToken('old-rt'), expires_at: 100 };
-    const { result, t } = await refreshWhile([legacy], (tables) => {
-      Object.assign(tables.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', legacyToken('old-at')), refresh_token: storedToken('user-1', 'refresh_token', legacyToken('old-rt')) });
-    });
-
-    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
-    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
-    expect(t.strava_tokens[0].refresh_token.startsWith('enc:v1:')).toBe(true);
-  });
-
   it('still drops the answer when the row now holds another connection, and overwrites nothing', async () => {
     const { result, t } = await refreshWhile([{ ...TOKEN_ROW, expires_at: 100 }], (tables) => {
       Object.assign(tables.strava_tokens[0], { access_token: storedToken('user-1', 'access_token', 'other-at'), refresh_token: storedToken('user-1', 'refresh_token', 'other-rt') });
@@ -413,28 +402,38 @@ describe('the reason a forced refresh gives in the log', () => {
   });
 });
 
-describe('rows that are still plaintext (the dual-read of the transition)', () => {
-  it('a legacy plaintext row is read as it is, sent to Strava as it is, and replaced by an encrypted one after the refresh', async () => {
-    const legacyAccess = legacyToken('legacy-at');
-    const legacyRefresh = legacyToken('legacy-rt');
+describe('rows that are still plaintext (the legacy read is gone)', () => {
+  it('a plaintext refresh token is token_unreadable: Strava is not called, nothing is written, and it is not read as a revoked authorisation', async () => {
     strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
-    const { t, db } = use([{ user_id: 'user-1', access_token: legacyAccess, refresh_token: legacyRefresh, expires_at: 100, connection_date: '2026-09-01' }]);
+    const { t, db } = use([{ user_id: 'user-1', access_token: legacyToken('legacy-at'), refresh_token: legacyToken('legacy-rt'), expires_at: 100, connection_date: '2026-09-01' }]);
+    const before = JSON.stringify(t.strava_tokens);
 
-    const result = await getValidAccessToken('user-1');
+    expect(await getValidAccessToken('user-1')).toEqual({ ok: false, reason: 'token_unreadable' });
+    expect(await refreshAccessToken('user-1')).toEqual({ ok: false, reason: 'token_unreadable' });
 
-    expect(result).toMatchObject({ ok: true, accessToken: 'new-at', refreshed: true });
-    expect(strava.requests[0].body).toMatchObject({ refresh_token: legacyRefresh });
-    // The raw stored string is the plaintext here, and that is what the save is conditional on.
-    expect(tokenWrites(db)[0].filters).toContainEqual({ op: 'eq', column: 'refresh_token', value: legacyRefresh });
-    expect(t.strava_tokens[0].refresh_token).toMatch(/^enc:v1:/);
-    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
+    expect(strava.requests).toHaveLength(0);
+    expect(tokenWrites(db)).toHaveLength(0);
+    expect(db.queries.filter((q) => q.mutation === 'delete')).toHaveLength(0);
+    expect(JSON.stringify(t.strava_tokens)).toBe(before);
   });
 
-  it('a stored access token that has not expired is returned from a legacy plaintext row too', async () => {
+  it('a stored access token that has not expired is NOT handed out from a plaintext row: it is token_unreadable', async () => {
     strava = installFakeStravaFetch({});
     use([{ user_id: 'user-1', access_token: legacyToken('legacy-at'), refresh_token: legacyToken('legacy-rt'), expires_at: 9999999999, connection_date: '2026-09-01' }]);
 
-    await expect(getValidAccessToken('user-1')).resolves.toMatchObject({ ok: true, accessToken: legacyToken('legacy-at'), refreshed: false });
+    await expect(getValidAccessToken('user-1')).resolves.toEqual({ ok: false, reason: 'token_unreadable' });
+    expect(strava.requests).toHaveLength(0);
+  });
+
+  it('a plaintext access token beside an encrypted refresh token is not sent anywhere, and a forced refresh still works from the encrypted one', async () => {
+    strava = installFakeStravaFetch({ oauthToken: stravaTokenResponse({ access_token: 'new-at', refresh_token: 'new-rt', expires_at: 9999999990 }) });
+    const { t } = use([{ ...TOKEN_ROW, access_token: legacyToken('legacy-at'), expires_at: 9999999999 }]);
+
+    expect(await getValidAccessToken('user-1')).toEqual({ ok: false, reason: 'token_unreadable' });
+    expect(strava.requests).toHaveLength(0);
+
+    expect(await refreshAccessToken('user-1')).toMatchObject({ ok: true, refreshed: true });
+    expect(plainRow(t.strava_tokens[0])).toMatchObject({ access_token: 'new-at', refresh_token: 'new-rt' });
   });
 
   it('a row with no stored access token is renewed instead of handing out nothing', async () => {
@@ -478,7 +477,7 @@ describe('token_unreadable', () => {
     }
   });
 
-  it('no key means no token at all: a valid stored token is not handed out either, encrypted or legacy', async () => {
+  it('no key means no token at all: a valid stored token is not handed out either, encrypted or plaintext', async () => {
     vi.stubEnv(ACTIVE_KEY_ENV, '');
     strava = installFakeStravaFetch({});
     use([{ ...TOKEN_ROW }]);
@@ -502,6 +501,7 @@ describe('token_unreadable', () => {
       ['a refresh token sealed for another user', { ...TOKEN_ROW, expires_at: 100, refresh_token: storedToken('user-2', 'refresh_token', 'old-rt') }],
       ['a refresh token sealed under a key id the ring does not hold', { ...TOKEN_ROW, expires_at: 100, refresh_token: sealedUnder(`gone-1:${newKey()}`, 'user-1', 'refresh_token', 'old-rt') }],
       ['a refresh token sealed under another key with the same id', { ...TOKEN_ROW, expires_at: 100, refresh_token: sealedUnder(`test-1:${newKey()}`, 'user-1', 'refresh_token', 'old-rt') }],
+      ['a plaintext token of the old legacy shape', { ...TOKEN_ROW, expires_at: 100, refresh_token: legacyToken('old-rt') }],
       ['a plaintext of the wrong shape', { ...TOKEN_ROW, expires_at: 100, refresh_token: 'short' }],
       ['a plaintext with a colon', { ...TOKEN_ROW, expires_at: 100, refresh_token: 'looks:like:a:broken:ciphertext:xx' }],
     ];

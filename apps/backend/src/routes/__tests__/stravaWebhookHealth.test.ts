@@ -223,7 +223,7 @@ describe('GET /api/strava/webhook/health', () => {
     useDb({ [EVENTS]: [event('pending')] }, { failWhen: (q) => (q.table === EVENTS && q.filters.some((f) => f.value === 'dead') ? { message: 'boom with owner_id 918273645', code: 'XX001' } as any : null) });
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health', code: 'internal_error' });
     const logged = errorLog.mock.calls.flat().map(String).join(' ');
     expect(logged).toContain('XX001');
     expect(logged).not.toContain('918273645');
@@ -246,7 +246,7 @@ describe('GET /api/strava/webhook/health', () => {
       useDb({ [EVENTS]: [event('pending')] }, { failWhen: (q) => (q.select === column ? ({ message: 'boom owner_id 918273645', code: 'XX002' } as any) : null) });
       const res = await server.request('GET', HEALTH, { token: adminToken() });
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+      expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health', code: 'internal_error' });
       const logged = errorLog.mock.calls.flat().map(String).join(' ');
       expect(logged).toContain('XX002');
       expect(logged).not.toContain('918273645');
@@ -257,7 +257,7 @@ describe('GET /api/strava/webhook/health', () => {
     useDb({}, { failWhen: (q) => { if (q.table === EVENTS) throw new Error('db exploded for owner 918273645'); return null; } });
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health', code: 'internal_error' });
     expect(errorLog.mock.calls.flat().map(String).join(' ')).not.toContain('918273645');
   });
 
@@ -265,7 +265,7 @@ describe('GET /api/strava/webhook/health', () => {
     useDb({}, { failWhen: (q) => (q.table === 'strava_tokens' ? { message: 'down' } : null) });
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health', code: 'internal_error' });
   });
 });
 
@@ -346,7 +346,7 @@ describe('GET /api/strava/webhook/health, the token_encryption block', () => {
     const res = await (await serve()).request('GET', HEALTH, { token: adminToken() });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to read webhook health', code: 'internal_error' });
     const logged = errorLog.mock.calls.flat().map(String).join(' ');
     expect(logged).toContain('XX003');
     expect(logged).not.toContain('LEAKED-ROW-VALUE');

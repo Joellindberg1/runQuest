@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PROFILE_TOUR_SLUG, zoneDay } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { paths } from '@/paths';
@@ -13,7 +14,6 @@ import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
 import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
-import { todayOf } from '@/features/log/logModel';
 import { useRunnerTitles } from '@/features/runner/hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../profileModel';
 import '../profile.css';
@@ -76,7 +76,7 @@ export function ProfileScreen() {
 
   return (
     <div className="rq-profile rq-rise">
-      <FeatureTour slug="tour_profile_v2" steps={TOUR_PROFILE_V2} />
+      <FeatureTour slug={PROFILE_TOUR_SLUG} steps={TOUR_PROFILE_V2} />
       <div className="rq-profile__split">
         <div className="rq-profile__main">
           <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={isDesktop ? badges.showcase : undefined} />
@@ -87,7 +87,7 @@ export function ProfileScreen() {
         <div className="rq-profile__side">
           <TitlesPanel user={me} titles={titlesQuery} board={boardQuery} isDesktop={isDesktop} />
           {!isDesktop && summary}
-          <RunHistory runs={me.runs ?? []} today={todayOf(now)} />
+          <RunHistory runs={me.runs ?? []} today={zoneDay(now)} />
         </div>
       </div>
     </div>

@@ -1,10 +1,9 @@
 import React from 'react';
-import { stockholmClock } from '@runquest/shared';
+import { LEADERBOARD_TOUR_SLUG, isoWeekNumber, stockholmClock } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
-import { isoWeekNumber } from '@/features/leaderboard/boardFormat';
 import { BOARD_VIEWS, DEFAULT_BOARD_VIEW, type BoardView } from '@/features/leaderboard/boardViews';
 import { SeasonView } from '@/features/leaderboard/components/SeasonView';
 import { StreaksView } from '@/features/leaderboard/components/StreaksView';
@@ -14,7 +13,6 @@ import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
-import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import '@/features/leaderboard/board.css';
 
 // "Season" finns inte i datamodellen än (ägarbeslut 2): fliken heter All-time, adressen ?view=season (ADR 006).
@@ -35,7 +33,7 @@ const BoardPage: React.FC = () => {
   const usersQuery = useUsersWithRuns(!!user);
 
   const weekNumber = isoWeekNumber(stockholmClock(now).date);
-  const runnerCount = usersQuery.data ? leaderboardUtils.filterAndSortUsers(usersQuery.data).length : null;
+  const runnerCount = usersQuery.data ? usersQuery.data.length : null;
   const sub = isDesktop && runnerCount ? `Week ${weekNumber} · ${runnerCount} runners` : `Week ${weekNumber}`;
 
   const tabs = (
@@ -45,7 +43,7 @@ const BoardPage: React.FC = () => {
   return (
     <div className="rq-board">
       {/* Ankaret (leaderboard-card) finns först när podiet är ritat, och bara i Season-vyn. */}
-      {view === 'season' && usersQuery.data && <FeatureTour slug="tour_leaderboard_v2" steps={TOUR_LEADERBOARD_V1} />}
+      {view === 'season' && usersQuery.data && <FeatureTour slug={LEADERBOARD_TOUR_SLUG} steps={TOUR_LEADERBOARD_V1} />}
 
       <header className="rq-board__head">
         {isDesktop ? (

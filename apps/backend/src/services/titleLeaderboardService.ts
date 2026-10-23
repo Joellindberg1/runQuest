@@ -1,8 +1,8 @@
-import { supabase } from '../config/database';
+import { supabase } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 import { rebuildGroupTitleRanking } from './groupRanking.js';
-import type { TitleLeaderboardEntry, TitleRunnerUp, TitleStanding, UserTitleEntry, UserTitleStatus } from '@runquest/shared';
+import type { TitleCatalogEntry, TitleLeaderboardEntry, TitleRunnerUp, TitleStanding, UserTitleEntry, UserTitleStatus } from '@runquest/shared';
 
 // Felhantering, en felhändelse per fel: metoderna här kastar ett fel med databasens kod (errorWithCode) och loggar inte det de kastar.
 // Den som FÅNGAR loggar, en gång: rutten i routes/titles.ts, eller anroparen i tjänsterna. Det som sväljs här (getUserTitles) loggas här.
@@ -212,33 +212,16 @@ export class TitleLeaderboardService {
   }
 
   /**
-   * Refresh ONE group's leaderboard for a specific title (ADR 012 beslut 4.3). Rankingen är per grupp: en annan grupps lista rörs aldrig.
-   * Fail-closed: utan groupId kastas det, så att ett anrop aldrig faller tillbaka på en ombyggnad av alla grupper.
-   */
-  async refreshTitleLeaderboard(groupId: string, titleId: string): Promise<void> {
-    if (typeof groupId !== 'string' || groupId === '') throw new Error('refreshTitleLeaderboard kräver groupId');
-    logger.info(`🔄 Refreshing leaderboard for title: ${titleId}`);
-
-    const { error } = await supabase.client.rpc('update_group_title_leaderboard', {
-      p_group_id: groupId,
-      p_title_id: titleId
-    });
-
-    if (error) throw errorWithCode(`Failed to refresh the leaderboard of title ${titleId} in group ${groupId}`, error);
-
-    logger.info(`✅ Leaderboard refreshed for title ${titleId}`);
-  }
-
-  /**
    * Get all titles (without leaderboard data)
-   * Simple fetch of all available titles
+   * Simple fetch of all available titles. Kolumnerna är uttryckliga (inte select *), så att svarsformen inte hänger på schemat:
+   * de två frusna, globala innehavarkolumnerna (släppta i migration 058) läcker inte längre ut.
    */
-  async getAllTitles(): Promise<any[]> {
+  async getAllTitles(): Promise<TitleCatalogEntry[]> {
     logger.info('🏆 Fetching all titles...');
 
     const { data, error } = await supabase.client
       .from('titles')
-      .select('*')
+      .select('id, name, description, unlock_requirement, created_at, updated_at, metric_key, outdoor_only')
       .order('name');
 
     if (error) throw errorWithCode('Failed to read titles', error);

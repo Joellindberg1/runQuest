@@ -265,7 +265,7 @@ describe('PUT /api/groups/settings', () => {
     const { db } = use();
     const res = await put(MEMBER, { values: { [DIGEST.key]: true } });
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: 'Forbidden' });
+    expect(res.body).toEqual({ success: false, error: 'Forbidden', code: 'forbidden' });
     expect(mutations(db)).toEqual([]);
     expect(changes).toEqual([]);
   });
@@ -317,7 +317,7 @@ describe('PUT /api/groups/settings', () => {
     const { db } = use();
     const res = await put(ADMIN, { values: { [DIGEST.key]: true, [MINE.key]: false } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.stringContaining(MINE.key) });
+    expect(res.body).toEqual({ success: false, error: expect.stringContaining(MINE.key), code: 'invalid_request' });
     expect(mutations(db)).toEqual([]);
     expect(changes).toEqual([]);
   });
@@ -333,7 +333,7 @@ describe('PUT /api/groups/settings', () => {
     ]) {
       const res = await put(ADMIN, body);
       expect(res.status, JSON.stringify(body)).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     }
     expect(mutations(db)).toEqual([]);
   });
@@ -663,10 +663,11 @@ describe('a seam that never answers', () => {
     try {
       const { tables } = use();
       const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
-      const started = Date.now();
+      // Counts the timer instead of measuring wall time: the seam is cut off at the limit the router was given (40 ms), never at the default.
+      const timers = vi.spyOn(globalThis, 'setTimeout');
       const first = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [DIGEST.key]: true } } });
       expect(first.status).toBe(200);
-      expect(Date.now() - started).toBeLessThan(2000);
+      expect(timers).toHaveBeenCalledWith(expect.any(Function), 40);
       expect(JSON.stringify(error.mock.calls)).toContain('seam_timeout');
       const second = await local.request('PUT', '/api/groups/settings', { token: token(ADMIN), body: { values: { [PACE.key]: 'hard' } } });
       expect(second.status).toBe(200);

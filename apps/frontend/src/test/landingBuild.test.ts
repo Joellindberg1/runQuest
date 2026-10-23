@@ -2,13 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createElement } from 'react';
+import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { build, type Plugin } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RoutePending } from '@/app-shell/RoutePending';
+import { StagingBanner } from '@/app-shell/StagingBanner';
 import { sessionHintScript } from '@/landing-entry/sessionHint';
-import { LANDING_MARKER, LOADER_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
+import { LANDING_MARKER, LOADER_MARKER, LOADER_PHASE_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
 // Bygget av de två HTML-ingångarna (ADR 006, addendum 2026-10-19, punkt 1, 2 och 11): `vite build` följt av prerender-landing, med samma konfiguration som
 // `npm run build`, mot en tillfällig utkatalog (public/ hoppas över, filmen är stor). Landningens rubrik, stegen och sifferraden prövas i sin modell och
@@ -30,6 +31,7 @@ interface ChunkInfo {
 
 let workDir: string;
 const chunksByBuild = new Map<string, ChunkInfo[]>();
+const builtDists = new Map<string, string>();
 
 function collectChunks(name: string): Plugin {
   return {
@@ -60,6 +62,7 @@ async function buildApp(name: string, appEnv: string): Promise<string> {
   const distDir = join(workDir, name);
   await build({ root: frontend, logLevel: 'silent', publicDir: false, plugins: [collectChunks(name)], build: { outDir: distDir, emptyOutDir: true } });
   await prerenderLanding({ root: frontend, distDir });
+  builtDists.set(name, distDir);
   return distDir;
 }
 
@@ -109,6 +112,21 @@ function landingClosure(name: string): ChunkInfo[] {
   expect(entry, 'landningens ingångschunk').toBeDefined();
   return staticClosure(name, entry!);
 }
+
+/** Landningens boot-skript: den enda modulskript-taggen i landing.html, och de JS-filer det startar (ingången och dess förladdningar, som adresser i dess text). */
+function bootScript(distDir: string, html: string): { file: string; modulesInHtml: number; starts: string[] } {
+  const modules = Array.from(html.matchAll(/<script\b(?=[^>]*type="module")[^>]*\bsrc="\/([^"]+)"[^>]*><\/script>/g), (match) => match[1]);
+  const file = modules[0] ?? '';
+  const starts = file ? Array.from(read(distDir, file).matchAll(/"\/(assets\/[^"]+\.js)"/g), (match) => match[1]) : [];
+  return { file, modulesInHtml: modules.length, starts };
+}
+
+/** Landningens JS-filer som finns i dist: grafen minus chunkar Vite tar bort (temat är en ren CSS-chunk, dess JS-fil skrivs aldrig). */
+const landingScriptFiles = (name: string, distDir: string) =>
+  landingClosure(name)
+    .map((chunk) => chunk.fileName)
+    .filter((file) => existsSync(join(distDir, file)))
+    .sort();
 
 const cssOf = (dist: string, chunks: ChunkInfo[]) => [...new Set(chunks.flatMap((chunk) => chunk.css))].map((file) => read(dist, file)).join('\n');
 // Skalets överlagerregler i minifierad form: scrimmen och modalen är fasta lager. login.css har egna regler på .rq-modal.rq-login-dialog, så markören är grundreglerna.
@@ -179,7 +197,7 @@ describe('the production build', () => {
     expect(scripts.filter(({ text }) => serverCode.test(text)).map(({ file }) => file)).toEqual([]);
   });
 
-  it('the landing entry loads neither the app pages nor the tour, and landing.html preloads nothing outside its own graph', () => {
+  it('the landing entry loads neither the app pages nor the tour', () => {
     const closure = landingClosure('prod');
     const modules = closure.flatMap((chunk) => chunk.moduleIds).map(normalize);
     expect(modules.filter((id) => /\/src\/pages\/(?:Board|Titles|Duels|Events|News|Log|Profile|Runner|Badges)Page/.test(id))).toEqual([]);
@@ -187,11 +205,29 @@ describe('the production build', () => {
     expect(modules.filter((id) => /\/src\/(?:routes|App)\.tsx$/.test(id))).toEqual([]);
     // Och själva landningen finns med, annars bevisar tomma sökträffar ingenting.
     expect(modules.some((id) => id.endsWith('/features/landing/components/LandingScreen.tsx'))).toBe(true);
+  });
 
+  // Ingångsmodulen och dess förladdningar hämtas först efter första ritningen (RUN-343, deferLandingEntry.ts). HTML-filen bär bara ett litet boot-skript; boot-skriptet
+  // ska starta exakt landningens egen graf: tappas en chunk hydreras landningen aldrig, och en extra chunk vore en förladdning utanför grafen.
+  it('landing.html has one module script, the boot script, and no modulepreload link; the boot script starts the landing entry and exactly its own graph', () => {
     const html = read(dist, 'landing.html');
-    const preloaded = Array.from(html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*href="\/([^"]+)"/g), (match) => match[1]);
-    const known = new Set(closure.map((chunk) => chunk.fileName));
-    expect(preloaded.filter((file) => !known.has(file))).toEqual([]);
+    expect(html).not.toMatch(/<link\b[^>]*rel="modulepreload"/);
+    const boot = bootScript(dist, html);
+    expect(boot.modulesInHtml).toBe(1);
+    expect(boot.file).toMatch(/^assets\/landing-boot-[\w-]+\.js$/);
+
+    const closure = landingClosure('prod');
+    const entry = closure.find((chunk) => chunk.facadeModuleId?.endsWith('landing.html'))!;
+    expect(boot.starts).toContain(entry.fileName);
+    expect([...boot.starts].sort()).toEqual(landingScriptFiles('prod', dist));
+    for (const file of boot.starts) expect(existsSync(join(dist, file)), `${file} finns i dist`).toBe(true);
+  });
+
+  it('index.html keeps its module script and preloads in the HTML: only the landing defers its entry', () => {
+    const html = read(dist, 'index.html');
+    expect(html).toMatch(/<link\b[^>]*rel="modulepreload"/);
+    expect(html).toMatch(/<script\b[^>]*type="module"[^>]*\bsrc="\/assets\/index-[\w-]+\.js"/);
+    expect(html).not.toContain('landing-boot');
   });
 
   it("landing.html's stylesheets carry the loading view's rule but none of the shell's layout rules", () => {
@@ -246,6 +282,18 @@ describe('the production build', () => {
     });
   });
 
+  it('index.html has one inline script, the runner phase, in the head before every stylesheet and module script, so it runs before the stylesheet and not after it', () => {
+    const html = read(dist, 'index.html');
+    const scripts = inlineScripts(html);
+    expect(scripts).toHaveLength(1);
+    // Funktionens text är byggets egen omskrivning (inte vitests), så innehållet prövas i grova drag här; skriptets beteende prövas i runnerPhase.test.ts och i webbläsaren (loader-continuity.spec.ts).
+    for (const part of ['function alignRunnersWithClock', 'rqOrbit', 'rq-phase-pending', 'MutationObserver', 'performance.timeOrigin', 'DOMContentLoaded']) expect(scripts[0].body).toContain(part);
+    expect(scripts[0].body).not.toMatch(/<\/script/i);
+    expect(html).not.toContain(LOADER_PHASE_MARKER);
+    expect(scripts[0].index).toBeLessThan(html.indexOf('</head>'));
+    expect(firstIndexOf(html, [/<link\b[^>]*rel="(?:stylesheet|modulepreload|preload)"/, /<script\b[^>]*\bsrc=/])).toBeGreaterThan(scripts[0].index);
+  });
+
   it('#root in index.html is exactly the loading view, with no landing text and no marker left', () => {
     const html = read(dist, 'index.html');
     expect(rootMarkup(html)).toBe(renderToStaticMarkup(createElement(RoutePending)));
@@ -266,15 +314,46 @@ describe('the production build', () => {
 });
 
 describe('the staging build', () => {
-  it('puts noindex in both files and the banner in landing.html only', async () => {
-    const dist = await buildApp('staging', 'staging');
+  let dist: string;
+  beforeAll(async () => {
+    dist = await buildApp('staging', 'staging');
+  }, BUILD_TIMEOUT_MS);
+
+  it('puts noindex in both files and the banner in the root of both', () => {
     for (const file of ['index.html', 'landing.html']) {
       expect(read(dist, file)).toContain('<meta name="robots" content="noindex, nofollow">');
+      expect(rootMarkup(read(dist, file))).toContain('Staging environment');
     }
-    expect(rootMarkup(read(dist, 'landing.html'))).toContain('Staging environment');
     expect(inlineScripts(read(dist, 'landing.html'))[0].body).toBe(sessionHintScript());
-    expect(rootMarkup(read(dist, 'index.html'))).not.toContain('Staging environment');
-  }, BUILD_TIMEOUT_MS);
+  });
+
+  it('defers the landing entry here too, and the lazy banner chunk is not part of what the boot script starts', () => {
+    const boot = bootScript(dist, read(dist, 'landing.html'));
+    expect(boot.modulesInHtml).toBe(1);
+    expect(boot.file).toMatch(/^assets\/landing-boot-[\w-]+\.js$/);
+    expect([...boot.starts].sort()).toEqual(landingScriptFiles('staging', dist));
+    expect(boot.starts.filter((file) => /StagingBanner/.test(file))).toEqual([]);
+  });
+
+  it('index.html draws the banner above the loading view before any script runs, so the loader is already where the app will put it', () => {
+    const html = read(dist, 'index.html');
+    expect(rootMarkup(html)).toBe(renderToStaticMarkup(createElement(Fragment, null, createElement(StagingBanner), createElement(RoutePending))));
+    expect(html).not.toContain(LOADER_MARKER);
+  });
+
+  it('both files link the stylesheet with the banner and its reserved height, in the same sheets that carry the loading view', () => {
+    for (const file of ['index.html', 'landing.html']) {
+      const css = stylesheetText(dist, read(dist, file));
+      expect(css, file).toContain('.rq-staging-banner');
+      expect(css, file).toMatch(/html:root\{--rq-staging-banner-h:\s*calc\(/);
+    }
+  });
+
+  it('adds no inline script to index.html: the runner phase script is still the only one, byte for byte the production one (same hash)', () => {
+    const inIndex = (distDir: string) => inlineScripts(read(distDir, 'index.html')).map((script) => script.body);
+    expect(inIndex(dist)).toHaveLength(1);
+    expect(inIndex(dist)).toEqual(inIndex(builtDists.get('prod')!));
+  });
 });
 
 // Webbanalysen laddas av koden (umamiPageviews.ts) när sidan visats, aldrig av en tagg i HTML-filerna: S5:s krav på exakt två inline-skript och tipset före
@@ -309,10 +388,10 @@ describe('the build guards', () => {
   const page = (root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
 
   /** En minimal dist med de två filerna; guarden prövas utan ett helt bygge eftersom markörerna kontrolleras före SSR-steget. Landningens head har sessionstipsets markör om inget annat anges. */
-  function fakeDist(name: string, files: { index: string; landing: string; landingHead?: string; landingTail?: string }): string {
+  function fakeDist(name: string, files: { index: string; indexHead?: string; indexTail?: string; landing: string; landingHead?: string; landingTail?: string }): string {
     const dist = join(workDir, name);
     mkdirSync(dist, { recursive: true });
-    writeFileSync(join(dist, 'index.html'), page(files.index));
+    writeFileSync(join(dist, 'index.html'), page(files.index + (files.indexTail ?? ''), files.indexHead ?? LOADER_PHASE_MARKER));
     writeFileSync(join(dist, 'landing.html'), page(files.landing + (files.landingTail ?? ''), files.landingHead ?? SESSION_HINT_MARKER));
     return dist;
   }
@@ -341,6 +420,16 @@ describe('the build guards', () => {
   it('fails when the session hint marker appears twice', async () => {
     const distDir = fakeDist('two-hint-markers', { index: inRoot(LOADER_MARKER), landing: inRoot(LANDING_MARKER), landingHead: SESSION_HINT_MARKER + SESSION_HINT_MARKER });
     await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(SESSION_HINT_MARKER);
+  });
+
+  it('fails when the loader phase marker is missing from the head of index.html', async () => {
+    const distDir = fakeDist('no-phase-marker', { index: inRoot(LOADER_MARKER), indexHead: '', landing: inRoot(LANDING_MARKER) });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LOADER_PHASE_MARKER);
+  });
+
+  it('fails when the loader phase marker is in the body of index.html, where the script would wait for the stylesheet', async () => {
+    const distDir = fakeDist('phase-marker-in-body', { index: inRoot(LOADER_MARKER), indexHead: '', indexTail: LOADER_PHASE_MARKER, landing: inRoot(LANDING_MARKER) });
+    await expect(prerenderLanding({ root: frontend, distDir })).rejects.toThrow(LOADER_PHASE_MARKER);
   });
 
   it('fails when a marker is outside #root', async () => {

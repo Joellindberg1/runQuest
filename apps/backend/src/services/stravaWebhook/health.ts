@@ -5,29 +5,14 @@
 //
 // A read error is NOT swallowed. A health check that says 0 when the database is down lies, so any failed read throws and the route
 // answers 500.
+import type { StravaTokenEncryptionHealth, StravaWebhookHealth } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
 import { errorCode } from '../../utils/errorCode.js';
-import { readTokenEncryptionHealth, type TokenEncryptionHealth } from '../stravaTokenStore.js';
+import { readTokenEncryptionHealth } from '../stravaTokenStore.js';
 import type { WebhookStatus } from './constants.js';
 
 const EVENTS_TABLE = 'strava_webhook_events';
 const TOKENS_TABLE = 'strava_tokens';
-
-export interface WebhookHealth {
-  subscription_configured: boolean;
-  pending: number;
-  processing: number;
-  dead: number;
-  /** Whole seconds since the oldest pending event was received, or null when nothing is pending. */
-  oldest_pending_age_seconds: number | null;
-  /** The newest processed_at (an event that ended dead counts too), as an ISO string, or null. */
-  last_processed_at: string | null;
-  /** Connections without a strava_athlete_id: webhook events for them cannot be matched to anyone. */
-  unmapped_tokens: number;
-  paused_users: number;
-  /** Is the token key usable, which key ids, and the rows by form (ADR 013 decision 9). Counts and key ids only; see stravaTokenStore. */
-  token_encryption: TokenEncryptionHealth;
-}
 
 /** A read that failed. Carries the database error's code only, never its message (it can quote row values). */
 export class WebhookHealthReadError extends Error {
@@ -66,7 +51,7 @@ const countStatus = async (db: Db, status: WebhookStatus): Promise<DbResult> =>
  * Seven small reads and the token store's one (the token_encryption block), no cache (an admin endpoint). `now` is read once so the age and anything else time-based agree.
  * strava_tokens has no id column (its key is user_id), so its counts select user_id.
  */
-export async function readWebhookHealth(subscriptionConfigured: boolean, now: number = Date.now()): Promise<WebhookHealth> {
+export async function readWebhookHealth(subscriptionConfigured: boolean, now: number = Date.now()): Promise<StravaWebhookHealth> {
   const db = getSupabaseClient();
   const [pending, processing, dead, oldestPending, lastProcessed, unmapped, paused] = await Promise.all([
     countStatus(db, 'pending'),
@@ -81,7 +66,7 @@ export async function readWebhookHealth(subscriptionConfigured: boolean, now: nu
 
   // The token columns are the store's alone (CI guard rule 11), so the token_encryption counts come from it. A failed read is a failed
   // health like the others, with the error's code only.
-  let tokenEncryption: TokenEncryptionHealth;
+  let tokenEncryption: StravaTokenEncryptionHealth;
   try {
     tokenEncryption = await readTokenEncryptionHealth();
   } catch (error) {

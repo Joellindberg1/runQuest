@@ -17,6 +17,13 @@ out/
 .env.development.local  
 .env.test.local
 .env.production.local
+# Alla miljöfiler utom exemplen (.env.production, .env.staging m.fl.)
+.env.*
+!.env.example
+
+# Playwright-utdata om sviten körs från repo-roten
+/playwright-report/
+/test-results/
 
 # IDE files
 .vscode/

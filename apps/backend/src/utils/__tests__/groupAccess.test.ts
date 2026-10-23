@@ -198,7 +198,8 @@ describe('actingGroupForWriteOrRespond', () => {
       expect(res.json).toHaveBeenCalledTimes(1);
       bodies.push(res.json.mock.calls[0]![0]);
     }
-    expect(bodies).toEqual([{ error: 'Forbidden' }, { error: 'Forbidden' }, { error: 'Forbidden' }]);
+    const forbidden = { success: false, error: 'Forbidden', code: 'forbidden' };
+    expect(bodies).toEqual([forbidden, forbidden, forbidden]);
   });
 
   it('answers 500 with a generic body on a database error', async () => {
@@ -208,7 +209,7 @@ describe('actingGroupForWriteOrRespond', () => {
     expect(res.status).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledTimes(1);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.json).toHaveBeenCalledWith({ success: false, error: 'Internal server error', code: 'internal_error' });
   });
 
   it('answers 403 and never touches the database when there is no authenticated user', async () => {

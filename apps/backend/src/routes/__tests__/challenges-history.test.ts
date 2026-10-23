@@ -191,14 +191,14 @@ describe('GET /api/challenges/group-history', () => {
     useDb({ users: users(), challenges: [] });
     const res = await server.request('GET', `/api/challenges/group-history?${qs}`, { token: mintToken({ user_id: ANNA, group_id: G1 }) });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('DB-fel ger 500 med { error }', async () => {
     useDb({ users: users(), challenges: [] }, { errors: { challenges: { message: 'boom' } } });
     const res = await server.request('GET', '/api/challenges/group-history', { token: mintToken({ user_id: ANNA, group_id: G1 }) });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
   });
 });
 
@@ -219,7 +219,7 @@ describe('GET /api/challenges/head-to-head/:userId', () => {
     useDb({ users: users(), challenges: [] });
     const res = await server.request('GET', `/api/challenges/head-to-head/${ANNA}`, { token: tokenAnna() });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('404 för användare i annan grupp (läcker inte existens)', async () => {

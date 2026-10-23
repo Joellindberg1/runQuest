@@ -3,7 +3,7 @@
  * som blir inaktuell efter groups/join, och inte users.group_id). Rankingen byggs om för den gruppen och ingen annan. En användare utan
  * aktivt medlemskap får inga titlar alls (ADR 012 beslut 1.4 och 4).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/database.js', () => ({
   default: {},
@@ -22,15 +22,16 @@ vi.mock('../../services/enhancedTitleService.js', () => ({
 import { getSupabaseClient } from '../../config/database.js';
 import { calculateUserTotals } from '../calculateUserTotals.js';
 import { logger } from '../logger.js';
-import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 
 const groupRefresh = vi.fn((_args: unknown) => ({ data: null, error: null }));
-const globalRefresh = vi.fn(() => ({ data: null, error: null }));
 
 function use(tables: Record<string, Row[]>, options: Partial<FakeDbOptions> = {}) {
   const db = createFakeDb(tables, {
     numericIds: ['activity_log'],
-    rpc: { update_group_title_leaderboards: groupRefresh, update_all_title_leaderboards: globalRefresh },
+    // Skrivvägen bygger ingen ranking och anropar ingen annan rpc; afterEach fäller testet om den gör det.
+    allowedRpc: [],
+    rpc: { update_group_title_leaderboards: groupRefresh },
     ...options,
   });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
@@ -51,29 +52,29 @@ function tables(groupId: string | null, over: { pointer?: string | null; leftAt?
 }
 
 beforeEach(() => { vi.clearAllMocks(); });
+afterEach(() => { expectNoUnexpectedRpc(); });
 
 describe('calculateUserTotals → titelomräkning', () => {
-  it('Strava-vägen anropar processGroupTitles med användarens aktiva medlemskap och bygger om just den gruppens ranking', async () => {
+  it('Strava-vägen anropar processGroupTitles med användarens aktiva medlemskap; rankingen byggs av processGroupTitles, inte av calculateUserTotals', async () => {
     use(tables('g1'));
     await calculateUserTotals('u1'); // ingen groupId-parameter (Strava-importen)
     expect(processGroupTitles).toHaveBeenCalledTimes(1);
     expect(processGroupTitles).toHaveBeenCalledWith('g1');
     expect(processUserTitlesAfterRun).not.toHaveBeenCalled();
-    expect(groupRefresh).toHaveBeenCalledTimes(1);
-    expect(groupRefresh).toHaveBeenCalledWith({ p_group_id: 'g1' });
+    // processGroupTitles (mockad här) bygger gruppens ranking EN gång (migration 058); calculateUserTotals bygger den inte själv.
+    expect(groupRefresh).not.toHaveBeenCalled();
   });
 
-  it('ingen global ombyggnad av rankingen i skrivvägen', async () => {
+  it('ingen annan ombyggnad av rankingen i skrivvägen: ingen rpc utöver gruppens, som inte heller anropas', async () => {
     use(tables('g1'));
     await calculateUserTotals('u1');
-    expect(globalRefresh).not.toHaveBeenCalled();
+    expect(groupRefresh).not.toHaveBeenCalled();
   });
 
   it('medlemskapet i group_members styr, inte users.group_id (pekaren kan avvika)', async () => {
     use(tables('g-member', { pointer: 'g-pointer' }));
     await calculateUserTotals('u1');
     expect(processGroupTitles).toHaveBeenCalledWith('g-member');
-    expect(groupRefresh).toHaveBeenCalledWith({ p_group_id: 'g-member' });
   });
 
   it('en extra, inaktuell grupp-parameter ignoreras: det färska medlemskapet styr (JWT-gruppen blir inaktuell)', async () => {
@@ -99,7 +100,6 @@ describe('användare utan aktivt medlemskap', () => {
     expect(processGroupTitles).not.toHaveBeenCalled();
     expect(processUserTitlesAfterRun).not.toHaveBeenCalled();
     expect(groupRefresh).not.toHaveBeenCalled();
-    expect(globalRefresh).not.toHaveBeenCalled();
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
   });
 
@@ -123,7 +123,7 @@ describe('användare utan aktivt medlemskap', () => {
 });
 
 describe('fel i titelkedjan fäller inte totalerna', () => {
-  it('ett fel i titelbearbetningen fäller inte totalerna och hoppar över ombyggnaden', async () => {
+  it('ett fel i titelbearbetningen (inklusive ombyggnaden av rankingen, som hör till den) fäller inte totalerna', async () => {
     const t = tables('g1');
     use(t);
     processGroupTitles.mockRejectedValueOnce(new Error('boom'));
@@ -160,7 +160,6 @@ describe('misslyckade användare i gruppomräkningen syns i loggen', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][0])).toMatch(/2.*6/);
     expect(t.users[0]).toMatchObject({ total_xp: 24, total_km: 12 });
-    expect(groupRefresh).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 

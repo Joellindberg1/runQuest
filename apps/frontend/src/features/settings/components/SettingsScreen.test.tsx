@@ -190,7 +190,7 @@ describe('Settings — Strava', () => {
     });
 
     it('a consent required response from the API shows an error and a reload hint', async () => {
-      connect.mockResolvedValue({ success: false, error: 'Consent required' });
+      connect.mockResolvedValue({ success: false, error: 'Consent required', code: 'consent_required' });
       renderSettings();
       await agreeAndClick('Connect Strava');
 

@@ -2,11 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Run } from '@runquest/types';
 import { backendApi } from '@/shared/services/backendApi';
 import { invalidateAfterRunChange, invalidateIfRunWritten, runChangeError } from '@/features/runs/runEffects';
-import type { RunUpdate } from '../profileModel';
+import type { UpdateRunRequest } from '@runquest/shared';
 
 interface UpdateRunArgs {
   run: Run;
-  update: RunUpdate;
+  update: UpdateRunRequest;
 }
 
 /**

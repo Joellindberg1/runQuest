@@ -1,8 +1,8 @@
 import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
-import { formatDay, formatInt, formatKm, formatMultiplier } from './profileFormat';
-import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
+import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
 // (en definition i runnerModel — samma siffror på båda korten); resten är profilens egen. Ren logik, ingen DOM.
@@ -112,13 +112,7 @@ export function validateEdit(form: EditForm, today: string, original?: Pick<Run,
   return errors;
 }
 
-export interface RunUpdate {
-  /** Utelämnas när datumet inte ändrats — en ren distansändring ska inte falla på serverns datumvalidering (UTC-"idag"). */
-  date?: string;
-  distance: number;
-}
-
-export function buildUpdate(form: EditForm, today: string, original: Pick<Run, 'date'>): { ok: true; update: RunUpdate } | { ok: false; errors: FieldErrors } {
+export function buildUpdate(form: EditForm, today: string, original: Pick<Run, 'date'>): { ok: true; update: UpdateRunRequest } | { ok: false; errors: FieldErrors } {
   const errors = validateEdit(form, today, original);
   const km = parseKm(form.distance);
   if (Object.keys(errors).length > 0 || km === null) return { ok: false, errors };
@@ -141,11 +135,11 @@ export const STRAVA_DELETE_HINT = 'Strava runs come back from Strava — delete 
 
 /** Bekräftelsen efter en sparad ändring — siffrorna är serverns (rundan efter omräkningen). */
 export function updateNotice(run: Pick<Run, 'date' | 'distance' | 'xp_gained'>): string {
-  return `Run updated: ${formatKm(Number(run.distance))} km on ${formatDay(run.date)} for ${formatInt(run.xp_gained)} XP. Your streak and XP are recalculated from that day on.`;
+  return `Run updated: ${formatKm(Number(run.distance))} km on ${formatDayMonth(run.date)} for ${formatInt(run.xp_gained)} XP. Your streak and XP are recalculated from that day on.`;
 }
 
 export function deleteNotice(run: Pick<Run, 'date' | 'distance'>): string {
-  return `Run deleted: ${formatKm(run.distance)} km on ${formatDay(run.date)}. Your streak and XP are recalculated from that day on.`;
+  return `Run deleted: ${formatKm(run.distance)} km on ${formatDayMonth(run.date)}. Your streak and XP are recalculated from that day on.`;
 }
 
 /** Uppräkningen som visas i redigeringsrutan: vad rundan gav senast servern räknade. */
@@ -167,16 +161,11 @@ export function buildXpParts(run: Run): XpPart[] {
 
 // ─── Profilbild ───────────────────────────────────────────────────────────────
 
-export const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
-
-/** Typerna servern tar emot (apps/backend/src/routes/users.ts, ALLOWED_IMAGE_TYPES). */
-export const ACCEPTED_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
-
 /** Samma regler som POST /users/profile-picture: JPEG, PNG, WebP eller GIF, högst 5 MB. */
 export function validatePicture(file: Pick<File, 'size' | 'type'> | undefined): string | null {
   if (!file) return 'Choose an image to upload';
-  if (file.size > MAX_PICTURE_BYTES) return 'The image must be smaller than 5 MB';
-  if (!(ACCEPTED_PICTURE_TYPES as readonly string[]).includes(file.type)) return 'Only JPEG, PNG, WebP or GIF images are allowed';
+  if (file.size > PROFILE_PICTURE_MAX_BYTES) return 'The image must be smaller than 5 MB';
+  if (!PROFILE_PICTURE_MIME_TYPES.includes(file.type)) return 'Only JPEG, PNG, WebP or GIF images are allowed';
   return null;
 }
 

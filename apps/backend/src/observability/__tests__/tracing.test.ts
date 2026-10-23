@@ -506,7 +506,7 @@ describe('path segments of outgoing calls', () => {
     expect(describeCall('https://abc.supabase.co/storage/v1/object/public/profile-pictures/joelindberg')).toBe('GET https://abc.supabase.co/storage/v1/object/public/profile-pictures/:id');
     expect(describeCall('https://abc.supabase.co/rest/v1/anna-andersson-gmail-com')).toBe('GET https://abc.supabase.co/rest/v1/:id');
     expect(describeCall('https://abc.supabase.co/rest/v1/runs')).toBe('GET https://abc.supabase.co/rest/v1/runs');
-    expect(describeCall('https://abc.supabase.co/rest/v1/rpc/update_title_leaderboard')).toBe('GET https://abc.supabase.co/rest/v1/rpc/update_title_leaderboard');
+    expect(describeCall('https://abc.supabase.co/rest/v1/rpc/update_group_title_leaderboards')).toBe('GET https://abc.supabase.co/rest/v1/rpc/update_group_title_leaderboards');
     expect(describeCall('https://www.strava.com/api/v3/athlete/activities')).toBe('GET https://www.strava.com/api/v3/athlete/activities');
     expect(describeCall('https://www.strava.com/api/v3/activities/987654321')).toBe('GET https://www.strava.com/api/v3/activities/:id');
     expect(describeCall('https://api.open-meteo.com/v1/forecast')).toBe('GET https://api.open-meteo.com/v1/forecast');

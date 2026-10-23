@@ -20,25 +20,37 @@ import { createFakeDb, type RecordedQuery, type Row } from '../../routes/__tests
 const TITLE = { id: 't-km', name: 'Distance King', description: '', unlock_requirement: 1, metric_key: 'totalKm' };
 const LEAK = 'LEAKMARKER row 4711 jane@example.com';
 
-function use(options: { failWhen?: (q: RecordedQuery) => { message: string; code?: string; details?: string } | null; failRefresh?: { message: string; code: string } } = {}) {
+function use(options: { failWhen?: (q: RecordedQuery) => { message: string; code?: string; details?: string } | null } = {}) {
   const tables: Record<string, Row[]> = { titles: [TITLE], user_titles: [], users: [{ id: 'u1', total_km: 10, longest_streak: 0 }], runs: [] };
   const db = createFakeDb(tables, {
     autoIds: true,
     failWhen: options.failWhen,
-    rpc: { update_group_title_leaderboard: () => (options.failRefresh ? { error: options.failRefresh } : { data: null }) },
+    rpc: { update_group_title_leaderboard: () => { rpcCalls.push('update_group_title_leaderboard'); return { data: null }; }, update_group_title_leaderboards: () => { rpcCalls.push('update_group_title_leaderboards'); return { data: null }; } },
   });
   holder.client = db.client;
   return tables;
 }
 
+const rpcCalls: string[] = [];
+
 const run = (service = new EnhancedTitleService()) => service.processUserTitlesAfterRun({ userId: 'u1', groupId: 'g1', window: { from: null } }, [], { total_km: 10, longest_streak: 0 }).catch((error: Error) => error);
 
 beforeEach(() => {
+  rpcCalls.length = 0;
   vi.spyOn(logger, 'info').mockImplementation(() => {});
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
 });
 
 describe('processUserTitlesAfterRun thrown error', () => {
+  it('writes the title and never rebuilds the ranking itself (processGroupTitles does that once per group)', async () => {
+    const tables = use();
+
+    expect(await run()).toBeUndefined();
+
+    expect(tables.user_titles).toHaveLength(1);
+    expect(rpcCalls).toEqual([]);
+  });
+
   it('carries the code of the failed title write and nothing of the database text', async () => {
     use({ failWhen: (q) => (q.table === 'user_titles' && q.mutation === 'insert' ? { message: `duplicate key ${LEAK}`, code: '23505' } : null) });
 
@@ -46,17 +58,8 @@ describe('processUserTitlesAfterRun thrown error', () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(errorCode(failure)).toBe('23505');
-    expect((failure as Error).message).toBe('1 title check(s) and 0 leaderboard refresh(es) failed (user u1)');
+    expect((failure as Error).message).toBe('1 title check(s) failed (user u1)');
     expect(JSON.stringify(failure)).not.toContain('LEAKMARKER');
-  });
-
-  it('carries the code of a failed leaderboard refresh when every title check passed', async () => {
-    use({ failRefresh: { message: `deadlock ${LEAK}`, code: '40P01' } });
-
-    const failure = await run();
-
-    expect(errorCode(failure)).toBe('40P01');
-    expect((failure as Error).message).toBe('0 title check(s) and 1 leaderboard refresh(es) failed (user u1)');
   });
 
   it('names the network cause when the connection broke during a title write (supabase-js code "")', async () => {

@@ -65,14 +65,14 @@ describe('auth', () => {
     const db = use(tables(OWNED()));
     const res = await putShowcase({ series: [] }, null);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
     expect(db.queries).toHaveLength(0);
   });
   it('POST /api/badges/seen utan token → 401 utan databasanrop', async () => {
     const db = use(tables(OWNED()));
     const res = await postSeen({}, null);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
     expect(db.queries).toHaveLength(0);
   });
 });
@@ -138,7 +138,7 @@ describe('PUT /api/badges/showcase', () => {
       const db = use(t);
       const res = await putShowcase(body);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
       expect(writes(db, 'users')).toHaveLength(0);
       expect(t.users.find((u) => u.id === ME)!.displayed_badge_series).toEqual(['early_bird']);
     });
@@ -186,7 +186,7 @@ describe('PUT /api/badges/showcase', () => {
     use(tables(OWNED()), { failWhen: (q) => (q.mutation === 'update' ? { message: 'secret db detail' } : null) });
     const write = await putShowcase({ series: ['milestoner'] });
     expect(write.status).toBe(500);
-    expect(write.body).toEqual({ error: expect.any(String) });
+    expect(write.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(write.body)).not.toContain('secret db detail');
   });
 });
@@ -339,7 +339,7 @@ describe('POST /api/badges/seen', () => {
       const db = use(t);
       const res = await postSeen(body);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
       expect(writes(db, 'user_badges')).toHaveLength(0);
       expect(seenOf(t, ME, 'milestoner')).toBe(0);
     });
@@ -369,7 +369,7 @@ describe('POST /api/badges/seen', () => {
     use(tables([badge(ME, 'milestoner', 3)]), { failWhen: (q) => (q.mutation === 'update' ? { message: 'secret db detail' } : null) });
     const write = await postSeen({});
     expect(write.status).toBe(500);
-    expect(write.body).toEqual({ error: expect.any(String) });
+    expect(write.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
     expect(JSON.stringify(write.body)).not.toContain('secret db detail');
   });
 

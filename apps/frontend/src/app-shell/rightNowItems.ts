@@ -1,6 +1,7 @@
-import { MS_DAY, stockholmClock, streakStatus } from '@runquest/shared';
+import { MS_DAY, addDays, stockholmClock, stockholmWallClockToInstant, streakStatus } from '@runquest/shared';
 import { paths } from '@/paths';
 import type { RQIconName } from '@/shared/components/icons';
+import { formatCountdown } from '@/shared/utils/format';
 
 // "Right now": det som tickar just nu (streak-deadline, event, duell, Strava-sync).
 // Ren logik — datahämtningen ligger i useRightNow, så allt här går att testa med en fast `now`.
@@ -38,8 +39,8 @@ export interface ShellDuel {
   id: string;
   opponentName: string;
   metric: 'km' | 'runs' | 'total_xp';
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface RightNowInput {
@@ -50,22 +51,12 @@ export interface RightNowInput {
   strava: { connected: boolean } | null;
 }
 
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
 
 const METRIC_LABELS: Record<ShellDuel['metric'], string> = {
   km: 'Most km',
   runs: 'Most runs',
   total_xp: 'Most XP',
 };
-
-/** "28 m", "6h", "3 d" — grov enhet räcker, raden uppdateras varje minut. */
-export function formatRemaining(ms: number): string {
-  if (ms < MS_MINUTE) return '<1 m';
-  if (ms < MS_HOUR) return `${Math.floor(ms / MS_MINUTE)} m`;
-  if (ms < MS_DAY) return `${Math.floor(ms / MS_HOUR)}h`;
-  return `${Math.floor(ms / MS_DAY)} d`;
-}
 
 /**
  * Tid kvar tills streaken bryts (Stockholm-dagar, som backend). Senaste rundan idag → deadline
@@ -94,7 +85,7 @@ function streakItem(input: RightNowInput): RightNowItem | null {
     kind: 'streak',
     label: 'Streak',
     note: `${streak.current}-day streak`,
-    value: `${formatRemaining(deadline.msLeft)} left`,
+    value: `${formatCountdown(deadline.msLeft, 'pill')} left`,
     tone: deadline.ranToday ? 'up' : 'down',
     icon: 'flame',
     to: paths.log,
@@ -112,10 +103,10 @@ function eventItems(input: RightNowInput): RightNowItem[] {
       const value = event.done
         ? 'Done'
         : scheduled
-          ? `in ${formatRemaining(Math.max(0, startsMs - nowMs))}`
+          ? `in ${formatCountdown(Math.max(0, startsMs - nowMs), 'pill')}`
           : endsMs <= nowMs
             ? 'Settling' // tävling efter slutdatum, väntar på söndagens avräkning (som Events-skärmen)
-            : formatRemaining(endsMs - nowMs);
+            : formatCountdown(endsMs - nowMs, 'pill');
       const note = event.kind === 'participation'
         ? (event.done ? 'Completed' : `+${event.rewardXp} XP`)
         : (event.rank ? `#${event.rank} in the pack` : event.entered ? 'Weekly competition' : 'Not entered');
@@ -135,12 +126,25 @@ function eventItems(input: RightNowInput): RightNowItem[] {
     .map(({ item }) => item);
 }
 
+/**
+ * Ögonblicket då duellens kalenderdag `day` börjar, 00:00 i gruppens tid (Stockholm). Inte `new Date(`${day}T00:00:00`)`: det är
+ * webbläsarens midnatt. NaN för ogiltigt datum.
+ */
+function groupDayStartMs(day: string, plusDays = 0): number {
+  try {
+    return stockholmWallClockToInstant(addDays(day, plusDays), 0).getTime();
+  } catch {
+    return NaN;
+  }
+}
+
 function duelItem(input: RightNowInput): RightNowItem | null {
   const { duel, now } = input;
   if (!duel || !duel.endDate) return null;
   const nowMs = now.getTime();
-  const startMs = duel.startDate ? new Date(`${duel.startDate}T00:00:00`).getTime() : null;
-  const endMs = new Date(`${duel.endDate}T00:00:00`).getTime() + MS_DAY;
+  const startMs = duel.startDate ? groupDayStartMs(duel.startDate) : null;
+  // Fönstret slutar när slutdagen är över: 00:00 dagen efter, som kalenderdag (inte +24 h, dygnet kan vara 23 eller 25 h).
+  const endMs = groupDayStartMs(duel.endDate, 1);
   if (Number.isNaN(endMs)) return null;
   const pending = startMs !== null && startMs > nowMs;
   return {
@@ -148,7 +152,7 @@ function duelItem(input: RightNowInput): RightNowItem | null {
     kind: 'duel',
     label: METRIC_LABELS[duel.metric],
     note: `vs ${duel.opponentName}`,
-    value: pending ? `in ${formatRemaining(startMs - nowMs)}` : formatRemaining(Math.max(0, endMs - nowMs)),
+    value: pending ? `in ${formatCountdown(startMs - nowMs, 'pill')}` : formatCountdown(Math.max(0, endMs - nowMs), 'pill'),
     tone: 'duel',
     icon: 'swords',
     to: paths.duels,

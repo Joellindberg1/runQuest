@@ -4,7 +4,7 @@ import { RQIcon } from '@/shared/components/icons';
 import {
   JOURNEY_END_KM, ZOOM_LABELS, getViewport, journeyPercent, layoutWaypoints, nextCheckpointInfo, pctInView, type ZoomLevel,
 } from '../frodoModel';
-import { formatInt } from '../profileFormat';
+import { formatInt } from '@/shared/utils/format';
 
 // Frodos väg: EN komponent för Profile och Runner card (frodoModel har matematiken, den här har markupen).
 // Klassnamnen är `rq-<prefix>-…` så att varje skärms CSS äger sina egna mått (--rq-profile-* / --rq-runner-*).

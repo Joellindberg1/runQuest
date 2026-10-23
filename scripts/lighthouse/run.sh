@@ -10,6 +10,10 @@
 #   DIST_DIR     katalogen som serveras (standard apps/frontend/dist). Används för att prova en planterad regression i en kopia.
 #   CADDY_BIN    sökväg till en redan hämtad Caddy (CI hämtar den i ett eget steg med install-caddy.sh); saknas den hämtas den här.
 #   CHROME_PATH  webbläsaren som Lighthouse startar (standard: den som chrome-launcher hittar).
+# Bara för verktygstestet (scripts/lighthouse-ci.test.mjs), så att det tål last och en upptagen maskin; CI och lokala körningar ska inte sätta dem:
+#   LHCI_SERVE_PORT     porten Caddy lyssnar på (standard 18090, den som lighthouserc.json pekar på).
+#   PORT_PROBE_SECONDS  hur länge portkollen av API-porten väntar på svar (standard 1).
+#   CADDY_WAIT_TRIES    antal försök (à 0,2 s plus anropet) att nå Caddys /health (standard 50).
 # Rapporterna (JSON + HTML per körning) skriver lhci i .lighthouseci i repo-roten (kan inte ändras); skriptet kopierar dem till
 # lighthouse-reports/<STATS_MODE>/ så att de två lägena kan köras efter varandra och laddas upp tillsammans.
 set -euo pipefail
@@ -18,7 +22,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATS_MODE="${STATS_MODE:-error}"
 DIST_DIR="${DIST_DIR:-apps/frontend/dist}"
 OUT_DIR=".lighthouseci"
-PORT="18090" # samma port som urlerna i lighthouserc.json
+PORT="${LHCI_SERVE_PORT:-18090}" # standardvärdet är porten urlerna i lighthouserc.json pekar på; LHCI_SERVE_PORT är bara till för verktygstestet (låtsas-Caddy på ledig port)
 API_PORT="${API_PORT:-3001}" # måste vara porten bygget pekar på (VITE_API_URL, annars localhost:3001)
 LHCI="$HERE/node_modules/.bin/lhci"
 
@@ -30,7 +34,7 @@ case "$STATS_MODE" in error|mock) ;; *) echo "FAIL STATS_MODE ska vara error ell
 
 # Frontend-bygget pekar på http://localhost:3001/api när VITE_API_URL saknas. Något som redan svarar där är ett riktigt backend, inte
 # vårt falska: i läget "error" avbryter vi hellre än att mäta mot det (och i "mock" kan porten inte bindas).
-if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$API_PORT/"; then
+if curl -s -o /dev/null --max-time "${PORT_PROBE_SECONDS:-1}" "http://127.0.0.1:$API_PORT/"; then
   echo "FAIL något svarar redan på port $API_PORT; stoppa det innan Lighthouse körs"; exit 1
 fi
 if [[ ! -x "$LHCI" ]]; then echo "FAIL lhci saknas: kör npm ci i scripts/lighthouse"; exit 1; fi
@@ -46,7 +50,10 @@ else
   CADDY="$(bash "$HERE/install-caddy.sh" "$WORK/caddy-install" | tail -n 1)"
 fi
 
-sed "s|{{.DIST_DIR}}|$DIST|g" Caddyfile > "$WORK/Caddyfile"
+# Samma rendering som Railpack gör av {{.DIST_DIR}}. Bygget pekar på det falska API:et på 127.0.0.1/localhost, som CSP:ns connect-src (prod- och stagingadresserna) inte listar:
+# utan tillägget blockerar webbläsaren anropet och mätningen får konsolfel som prod aldrig har (RUN-344). Bara den renderade kopian ändras, aldrig repo-rotens Caddyfile.
+sed -e "s|{{.DIST_DIR}}|$DIST|g" -e "s|connect-src 'self'|connect-src 'self' http://localhost:$API_PORT|" Caddyfile > "$WORK/Caddyfile"
+grep -q "connect-src 'self' http://localhost:$API_PORT" "$WORK/Caddyfile" || { echo "FAIL Caddyfilen har ingen connect-src att lägga det falska API:et i: kontrollera CSP-raden"; exit 1; }
 "$CADDY" validate --config "$WORK/Caddyfile" --adapter caddyfile
 
 rm -rf "$OUT_DIR"
@@ -67,16 +74,16 @@ if [[ "$STATS_MODE" == "mock" ]]; then
 fi
 
 up=0
-for _ in $(seq 1 50); do
+for _ in $(seq 1 "${CADDY_WAIT_TRIES:-50}"); do
   if curl -fs "http://127.0.0.1:$PORT/health" > /dev/null; then up=1; break; fi
   sleep 0.2
 done
 if (( up == 0 )); then echo "FAIL Caddy svarade aldrig på /health"; tail -40 "$WORK/caddy.log"; exit 1; fi
 # Samma vakt mot det som faktiskt serveras: Caddyfilen ska ge landningen på / (inte en tom #root) och laddningsvyn på /legal.
 # Kroppen läses först och prövas sedan: `curl | grep -q` med pipefail ger falskt FAIL när grep avslutar före curl skrivit klart (svar över ca 64 KiB, SIGPIPE).
-root_body="$(curl -fs "http://127.0.0.1:$PORT/")"
+root_body="$(curl -fs "http://127.0.0.1:$PORT/")" || { echo "FAIL / kunde inte hämtas från Caddy (curl avslutade med fel): kontrollera att Caddyfilen serverar landningen på /"; exit 1; }
 grep -q "landing-title" <<<"$root_body" || { echo "FAIL / serveras inte som den förrenderade landningen (saknar landing-title): kontrollera Caddyfilens regel för /"; exit 1; }
-legal_body="$(curl -fs "http://127.0.0.1:$PORT/legal")"
+legal_body="$(curl -fs "http://127.0.0.1:$PORT/legal")" || { echo "FAIL /legal kunde inte hämtas från Caddy (curl avslutade med fel): kontrollera att Caddyfilen serverar index.html på /legal"; exit 1; }
 grep -q "rq-shell__pending" <<<"$legal_body" || { echo "FAIL /legal serveras inte som index.html med laddningsvyn"; exit 1; }
 if [[ "$STATS_MODE" == "mock" ]]; then
   curl -fs "http://127.0.0.1:$API_PORT/api/public/stats" > /dev/null || { echo "FAIL det falska API:et svarade aldrig"; cat "$WORK/mock-api.log"; exit 1; }

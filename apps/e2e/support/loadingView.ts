@@ -6,7 +6,10 @@ import { waitForStylesApplied } from './stylesApplied';
 /** Fördröjning av fullappens ingångs-JS: så lång att laddningsvyn hinner synas och mätas innan appen ritar. */
 export const APP_SCRIPT_DELAY_MS = 2_000;
 
-/** Fullappens ingångsfil (`/assets/index-<hash>.js`), landningens (`/assets/landing-<hash>.js`). Hashen är okänd, så prov går på mönstret. */
+/**
+ * Fullappens ingångsfil (`/assets/index-<hash>.js`) och landningens JS: boot-skriptet (`/assets/landing-boot-<hash>.js`, RUN-343), som laddar
+ * ingången (`/assets/landing-<hash>.js`) efter första ritning. Mönstret träffar båda och boot-skriptet först. Hashen är okänd, så prov går på mönstret.
+ */
 const APP_ENTRY = '**/assets/index-*.js';
 const LANDING_ENTRY = '**/assets/landing-*.js';
 
@@ -57,7 +60,7 @@ export function delayAppScript(page: Page, delayMs: number = APP_SCRIPT_DELAY_MS
   return hold(page, APP_ENTRY, delayMs);
 }
 
-/** Landningens ingångs-JS hålls tills `release()` anropas: landningen står som ren HTML tills dess. */
+/** Landningens JS (boot-skriptet och därmed ingången) hålls tills `release()` anropas: landningen står som ren HTML tills dess. */
 export function holdLandingScript(page: Page, maxMs: number): Promise<HeldScript> {
   return hold(page, LANDING_ENTRY, maxMs);
 }
@@ -127,11 +130,6 @@ export interface LoaderRect {
   height: number;
   /** Sant om dokumentet är bredare än fönstret. */
   overflowsX: boolean;
-  /**
-   * Stagingbannerns höjd (0 i prod och i index.html: bannern ritas av React). I ett stagingbygge reserverar den sin höjd ur laddningsvyns 100dvh, så ovalen hamnar
-   * en halv bannerhöjd lägre i gaten än i index.html. Det är miljöns marginal, inte en hoppande bild i prod.
-   */
-  stagingBannerHeight: number;
 }
 
 /**
@@ -144,14 +142,12 @@ export async function measureLoader(page: Page): Promise<LoaderRect | null> {
     const status = document.querySelector('#root .rq-shell__pending [role="status"]');
     if (!status) return null;
     const { x, y, width, height } = status.getBoundingClientRect();
-    const banner = document.querySelector('[aria-label="Staging environment"]');
     return {
       x,
       y,
       width,
       height,
       overflowsX: document.documentElement.scrollWidth > window.innerWidth,
-      stagingBannerHeight: banner ? banner.getBoundingClientRect().height : 0,
     };
   });
 }
@@ -216,7 +212,12 @@ export async function logFrames(page: Page): Promise<FrameLog> {
       // Stagingbannern, aviseringsytan och temaskriptet (next-themes) står kvar vid varje övergång och räknas inte som innehåll: bredvid dem kan sidan ändå vara tom.
       const content = root ? Array.from(root.children).filter((child) => !child.matches('script, [aria-label="Staging environment"], section[aria-label^="Notifications"]')) : [];
       // Måttet tas bara i en ritad bildruta: en layout som räknats före stilmallen (som blockerar ritningen men inte DOMContentLoaded) målas aldrig och ska inte räknas.
-      const box = painted ? root?.querySelector('.rq-shell__pending [role="status"]')?.getBoundingClientRect() : undefined;
+      // En laddare som Suspense gömt (display: none, 0 x 0 px) bredvid fallbackens räknas inte: den syns inte, så dess rektangel är ingen bild.
+      const box = painted
+        ? Array.from(root?.querySelectorAll('.rq-shell__pending [role="status"]') ?? [])
+            .map((status) => status.getBoundingClientRect())
+            .find((rect) => rect.width > 0)
+        : undefined;
       (window as unknown as { __rqReportFrame: (sample: unknown) => void }).__rqReportFrame({
         document: performance.timeOrigin,
         path: location.pathname,

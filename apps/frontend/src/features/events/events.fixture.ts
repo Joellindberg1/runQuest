@@ -91,7 +91,7 @@ export const LIVE_ELEVATION = event({
   participantCount: 3,
   leaderboard: [
     row({ userId: KARL, userName: 'Karl Persson', totalValue: 612, rank: 1 }),
-    row({ userId: ME, userName: 'Du', totalValue: 540, rank: 2, isMe: true }),
+    row({ userId: ME, userName: 'Joel Lindberg', totalValue: 540, rank: 2, isMe: true }),
     row({ userId: ADAM, userName: 'Adam Einstein', totalValue: 198.4, rank: 3 }),
   ],
 });

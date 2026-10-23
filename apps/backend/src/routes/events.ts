@@ -5,10 +5,13 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { scheduleDailyParticipationEventTest } from '../scheduler/eventScheduler.js';
-import { toStockholmDate } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import type { EventsHistoryResponse, EventsResponse, OffsetPageMeta } from '@runquest/shared';
+import { type DailyDrawResponse, type EventsHistoryResponse, type EventsResponse, type OffsetPageMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { UNKNOWN_NAME, fetchUserNames, scoreCompetitionEntries } from '../services/eventService.js';
+import { fail, okWithLegacy } from '../utils/respond.js';
+import { groupIdOrRespondEmpty } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -44,12 +47,9 @@ async function fetchEventCounts(
 router.get('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId  = req.user!.user_id;
-    const groupId = req.user!.group_id;
-
-    if (!groupId) {
-      res.json({ events: [] });
-      return;
-    }
+    const emptyBody = { success: true, events: [], data: { events: [] } } satisfies EventsResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 
@@ -81,12 +81,12 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     if (error) {
       logger.error(`❌ [EventsRoute] Fetch events error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch events' });
+      fail(res, 500, 'Failed to fetch events');
       return;
     }
 
     if (!events?.length) {
-      res.json({ events: [] });
+      okWithLegacy<EventsResponse>(res, { events: [] }, { events: [] });
       return;
     }
 
@@ -114,47 +114,22 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 
     if (competitionEventIds.length > 0) {
       // Hämta alla deltagare för dessa events
-      const { data: allEntries } = await supabase
+      const { data: allEntries, error: allEntriesError } = await supabase
         .from('event_entries')
         .select('event_id, user_id')
         .in('event_id', competitionEventIds);
+      if (allEntriesError) throw allEntriesError; // en tom tabell vore ett felaktigt svar, inte ett tomt
 
       // Hämta användarnamn
-      const participantUserIds = [...new Set((allEntries ?? []).map((e: any) => e.user_id))];
-      const { data: userRows } = await supabase
-        .from('users')
-        .select('id, name')
-        .in('id', participantUserIds);
+      const participantUserIds: string[] = [...new Set<string>((allEntries ?? []).map((e: any) => e.user_id))];
+      const userNameMap = await fetchUserNames(supabase, participantUserIds);
 
-      const userNameMap = new Map((userRows ?? []).map((u: any) => [u.id, u.name]));
-
-      // Beräkna live-total per användare per event
+      // Beräkna live-total per användare per event (eventets dagar i gruppens tidszon), med samma ranking som avräkningen
+      const timeZone = groupTimeZone(groupId);
       for (const event of events.filter((e: any) => e.type === 'competition')) {
-        const isKm = event.metric === 'km';
         const participants = (allEntries ?? []).filter((e: any) => e.event_id === event.id);
-
-        const scored: Array<{ userId: string; userName: string; totalValue: number; rank: number }> = [];
-        for (const p of participants) {
-          let runsQuery = supabase
-            .from('runs')
-            .select(isKm ? 'distance' : 'total_elevation_gain')
-            .eq('user_id', p.user_id)
-            .gte('date', toStockholmDate(event.starts_at))
-            .lte('date', toStockholmDate(event.ends_at));
-
-          if (!isKm) runsQuery = runsQuery.eq('is_treadmill', false);
-
-          const { data: runs } = await runsQuery;
-
-          const totalValue = (runs ?? []).reduce((sum: number, r: any) =>
-            sum + Number(isKm ? r.distance : r.total_elevation_gain ?? 0), 0
-          );
-          scored.push({ userId: p.user_id as string, userName: (userNameMap.get(p.user_id) ?? 'Unknown') as string, totalValue, rank: 0 });
-        }
-
-        scored.sort((a, b) => b.totalValue - a.totalValue);
-        scored.forEach((s, i) => { s.rank = i + 1; });
-        leaderboardMap.set(event.id, scored);
+        const scored = await scoreCompetitionEntries(supabase, event, participants, userNameMap, timeZone);
+        leaderboardMap.set(event.id, scored.map(({ participant, totalValue, rank }) => ({ userId: participant.id, userName: participant.name, totalValue, rank })));
       }
     }
 
@@ -195,7 +170,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
           : null,
         leaderboard: leaderboard?.map(l => ({
           userId: l.userId,
-          userName: l.userId === userId ? 'Du' : l.userName,
+          userName: l.userName,
           totalValue: l.totalValue,
           rank: l.rank,
           isMe: l.userId === userId,
@@ -205,11 +180,10 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
-    const body: EventsResponse = { events: result };
-    res.json(body);
+    okWithLegacy<EventsResponse>(res, { events: result }, { events: result });
   } catch (err) {
     logger.error(`❌ [EventsRoute] Unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(res, 500, 'Internal server error');
   }
 });
 
@@ -221,19 +195,17 @@ const HISTORY_PAGE = { defaultLimit: 30, maxLimit: 50 };
 router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const userId  = req.user!.user_id;
-    const groupId = req.user!.group_id;
 
     const page = parseOffsetPage(req.query, HISTORY_PAGE);
     if (!page.ok) {
-      res.status(400).json({ error: page.error });
+      fail(res, 400, page.error);
       return;
     }
     const { limit, offset } = page;
 
-    if (!groupId) {
-      res.json({ events: [], meta: buildPageMeta(0, limit, offset) });
-      return;
-    }
+    const emptyBody = { success: true, events: [], data: { events: [] }, meta: buildPageMeta(0, limit, offset) } satisfies EventsHistoryResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 
@@ -263,11 +235,11 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       meta = buildPageMeta(paged.total, limit, offset);
     } catch (error) {
       logger.error(`❌ [EventsRoute] History fetch error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch history' });
+      fail(res, 500, 'Failed to fetch history');
       return;
     }
     if (!events.length) {
-      res.json({ events: [], meta });
+      okWithLegacy<EventsHistoryResponse>(res, { events: [] }, { events: [] }, meta);
       return;
     }
 
@@ -316,7 +288,7 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       const leaderboard = e.type === 'competition'
         ? eventEntries.map((row: any) => ({
             userId: row.user_id,
-            userName: row.user_id === userId ? 'Du' : (userNameMap.get(row.user_id) ?? 'Unknown'),
+            userName: userNameMap.get(row.user_id) ?? UNKNOWN_NAME,
             totalValue: Number(row.total_value ?? 0),
             rank: row.rank,
             xpAwarded: row.xp_awarded,
@@ -325,7 +297,7 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
           }))
         : allMemberIds.map((uid: string) => ({
             userId: uid,
-            userName: uid === userId ? 'Du' : (userNameMap.get(uid) ?? 'Unknown'),
+            userName: userNameMap.get(uid) ?? UNKNOWN_NAME,
             totalValue: 0,
             rank: null,
             xpAwarded: qualifiedUserIds.has(uid) ? Number(tmpl?.reward_xp ?? 0) : 0,
@@ -359,11 +331,10 @@ router.get('/history', authenticateJWT, async (req, res): Promise<void> => {
       };
     });
 
-    const body: EventsHistoryResponse = { events: result, meta };
-    res.json(body);
+    okWithLegacy<EventsHistoryResponse>(res, { events: result }, { events: result }, meta);
   } catch (err) {
     logger.error(`❌ [EventsRoute] History unexpected error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(res, 500, 'Internal server error');
   }
 });
 
@@ -374,10 +345,10 @@ router.post('/admin/trigger-daily-draw', authenticateJWT, requireAdmin, async (_
   try {
     logger.info('🎲 [EventsRoute] Manual daily draw triggered by admin');
     const result = await scheduleDailyParticipationEventTest();
-    res.json(result);
+    okWithLegacy<DailyDrawResponse>(res, result, result);
   } catch (err) {
     logger.error(`❌ [EventsRoute] Manual daily draw error (${errorCode(err)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(res, 500, 'Internal server error');
   }
 });
 

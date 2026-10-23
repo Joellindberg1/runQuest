@@ -16,13 +16,11 @@ vi.mock('../../config/database.js', () => ({
   getSupabaseClient: vi.fn(),
 }));
 
-const { mockRefreshTitleLeaderboard, mockPopulateTitleLeaderboard } = vi.hoisted(() => ({
-  mockRefreshTitleLeaderboard: vi.fn(),
+const { mockPopulateTitleLeaderboard } = vi.hoisted(() => ({
   mockPopulateTitleLeaderboard: vi.fn(),
 }));
 vi.mock('../../services/titleLeaderboardService', () => ({
   titleLeaderboardService: {
-    refreshTitleLeaderboard: mockRefreshTitleLeaderboard,
     populateTitleLeaderboard: mockPopulateTitleLeaderboard,
   },
 }));
@@ -66,7 +64,20 @@ describe('removed endpoints', () => {
     expect(debugActivities.status).toBe(404);
     expect(refreshOneTitle.status).toBe(404);
     expect(strava.requests).toHaveLength(0);
-    expect(mockRefreshTitleLeaderboard).not.toHaveBeenCalled();
+    expect(mockPopulateTitleLeaderboard).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/auth/refresh returns 404', async () => {
+    const res = await server.request('POST', '/api/auth/refresh', { token: token() });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('the API info does not list a token refresh endpoint', async () => {
+    const res = await server.request('GET', '/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body.endpoints.auth).toEqual({ login: '/api/auth/login' });
   });
 
   it('the refresh of all title leaderboards is refused for a user who is not an admin', async () => {
@@ -74,7 +85,6 @@ describe('removed endpoints', () => {
 
     expect(res.status).toBe(403);
     expect(mockPopulateTitleLeaderboard).not.toHaveBeenCalled();
-    expect(mockRefreshTitleLeaderboard).not.toHaveBeenCalled();
   });
 
   it('the admin refresh of all title leaderboards still works', async () => {

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup, renderToString } from 'react-dom/server';
 import { RoutePending } from '@/app-shell/RoutePending';
 import { StagingBanner } from '@/app-shell/StagingBanner';
+import { runnerPhaseScript } from '@/shared/components/loaders/runnerPhase';
 import { LandingApp } from './landing-entry/LandingApp';
 import { ServerRouter } from './landing-entry/ServerRouter';
 import { sessionHintScript } from './landing-entry/sessionHint';
@@ -18,7 +19,20 @@ export function renderSessionHint(): string {
   return sessionHintScript();
 }
 
-/** Appens laddningsvy för `#root` i index.html: samma komponent som App.tsx, AppShell och överlämningen ritar. */
+/**
+ * Appens laddningsvy för `#root` i index.html: samma komponent som App.tsx, AppShell och överlämningen ritar. I ett stagingbygge med stagingbannern över den, som App.tsx ritar
+ * den: bannerns höjd är då redan reserverad i första bilden och ovalen flyttar sig inte när appen monteras (RUN-342). Prodbygget ger samma markup som förut.
+ */
 export function renderLoader(): string {
-  return renderToStaticMarkup(<RoutePending />);
+  return renderToStaticMarkup(
+    <>
+      {import.meta.env.VITE_APP_ENV === 'staging' && <StagingBanner />}
+      <RoutePending />
+    </>,
+  );
+}
+
+/** Texten i inline-skriptet i `<head>` i index.html som lägger laddarens prickar på klockan när markupen tolkas, före första bildrutan (runnerPhase.ts). */
+export function renderLoaderPhase(): string {
+  return runnerPhaseScript();
 }

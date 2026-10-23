@@ -1,17 +1,13 @@
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
-import { calculateStreakMultiplier, dayOfWeek, stockholmClock } from '@runquest/shared';
-import { formatDecimal, formatInt } from '@/features/leaderboard/boardFormat';
-import { buildStreakRow, formatMultiplier } from '@/features/leaderboard/streakModel';
+import { MARATHON_DISTANCE_KM, calculateStreakMultiplier, dayOfWeek, hasDoubleRunGap, stockholmClock } from '@runquest/shared';
+import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { buildStreakRow } from '@/features/leaderboard/streakModel';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
 // Runner cardens vymodeller: allt kortet visar, härlett ur users-with-runs + titlar + head-to-head + XP-config.
 // Ren logik — ingen DOM, ingen datahämtning. `now` skickas alltid in så att tiderna går att testa.
-
-export const MARATHON_KM = 42.195;
-/** Två rundor räknas som ett dubbelpass först när de startat minst så här långt ifrån varandra. */
-export const DOUBLE_RUN_MIN_GAP_MS = 4 * 60 * 60 * 1000;
 
 export type Tone = 'default' | 'gold' | 'up' | 'down' | 'muted';
 
@@ -32,8 +28,6 @@ export interface RunnerHero {
 
 export function buildHero(user: User, allUsers: User[]): RunnerHero {
   const stats = leaderboardUtils.calculateUserStats(user);
-  const sorted = leaderboardUtils.filterAndSortUsers(allUsers);
-  const ranked = sorted.some((candidate) => candidate.id === user.id);
   const atMax = stats.xpLevelRange === 0;
 
   return {
@@ -41,7 +35,7 @@ export function buildHero(user: User, allUsers: User[]): RunnerHero {
     name: user.name,
     level: stats.level,
     ringTurn: atMax ? 1 : Math.round(stats.xpProgress) / 100,
-    rank: ranked ? leaderboardUtils.getUserPosition(user, sorted) : null,
+    rank: leaderboardUtils.rankOfUser(user, allUsers),
     runs: stats.numberOfRuns,
     xpToNext: atMax ? null : stats.xpLeftForNextLevel,
     nextLevel: atMax ? null : stats.level + 1,
@@ -71,7 +65,7 @@ export function buildStatCells(user: User, heldTitles: number | null): StatCell[
   const losses = user.losses ?? 0;
   return [
     { key: 'xp', value: formatInt(user.total_xp), label: 'total xp', tone: 'gold', wideOnly: false },
-    { key: 'km', value: formatDecimal(user.total_km), label: 'total km', tone: 'default', wideOnly: false },
+    { key: 'km', value: formatKm(user.total_km), label: 'total km', tone: 'default', wideOnly: false },
     { key: 'challenges', value: `${wins}–${losses}`, label: 'challenges', tone: wins >= losses ? 'up' : 'down', wideOnly: false },
     { key: 'runs', value: String(user.runs?.length ?? 0), label: 'runs', tone: 'default', wideOnly: true },
     { key: 'titles', value: heldTitles === null ? '—' : String(heldTitles), label: 'titles held', tone: 'gold', wideOnly: true },
@@ -96,10 +90,10 @@ export function buildDistanceRows(user: User, now: Date): StatRow[] {
   const monthKm = (user.runs ?? []).filter((run) => dayOf(run).startsWith(month)).reduce((sum, run) => sum + run.distance, 0);
 
   return [
-    { label: 'Longest run', value: `${formatDecimal(stats.longestRun, 2)} km`, tone: 'default' },
-    { label: 'Total', value: `${formatDecimal(user.total_km)} km`, tone: 'default' },
-    { label: 'Average per run', value: `${formatDecimal(stats.averageKmPerRun)} km`, tone: 'default' },
-    { label: 'This month', value: `${formatDecimal(monthKm)} km`, tone: 'gold' },
+    { label: 'Longest run', value: `${formatKm(stats.longestRun, 2)} km`, tone: 'default' },
+    { label: 'Total', value: `${formatKm(user.total_km)} km`, tone: 'default' },
+    { label: 'Average per run', value: `${formatKm(stats.averageKmPerRun)} km`, tone: 'default' },
+    { label: 'This month', value: `${formatKm(monthKm)} km`, tone: 'gold' },
   ];
 }
 
@@ -132,7 +126,7 @@ export function buildStreakRows(user: User, now: Date, ladder: LadderStep[]): St
 }
 
 export function marathonEquivalents(km: number): number {
-  return Math.floor(km / MARATHON_KM);
+  return Math.floor(km / MARATHON_DISTANCE_KM);
 }
 
 /**
@@ -153,9 +147,8 @@ export function countDoubleRunDays(runs: Pick<Run, 'date' | 'start_time'>[]): nu
 
   let days = 0;
   for (const starts of startsByDay.values()) {
-    if (starts.length < 2) continue;
-    // Är någon start minst 4 h från den tidigaste har det funnits ett dubbelpass den dagen.
-    if (Math.max(...starts) - Math.min(...starts) >= DOUBLE_RUN_MIN_GAP_MS) days += 1;
+    // Fönstret (4 h) är shared/titleMetrics, samma som titeln The Double Trouble använder.
+    if (hasDoubleRunGap(starts)) days += 1;
   }
   return days;
 }
@@ -281,19 +274,15 @@ const RESULT_LABEL: Record<MeetingResult, string> = { won: 'Won', lost: 'Lost', 
 
 function metricValueText(metric: ChallengeHistoryItem['metric'], value: number | null): string {
   if (value === null) return '—';
-  if (metric === 'km') return `${formatDecimal(value)} km`;
+  if (metric === 'km') return `${formatKm(value)} km`;
   if (metric === 'runs') return `${Math.round(value)} ${Math.round(value) === 1 ? 'run' : 'runs'}`;
   return `${formatInt(value)} XP`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-/** "4 Oct" i Stockholm-tid. Månadsnamnen är egna: Intl:s förkortningar skiljer mellan ICU-versioner ("Sept"). */
+/** "4 Oct" i Stockholm-tid. */
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
-  const { date } = stockholmClock(new Date(iso));
-  const [, month, day] = date.split('-').map(Number);
-  return `${day} ${MONTHS[month - 1]}`;
+  return formatDayMonth(stockholmClock(new Date(iso)).date);
 }
 
 export function buildMeeting(item: ChallengeHistoryItem, meId: string): Meeting {

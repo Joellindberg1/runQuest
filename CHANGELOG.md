@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.8.1 — Städvarvet (2026-10-22)
+
+Underhållsversion (patch). Släpps 2026-10-22 via release-PR:en från `release/v0.8.1` (= `integration/v0.8.1` plus versionsbumpen). Ingen post i `changelog.json` och ingen What's new (ägarbeslut 2026-10-22). Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
+
+### Spelregler
+- Duellen startar vid gruppens nästa midnatt efter accept, aldrig i samma ögonblick, och en duell på N dagar räknar exakt N dagar (slutdag = startdag + N − 1, avgörande 03:00 dagen efter). Legendariska autostarten följer samma regel. Regeln finns på ett ställe i `packages/shared` (`groupNextMidnight`, `challengeWindow`); pågående dueller behåller sitt slutdatum (RUN-228, ägarbeslut 2026-10-19).
+- Boosten gäller exakt n kalenderdagar i gruppens tidszon från 00:00 dagen efter duellens sista dag. Fönstret sparas på raden (migration 059, `user_boosts.start_date`/`end_date`); gamla boostar behåller sina dagar och sin XP (backfyllet ger bitidentisk XP), och deras kort visar nu sina riktiga n + 1 dagar (RUN-355, ägarbeslut 2026-10-20).
+- Dygnsgränser för dueller, boostfönster, events och "idag" räknas i gruppens tidszon via resolvern `groupTimeZone`, som ger Europe/Stockholm för alla grupper tills RUN-21 (RUN-355). Stravas rundag är undantagen.
+- En tävling med läsfel avräknas i nästa timtick i stället för nästa måndag, ett läsfel ger aldrig en utbetalning på halva data, och tävlingspoängen räknas med en algoritm i shared (`scoreCompetition`, `prizeForRank`) med riktigt namn och `isMe` i tabellen (RUN-357).
+
+### Städning och DRY
+- Contract-migration 058 (RUN-309, ADR 012 S16): gruppens titelranking byggs om en gång per gruppomräkning (`processGroupTitles`) i stället för tre gånger per skriven rad; 058 släpper triggern, omslagsfunktionerna, shim-triggern och `titles.current_holder_id`/`current_value`.
+- En källa för: spelregler och gränser (RUN-351), titelmåttens kodning (`titleMetrics`, RUN-356), rankning, nivåprogress och initialer (RUN-359), formatering i frontend med svenskt tusentalsmellanrum och decimalkorrekt km (RUN-360), gruppens id ur token (`utils/groupScope.ts`, ci-guards regel 22) och ur databasen (`readUserGroupId`, RUN-358), delade API-kontrakt för alla rutter (RUN-352, regel 18) och en API-klient i frontend (RUN-353).
+- Död kod bort (RUN-350): oanvänd kod i backend och frontend, stubben `POST /api/auth/refresh`, tre engångsskript (bland dem `backfill:strava-athlete`), Tooltip och shadcn-alias utan användare, sharedpaketets bygg-skript. `reprocess:titles` ligger nu i `src/scripts`.
+- Rester efter v0.7.1 och v0.8.0 (RUN-321, RUN-347, RUN-348, RUN-349, RUN-362, RUN-363): strömbrytare i nattavstämningen, timerstädning i `stravaFetch`, schemadiffens tillfälliga 056-regel borta, vakt mot Supabase i frontend (regel 17), e2e-stubben och mätverktygen, skrubbern begränsad i tid och storlek.
+- Laddningsvyn: ingen tom bildruta vid inloggning, omdirigering och gamla `/challenges` (RUN-341), prickarna följer klockan genom överlämningen (RUN-340) och stagingbannern förrenderas så laddaren står stilla i staging (RUN-342).
+- Dokumentationen ikapp v0.8.0 och v0.8.1, och dokumentens filhänvisningar vaktas (RUN-361, regel 21).
+
+### Svarskuvertet, steg 1 (RUN-354, ADR 007 addendum 2026-10-20)
+- Ett svarskuvert och ett felformat med maskinläsbar `code` (felkodskatalogen i shared, svarshjälparna `ok`/`fail`, regel 20), 404 och JSON-felhanterare sist i `createApp`. Steg 1 är dubbelsvar: de gamla nycklarna finns kvar, så frontend kan deployas före eller efter. Frontend läser data först och koden; fel nuvarande lösenord i Settings loggar inte längre ut. Steg 2 (gamla nycklarna bort) kommer i en senare version.
+
+### Säkerhet
+- Säkerhetshuvuden på alla svar från frontendens Caddy, även fel: HSTS ett år (utan `includeSubDomains`/`preload`), `Referrer-Policy`, `X-Frame-Options: DENY` och en skarp `Content-Security-Policy` efter ett Report-Only-steg på staging med 0 överträdelser (RUN-344). CSP-hasharna prövas mot bygget i CI (`scripts/csp-hashes.mjs`, steget "CSP guard" och "Static serving").
+- Umamis tracker serveras som versionerad kopia från eget ursprung (`public/vendor/umami.v1.js`) i stället för från `cloud.umami.is` (RUN-344).
+- Beroenden: node-cron 3.0.3 → 4.6.0, som tar bort den sårbara uuid 8, med appens logger (fast text och `errorCode`), TZ-varning vid start och pinnade scheman (RUN-346, regel 23); `@types/node-cron` borta. Två kända moderate-sårbarheter i react-router-dom 6 finns kvar och stoppas redan av `resolveNextPath`.
+- Tokenkrypteringen klar (ADR 013, RUN-314–316): backfillens dry-run i prod visade 6 rader, alla krypterade på `prod-1`, 0 klartext och 0 fel (staging 0 rader), så `--apply` behövdes inte och ägaren avstod från `--refresh-tokens`. Migration 060 (CHECK, bara `enc:v1:`) är applicerad i staging och prod 2026-10-22. Läsvägen har ingen klartextgren längre: ett värde utan `enc:` är `token_unreadable`.
+- Inloggningen gör lika mycket arbete för okänt och känt konto: jämförelse mot en dummy-hash som värms upp vid start, och båda uppslagen görs alltid (RUN-365, regel 19).
+
+### Prestanda
+- Landningens JS laddas efter första ritning och Barlow 400 förladdas: LCP på `/` 2,86 → 1,96 s i CI (RUN-343). Hydreringen kommer ca 0,6 s senare på långsam mobil, vilket ägaren godtog 2026-10-20.
+- Lighthouse-budgeten är skärpt per sida efter CI-mätningen: `/` LCP ≤ 2 500 ms, FCP ≤ 1 950 ms, prestanda ≥ 0,90, CLS ≤ 0,02, TBT ≤ 150 ms; `/legal` LCP ≤ 3 600 ms (RUN-334). Jobbet är fortfarande icke-blockerande.
+
+### /legal (RUN-345, `DATA_POLICY_VERSION` 2026-10-22)
+- Integritetstexten anger berättigat intresse för statistiken (Umami) och felrapporterna (Sentry), rätten att invända (art. 21.1, per e-post), överföringsgrunden (Sentry: Data Privacy Framework med SCC som reserv enligt DPA 5.1.0; Umami: SCC) och att man kan be om en kopia av skyddsåtgärderna. Ägaren bekräftade 2026-10-22 att Sentrys DPA 5.1.0 är accepterad, att Umami-datan ligger i EU (Frankfurt) och att invändningar hanteras manuellt per e-post.
+
+### Prod-steg
+1. **KÖRT 2026-10-22.** Backfillens dry-run i prod (ägaren) och migration 060 i staging och prod (ägar-ja), `docs/release.md` avsnitt 5 punkt 6.
+2. **KÖRT 2026-10-22 21:44.** Migration 059 i prod FÖRE deployen (ägar-ja): Q1 kolumnerna date och NULL-bara, Q2 8 rader, 0 utan fönster, 0 avvikande, Q3 RLS oförändrad, `get_advisors security` utan nya fynd. `docs/release.md` avsnitt 5 punkt 7.
+3. Release-PR mot `main`, grön CI, merge (= deploy). Rök enligt `docs/release.md` steg 4, med Sentrys host under skarp CSP och hälsoblocket (`plaintext_rows` och `unrecognised_rows` 0).
+4. Migration 058 i prod EFTER grön rök (ägar-ja), sedan röken C1 i filhuvudet.
+5. Tagg `v0.8.1` på merge-commiten, stagingtjänsterna pekas om till `integration/v0.8.2`, docs-PR "live". Ingen `announce:release`.
+
+Under deployfönstret (frontend och backend byts var för sig) kan en NY Strava-koppling få 400 `consent_required`: samtyckesversionen går från `2026-10-19.1` till `2026-10-22` och callbacken kräver exakt likhet. Redan kopplade berörs inte. Koppla inte Strava förrän båda tjänsterna är deployade.
+
+### Rollback
+- Koden tillbaka till v0.8.0 (revert av merge-PR:en; `docs/release.md` avsnitt 9) fungerar mot 058, 059 och 060: v0.8.0 läser inte boostfönstrets kolumner (fallback på det gamla UTC-fönstret), anropar inget som 058 släpper och skriver bara `enc:v1:`-tokens.
+- Migrationerna rullas inte tillbaka vid en kodrollback. Rollback-SQL finns i varje filhuvud och kräver ägar-ja.
+- Nödutgången `--decrypt --apply` är spärrad av 060 tills constrainten släpps (`docs/release.md` avsnitt 5 punkt 6).
+- Bryter skarp CSP något i prod (vit sida, blockerad popup, avatarer eller Sentry/Umami): byt rubriken tillbaka till `Content-Security-Policy-Report-Only` på en rad i `Caddyfile` (och `CSP_HEADER` i `scripts/verify-static-serving.sh`), push, deploy. Resten av releasen står kvar.
+- Senaste friska deploy före v0.8.1: v0.8.0 på `main` @ 45184576 (båda tjänsterna; Railway Redeploy är snabbvägen, revert-PR:en den varaktiga).
+
 ## v0.8.0 — Titlar per grupp, förrenderad landning, Sentry och Umami (2026-10-19)
 
 Användarversion (minor). What's new-posten i `changelog.json` har ingen `announce` (ägarbeslut 2026-10-19: ingen popup och ingen Pack News-rad). Releasedatumet sätts till deploydagen om den inte är 2026-10-19. Grundversionen för flera grupper: epic RUN-229 (ADR 012), tokenkrypteringens kod (epic RUN-96, ADR 013; utrullningen RUN-314–316 görs efter deploy), Sentry, Umami, staging med e2e och lasttest, förrendering av landningen (RUN-260, ADR 006 addendum 2026-10-19), säkerhetsfixar och felhygien. Migrationerna 052–057 är redan applicerade och verifierade i prod (Prod-steg 1). RUN-334 (skärpt Lighthouse-budget, S7) är flyttad till v0.8.1.

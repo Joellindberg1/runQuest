@@ -3,7 +3,7 @@ import { ErrorState } from '@/shared/components/ErrorState';
 import { FormNotices } from '@/shared/components/form/FormNotices';
 import { TextField } from '@/shared/components/form/TextField';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
-import type { AdminUser } from '@/shared/services/backendApi';
+import type { AdminUser } from '@runquest/shared';
 import { memberCountText, memberMeta } from '../adminModel';
 import type { AdminNotice } from '../hooks/useAdminData';
 

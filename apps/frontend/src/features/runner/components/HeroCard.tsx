@@ -2,7 +2,7 @@ import type { BadgeShowcaseEntry } from '@runquest/shared';
 import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
-import { formatInt } from '@/features/leaderboard/boardFormat';
+import { formatInt } from '@/shared/utils/format';
 import type { RunnerHero, StatCell } from '../runnerModel';
 import { xpToNextText } from '../runnerModel';
 

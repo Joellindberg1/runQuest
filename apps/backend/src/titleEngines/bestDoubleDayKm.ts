@@ -1,7 +1,7 @@
 import type { TitleEngine, RunData, UserStats } from './types';
+import { hasDoubleRunGap } from '@runquest/shared';
 
 const MIN_DISTANCE_KM = 5;
-const MIN_GAP_MS = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
 
 export const bestDoubleDayKmEngine: TitleEngine = {
   metricKey: 'bestDoubleDayKm',
@@ -23,25 +23,13 @@ export const bestDoubleDayKmEngine: TitleEngine = {
       const attemptTotal = dayRuns.reduce((sum, r) => sum + r.distance_km, 0);
       if (attemptTotal > bestAttempt) bestAttempt = attemptTotal;
 
-      // Full qualifying check: both runs ≥5km and ≥4h gap
+      // Full qualifying check: both runs ≥5km and the shared double-run gap (shared/titleMetrics, 4 h)
       const qualifying = dayRuns.filter(
         r => r.distance_km >= MIN_DISTANCE_KM && r.start_time
       );
       if (qualifying.length < 2) continue;
 
-      const sorted = [...qualifying].sort(
-        (a, b) => new Date(a.start_time!).getTime() - new Date(b.start_time!).getTime()
-      );
-
-      let validDay = false;
-      outer: for (let i = 0; i < sorted.length - 1; i++) {
-        for (let j = i + 1; j < sorted.length; j++) {
-          const gap = new Date(sorted[j].start_time!).getTime() - new Date(sorted[i].start_time!).getTime();
-          if (gap >= MIN_GAP_MS) { validDay = true; break outer; }
-        }
-      }
-
-      if (validDay) {
+      if (hasDoubleRunGap(qualifying.map(r => new Date(r.start_time!).getTime()))) {
         const total = qualifying.reduce((sum, r) => sum + r.distance_km, 0);
         if (total > best) best = total;
       }

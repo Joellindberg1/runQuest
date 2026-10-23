@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { alignRunnersOnMount } from "./runnerPhase";
 import {
   DEFAULT_SPEED_SECONDS,
   DEFAULT_TILT_DEGREES,
@@ -34,6 +35,9 @@ export interface TrackLoaderProps {
  * keyframes `rqOrbit` (temafilen), så det blir skarpt ner till ~26 px.
  * Rörelse hanteras av temafilens globala prefers-reduced-motion.
  *
+ * Prickarnas fas räknas från klockan (runnerPhase.ts): refen sätter animationernas starttid när noden satts in, så en laddare som ersätter en annan (index.html,
+ * React, gaten) fortsätter där den förra var. Markupen är densamma på servern och klienten.
+ *
  * Prickarna har ingen negativ marginal: `offset-path` placerar redan prickens mitt (offset-anchor är rutans mitt) på banan, och en marginal ovanpå det
  * flyttar den en gång till (2-14 px vid 192 px). Designfilen (RunQuest Loaders.dc.html) har marginalerna och därmed samma fel; avvikelsen är medveten,
  * se docs/open-assumptions.md.
@@ -55,6 +59,8 @@ export function TrackLoader({
   return (
     <div
       role="status"
+      ref={alignRunnersOnMount}
+      data-track-loader=""
       className={cn("relative shrink-0", className)}
       style={{ width: size, height, transform: `rotate(${tilt}deg)` }}
     >

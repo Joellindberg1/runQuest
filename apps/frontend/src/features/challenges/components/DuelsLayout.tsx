@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import { RQIcon } from '@/shared/components/icons';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';

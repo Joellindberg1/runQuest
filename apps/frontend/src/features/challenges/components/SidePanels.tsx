@@ -1,4 +1,4 @@
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
 import type { BoostView, RecordCell, TierGroup } from '../duelsModel';
 import type { SendBlocker } from '../sendModel';
 import { TierRibbon } from './TierRibbon';

@@ -1,9 +1,8 @@
 import type { User } from '@runquest/types';
-import { calculateCompleteRunXP, MAX_LEVEL, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MAX_LEVEL, calculateCompleteRunXP, type AdminSettings, type StreakMultiplier } from '@runquest/shared';
 import { nextCheckpointInfo } from '@/features/profile/frodoModel';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
-import { formatInt, formatKm, formatTimes } from './logFormat';
+import { firstName, formatInt, formatKm, formatTimes } from '@/shared/utils/format';
 import { streakOutlook, validateDate, type StreakOutlook } from './logModel';
 
 // Estimated XP och "What this run does": shared-formeln (`calculateCompleteRunXP`, ADR 004) över XP-konfigen från
@@ -55,13 +54,12 @@ export interface PreviewInput {
 }
 
 const DASH = '—';
-const firstName = (name: string): string => name.split(' ')[0] ?? name;
 
 function breakdownRows(input: PreviewInput, outlook: StreakOutlook): { rows: BreakdownRow[]; totalXp: number | null } {
   const { km, rules } = input;
   const streakLabel = `Streak · day ${outlook.day}`;
 
-  if (km === null || km < MIN_RUN_DISTANCE_KM) {
+  if (km === null || km < MANUAL_RUN_MIN_DISTANCE_KM) {
     return {
       totalXp: null,
       rows: [
@@ -112,16 +110,17 @@ function journeyEffect(me: User, km: number): EffectRow {
   return { key: 'journey', label, value: `+${formatKm(km)} km toward ${next.name}`, tone: 'default' };
 }
 
-/** Rankingen före/efter rundan med samma sortering som Board (nivå, sedan XP). Utan plats på tavlan → inget. */
+/** Rankingen före/efter rundan med samma ordning som Board och rank_passed (XP, sedan namn). Utan plats på tavlan → inget. */
 function boardEffect(input: PreviewInput, estimated: number): EffectRow | null {
   const { me, users } = input;
-  const before = leaderboardUtils.filterAndSortUsers(users);
-  if (!before.some((user) => user.id === me.id)) return null;
+  const rankBefore = leaderboardUtils.rankOfUser(me, users);
+  if (rankBefore === null) return null;
 
+  const before = leaderboardUtils.rankedUsers(users);
   const projectedMe = { ...me, total_xp: me.total_xp + estimated };
-  const after = leaderboardUtils.filterAndSortUsers(users.map((user) => (user.id === me.id ? projectedMe : user)));
-  const rankBefore = leaderboardUtils.getUserPosition(me, before);
-  const rankAfter = leaderboardUtils.getUserPosition(projectedMe, after);
+  const projectedUsers = users.map((user) => (user.id === me.id ? projectedMe : user));
+  const after = leaderboardUtils.rankedUsers(projectedUsers);
+  const rankAfter = leaderboardUtils.rankOfUser(projectedMe, projectedUsers) ?? rankBefore;
   const label = 'Leaderboard';
 
   if (rankAfter < rankBefore) {
@@ -157,7 +156,7 @@ export function buildXpPreview(input: PreviewInput): XpPreview {
       total: DASH,
       totalXp: null,
       rows,
-      effects: [{ key: 'hint', label: 'Enter a distance', value: `min ${formatKm(MIN_RUN_DISTANCE_KM)} km`, tone: 'muted' }],
+      effects: [{ key: 'hint', label: 'Enter a distance', value: `min ${formatKm(MANUAL_RUN_MIN_DISTANCE_KM)} km`, tone: 'muted' }],
     };
   }
 

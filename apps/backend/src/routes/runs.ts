@@ -6,15 +6,17 @@ import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { calculateUserTotals } from '../utils/calculateUserTotals.js';
 import {
-  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, MANUAL_RUN_MIN_DISTANCE_KM,
-  type AdminSettings, type StreakMultiplier, type BoostSpec, type PreviousRunDay,
+  advanceStreakDay, calculateCompleteRunXP, boostDeltasForRuns, boostWindow, MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, MIN_RUN_DATE_LABEL, isCalendarDay, zoneDay,
+  type AdminSettings, type StreakMultiplier, type BoostSpec, type BoostRow, type PreviousRunDay,
 } from '@runquest/shared';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { checkEventQualification } from '../services/eventService.js';
 import { getXpConfig } from '../services/xpConfig.js';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
-import { isIsoCalendarDate, toStockholmDate, todayStockholm } from '../utils/dateUtils.js';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../utils/idempotencyKey.js';
-import type { GroupRunHistoryResponse } from '@runquest/shared';
+import type { CreateRunRequest, CreateRunResponse, DeleteRunResponse, GroupRunHistoryResponse, UpdateRunRequest, UpdateRunResponse } from '@runquest/shared';
+import { fail, failWritten, okWithLegacy } from '../utils/respond.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -45,21 +47,24 @@ export async function reprocessRunsFromDate(userId: string, fromDate: string): P
   // (boostCalculation i @runquest/shared), så omräkning är alltid idempotent.
   const { data: userBoosts, error: boostsError } = await supabase
     .from('user_boosts')
-    .select('type, delta, remaining, created_at, expires_at')
+    .select('type, delta, remaining, created_at, expires_at, start_date, end_date')
     .eq('user_id', userId)
     .in('type', ['multiplier_days', 'multiplier_runs']);
   // Alla läsningar kastar vid fel (RUN-215): en omräkning på ofullständig indata skriver fel XP/streak till rundorna.
   if (boostsError) throw errorWithCode(`Failed to fetch boosts for reprocess (user ${userId})`, boostsError);
 
+  // Boostens fönster är det som sparades på raden när boosten skapades (settleChallenge, gruppens dygn; migration 059 backfyllde de gamla med deras
+  // UTC-dagar). Fönstret räknas inte om här, så en gammal boost ger samma XP som förut och en ny exakt sina n dagar. En rad utan sparat fönster läses
+  // med det gamla UTC-fönstret (shared/boostWindow).
   const boostSpecs: BoostSpec[] = await Promise.all(
-    (userBoosts ?? []).map(async (b: { type: string; delta: number; remaining: number | null; created_at: string; expires_at: string | null }) => {
-      const startDate = b.created_at.slice(0, 10);
+    (userBoosts ?? []).map(async (b: BoostRow & { delta: number; remaining: number | null }) => {
+      const { startDay: startDate, endDay } = boostWindow(b);
       if (b.type === 'multiplier_days') {
         return {
           type: 'multiplier_days' as const,
           delta: Number(b.delta),
           startDate,
-          endDate: b.expires_at ? b.expires_at.slice(0, 10) : null,
+          endDate: endDay,
         };
       }
       // multiplier_runs: räkna laddningar som redan förbrukats av rundor FÖRE
@@ -181,16 +186,14 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
 
     const page = parseOffsetPage(req.query, GROUP_RUNS_PAGE);
     if (!page.ok) {
-      res.status(400).json({ error: page.error }); return;
+      fail(res, 400, page.error); return;
     }
     const { limit, offset } = page;
 
     // Saknad group_id ger tom data, aldrig alla grupper (ADR 007 A6)
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      const empty: GroupRunHistoryResponse = { runs: [], meta: buildPageMeta(0, limit, offset) };
-      res.json(empty); return;
-    }
+    const emptyBody = { success: true, runs: [], data: { runs: [] }, meta: buildPageMeta(0, limit, offset) } satisfies GroupRunHistoryResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
 
@@ -217,7 +220,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       ));
     } catch (runsError) {
       logger.error(`❌ Error fetching group runs (${errorCode(runsError)})`);
-      res.status(500).json({ error: 'Failed to fetch group run history' }); return;
+      fail(res, 500, 'Failed to fetch group run history'); return;
     }
 
     logger.info(`✅ Fetched ${runsData.length} runs for group history`);
@@ -246,34 +249,30 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       created_at: run.created_at ?? null,
     })) || [];
 
-    const body: GroupRunHistoryResponse = { runs, meta: buildPageMeta(total, limit, offset) };
-    res.json(body);
+    okWithLegacy<GroupRunHistoryResponse>(res, { runs }, { runs }, buildPageMeta(total, limit, offset));
   } catch (error) {
     logger.error(`❌ Error in group history endpoint (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(res, 500, 'Internal server error');
   }
 });
 
 const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-/** Rundans kalenderdag (Stockholm): en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
-function toRunDay(date: string): string {
-  return isDateOnly(date) ? date : toStockholmDate(new Date(date).toISOString());
+/** Rundans kalenderdag i gruppens tidszon: en ren YYYY-MM-DD är dagen i sig, en ISO-tidpunkt omräknas. */
+function toRunDay(date: string, timeZone: string): string {
+  return isDateOnly(date) ? date : zoneDay(new Date(date), timeZone);
 }
-
-/** Äldsta tillåtna rundedatum (kalenderdag). */
-const MIN_RUN_DAY = '2025-06-01';
 
 /**
  * Gemensam indatavalidering för POST och PUT (bugg #8: PUT saknade POST:ens
  * regler). Returnerar felmeddelande eller null + parsad distans.
  *
- * Datum jämförs som KALENDERDAGAR i Stockholm-tid (open-assumptions backend-fråga 0): "idag" är
- * todayStockholm(), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
+ * Datum jämförs som KALENDERDAGAR i gruppens tidszon (open-assumptions backend-fråga 0): "idag" är
+ * zoneDay(new Date(), timeZone), inte serverns UTC-dag — annars nekades dagens datum som framtid mellan 00:00 och
  * ~02:00 svensk tid. En ren YYYY-MM-DD-sträng är dagen i sig; en tidpunkt (ISO med klockslag) omräknas
- * till sin Stockholm-dag.
+ * till sin dag i gruppens zon.
  */
-function validateRunInput(date: string | undefined, distance: unknown): { error: string | null; distanceNum: number } {
+function validateRunInput(date: string | undefined, distance: unknown, timeZone: string): { error: string | null; distanceNum: number } {
   const distanceNum = parseFloat(String(distance));
   if (isNaN(distanceNum) || distanceNum < MANUAL_RUN_MIN_DISTANCE_KM) {
     return { error: `Distance must be at least ${MANUAL_RUN_MIN_DISTANCE_KM.toFixed(1)} km`, distanceNum };
@@ -282,10 +281,10 @@ function validateRunInput(date: string | undefined, distance: unknown): { error:
     const runDate = new Date(date);
     if (isNaN(runDate.getTime())) return { error: 'Invalid date', distanceNum };
     // new Date('2026-02-30') rullar över till 2 mars — en ren dag måste vara en riktig kalenderdag.
-    if (isDateOnly(date) && !isIsoCalendarDate(date)) return { error: 'Invalid date', distanceNum };
-    const runDay = toRunDay(date);
-    if (runDay < MIN_RUN_DAY) return { error: 'Cannot log runs before June 1, 2025', distanceNum };
-    if (runDay > todayStockholm()) return { error: 'Cannot log runs for future dates', distanceNum };
+    if (isDateOnly(date) && !isCalendarDay(date)) return { error: 'Invalid date', distanceNum };
+    const runDay = toRunDay(date, timeZone);
+    if (runDay < MIN_RUN_DATE) return { error: `Cannot log runs before ${MIN_RUN_DATE_LABEL}`, distanceNum };
+    if (runDay > zoneDay(new Date(), timeZone)) return { error: 'Cannot log runs for future dates', distanceNum };
   }
   return { error: null, distanceNum };
 }
@@ -309,29 +308,33 @@ function isClientRequestIdConflict(error: { code?: string; message?: string; det
 // (samma form och status) och ingen ny omräkning körs. Utan header är beteendet oförändrat.
 router.post('/', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const { date, distance, is_treadmill } = req.body;
+    const { date, distance, is_treadmill }: Partial<CreateRunRequest> = req.body;
     const userId = req.user!.user_id;
 
     logger.info('📝 Create run request:', { userId, date, distance, is_treadmill });
 
     const keyParse = parseIdempotencyKey(req.headers[IDEMPOTENCY_KEY_HEADER.toLowerCase()]);
     if (!keyParse.ok) {
-      res.status(400).json({ error: keyParse.error }); return;
+      fail(res, 400, keyParse.error); return;
     }
     const idempotencyKey = keyParse.key;
 
     if (!date || !distance) {
-      res.status(400).json({ error: 'Date and distance are required' }); return;
+      fail(res, 400, 'Date and distance are required'); return;
     }
 
-    const { error: invalidInput, distanceNum } = validateRunInput(date, distance);
+    // Rundor loggas även utan grupp i token (token kan vara inaktuell efter join): gruppen ger bara zonen och eventkvalificeringen,
+    // som läser den färskt när den saknas. Den filtrerar ingen läsning.
+    const groupId = tokenGroupId(req);
+    const timeZone = groupTimeZone(groupId);
+    const { error: invalidInput, distanceNum } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
-      res.status(400).json({ error: invalidInput }); return;
+      fail(res, 400, invalidInput); return;
     }
 
     // Utelämnat → NULL (dagens beteende för manuella rundor); event-/väderlogik skiljer på false och NULL.
     if (is_treadmill !== undefined && typeof is_treadmill !== 'boolean') {
-      res.status(400).json({ error: 'is_treadmill must be a boolean' }); return;
+      fail(res, 400, 'is_treadmill must be a boolean'); return;
     }
 
     logger.info(`✅ Creating run for user ${userId}: ${distanceNum}km on ${date}`);
@@ -347,16 +350,16 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       .eq('user_id', userId)
       .eq('client_request_id', key)
       .maybeSingle();
-    const replayExisting = (existing: unknown, how: string): void => {
+    const replayExisting = (existing: CreateRunResponse['run'], how: string): void => {
       logger.info(`♻️ Idempotent replay (${how}) — returning existing run, no new write`, { userId });
-      res.json({ success: true, message: 'Run created successfully', run: existing });
+      okWithLegacy<CreateRunResponse>(res, { run: existing }, { message: 'Run created successfully', run: existing });
     };
 
     if (idempotencyKey) {
       const { data: existing, error: lookupError } = await findRunByKey(idempotencyKey);
       if (lookupError) {
         logger.error(`❌ Error looking up run by idempotency key for user ${userId} (${errorCode(lookupError)})`);
-        res.status(500).json({ error: 'Failed to create run' }); return;
+        fail(res, 500, 'Failed to create run'); return;
       }
       if (existing) { replayExisting(existing, 'sequential'); return; }
     }
@@ -393,7 +396,7 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
       } else {
         logger.error(`❌ Error inserting run for user ${userId} (${errorCode(insertError)})`);
       }
-      res.status(500).json({ error: 'Failed to create run' }); return;
+      fail(res, 500, 'Failed to create run'); return;
     }
 
     logger.info(`✅ Run created, reprocessing from ${date}...`);
@@ -408,13 +411,13 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
     checkEventQualification({
       userId,
       runId: newRun.id,
-      runDate: toRunDay(date), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
+      runDate: toRunDay(date, timeZone), // checkEventQualification bygger tidsfilter av YYYY-MM-DD — en ISO-tidpunkt ger tyst PostgREST-fel
       distanceKm: distanceNum,
-      groupId: req.user!.group_id,
+      groupId,
     }).catch(e => logger.error(`❌ checkEventQualification error for user ${userId} (${errorCode(e)})`));
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was created but XP recalculation failed', written: true }); return;
+      failWritten(res, 'Run was created but XP recalculation failed'); return;
     }
 
     // Fetch the fully processed run
@@ -430,15 +433,12 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run created successfully with ${processedRun?.xp_gained || 0} XP`)
 
-    res.json({
-      success: true,
-      message: 'Run created successfully',
-      run: processedRun || newRun
-    });
+    const created = processedRun || newRun;
+    okWithLegacy<CreateRunResponse>(res, { run: created }, { message: 'Run created successfully', run: created });
 
   } catch (error) {
     logger.error(`❌ Error creating run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -446,18 +446,20 @@ router.post('/', authenticateJWT, async (req, res): Promise<void> => {
 router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
   try {
     const { id } = req.params;
-    const { distance, date } = req.body;
+    const { distance, date }: Partial<UpdateRunRequest> = req.body;
     const userId = req.user!.user_id;
 
     logger.info('📝 Update request:', { id, distance, date, userId });
 
     if (!distance) {
-      res.status(400).json({ error: 'Distance is required' }); return;
+      fail(res, 400, 'Distance is required'); return;
     }
 
-    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance);
+    const groupId = tokenGroupId(req); // se POST: zonen och eventkvalificeringen, aldrig ett filter
+    const timeZone = groupTimeZone(groupId);
+    const { error: invalidInput, distanceNum: newDistance } = validateRunInput(date, distance, timeZone);
     if (invalidInput) {
-      res.status(400).json({ error: invalidInput }); return;
+      fail(res, 400, invalidInput); return;
     }
 
     logger.info(`🔄 Updating run ${id} for user ${userId}`);
@@ -472,11 +474,11 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError || !existingRun) {
-      res.status(404).json({ error: 'Run not found' }); return;
+      fail(res, 404, 'Run not found'); return;
     }
 
     if (existingRun.user_id !== userId) {
-      res.status(403).json({ error: 'Not authorized to update this run' }); return;
+      fail(res, 403, 'Not authorized to update this run'); return;
     }
 
     // Strava är sanningskällan för distans och datum (ägarbeslut 2026-10-11, RUN-139). PUT redigerar bara just de två
@@ -484,7 +486,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // event-kvalificerande rundor) — inte 403, som här betyder "inte din runda". Kontrollen ligger EFTER ägarskapet
     // (404/403 oförändrade) och FÖRE all skrivning och omräkning.
     if (existingRun.source === 'strava') {
-      res.status(409).json({ error: 'Strava runs are read-only' }); return;
+      fail(res, 409, 'Strava runs are read-only', 'strava_read_only'); return;
     }
 
     // Check if date changed (requires full reprocess)
@@ -504,7 +506,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (updateError) {
       logger.error(`❌ Error updating run for user ${userId} (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update run' }); return;
+      fail(res, 500, 'Failed to update run'); return;
     }
 
     let reprocessed = true;
@@ -531,9 +533,9 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
       checkEventQualification({
         userId,
         runId: id,
-        runDate: toRunDay(date || existingRun.date),
+        runDate: toRunDay(date || existingRun.date, timeZone),
         distanceKm: newDistance,
-        groupId: req.user!.group_id,
+        groupId,
         // Bara events vars dagar rundans (nya) datum faller inom — annars kvalificerar en redigering av
         // en gammal runda ett event som pågår just nu.
         enforceRunDateWindow: true,
@@ -541,7 +543,7 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
     }
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was updated but XP recalculation failed', written: true }); return;
+      failWritten(res, 'Run was updated but XP recalculation failed'); return;
     }
 
     logger.info('\n' + '='.repeat(80));
@@ -561,15 +563,11 @@ router.put('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run ${id} updated and all runs reprocessed successfully`);
 
-    res.json({
-      success: true,
-      message: 'Run updated successfully',
-      run: updatedRun
-    });
+    okWithLegacy<UpdateRunResponse>(res, { run: updatedRun }, { message: 'Run updated successfully', run: updatedRun });
 
   } catch (error) {
     logger.error(`❌ Error updating run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -591,11 +589,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .single();
 
     if (fetchError || !existingRun) {
-      res.status(404).json({ error: 'Run not found' }); return;
+      fail(res, 404, 'Run not found'); return;
     }
 
     if (existingRun.user_id !== userId) {
-      res.status(403).json({ error: 'Not authorized to delete this run' }); return;
+      fail(res, 403, 'Not authorized to delete this run'); return;
     }
 
     // Strava-rundor är skrivskyddade (RUN-139): spärren som förut bara satt i UI:t sitter nu även i API:t — annars raderas
@@ -603,7 +601,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     // (404/403 oförändrade), före all skrivning/omräkning och FÖRE event-409:an nedan: den är permanent och billig (ingen
     // query), och event-meddelandet ("edit it instead") vore fel för en Strava-runda, som inte går att redigera.
     if (existingRun.source === 'strava') {
-      res.status(409).json({ error: 'Strava runs are read-only' }); return;
+      fail(res, 409, 'Strava runs are read-only', 'strava_read_only'); return;
     }
 
     const deletedDate = existingRun.date;
@@ -620,10 +618,10 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
       .limit(1);
     if (entriesError) {
       logger.error(`❌ Error checking event entries for a run of user ${userId} (${errorCode(entriesError)})`);
-      res.status(500).json({ error: 'Failed to delete run' }); return;
+      fail(res, 500, 'Failed to delete run'); return;
     }
     if (qualifiedEntries && qualifiedEntries.length > 0) {
-      res.status(409).json({ error: "This run qualified an event and can't be deleted — edit it instead" }); return;
+      fail(res, 409, "This run qualified an event and can't be deleted — edit it instead", 'run_qualified_event'); return;
     }
 
     // Delete the run
@@ -634,7 +632,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     if (deleteError) {
       logger.error(`❌ Error deleting run for user ${userId} (${errorCode(deleteError)})`);
-      res.status(500).json({ error: 'Failed to delete run' }); return;
+      fail(res, 500, 'Failed to delete run'); return;
     }
 
     logger.info(`✅ Run deleted, reprocessing from ${deletedDate}...`);
@@ -646,7 +644,7 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
     await calculateUserTotals(userId);
 
     if (!reprocessed) {
-      res.status(500).json({ error: 'Run was deleted but XP recalculation failed', written: true }); return;
+      failWritten(res, 'Run was deleted but XP recalculation failed'); return;
     }
 
     // Event-kvalificering vid radering (open-assumptions backend-fråga 7): checkEventQualification kan bara
@@ -656,14 +654,11 @@ router.delete('/:id', authenticateJWT, async (req, res): Promise<void> => {
 
     logger.info(`✅ Run ${id} deleted and all runs reprocessed successfully`);
 
-    res.json({
-      success: true,
-      message: 'Run deleted successfully'
-    });
+    okWithLegacy<DeleteRunResponse>(res, null, { message: 'Run deleted successfully' });
 
   } catch (error) {
     logger.error(`❌ Error deleting run for user ${req.user?.user_id} (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 

@@ -5,11 +5,10 @@
 // Utloggad (Landing är publik) eller vid fel gäller FALLBACK_LEVEL_REQUIREMENTS, som är
 // verifierad identisk med prod. Tabellen är statisk, så en lyckad hämtning gäller för sessionen.
 import { backendApi } from '@/shared/services/backendApi';
-import { log } from '@/shared/utils/logger';
 import {
-  levelFromXP, xpForLevel, xpForNextLevel, levelProgress,
-  FALLBACK_LEVEL_REQUIREMENTS, MAX_LEVEL,
-  type LevelRequirement, type LevelProgress, type LevelsApiResponse,
+  levelFromXP, levelProgress, xpForLevel,
+  FALLBACK_LEVEL_REQUIREMENTS,
+  type LevelProgress, type LevelRequirement, type LevelsApiResponse,
 } from '@runquest/shared';
 
 const LEVELS_ENDPOINT = '/config/levels';
@@ -21,8 +20,6 @@ function isLevelRequirement(row: unknown): row is LevelRequirement {
 
 export class FrontendLevelService {
   private levelRequirements: LevelRequirement[] = FALLBACK_LEVEL_REQUIREMENTS;
-  private initialized = false;
-  private inFlight: Promise<void> | null = null;
 
   /**
    * Hämtar tabellen från backenden och börjar använda den. Kastar vid fel (så att react-query kan försöka igen);
@@ -38,45 +35,11 @@ export class FrontendLevelService {
     }
 
     this.levelRequirements = [...rows].sort((a, b) => a.level - b.level);
-    this.initialized = true;
     return this.levelRequirements;
-  }
-
-  /** Hämtar tabellen en gång. Utloggad eller vid fel används fallback-tabellen; nästa anrop försöker igen. */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-    if (!backendApi.getToken()) return;
-    if (!this.inFlight) {
-      this.inFlight = this.refresh()
-        .then(() => undefined)
-        .catch((error) => log.error('Level requirements unavailable, using fallback table', error))
-        .finally(() => { this.inFlight = null; });
-    }
-    return this.inFlight;
   }
 
   private requirements(): LevelRequirement[] {
     return this.levelRequirements;
-  }
-
-  async getLevelFromXP(totalXP: number): Promise<number> {
-    await this.initialize();
-    return levelFromXP(totalXP, this.requirements());
-  }
-
-  async getXPForLevel(level: number): Promise<number> {
-    await this.initialize();
-    return xpForLevel(level, this.requirements());
-  }
-
-  async getXPForNextLevel(level: number): Promise<number> {
-    await this.initialize();
-    return xpForNextLevel(level, this.requirements());
-  }
-
-  async getLevelProgress(totalXP: number): Promise<LevelProgress> {
-    await this.initialize();
-    return levelProgress(totalXP, this.requirements());
   }
 
   // Synchronous versions (före hämtning: delade fallback-tabellen, inte en approximation)
@@ -87,6 +50,10 @@ export class FrontendLevelService {
   getXPForLevelSync(level: number): number {
     return xpForLevel(level, this.requirements());
   }
+
+  getLevelProgressSync(totalXP: number): LevelProgress {
+    return levelProgress(totalXP, this.requirements());
+  }
 }
 
 // Export singleton instance
@@ -95,7 +62,6 @@ export const frontendLevelService = new FrontendLevelService();
 // Export types
 export type { LevelRequirement };
 
-// Backwards compatible functions (synchronous)
 export function getLevelFromXP(totalXP: number): number {
   return frontendLevelService.getLevelFromXPSync(totalXP);
 }
@@ -104,6 +70,7 @@ export function getXPForLevel(level: number): number {
   return frontendLevelService.getXPForLevelSync(level);
 }
 
-export function getXPForNextLevel(level: number): number {
-  return frontendLevelService.getXPForLevelSync(Math.min(level + 1, MAX_LEVEL));
+/** Nivå, procent och XP kvar mot nästa nivå ur tabellen i bruk: shared:s `levelProgress`, ingen egen räkning. */
+export function getLevelProgress(totalXP: number): LevelProgress {
+  return frontendLevelService.getLevelProgressSync(totalXP);
 }

@@ -1,9 +1,10 @@
 import type { User } from '@runquest/types';
-import { BADGE_SERIES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
+import { BADGE_SERIES, MAX_DISPLAYED_TITLES, MAX_SHOWCASE, type BadgeGroupMember, type BadgeShowcaseEntry } from '@runquest/shared';
 import { isEarnedTier } from '@/features/badges/components/badgeTier';
 import { MAX_LEVEL } from '@/constants/appConstants';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { deltaView, formatDecimal, formatInt, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
+import { formatInt, formatKm } from '@/shared/utils/format';
+import { deltaView, formatRunAge, latestRunOf, type DeltaView } from './boardFormat';
 import type { UserTitleEntry } from '@runquest/shared';
 
 // Season-/All-time-vyns vymodell: allt som korten visar, härlett ur users-with-runs + titlar + rank-delta.
@@ -51,8 +52,6 @@ export interface SeasonInput {
   badgesByUser?: Record<string, BadgeShowcaseEntry[]>;
 }
 
-const MAX_DISPLAYED_TITLES = 3;
-
 /** Titlarna som visas på kortet: användarens valda i vald ordning, annars de innehavda (max 3). */
 export function displayedTitleNames(user: User, titles: UserTitleEntry[]): { names: string[]; heldCount: number } {
   const held = titles.filter((title) => title.is_current_holder);
@@ -72,7 +71,7 @@ export function titleLine(names: string[], heldCount: number): string {
 }
 
 export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] {
-  const sorted = leaderboardUtils.filterAndSortUsers(users);
+  const sorted = leaderboardUtils.rankedUsers(users);
 
   const partial = sorted.map((user) => {
     const stats = leaderboardUtils.calculateUserStats(user);
@@ -85,9 +84,9 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
     return {
       id: user.id,
       name: user.name,
-      rank: leaderboardUtils.getUserPosition(user, sorted),
+      rank: sorted.indexOf(user) + 1,
       level: stats.level,
-      initials: getInitials(user.name).slice(0, 2),
+      initials: getInitials(user.name),
       pictureUrl: user.profile_picture || null,
       delta: deltaView(input.rankDeltaByUser[user.id]),
       titleNames: names,
@@ -98,12 +97,12 @@ export function buildSeasonRows(users: User[], input: SeasonInput): SeasonRow[] 
         atMax,
       },
       kmTotal: formatInt(user.total_km),
-      longest: formatDecimal(stats.longestRun),
+      longest: formatKm(stats.longestRun),
       runs: stats.numberOfRuns,
-      avgPerRun: formatDecimal(stats.averageKmPerRun),
+      avgPerRun: formatKm(stats.averageKmPerRun),
       perDay: stats.avgXpPer14Days,
       nextLevelDays: !atMax && stats.daysToNextLevel > 0 ? stats.daysToNextLevel : null,
-      lastRun: latest ? { age: formatRunAge(latest, input.now), km: formatDecimal(latest.distance) } : null,
+      lastRun: latest ? { age: formatRunAge(latest, input.now), km: formatKm(latest.distance) } : null,
       tokens,
       tokensLeft: tokens.minor + tokens.major + tokens.legendary,
       showcase: input.badgesByUser?.[user.id] ?? [],

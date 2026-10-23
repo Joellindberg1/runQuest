@@ -2,7 +2,7 @@
  * Titelläsningarna gäller en grupp (ADR 012 beslut 5): katalogen slås ihop med gruppens rader så att en titel utan innehavare finns kvar,
  * en annan grupps rader syns aldrig, och en användare utanför gruppen läses inte alls. Adminunderhållet bygger bara om en grupp.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const holder = vi.hoisted(() => ({ client: null as any }));
 
@@ -14,7 +14,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { TitleLeaderboardService } from '../titleLeaderboardService.js';
 import { errorCode } from '../../utils/errorCode.js';
-import { createFakeDb, type Row, type RecordedQuery, type FakeDbOptions } from '../../routes/__tests__/helpers/fakeDb.js';
+import { createFakeDb, expectNoUnexpectedRpc, GROUP_TITLE_RANKING_RPC, type Row, type RecordedQuery, type FakeDbOptions } from '../../routes/__tests__/helpers/fakeDb.js';
 
 const G1 = 'group-1';
 const G2 = 'group-2';
@@ -46,6 +46,7 @@ const touched = (queries: RecordedQuery[]) => queries.filter((q) => TITLE_TABLES
 const service = () => new TitleLeaderboardService();
 
 beforeEach(() => { vi.clearAllMocks(); });
+afterEach(() => { expectNoUnexpectedRpc(); });
 
 describe('getTitleLeaderboard', () => {
   it('lists the whole title catalog with a null holder for titles nobody in the group holds', async () => {
@@ -195,10 +196,8 @@ describe('populateTitleLeaderboard', () => {
   function useRpc() {
     const calls: Array<{ name: string; args: unknown }> = [];
     const record = (name: string) => (args: unknown) => { calls.push({ name, args }); return { data: null }; };
-    use({}, { rpc: {
+    use({}, { allowedRpc: GROUP_TITLE_RANKING_RPC, rpc: {
       update_group_title_leaderboards: record('update_group_title_leaderboards'),
-      update_all_title_leaderboards: record('update_all_title_leaderboards'),
-      update_title_leaderboard: record('update_title_leaderboard'),
     } });
     return calls;
   }

@@ -1,10 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { Run } from '@runquest/types';
-import { MIN_RUN_DATE } from '@/constants/appConstants';
+import { MIN_RUN_DATE } from '@runquest/shared';
 import { RUN_DELETED_RECALCULATING, RUN_SAVED_RECALCULATING, RunWrittenError } from '@/features/runs/runEffects';
 import { useDeleteRun, useUpdateRun } from '../hooks/useRunChanges';
-import { formatKm } from '../profileFormat';
+import { formatKm } from '@/shared/utils/format';
 import { STRAVA_DELETE_HINT, buildUpdate, buildXpParts, deleteNotice, editFormFor, isDirty, isStravaRun, updateNotice, validateEdit, type EditForm } from '../profileModel';
 
 /** RUN-139: Strava är sanningskällan för distans och datum — en Strava-runda visas skrivskyddad, utan Save. */

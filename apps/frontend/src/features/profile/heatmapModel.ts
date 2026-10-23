@@ -2,7 +2,7 @@ import type { Run, User } from '@runquest/types';
 import { addDays, mondayOf } from '@runquest/shared';
 import { streakDeadline } from '@/app-shell/rightNowItems';
 import { latestRunOf } from '@/features/leaderboard/boardFormat';
-import { SHORT_MONTHS, formatDay } from './profileFormat';
+import { MONTHS_SHORT, formatDayMonth } from '@/shared/utils/format';
 
 // Consistency-heatmapen: en cell per dag, veckor som kolumner (mån–sön), grupperade per månad så att "den här månaden"
 // hittas utan att räkna rutor (App-/Web Prototype). Allt härleds ur användarens rundor — ingen egen endpoint.
@@ -118,7 +118,7 @@ export function buildHeatmap(runs: Pick<Run, 'date' | 'distance'>[], today: stri
       weekIndex += 1;
       monday = addDays(monday, 7);
     }
-    return { key, label: SHORT_MONTHS[month - 1], current: weeks.some((week) => week.cells.some((cell) => cell.today)), weeks };
+    return { key, label: MONTHS_SHORT[month - 1], current: weeks.some((week) => week.cells.some((cell) => cell.today)), weeks };
   }).filter((block) => block.weeks.length > 0); // en månad vars första måndag ännu inte hänt har inga veckor att rita
 
   return {
@@ -126,7 +126,7 @@ export function buildHeatmap(runs: Pick<Run, 'date' | 'distance'>[], today: stri
     runs: totalRuns,
     elapsedDays,
     activeDays,
-    todayLabel: `Today · ${formatDay(today)}`,
+    todayLabel: `Today · ${formatDayMonth(today)}`,
     summary: `${totalRuns} ${totalRuns === 1 ? 'run' : 'runs'} on ${activeDays} of ${elapsedDays} days`,
   };
 }

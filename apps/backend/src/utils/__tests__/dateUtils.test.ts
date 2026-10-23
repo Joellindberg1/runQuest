@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mondayOf } from '@runquest/shared';
-import { weekRange, isIsoCalendarDate, todayStockholm } from '../dateUtils.js';
+import { mondayOf, zoneDay } from '@runquest/shared';
+import { weekRange } from '../dateUtils.js';
+import { groupTimeZone } from '../groupTimeZone.js';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -40,11 +41,11 @@ describe('weekRange', () => {
   });
 });
 
-describe('veckogräns i Stockholm-tid (todayStockholm → weekRange)', () => {
+describe('veckogräns i Stockholm-tid (zoneDay → weekRange)', () => {
   function weekStartAt(iso: string): string {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(iso));
-    return weekRange(todayStockholm()).start;
+    return weekRange(zoneDay(new Date(), groupTimeZone(null))).start;
   }
 
   it('vinter: söndag 23:30 Stockholm (22:30 UTC) är fortfarande föregående vecka', () => {
@@ -61,21 +62,5 @@ describe('veckogräns i Stockholm-tid (todayStockholm → weekRange)', () => {
 
   it('sommar: söndag 22:30 UTC är måndag 00:30 Stockholm = ny vecka', () => {
     expect(weekStartAt('2026-07-05T22:30:00Z')).toBe('2026-07-06');
-  });
-});
-
-describe('isIsoCalendarDate', () => {
-  it('accepterar riktiga YYYY-MM-DD', () => {
-    expect(isIsoCalendarDate('2026-09-28')).toBe(true);
-    expect(isIsoCalendarDate('2024-02-29')).toBe(true);
-  });
-
-  it('avvisar fel format och omöjliga datum', () => {
-    expect(isIsoCalendarDate('2026-9-28')).toBe(false);
-    expect(isIsoCalendarDate('2026-02-30')).toBe(false);
-    expect(isIsoCalendarDate('2025-02-29')).toBe(false);
-    expect(isIsoCalendarDate('2026-13-01')).toBe(false);
-    expect(isIsoCalendarDate('not-a-date')).toBe(false);
-    expect(isIsoCalendarDate('')).toBe(false);
   });
 });

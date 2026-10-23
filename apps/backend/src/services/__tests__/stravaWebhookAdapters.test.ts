@@ -24,6 +24,7 @@ import { checkEventQualification } from '../eventService.js';
 import { createFakeDb, type FakeDbOptions, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { installFakeStravaFetch, stravaActivity, stravaAthlete, stravaError, stravaTokenResponse, type FakeStrava } from '../../test-utils/fakeStrava.js';
 import { extractExtendedFields } from '../stravaImport.js';
+import { STRAVA_API_TIMEOUT_MS } from '../stravaClient.js';
 import type { WebhookEventRow, WebhookImportedRun } from '../stravaWebhook/ports.js';
 import { logger } from '../../utils/logger.js';
 import { createDefaultWebhookWorker } from '../stravaWebhook/defaultWorker.js';
@@ -346,6 +347,34 @@ describe('Strava API', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>', { status: 200 }));
     try {
       expect(await createStravaApi().fetchActivity('t', 1)).toEqual({ kind: 'http', status: 200, activity: null });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('reports a timeout while the body is read as a network error, not as an answer without an activity', async () => {
+    vi.useFakeTimers();
+    // Headers arrive at once (200); the body then stalls and ends with the abort reason when stravaFetch's timer fires.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({ start(controller) { signal?.addEventListener('abort', () => controller.error(signal.reason)); } });
+      return new Response(body, { status: 200 });
+    });
+    try {
+      const outcome = createStravaApi().fetchActivity('t', 1);
+      await vi.advanceTimersByTimeAsync(STRAVA_API_TIMEOUT_MS);
+      expect(await outcome).toEqual({ kind: 'network_error' });
+    } finally {
+      fetchSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports a body cut off by the connection as a network error', async () => {
+    const cutOff = new ReadableStream({ start(controller) { controller.error(new TypeError('terminated')); } });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(cutOff, { status: 200 }));
+    try {
+      expect(await createStravaApi().fetchActivity('t', 1)).toEqual({ kind: 'network_error' });
     } finally {
       fetchSpy.mockRestore();
     }

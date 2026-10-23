@@ -79,7 +79,6 @@ describe('calculateUserTotals when the database returns an error', () => {
   it.each([
     ['the runs read', 'g1', { failWhen: (q: RecordedQuery) => (totalsRead(q) ? dbError() : null) }, false],
     ['the totals write', 'g1', { failWhen: (q: RecordedQuery) => (totalsWrite(q) ? dbError() : null) }, false],
-    ['the title leaderboard refresh', 'g1', { rpc: { update_group_title_leaderboards: () => ({ error: dbError() }) } }, true],
     ['the membership read', 'g1', { failWhen: (q: RecordedQuery) => (q.table === 'group_members' ? dbError() : null) }, true],
   ])('logs and reports only the error code (%s)', async (_label, groupId, options, written) => {
     useDb(groupId, options as never);

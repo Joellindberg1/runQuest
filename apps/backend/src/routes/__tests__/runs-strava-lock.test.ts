@@ -4,7 +4,7 @@
  * Gäller även DELETE /api/runs/:id (spärren satt tidigare bara i UI:t).
  *
  * PUT /api/runs/:id redigerar bara distance och date, så en Strava-runda har inget redigerbart fält kvar: 409 med
- * { error: 'Strava runs are read-only' } (ADR 007: fel = HTTP-status + { error }), utan skrivning och utan omräkning.
+ * { success: false, error: 'Strava runs are read-only', code: 'strava_read_only' } (ADR 007: fel = HTTP-status + { error }), utan skrivning och utan omräkning.
  * Ägarskapskontrollen (404/403) körs först och är oförändrad. Manuella rundor beter sig som förut.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -76,7 +76,7 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const res = await put('run-1', { distance: 9, date: '2026-10-01' });
     expect(res.status).toBe(409);
     expect(checkEventQualification).not.toHaveBeenCalled();
-    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(res.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(writes(db)).toEqual([]);
     expect(tables.runs[0].distance).toBe(4);
     expect(tables.runs[0].date).toBe('2026-10-01');
@@ -87,7 +87,7 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const res = await put('run-1', { distance: 4, date: '2026-10-02' });
     expect(res.status).toBe(409);
     expect(checkEventQualification).not.toHaveBeenCalled();
-    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(res.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(writes(db)).toEqual([]);
     expect(tables.runs[0].date).toBe('2026-10-01');
   });
@@ -96,7 +96,7 @@ describe('PUT /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const { tables, db } = use([stravaRun()]);
     const res = await put('run-1', { distance: 4, date: '2026-10-01' });
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(res.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(checkEventQualification).not.toHaveBeenCalled();
     expect(writes(db)).toEqual([]);
     expect(tables.runs[0]).toMatchObject({ distance: 4, date: '2026-10-01' });
@@ -152,7 +152,7 @@ describe('DELETE /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     const { tables, db } = use([stravaRun(), run({ id: 'run-2', date: '2026-10-02', streak_day: 2 })]);
     const res = await del('run-1');
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(res.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(writes(db)).toEqual([]);
     expect(tables.runs.map((r) => r.id)).toEqual(['run-1', 'run-2']);
     expect(calculateUserTotals).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe('DELETE /api/runs/:id — Strava-rundor är skrivskyddade', () => {
     tables.event_entries.push({ id: 'e1', run_id: 'run-1' });
     const res = await del('run-1');
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(res.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(db.queries.some((q) => q.table === 'event_entries')).toBe(false);
     expect(writes(db)).toEqual([]);
   });

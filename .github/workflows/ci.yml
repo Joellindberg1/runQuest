@@ -39,6 +39,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Testet som jämför frontendens fejkade news-server med de riktiga rutterna importerar frontendens fixturer; vitest typkontrollerar inte.
+      - name: Typecheck (tests that import across packages)
+        run: npx tsc --noEmit -p tsconfig.test.json
+
       - name: Build
         run: npm run build --workspace=@runquest/backend
         working-directory: .
@@ -113,6 +117,11 @@ jobs:
       # Byggstegets Sentry-inställningar (RUN-285): releasenamnet och att uppladdningen bara finns med token. Inga beroenden, inget nätverk.
       - name: Sentry build settings
         run: node --test scripts/sentry-build.test.mjs
+        working-directory: .
+
+      # CSP-vakten (RUN-344): logiken som prövar Caddyfilens inline-hashar mot bygget. Själva prövningen mot dist körs i "Static serving (Caddy)" nedan.
+      - name: CSP guard
+        run: node --test scripts/csp-hashes.test.mjs
         working-directory: .
 
       # Återställningsövningens jämförelse-SQL (docs/runbook-backup-compare.sql) körs av ägaren mot prod: filen får bara innehålla

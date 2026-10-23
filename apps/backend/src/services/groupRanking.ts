@@ -1,6 +1,7 @@
-// Gruppens titelranking byggs om per grupp (ADR 012 beslut 4.3): update_group_title_leaderboards(groupId) bygger alla titlar för EN grupp
-// och rör ingen annan grupps lista. Skrivvägen (calculateUserTotals) och medlemskapsvägarna (join, konto skapat av admin) går hit, så att
-// ingen av dem anropar den globala update_all_title_leaderboards (som finns kvar bara som omslag för admin populate/refresh och äldre kod).
+// Gruppens titelranking byggs om per grupp (ADR 012 beslut 4.3 och 4.4): update_group_title_leaderboards(groupId) bygger alla titlar för EN grupp
+// och rör ingen annan grupps lista. Det är den ENDA vägen som skriver title_leaderboard (migration 058 släppte triggern på user_titles och
+// omslagsfunktionerna): titelomräkningen (processGroupTitles, en gång per gruppomräkning), medlemskapsvägarna (join, konto skapat av admin)
+// och admin populate/refresh går hit.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';

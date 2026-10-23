@@ -11,7 +11,8 @@ const frontendDir = fileURLToPath(new URL(FRONTEND_DIR, import.meta.url));
 const config = ((await import(/* @vite-ignore */ new URL('stylelint.config.js', new URL(FRONTEND_DIR, import.meta.url)).href)) as { default: stylelint.Config }).default;
 
 async function lintLanding(css: string): Promise<string[]> {
-  const { results } = await stylelint.lint({ code: css, codeFilename: `${frontendDir}src/features/landing/landing.css`, config });
+  // configBasedir gör att overrides-sökvägarna i konfigurationen (src/features/landing/landing.css) räknas från frontendkatalogen och inte från arbetskatalogen.
+  const { results } = await stylelint.lint({ code: css, codeFilename: `${frontendDir}src/features/landing/landing.css`, config, configBasedir: frontendDir });
   return results.flatMap((result) => result.warnings.filter((warning) => warning.rule === 'rq/strava-logo').map((warning) => warning.text));
 }
 

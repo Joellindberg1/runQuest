@@ -7,7 +7,11 @@ import { authenticateJWT } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { errorCode } from '../utils/errorCode.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
-import type { GroupEligibilityResponse, TitleLeaderboardResponse, UserTitlesResponse } from '@runquest/shared';
+import type {
+  GroupEligibilityResponse, TitleCatalogResponse, TitleLeaderboardResponse, TitlesPopulateResponse, TitlesRefreshResponse, TitlesReprocessDoneResponse,
+  TitlesReprocessFailedResponse, UserTitlesResponse,
+} from '@runquest/shared';
+import { fail, failWithLegacy, ok, okWithLegacy } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -21,21 +25,14 @@ router.get('/', authenticateJWT, async (_req, res) => {
     
     const titles = await titleLeaderboardService.getAllTitles();
     
-    res.json({
-      success: true,
-      data: titles,
-      meta: {
-        total_titles: titles.length,
-        timestamp: new Date().toISOString()
-      }
+    ok<TitleCatalogResponse>(res, titles, {
+      total_titles: titles.length,
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     logger.error(`❌ API Error in /titles (${errorCode(error)})`);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch titles'
-    });
+    fail(res, 500, 'Failed to fetch titles');
   }
 });
 
@@ -58,23 +55,15 @@ router.get('/leaderboard', authenticateJWT, async (req, res) => {
 
     const leaderboard = await titleLeaderboardService.getTitleLeaderboard(groupId);
 
-    const body: TitleLeaderboardResponse = {
-      success: true,
-      data: leaderboard,
-      meta: {
-        total_titles: leaderboard.length,
-        timestamp: new Date().toISOString(),
-        cache_optimized: true
-      }
-    };
-    res.json(body);
+    ok<TitleLeaderboardResponse>(res, leaderboard, {
+      total_titles: leaderboard.length,
+      timestamp: new Date().toISOString(),
+      cache_optimized: true
+    });
     
   } catch (error) {
     logger.error(`❌ API Error in /titles/leaderboard (${errorCode(error)})`);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch title leaderboard'
-    });
+    fail(res, 500, 'Failed to fetch title leaderboard');
   }
 });
 
@@ -99,28 +88,20 @@ router.get('/user/:userId', authenticateJWT, async (req, res) => {
 
     const userTitles = await titleLeaderboardService.getUserTitles(groupId, userId);
     if (!userTitles) {
-      res.status(404).json({ success: false, error: 'User not found' });
+      fail(res, 404, 'User not found');
       return;
     }
 
-    const body: UserTitlesResponse = {
-      success: true,
-      data: userTitles,
-      meta: {
-        user_id: userId,
-        total_titles: userTitles.length,
-        current_holder_count: userTitles.filter(t => t.is_current_holder).length,
-        timestamp: new Date().toISOString()
-      }
-    };
-    res.json(body);
+    ok<UserTitlesResponse>(res, userTitles, {
+      user_id: userId,
+      total_titles: userTitles.length,
+      current_holder_count: userTitles.filter(t => t.is_current_holder).length,
+      timestamp: new Date().toISOString()
+    });
     
   } catch (error) {
     logger.error(`❌ API Error in /titles/user/:userId (${errorCode(error)})`);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch user titles'
-    });
+    fail(res, 500, 'Failed to fetch user titles');
   }
 });
 
@@ -137,17 +118,11 @@ router.post('/populate', authenticateJWT, requireAdmin, async (req, res) => {
 
     await titleLeaderboardService.populateTitleLeaderboard(groupId);
     
-    res.status(200).json({
-      success: true,
-      message: 'Title leaderboards populated successfully',
-      timestamp: new Date().toISOString()
-    });
+    const timestamp = new Date().toISOString();
+    okWithLegacy<TitlesPopulateResponse>(res, { timestamp }, { message: 'Title leaderboards populated successfully', timestamp });
   } catch (error) {
     logger.error(`❌ API Error in /titles/populate (${errorCode(error)})`);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to populate title leaderboards'
-    });
+    fail(res, 500, 'Failed to populate title leaderboards');
   }
 });
 
@@ -164,17 +139,11 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (req, res) => {
 
     await titleLeaderboardService.populateTitleLeaderboard(groupId);
     
-    res.status(200).json({
-      success: true,
-      message: 'Title leaderboards refreshed successfully',
-      timestamp: new Date().toISOString()
-    });
+    const timestamp = new Date().toISOString();
+    okWithLegacy<TitlesRefreshResponse>(res, { timestamp }, { message: 'Title leaderboards refreshed successfully', timestamp });
   } catch (error) {
     logger.error(`❌ API Error in /titles/refresh (${errorCode(error)})`);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to refresh title leaderboards'
-    });
+    fail(res, 500, 'Failed to refresh title leaderboards');
   }
 });
 
@@ -182,9 +151,9 @@ router.post('/refresh', authenticateJWT, requireAdmin, async (req, res) => {
  * POST /api/titles/reprocess-all
  * Recalculates user_titles for all users from scratch using current algorithm, then refreshes leaderboard.
  *
- * Ärligt svar (RUN-158): {success, message, total, processed, failed}. Ett fel hos en användare stoppar inte
- * körningen (RUN-157), så statusen speglar utfallet: 200 när alla lyckades, 207 när bara några misslyckades
- * (success:false — en del av arbetet är gjort och en del inte), 500 när ingen lyckades.
+ * Ärligt svar (RUN-158): räknarna total, processed och failed i `data` (och, under dubbelsvarsfönstret, på toppnivå bredvid `message`). Ett fel hos en användare
+ * stoppar inte körningen (RUN-157), så statusen speglar utfallet: 200 när alla lyckades, 207 `partial_failure` när bara några misslyckades
+ * (success:false — en del av arbetet är gjort och en del inte, ADR 007 Addendum 2026-10-20 punkt 4), 500 när ingen lyckades.
  */
 router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) => {
   try {
@@ -194,21 +163,23 @@ router.post('/reprocess-all', authenticateJWT, requireAdmin, async (_req, res) =
     const counts = { total, processed, failed };
 
     if (failed === 0) {
-      res.status(200).json({ success: true, message: 'All user titles reprocessed and leaderboards refreshed', ...counts });
+      okWithLegacy<TitlesReprocessDoneResponse>(res, counts, { message: 'All user titles reprocessed and leaderboards refreshed', ...counts });
       return;
     }
 
     logger.warn(`⚠️ Title reprocess finished with failures: ${failed} of ${total} users failed`);
     if (processed === 0) {
       const message = `All ${total} users failed`;
-      // ADR 007 A1: 5xx-svar bär error bredvid message (additivt).
-      res.status(500).json({ success: false, error: message, message, ...counts });
+      const allFailed = { message, ...counts } satisfies Omit<TitlesReprocessFailedResponse, 'success' | 'error' | 'code' | 'data'>;
+      failWithLegacy(res, 500, message, 'internal_error', counts, allFailed);
       return;
     }
-    res.status(207).json({ success: false, message: `${failed} of ${total} users failed; the rest were recalculated`, ...counts });
+    const message = `${failed} of ${total} users failed; the rest were recalculated`;
+    const partial = { message, ...counts } satisfies Omit<TitlesReprocessFailedResponse, 'success' | 'error' | 'code' | 'data'>;
+    failWithLegacy(res, 207, message, 'partial_failure', counts, partial);
   } catch (error) {
     logger.error(`❌ API Error in /titles/reprocess-all (${errorCode(error)})`);
-    res.status(500).json({ success: false, error: 'Failed to reprocess titles' });
+    fail(res, 500, 'Failed to reprocess titles');
   }
 });
 
@@ -224,11 +195,10 @@ router.get('/group-eligibility', authenticateJWT, async (req, res) => {
     const groupId = groupIdOrRespondEmpty(req, res);
     if (!groupId) return;
 
-    const body: GroupEligibilityResponse = { success: true, data: await getGroupEligibility(groupId) };
-    res.json(body);
+    ok<GroupEligibilityResponse>(res, await getGroupEligibility(groupId));
   } catch (error) {
     logger.error(`❌ API Error in /titles/group-eligibility (${errorCode(error)})`);
-    res.status(500).json({ success: false, error: 'Failed to calculate group eligibility' });
+    fail(res, 500, 'Failed to calculate group eligibility');
   }
 });
 

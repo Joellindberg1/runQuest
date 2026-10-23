@@ -41,19 +41,27 @@ const kb = (bytes) => (bytes / 1000).toFixed(1);
 
 export function formatTable(rows) {
   const lines = [
-    '| Page | Runs | Perf | A11y | BP | SEO | LCP (ms) | CLS | TBT (ms) | JS (kB) | CSS (kB) | Total (kB) |',
-    '|---|---|---|---|---|---|---|---|---|---|---|---|',
+    '| Page | Runs | Perf | A11y | BP | SEO | FCP (ms) | LCP (ms) | CLS | TBT (ms) | JS (kB) | CSS (kB) | Total (kB) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   ];
   for (const r of rows) {
     const c = r.categories;
     lines.push(
-      `| ${new URL(r.url).pathname} | ${r.runs} | ${c.performance} | ${c.accessibility} | ${c['best-practices']} | ${c.seo} | ${Math.round(r.lcp)} | ${r.cls.toFixed(3)} | ${Math.round(r.tbt)} | ${kb(r.bytes.script)} | ${kb(r.bytes.stylesheet)} | ${kb(r.bytes.total)} |`,
+      `| ${new URL(r.url).pathname} | ${r.runs} | ${c.performance} | ${c.accessibility} | ${c['best-practices']} | ${c.seo} | ${Math.round(r.fcp)} | ${Math.round(r.lcp)} | ${r.cls.toFixed(3)} | ${Math.round(r.tbt)} | ${kb(r.bytes.script)} | ${kb(r.bytes.stylesheet)} | ${kb(r.bytes.total)} |`,
     );
   }
   return lines.join('\n');
 }
 
-const round3 = (n) => Math.round(n * 1000) / 1000;
+/** Minst tre decimaler och tre gällande siffror, och fler om avrundningen annars gör ett fällt värde lika med gränsen (CLS 0,0205 mot taket 0,02). */
+const roundVisible = (actual, expected) => {
+  const significant = actual === 0 ? 3 : 2 - Math.floor(Math.log10(Math.abs(actual)));
+  for (let decimals = Math.min(Math.max(3, significant), 7); decimals < 8; decimals++) {
+    const rounded = Math.round(actual * 10 ** decimals) / 10 ** decimals;
+    if (rounded !== Number(expected)) return rounded;
+  }
+  return actual;
+};
 
 /** En läsbar rad per budgetrad som inte hölls, ur lhci:s assertion-results.json: sida, rad, uppmätt värde och gräns. */
 export function formatFailures(results) {
@@ -61,7 +69,7 @@ export function formatFailures(results) {
     .filter((r) => !r.passed)
     .map((r) => {
       const line = r.auditProperty ? `${r.auditId}.${r.auditProperty}` : r.auditId;
-      return `${new URL(r.url).pathname} ${line} ${r.name}: found ${round3(r.actual)}, expected ${r.operator} ${r.expected}`;
+      return `${new URL(r.url).pathname} ${line} ${r.name}: found ${roundVisible(r.actual, r.expected)}, expected ${r.operator} ${r.expected}`;
     });
 }
 

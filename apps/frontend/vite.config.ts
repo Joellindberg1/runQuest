@@ -4,8 +4,10 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { stagingGuard } from "./stagingGuard";
+import { stagingBannerStyle } from "./stagingBannerStyle";
 import { stripSourceMaps } from "./stripSourceMaps";
 import { stylesheetOrder, THEME_CHUNK_NAME } from "./stylesheetOrder";
+import { deferLandingEntry } from "./deferLandingEntry";
 import { currentSentryRelease, sentryUploadOptions, uploadNotice } from "../../scripts/sentry-build.mjs";
 
 const SENTRY_PROJECT = "runquest-frontend";
@@ -37,10 +39,13 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         ? []
         : [
             stagingGuard(appEnv),
+            stagingBannerStyle(appEnv),
             // Uppladdningen körs i writeBundle och tas bort-steget i closeBundle: kartorna ska finnas kvar tills uppladdningen är klar.
             ...(upload ? [sentryVitePlugin(upload)] : []),
             stripSourceMaps(),
             stylesheetOrder(),
+            // landing.html laddar ingångsmodulen först efter första ritningen (RUN-343); index.html rörs inte.
+            deferLandingEntry(),
             {
               name: "rq-sentry-upload-notice",
               apply: "build" as const,

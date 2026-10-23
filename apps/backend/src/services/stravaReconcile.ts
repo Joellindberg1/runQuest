@@ -39,6 +39,8 @@
  *   - The night has a request budget (RECONCILE_NIGHTLY_REQUEST_BUDGET) for everything it asks Strava, shared fairly over the users
  *     (the rotation shrinks, the list and the confirmation of what is in doubt come first), and it stops, leaving the rest for the next
  *     night, when Strava's own read budget is over its soft limit (stravaRateBudget) or answers 429.
+ *   - A circuit breaker per user: RECONCILE_MAX_CONSECUTIVE_NETWORK_ERRORS checks in a row without any answer (network error or the
+ *     timeout of stravaFetch) end that user's checks for the night, so the lock is held for a few timeouts and not for one per run.
  *   - Logging (ADR 010 8.6): our user id, counts and codes. Never a Strava id, a title, a coordinate or a token.
  *
  * Nothing here throws out of run().
@@ -50,6 +52,7 @@ import {
   RECONCILE_LIST_PAGE_SIZE,
   RECONCILE_IN_DOUBT_MARGIN,
   RECONCILE_LIST_RESERVE_PER_USER,
+  RECONCILE_MAX_CONSECUTIVE_NETWORK_ERRORS,
   RECONCILE_MAX_REMOVALS_PER_USER,
   RECONCILE_MAX_LIST_PAGES,
   RECONCILE_NIGHTLY_REQUEST_BUDGET,
@@ -319,6 +322,7 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
 
       let recalculateFrom: string | null = null;
       let removedForUser = 0;
+      let unansweredInARow = 0;
       const latestMark: MarkState = { version: null, failure: undefined };
       for (const externalId of externalIds) {
         if (stopBeforeRequest()) break;
@@ -370,8 +374,16 @@ export function createStravaReconciler(deps: ReconcileDeps): StravaReconciler {
         if (result.status === 'retry') {
           summary.failed += 1;
           logger.warn(`⚠️ Strava reconcile: a run of user ${userId} could not be checked (${shortCode(result.error)}); it stays`);
+          // The circuit breaker: each unanswered check can take the whole Strava timeout under the user's lock, so a Strava that has
+          // stopped answering must not be asked about every run in doubt. Only "no answer" counts; a 5xx is an answer.
+          unansweredInARow = result.error === 'network_error' ? unansweredInARow + 1 : 0;
+          if (unansweredInARow >= RECONCILE_MAX_CONSECUTIVE_NETWORK_ERRORS) {
+            logger.warn(`⚠️ Strava reconcile: Strava stopped answering for user ${userId} (${unansweredInARow} checks in a row); the rest of the user's checks wait for the next night`);
+            break;
+          }
           continue;
         }
+        unansweredInARow = 0;
 
         recalculateFrom = earliest(recalculateFrom, result.recalculateFrom);
         if (REMOVAL_OUTCOMES.includes(result.outcome)) {

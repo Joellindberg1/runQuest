@@ -101,7 +101,8 @@ describe('GET /api/strava/status', () => {
     const res = await get('/api/strava/status');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ connected: true, expired: true, expires_at: 100, connection_date: '2026-09-01', last_import_at: null, consent_version: null, sync_paused: false, paused_at: null });
+    const status = { connected: true, expired: true, expires_at: 100, connection_date: '2026-09-01', last_import_at: null, consent_version: null, sync_paused: false, paused_at: null };
+    expect(res.body).toEqual({ success: true, ...status, data: status });
     expect(strava.requests).toHaveLength(0);
   });
 
@@ -122,7 +123,7 @@ describe('GET /api/strava/status', () => {
     const res = await get('/api/strava/status');
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to check Strava status' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to check Strava status', code: 'internal_error' });
   });
 });
 

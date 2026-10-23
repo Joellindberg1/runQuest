@@ -29,7 +29,7 @@ describe('authenticateJWT', () => {
     const expired = jwt.sign(claims, process.env.JWT_SECRET as string, { expiresIn: -60 });
     const res = await server.request('GET', '/api/news', { token: expired });
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: 'Invalid token' });
+    expect(res.body).toEqual({ success: false, error: 'Invalid token', code: 'token_invalid' });
   });
 
   it('token signerad med fel hemlighet → 401', async () => {

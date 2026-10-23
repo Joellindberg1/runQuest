@@ -56,8 +56,8 @@ describe('createApp wiring', () => {
   it.each(WIRED)('%s monterad: %s %s ger 401 utan token (inte 404)', async (_prefix, method, path) => {
     const res = await server.request(method, path);
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
-    expect(res.body.error).not.toBe('Route not found');
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
+    expect(res.body.code).not.toBe('route_not_found');
   });
 
   // ADR 011: användarinställningar, båda metoderna
@@ -65,8 +65,8 @@ describe('createApp wiring', () => {
     for (const method of ['GET', 'PUT']) {
       const res = await server.request(method, '/api/settings');
       expect(res.status).toBe(401);
-      expect(res.body).toEqual({ error: expect.any(String) });
-      expect(res.body.error).not.toBe('Route not found');
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
+      expect(res.body.code).not.toBe('route_not_found');
     }
   });
 
@@ -113,6 +113,6 @@ describe('createApp wiring', () => {
   it('okänd route ger appens 404', async () => {
     const res = await server.request('GET', '/api/does-not-exist');
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe('Route not found');
+    expect(res.body).toEqual({ success: false, error: 'Route not found', code: 'route_not_found' });
   });
 });

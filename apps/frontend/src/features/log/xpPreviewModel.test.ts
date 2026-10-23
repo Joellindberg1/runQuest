@@ -128,9 +128,16 @@ describe('buildXpPreview — "What this run does"', () => {
     expect(effect(buildXpPreview(input({ me: leader, users: [leader] })), 'board')?.value).toBe('Holds 1st');
   });
 
-  it('ranking: utan plats på tavlan (admin) utelämnas raden', () => {
-    const admin = { ...me, name: 'admin' };
-    expect(effect(buildXpPreview(input({ me: admin, users: [admin, karl] })), 'board')).toBeUndefined();
+  it('ranking: utan plats på tavlan (saknas i listan) utelämnas raden', () => {
+    expect(effect(buildXpPreview(input({ users: [karl] })), 'board')).toBeUndefined();
+  });
+
+  it('ranking: blir XP lika efter rundan gäller namnordningen, så den som kommer först på namn passeras inte', () => {
+    const gained = buildXpPreview(input()).totalXp ?? 0;
+    const anna = { ...OTHER, id: 'u-anna', name: 'Anna Berg', total_xp: me.total_xp + gained };
+    expect(effect(buildXpPreview(input({ users: [me, anna] })), 'board')).toEqual({
+      key: 'board', label: 'Leaderboard', value: 'Level with Anna', tone: 'default',
+    });
   });
 
   it('en nivå som redan är max visas som Max level', () => {

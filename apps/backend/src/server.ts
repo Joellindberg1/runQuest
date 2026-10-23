@@ -6,6 +6,8 @@ import { errorCode } from './utils/errorCode.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { installCronLogger } from './scheduler/cronLogger.js';
+import { warnIfProcessTimezoneIsNotUtc } from './scheduler/timezoneCheck.js';
 import { startStravaScheduler } from './scheduler/stravaSync.js';
 import { startChallengeScheduler } from './scheduler/challengeScheduler.js';
 import { startEventScheduler } from './scheduler/eventScheduler.js';
@@ -15,6 +17,7 @@ import { startStravaReconcileScheduler } from './scheduler/stravaReconcileSchedu
 import { startRecalculationRecoveryScheduler } from './scheduler/recalculationRecoveryScheduler.js';
 import { registerStravaRateBudget } from './services/stravaRateBudget.js';
 import { reportTokenKeyAtStartup } from './services/tokenKeyStartup.js';
+import { warmUpDummyPasswordHash } from './utils/passwordHash.js';
 import { flushSentry, initSentry } from './observability/sentry.js';
 import { createShutdown, exitAfterFlush } from './utils/shutdown.js';
 
@@ -64,6 +67,9 @@ registerStravaRateBudget();
 // goes on, since the rest of the app does not need the key. Called at the top level so that the CI guard (rule 12) can see it.
 reportTokenKeyAtStartup();
 
+// Dummy hash for login (RUN-365): made now, not awaited, so that no login attempt pays for it. At the top level so that the CI guard (rule 19) can see it.
+warmUpDummyPasswordHash();
+
 // 📋 Step 2: Create app (måste importeras EFTER dotenv.config — dynamisk import)
 logger.info('🔧 Step 2: Creating Express app...');
 const { createApp } = await import('./app.js');
@@ -93,6 +99,8 @@ server.on('listening', () => {
   // 🕐 Schedulers — endast i produktion
   if (process.env.NODE_ENV === 'production') {
     logger.info('🕐 Starting schedulers (production)...');
+    installCronLogger();
+    warnIfProcessTimezoneIsNotUtc();
     startStravaScheduler();
     startChallengeScheduler();
     startEventScheduler();

@@ -17,7 +17,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **xpPreviewModel.ts** — `buildXpPreview`: uppställning via `calculateCompleteRunXP` (shared) + effekterna streak/nivå/Frodo/ranking
 - **historyModel.ts** — `buildHistoryRow` (kort: initialer, underlag, väder, källa, fem celler), sidstorlek
 - **stravaModel.ts** — banderollens text ur `/strava/status` (`last_import_at`: Last import, ingen nästa synk)
-- **logFormat.ts** — en-GB-tal, egna månadsnamn, "32 min ago"/"in 28 min", WMO-väderkod → etikett
+- **logFormat.ts** — "1 June 2025" och WMO-väderkod → etikett (tal, km, multiplikator, månadsnamn och "32 min ago" ligger i `shared/utils/format`)
 - **hooks/** — `useLogForm` (formulärets tillstånd, överlever flikbyte), `useCreateRun` (mutation + invalideringar), `useLogQueries` (`useGroupHistory`; Strava-hookarna bor i `shared/hooks/useStravaQueries`)
 - `log.css` — enda stilfilen; mått (`--rq-log-*`) i temafilen, sektion 1.25 (index.css + docs/design/temafil-forslag.css)
 - `log.fixture.ts` — testdata (rundor ur `GET /runs/group-history`)
@@ -36,7 +36,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   = +1, längre bort = dag 1, redan en runda samma dag = samma streakdag. Därför är "Stays alive · day 5" faktisk data, inte en gissning, och ett
   annat datum i fältet ger en annan multiplikator.
 - **"What this run does":** streak (stays alive / continues / already counted / new streak), nivå (kvar-XP eller "Level up"), Frodos resa (km mot nästa
-  waypoint, "Reaches …") och rankingen med samma sortering som Board (nivå, sedan XP): "Passes Karl", "Closes on Karl · N XP behind", "Holds 1st".
+  waypoint, "Reaches …") och rankingen med samma sortering som Board (XP, sedan namn, sedan id, `compareXpStandings`): "Passes Karl", "Closes on Karl · N XP behind", "Holds 1st".
   Prototypens hårdkodade "Level 25/Balin's Tomb/Karl" är ersatt av användarens egna värden.
 - **`is_treadmill` skickas alltid som bool** (Outdoor = false, Treadmill = true): valet är gjort i formuläret. Äldre manuella rundor har `null` — de får
   ingen underlags-chip i Group history i stället för en gissning.

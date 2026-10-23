@@ -1,8 +1,9 @@
-import type { ChallengeMetric, ChallengeTier } from '@runquest/types';
-import { daysBetween, stockholmClock } from '@runquest/shared';
+import type { ChallengeMetric, ChallengeTier } from '@runquest/shared';
+import { MS_HOUR, daysBetween, stockholmClock, zoneDay } from '@runquest/shared';
+import { formatDayMonth as formatCalendarDayMonth, formatInt, formatKm } from '@/shared/utils/format';
 
 // Rena formatterare för Duels: tier, mått, insatser, tider. `now` skickas alltid in så att tiderna går att testa.
-// Engelskt UI — tal och datum i en-GB (som resten av redesignen).
+// Engelskt UI — tal, km och månadsnamn ligger i shared/utils/format.
 
 export const TIERS: readonly ChallengeTier[] = ['minor', 'major', 'legendary'];
 
@@ -15,19 +16,15 @@ export const metricLabel = (metric: ChallengeMetric): string => METRIC_LABEL[met
 export const metricUnit = (metric: ChallengeMetric): string => METRIC_UNIT[metric];
 
 const MINUS = '−';
-const MS_HOUR = 3_600_000;
 const HOURS_PER_DAY = 24;
 
-const WHOLE = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
-const ONE_DECIMAL = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-
-/** Måttets värde utan enhet: km med en decimal, runs och XP som heltal ("1,820"). */
+/** Måttets värde utan enhet: km med en decimal, runs och XP som heltal ("1 820"). */
 export function formatMetricValue(metric: ChallengeMetric, value: number | null): string {
   if (value === null) return '—';
-  return metric === 'km' ? ONE_DECIMAL.format(value) : WHOLE.format(Math.round(value));
+  return metric === 'km' ? formatKm(value) : formatInt(value);
 }
 
-/** Värde + enhet för löptext: "38.4 km", "5 runs", "1,820 XP". */
+/** Värde + enhet för löptext: "38.4 km", "5 runs", "1 820 XP". */
 export function formatMetricWithUnit(metric: ChallengeMetric, value: number | null): string {
   if (value === null) return '—';
   if (metric === 'km') return `${formatMetricValue(metric, value)} km`;
@@ -38,10 +35,10 @@ export function formatMetricWithUnit(metric: ChallengeMetric, value: number | nu
 /** Fält som bär en insats — token, utmaning och historikrad har alla dem (typen saknas på tokens). */
 export interface StakeSource {
   winner_delta: number;
-  winner_duration: number;
+  winner_duration: number | null;
   winner_type?: string;
   loser_delta: number;
-  loser_duration: number;
+  loser_duration: number | null;
   loser_type?: string;
 }
 
@@ -62,12 +59,14 @@ const trimmed = (value: number): string => String(Number(Math.abs(value).toFixed
 /** "+0.15×" / "−0.07×". Förlorarens delta är negativt i databasen. */
 export const deltaText = (delta: number): string => `${delta < 0 ? MINUS : '+'}${trimmed(delta)}×`;
 
-function windowText(duration: number, type: string | undefined): string {
-  return type === 'multiplier_runs' ? `${duration} ${duration === 1 ? 'run' : 'runs'}` : `${duration} d`;
+// En boost utan längd i databasen (kolumnen är nullbar) räknas som 0, som i sampleFromHistory (rulesModel).
+function windowText(duration: number | null, type: string | undefined): string {
+  const length = duration ?? 0;
+  return type === 'multiplier_runs' ? `${length} ${length === 1 ? 'run' : 'runs'}` : `${length} d`;
 }
 
 /** Boostens storlek och längd: "+0.15× / 5 d". */
-export function boostText(delta: number, duration: number, type?: string): string {
+export function boostText(delta: number, duration: number | null, type?: string): string {
   return `${deltaText(delta)} / ${windowText(duration, type)}`;
 }
 
@@ -81,20 +80,12 @@ export function stakeOf(source: StakeSource): Stake {
   };
 }
 
-/** Förnamnet — designen visar "Karl", inte "Karl Persson", i korten. */
-export const firstName = (name: string): string => name.trim().split(/\s+/)[0] || name;
-
 export const durationText = (days: number): string => `${days} d`;
 export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-/** "21 Aug" i Stockholm-tid. Månadsnamnen är egna: Intl:s förkortningar skiljer mellan ICU-versioner ("Sept"). */
+/** "21 Aug" för ett ögonblick, dagen i appens tidszon. Månadsnamnen kommer ur shared/utils/format (egna: Intl:s förkortningar skiljer mellan ICU-versioner). */
 export function formatDayMonth(iso: string | null): string | null {
-  if (!iso) return null;
-  const { date } = stockholmClock(new Date(iso));
-  const [, month, day] = date.split('-').map(Number);
-  return `${day} ${MONTHS[month - 1]}`;
+  return iso ? formatCalendarDayMonth(zoneDay(new Date(iso))) : null;
 }
 
 export type TimeTone = 'neutral' | 'duel' | 'down';
@@ -105,7 +96,7 @@ export interface TimeLeft {
 }
 
 /** "9 d left" · "ends tomorrow" · "ends today" ur slutdatumet (kalenderdag, Stockholm). */
-export function timeLeft(endDate: string | undefined, now: Date): TimeLeft | null {
+export function timeLeft(endDate: string | null | undefined, now: Date): TimeLeft | null {
   if (!endDate) return null;
   const days = daysBetween(stockholmClock(now).date, endDate);
   if (days < 0) return { text: 'settling', tone: 'neutral' };
@@ -115,7 +106,7 @@ export function timeLeft(endDate: string | undefined, now: Date): TimeLeft | nul
 }
 
 /** Timmar kvar till startdagens midnatt (Stockholm); null när utmaningen redan har startat. */
-export function hoursUntilStart(startDate: string | undefined, now: Date): number | null {
+export function hoursUntilStart(startDate: string | null | undefined, now: Date): number | null {
   if (!startDate) return null;
   const clock = stockholmClock(now);
   const days = daysBetween(clock.date, startDate);
@@ -124,7 +115,7 @@ export function hoursUntilStart(startDate: string | undefined, now: Date): numbe
 }
 
 /** "starts in 14 h" (inom ett dygn) eller "starts in 2 d". */
-export function startsInText(startDate: string | undefined, now: Date): string | null {
+export function startsInText(startDate: string | null | undefined, now: Date): string | null {
   const hours = hoursUntilStart(startDate, now);
   if (hours === null) return null;
   return hours <= HOURS_PER_DAY ? `starts in ${hours} h` : `starts in ${Math.ceil(hours / HOURS_PER_DAY)} d`;

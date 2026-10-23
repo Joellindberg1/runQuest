@@ -6,7 +6,7 @@ Godkänd av ägaren 2026-10-04 (Fas 2-paketet)
 ## Kontext
 RunQuest är en live-produkt (Produkt-läge, runquest.dev, 6 aktiva användare).
 Obligatorisk teststrategi-ADR enligt `templates/adr-teststrategi-mall.md`,
-kalibrerad mot verkligheten 2026-10-04 (audit i `docs/STATE-proposal.md` zon 9
+kalibrerad mot verkligheten 2026-10-04 (audit i `docs/archive/STATE-proposal.md` zon 9
 plus CI-fixen samma dag):
 
 - Vitest ^4 finns i backend och `packages/shared`. Backend: 67 route-tester
@@ -67,6 +67,9 @@ kedjeordning) med en **minimal in-memory-fake av Supabase-klienten**:
 - Gränsen mockas bara där den är extern eller separat testad:
   `EnhancedTitleService.processAllUsersTitles` och leaderboard-RPC (titlar
   testas via motorerna), Strava och väder.
+  Senare ändrat: ADR 012 (processGroupTitles). `processAllUsersTitles` ersattes av `processGroupTitles` (en grupp) och `processAllGroupsTitles`, och gruppens
+  ranking byggs om av `rebuildGroupTitleRanking` (`update_group_title_leaderboards`); `update_all_title_leaderboards` anropas inte längre och släpps av migration 058 (v0.8.1). Beskrivningen ovan är
+  historiken från 2026-10-04.
 - Obligatoriska scenarier: första rundan (XP/level/streak_day); streak-
   multiplikator slår in vid 5 dagar; redigering av datum ordnar om kedjan;
   radering av mellanrunda räknar om efterföljande; `event_xp` ingår i

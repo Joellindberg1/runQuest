@@ -172,7 +172,7 @@ describe('POST /api/runs med Idempotency-Key', () => {
     const res = await post({ 'Idempotency-Key': KEY });
     expect(raced).toBe(true);
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create run', code: 'internal_error' });
     expect(tables.runs).toHaveLength(1);
     expect(tables.runs[0].id).toBe('winner-1');
   });
@@ -184,7 +184,7 @@ describe('POST /api/runs med Idempotency-Key', () => {
     });
     const res = await post({ 'Idempotency-Key': KEY });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create run', code: 'internal_error' });
     expect(queries.some((q) => q.mutation === 'insert')).toBe(false);
     expect(tables.runs).toHaveLength(0);
     expect(calculateUserTotals).not.toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe('POST /api/runs med Idempotency-Key', () => {
     });
     const res = await post({ 'Idempotency-Key': KEY });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to create run' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to create run', code: 'internal_error' });
     expect(tables.runs).toHaveLength(0);
   });
 
@@ -236,7 +236,7 @@ describe('POST /api/runs med Idempotency-Key', () => {
 
     const first = await post({ 'Idempotency-Key': KEY });
     expect(first.status).toBe(500);
-    expect(first.body).toMatchObject({ written: true });
+    expect(first.body).toMatchObject({ written: true, code: 'recalc_failed_after_write' });
     expect(tables.runs).toHaveLength(1);
 
     failRecalc = false;
@@ -251,7 +251,7 @@ describe('POST /api/runs med Idempotency-Key', () => {
     for (const bad of ['not-a-uuid', '', 'c232ab00-9414-11ec-b3c8-9f6bdeced846', `${KEY}, ${KEY}`]) {
       const res = await post({ 'Idempotency-Key': bad });
       expect(res.status, `nyckel "${bad}"`).toBe(400);
-      expect(res.body).toEqual({ error: 'Idempotency-Key must be a UUID v4' });
+      expect(res.body).toEqual({ success: false, error: 'Idempotency-Key must be a UUID v4', code: 'invalid_request' });
     }
     expect(tables.runs).toHaveLength(0);
   });
@@ -279,6 +279,6 @@ describe('POST /api/runs utan Idempotency-Key — oförändrat', () => {
     use([], withIndex());
     const res = await server.request('POST', '/api/runs', { token, body: { date: '2026-10-02', distance: 0.5 } });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'Distance must be at least 1.0 km' });
+    expect(res.body).toEqual({ success: false, error: 'Distance must be at least 1.0 km', code: 'invalid_request' });
   });
 });

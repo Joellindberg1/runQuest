@@ -22,7 +22,6 @@ import { createFakeDb, type RecordedQuery, type Row } from '../../routes/__tests
 import { installFakeStravaFetch, stravaError, stravaTokenResponse, type FakeStrava, type FakeStravaCall } from '../../test-utils/fakeStrava.js';
 import { legacyToken, plainOfStored, storedToken } from '../../test-utils/stravaTokens.js';
 import { resetUnreadableLogThrottle } from '../../services/stravaClient.js';
-import { resetLegacyTokenWarnings } from '../../services/stravaTokenStore.js';
 import { exitCodeFor, parseArgs, runBackfill, runCli, type BackfillOptions, type BackfillReport, type RefreshReport } from '../backfillStravaTokenEncryption.js';
 
 const HOST = 'abcdef.supabase.co';
@@ -38,7 +37,6 @@ const output = () => lines.join('\n');
 beforeEach(() => {
   vi.clearAllMocks();
   lines = [];
-  resetLegacyTokenWarnings();
   resetUnreadableLogThrottle();
   vi.spyOn(logger, 'info').mockImplementation(() => {});
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
@@ -324,7 +322,7 @@ describe('--apply', () => {
     const { tables } = world([legacyRow('u1')], (q) => {
       if (q.mutation === 'update' && !injected) {
         injected = true;
-        rowOf(tables, 'u1').refresh_token = legacyToken('rotated-meanwhile'); // the legacy refresh path wrote a new plaintext
+        rowOf(tables, 'u1').refresh_token = legacyToken('rotated-meanwhile'); // an older writer put a new plaintext there
       }
       return null;
     });
@@ -437,6 +435,35 @@ describe('--decrypt (the emergency exit)', () => {
     const second = await run({ decrypt: true, apply: true, confirmWritePlaintext: true });
     expect(second.rewritten).toEqual([]);
     expect(writes(db)).toHaveLength(writesBefore);
+  });
+
+  it('says in the dry-run, before anything is written, that the database refuses plaintext while the CHECK constraint holds', async () => {
+    world([encryptedRow('u1')]);
+
+    await run({ decrypt: true });
+
+    expect(output()).toMatch(/strava_tokens_tokens_encrypted_chk/);
+    expect(output()).toMatch(/refuses (every )?plaintext/);
+    expect(output()).toMatch(/drop the constraint first/i);
+  });
+
+  it('while the database refuses plaintext (the CHECK constraint) --decrypt --apply changes nothing, names the cause for every row, says what to do, and exits 1', async () => {
+    const { tables } = world([encryptedRow('u1'), encryptedRow('u2')], (q) =>
+      q.mutation === 'update'
+        ? { message: 'new row for relation "strava_tokens" violates check constraint "strava_tokens_tokens_encrypted_chk"', code: '23514' }
+        : null,
+    );
+    const before = JSON.stringify(tables);
+
+    const report = await run({ decrypt: true, apply: true, confirmWritePlaintext: true });
+
+    expect(report.rewritten).toEqual([]);
+    expect(report.errorsByCode).toEqual({ check_violation: 2 });
+    expect(JSON.stringify(tables)).toBe(before);
+    expect(output()).toMatch(/u1: .* FAILED: check_violation/);
+    expect(output()).toMatch(/the database refused the plaintext/i);
+    expect(output()).toMatch(/Not done/);
+    expect(exitCodeFor(report)).toBe(1);
   });
 
   it('does not run without the confirmation, whatever else is given', async () => {

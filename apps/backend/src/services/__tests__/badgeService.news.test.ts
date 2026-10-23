@@ -294,6 +294,31 @@ describe('evaluateBadges — badge_earned (T2)', () => {
     expect(await newsOf(db)).toEqual([]);
   });
 
+  it('läsfel på users.group_id: felet loggas med databaskoden, aldrig databastexten', async () => {
+    setup(
+      { runs: [run({ distance: 5 })] },
+      { failWhen: (q) => (q.table === 'users' && q.select === 'group_id' ? { message: 'row value secret-4711 leaked', code: '57014' } : null) },
+    );
+
+    await evaluateBadges(USER, { now: NOW, longestStreak: 0 });
+
+    const logged = errorSpy.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n');
+    expect(logged).toContain('57014');
+    expect(logged).not.toContain('secret-4711');
+  });
+
+  it('användaren finns inte: kastas och loggas som user_not_found, och ingen news skrivs', async () => {
+    const db = setup({ runs: [run({ distance: 5 })], users: [{ id: 'u2', group_id: 'g2', longest_streak: 0, displayed_badge_series: [] }] });
+
+    await evaluateBadges(USER, { now: NOW, longestStreak: 0 });
+
+    const logged = errorSpy.mock.calls.map((c: unknown[]) => c.map(String).join(' ')).join('\n');
+    expect(logged).toContain('Failed to write badge news');
+    expect(logged).toContain('user_not_found');
+    expect(await newsOf(db)).toEqual([]);
+    expect(newsWrites(db)).toHaveLength(0);
+  });
+
   it('partiell skrivning: insert faller men uppgraderingen lyckades — bara uppgraderingen ger news', async () => {
     // 120 km på en runda: milestoner 1→6 (upgrade) och earth_trotter tier 1 (insert).
     const db = setup(

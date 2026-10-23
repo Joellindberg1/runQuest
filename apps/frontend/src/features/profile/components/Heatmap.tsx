@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { User } from '@runquest/types';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { HEAT_MONTHS_DESKTOP, HEAT_MONTHS_MOBILE, buildHeatStats, buildHeatmap, type HeatCell, type HeatLevel } from '../heatmapModel';
-import { formatInt, formatKm } from '../profileFormat';
+import { formatInt, formatKm } from '@/shared/utils/format';
 
 /** Veckodagsetiketterna (desktop): mån · · ons · · fre · · sön — varannan, som Web Prototype. */
 const DAY_LABELS = ['M', '', 'W', '', 'F', '', 'S'] as const;

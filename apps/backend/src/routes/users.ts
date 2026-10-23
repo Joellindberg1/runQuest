@@ -1,39 +1,33 @@
 // 👤 User Routes — profilbild m.m. Skrivningar mot users/storage går via
 // backend (service role); frontend har ingen skrivåtkomst i RLS.
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express from 'express';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { errorCode } from '../utils/errorCode.js';
+import { PROFILE_PICTURE_EXTENSIONS, PROFILE_PICTURE_MAX_BYTES } from '@runquest/shared';
+import type { UploadProfilePictureResponse } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
-
-// Exporteras så att migrationen som sätter bucketens gränser testas mot samma värden.
-export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — samma gräns som frontend visar
-export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-};
 
 // POST /api/users/profile-picture — rå bilddata i body, Content-Type avgör format
 router.post(
   '/profile-picture',
   authenticateJWT,
-  express.raw({ type: 'image/*', limit: MAX_FILE_SIZE }),
+  express.raw({ type: 'image/*', limit: PROFILE_PICTURE_MAX_BYTES }),
   async (req, res): Promise<void> => {
     try {
       const userId = req.user!.user_id;
       const contentType = (req.headers['content-type'] ?? '').split(';')[0].trim();
-      const ext = ALLOWED_IMAGE_TYPES[contentType];
+      const ext = PROFILE_PICTURE_EXTENSIONS[contentType];
 
       if (!ext) {
-        res.status(400).json({ error: 'Only jpeg, png, webp or gif images are allowed' });
+        fail(res, 400, 'Only jpeg, png, webp or gif images are allowed');
         return;
       }
       if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-        res.status(400).json({ error: 'Empty image body' });
+        fail(res, 400, 'Empty image body');
         return;
       }
 
@@ -53,7 +47,7 @@ router.post(
 
       if (uploadError) {
         logger.error(`❌ Profile picture upload failed (${errorCode(uploadError)})`);
-        res.status(500).json({ error: 'Failed to upload profile picture' });
+        fail(res, 500, 'Failed to upload profile picture');
         return;
       }
 
@@ -68,7 +62,7 @@ router.post(
 
       if (updateError) {
         logger.error(`❌ Profile picture user update failed (${errorCode(updateError)})`);
-        res.status(500).json({ error: 'Failed to update profile picture' });
+        fail(res, 500, 'Failed to update profile picture');
         return;
       }
 
@@ -77,18 +71,14 @@ router.post(
       }
 
       logger.info(`🖼️ Profile picture updated for user ${userId}`);
-      res.json({ success: true, data: { profile_picture: publicUrlData.publicUrl } });
+      ok<UploadProfilePictureResponse>(res, { profile_picture: publicUrlData.publicUrl });
     } catch (error) {
       logger.error(`❌ Profile picture error (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to upload profile picture' });
+      fail(res, 500, 'Failed to upload profile picture');
     }
   }
 );
 
-// Fel från body-parsern (för stor bild) som JSON i ADR 007-formen i stället för Express HTML-felsida (som väntelistan).
-router.use((err: { type?: string }, _req: Request, res: Response, next: NextFunction): void => {
-  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }
-  next(err);
-});
+// Fel från body-parsern (för stor bild) tas av den centrala felhanteraren i createApp() (jsonErrorHandler): 413 payload_too_large.
 
 export default router;

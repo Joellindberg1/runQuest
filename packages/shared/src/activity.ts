@@ -200,8 +200,6 @@ export interface ActivityPayloadMap {
   challenge_accepted: ChallengeAcceptedPayload;
 }
 
-export type ActivityPayload<T extends ActivityType = ActivityType> = ActivityPayloadMap[T];
-
 /** En färdig rad att skriva till activity_log (allt utom id/created_at). Diskriminerad på `type`. */
 export type ActivityDraft = {
   [T in ActivityType]: {
@@ -547,7 +545,7 @@ export function buildChallengeReceivedDraft(c: ChallengeActivityRow, occurredAt:
   };
 }
 
-/** Den accepterade utmaningen: raden som den aktiverades till, med `start_date` satt (tomorrowStockholm vid accept). */
+/** Den accepterade utmaningen: raden som den aktiverades till, med `start_date` satt (groupNextMidnight vid accept). */
 export type ChallengeAcceptedRow = ChallengeActivityRow & { start_date: string };
 
 /**

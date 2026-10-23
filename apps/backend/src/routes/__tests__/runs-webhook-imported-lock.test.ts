@@ -112,9 +112,9 @@ describe('webhook-imported runs are read-only', () => {
     const del = await server.request('DELETE', `/api/runs/${runId}`, { token });
 
     expect(put.status).toBe(409);
-    expect(put.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(put.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(del.status).toBe(409);
-    expect(del.body).toEqual({ error: 'Strava runs are read-only' });
+    expect(del.body).toEqual({ success: false, error: 'Strava runs are read-only', code: 'strava_read_only' });
     expect(tables.runs).toHaveLength(1);
     expect(tables.runs[0]).toEqual(before);
     expect(db.queries.filter((q) => q.mutation)).toHaveLength(writesBefore);

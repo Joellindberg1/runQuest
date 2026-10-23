@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { zoneDay } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
@@ -6,7 +7,6 @@ import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
 import { DEFAULT_STAT_VIEW, STAT_VIEWS, buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
-import { todayOf } from '@/features/log/logModel';
 import { Heatmap } from './Heatmap';
 import { PanelLoading } from './ProfileParts';
 
@@ -68,7 +68,7 @@ export function StatsPanel({ user, now, isDesktop }: StatsPanelProps) {
         {view === 'distance' && <Rows rows={distanceRows} label="Distance" />}
         {view === 'streak' && <StreakRows user={user} now={now} />}
         {view === 'fun' && <Rows rows={funRows} label="Fun facts" />}
-        {view === 'consistency' && <Heatmap user={user} today={todayOf(now)} now={now} isDesktop={isDesktop} />}
+        {view === 'consistency' && <Heatmap user={user} today={zoneDay(now)} now={now} isDesktop={isDesktop} />}
       </div>
     </section>
   );

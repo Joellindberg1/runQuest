@@ -4,8 +4,8 @@ import { CriticalAlert } from '../utils/criticalAlert.js';
 import { logger } from '../utils/logger.js';
 import { recordChallengeSettled } from './activityLog.js';
 import { recordRankPassesForChallenge } from './rankNews.js';
-import { MS_DAY } from '@runquest/shared';
-import { todayStockholm } from '../utils/dateUtils.js';
+import { planBoostWindow, zoneDay, type BoostPlan, type ChallengeProgressEntry } from '@runquest/shared';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
 // Boost-tillämpningen bor i @runquest/shared (boostDeltasForRuns) och anropas
@@ -154,21 +154,16 @@ async function awardTokenForLevel(userId: string, level: number, tier: string): 
 
 // ─── Progress ────────────────────────────────────────────────────────────────
 
-export interface ProgressEntry {
-  user_id: string;
-  value: number;
-}
-
 /**
  * Calculate progress (metric sum) for both users in a challenge.
  * Returns null if the challenge is not active or lacks start_date.
  */
-export async function getProgressForChallenge(challengeId: string): Promise<ProgressEntry[] | null> {
+export async function getProgressForChallenge(challengeId: string): Promise<ChallengeProgressEntry[] | null> {
   const supabase = getSupabaseClient();
 
   const { data: challenge, error } = await supabase
     .from('challenges')
-    .select('challenger_id, opponent_id, metric, start_date, end_date, status')
+    .select('challenger_id, opponent_id, metric, start_date, end_date, status, group_id')
     .eq('id', challengeId)
     .single();
 
@@ -178,7 +173,7 @@ export async function getProgressForChallenge(challengeId: string): Promise<Prog
   if (!challenge || !challenge.start_date) return null;
 
   const startDate = challenge.start_date;
-  const endDate = challenge.end_date ?? todayStockholm();
+  const endDate = challenge.end_date ?? zoneDay(new Date(), groupTimeZone(challenge.group_id));
 
   const fetchValue = async (userId: string): Promise<number> => {
     // Läsfel kastas: ett fel som blev 0 skulle annars avgöra utmaningen på ofullständig data (0–0 = oavgjort).
@@ -260,6 +255,24 @@ export async function settleChallenge(challengeId: string): Promise<void> {
 
   logger.info(`🏁 Settling challenge ${challengeId}: ${outcome} (${c.value} vs ${o.value})`);
 
+  // 0. Boostarnas fönster planeras och valideras FÖRE claimen. Efter claimen får inget som kan kasta på indata återstå: en duell som claimats men inte
+  // fått sina boostar är ett fastlåst tillstånd. En ogiltig längd (null, inte heltal, under 1) stoppar därför här: duellen förblir aktiv, ingenting skrivs,
+  // och felet syns i schedulern tills längden rättats. Fönstret är gruppens dygn: n kalenderdagar från 00:00 dagen efter duellens sista dag.
+  const now = new Date();
+  const timeZone = groupTimeZone(challenge.group_id);
+  let winnerPlan: BoostPlan = { startDay: null, endDay: null, expiresAt: null };
+  let loserPlan: BoostPlan = { startDay: null, endDay: null, expiresAt: null };
+  if (outcome !== 'draw') {
+    try {
+      const plan = (type: string, days: number | null, delta: number) =>
+        planBoostWindow({ type, days, delta, duelEndDay: typeof challenge.end_date === 'string' ? challenge.end_date : null, now, timeZone });
+      winnerPlan = plan(challenge.winner_type, challenge.winner_duration, Number(challenge.winner_delta));
+      loserPlan = plan(challenge.loser_type, challenge.loser_duration, Number(challenge.loser_delta));
+    } catch {
+      throw errorWithCode(`Challenge ${challengeId} has an invalid boost length; it was not settled and nothing was written`, { code: 'invalid_boost_duration' });
+    }
+  }
+
   // 1. Claim: markera completed ENDAST om fortfarande active (bugg #6) —
   // vid överlappande instanser vinner exakt en, så W/D/L och boosts kan
   // aldrig delas ut dubbelt.
@@ -283,8 +296,7 @@ export async function settleChallenge(challengeId: string): Promise<void> {
   // claimen (utmaningen är active igen och schedulern avgör den om), och eftersom W/D/L och challenge_active
   // ännu inte rörts kan omförsöket inte dubbelräkna något. En draw ger inga boostar.
   if (outcome !== 'draw') {
-    const now = new Date();
-
+    // start_date/end_date är fönstret XP-omräkningen och boostkortet läser (migration 059); expires_at är slutet av slutdagen, konsekvent med det.
     const winnerBoost = {
       user_id: winnerId!,
       challenge_id: challengeId,
@@ -292,9 +304,9 @@ export async function settleChallenge(challengeId: string): Promise<void> {
       type: challenge.winner_type,
       delta: Number(challenge.winner_delta),
       remaining: challenge.winner_type === 'multiplier_runs' ? challenge.winner_duration : null,
-      expires_at: challenge.winner_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.winner_duration * MS_DAY).toISOString()
-        : null,
+      start_date: winnerPlan.startDay,
+      end_date: winnerPlan.endDay,
+      expires_at: winnerPlan.expiresAt,
     };
 
     const loserBoost = {
@@ -304,9 +316,9 @@ export async function settleChallenge(challengeId: string): Promise<void> {
       type: challenge.loser_type,
       delta: Number(challenge.loser_delta), // negative
       remaining: challenge.loser_type === 'multiplier_runs' ? challenge.loser_duration : null,
-      expires_at: challenge.loser_type === 'multiplier_days'
-        ? new Date(now.getTime() + challenge.loser_duration * MS_DAY).toISOString()
-        : null,
+      start_date: loserPlan.startDay,
+      end_date: loserPlan.endDay,
+      expires_at: loserPlan.expiresAt,
     };
 
     const { error: boostError } = await supabase.from('user_boosts').insert([winnerBoost, loserBoost]);

@@ -2,6 +2,7 @@ import React from 'react';
 import { TierBadge } from './TierBadge';
 import { Swords, Clock } from 'lucide-react';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
+import { formatInt, formatKm } from '@/shared/utils/format';
 import type { Challenge } from '@runquest/types';
 import { daysBetween, stockholmDay, stockholmWallClockToInstant } from '@runquest/shared';
 
@@ -16,9 +17,9 @@ interface ActiveChallengeWidgetProps {
 const OSWALD = "'Bebas Neue', sans-serif";
 
 function formatValue(metric: string, value: number): string {
-  if (metric === 'km') return `${value.toFixed(1)} km`;
+  if (metric === 'km') return `${formatKm(value)} km`;
   if (metric === 'runs') return `${value}`;
-  return `${value} XP`;
+  return `${formatInt(value)} XP`;
 }
 
 function formatEndDate(endDate: string): string {
@@ -29,7 +30,7 @@ function formatEndDate(endDate: string): string {
 }
 
 // En utmaning startar kl 00:00 Stockholm-tid på start_date.
-function isPendingStart(startDate?: string): boolean {
+function isPendingStart(startDate?: string | null): boolean {
   if (!startDate) return false;
   return stockholmWallClockToInstant(startDate, 0).getTime() > Date.now();
 }

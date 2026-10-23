@@ -20,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-19.1', sha256: '8f7aefb84a22457a0c2d7696804f51cb6217e160332a901c85a3da69e8bb8a7c' };
+const PINNED_POLICY = { version: '2026-10-22', sha256: 'a123d57df7be6674e23d99095ed0d07b38571c6e60a1f3c44722dfc8df6e176c' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -294,7 +294,10 @@ describe('dataPolicy', () => {
     expectSentence(text, /(query|fragment)/i, /landing page/i, /utm_source/i, /one of a few fixed values RunQuest has chosen/i, /any other value is dropped/i);
     expectSentence(text, /no user ID/i, /no name/i, /no email address/i, /no figures, places, times or IDs from your runs/i);
     expectSentence(text, /not linked to your account/i);
-    expectSentence(text, /IP address/i, /not stored/i);
+    // Umami lovar bara att statistiken inte sparar IP-adressen; drifts- och säkerhetsloggar hos Umami och dess underleverantörer kan ha den.
+    expectSentence(text, /IP address/i, /according to Umami/i, /do(es)? not store it/i);
+    expectSentence(text, /Umami and its infrastructure providers may record it/i, /operational and security logs/i);
+    expect(text).not.toMatch(/IP address[^.]*is not stored\b/i);
     expectSentence(text, /one-way code/i, /changes regularly/i, /cannot be traced back to you/i);
     expectSentence(text, /events/i, /pressing a button|changing a setting/i);
     expectSentence(text, /event is a fixed name chosen by RunQuest/i, /never the value you chose/i, /never anything you typed/i);
@@ -325,6 +328,61 @@ describe('dataPolicy', () => {
     expect(Math.round(1 / MAX_TRACES_SAMPLE_RATE)).toBe(10);
     expectSentence(text, /no session recordings/i);
     expectSentence(text, /Sentry stores/i, /EU/);
+  });
+
+  it('states legitimate interest as the legal basis for statistics and error reports, with the email address to object to it', () => {
+    for (const id of ['statistics', 'errors']) {
+      const text = textOf(getDataPolicySection(id));
+      expectSentence(text, /legal basis/i, /legitimate interest/i);
+      expectSentence(text, /right to object/i, /on grounds relating to your particular situation/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
+    }
+    expectSentence(textOf(getDataPolicySection('statistics')), /legitimate interest/i, /how the site is used/i);
+    expectSentence(textOf(getDataPolicySection('errors')), /legitimate interest/i, /finding and fixing errors/i);
+    // De rättsliga grunderna som redan fanns står kvar.
+    expectSentence(textOf(getDataPolicySection('data')), /performance of a contract/i);
+    expectSentence(textOf(getDataPolicySection('waitlist')), /legal basis/i, /your consent/i);
+  });
+
+  it('data section names legitimate interest as the exception for statistics and error reports', () => {
+    expectSentence(textOf(getDataPolicySection('data')), /visitor statistics/i, /error reports/i, /legitimate interest/i);
+  });
+
+  it('rights section says processing based on legitimate interest can be objected to by email', () => {
+    const rights = getDataPolicySection('rights');
+    expectParagraph(rights, /legitimate interest/i, /right to object/i, /on grounds relating to your particular situation/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
+  });
+
+  it('processors section says Umami and Sentry are US companies and how transfers outside the EU are covered', () => {
+    const text = textOf(getDataPolicySection('processors'));
+    expectSentence(text, /Umami/, /US company/i);
+    expectSentence(text, /subprocessors/i, /United States/i, /EU/);
+    expectSentence(text, /Umami/, /data processing agreement/i, /applies automatically/i);
+    expectSentence(text, /Umami/, /standard contractual clauses/i, /without an adequate level of protection/i);
+    expectSentence(text, /Sentry/, /US company/i, /data processor/i, /data processing addendum/i, /RunQuest has accepted/i);
+    expectSentence(text, /addendum/i, /process data in the United States/i);
+    // Sentrys DPA bygger på ramverket först; klausulerna gäller bara när det inte gäller.
+    // Ramverkets namn har punkter ("EU-U.S.") som meningsdelaren klyver: prövas per stycke.
+    expectParagraph(getDataPolicySection('processors'), /Sentry/, /Data Privacy Framework/i, /where that does not apply/i, /standard contractual clauses/i);
+  });
+
+  it('statistics legal basis states cookies and IP storage only as far as RunQuest and Umami support it', () => {
+    const text = textOf(getDataPolicySection('statistics'));
+    expectParagraph(getDataPolicySection('statistics'), /legal basis/i, /RunQuest sets no cookies/i, /according to Umami/i, /uses none/i);
+    expect(text).not.toMatch(/It is done without cookies/i);
+  });
+
+  it('processors section offers a copy of the safeguards for the transfers by email', () => {
+    expectSentence(textOf(getDataPolicySection('processors')), /ask for a copy of the safeguards/i, /transfers/i, new RegExp(`email ${CONTACT.replace('.', '\\.')}`));
+  });
+
+  it('statistics and error sections point to the processors section for transfers outside the EU', () => {
+    for (const id of ['statistics', 'errors']) {
+      expectSentence(textOf(getDataPolicySection(id)), /US company/i, /outside the EU/i, /Who else handles data/);
+    }
+  });
+
+  it('does not promise that no data leaves the EU', () => {
+    expect(policyText()).not.toMatch(/never leaves the EU|only in the EU|does not leave the EU|stays in the EU/i);
   });
 
   it('processors and retention sections name Umami and Sentry', () => {

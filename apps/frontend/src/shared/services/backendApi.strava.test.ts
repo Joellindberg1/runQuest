@@ -38,12 +38,12 @@ describe('connectStrava', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ code: 'abc' });
   });
 
-  it('surfaces the servers Consent required answer as the error text', async () => {
-    fetchMock.mockResolvedValue(reply(400, { error: 'Consent required' }));
+  it('surfaces the servers Consent required answer as the error text, and the code consent_required next to it', async () => {
+    fetchMock.mockResolvedValue(reply(400, { success: false, error: 'Consent required', code: 'consent_required' }));
 
     const result = await backendApi.connectStrava('abc');
 
-    expect(result).toMatchObject({ success: false, error: 'Consent required' });
+    expect(result).toEqual({ success: false, error: 'Consent required', code: 'consent_required' });
   });
 });
 

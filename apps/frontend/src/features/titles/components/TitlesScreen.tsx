@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { MAX_DISPLAYED_TITLES, TITLES_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_TITLES_V2 } from '@/features/onboarding/featureTourSteps';
@@ -14,7 +15,7 @@ import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useDisplaySelection } from '../hooks/useDisplaySelection';
 import { useGroupEligibility, useTitleBoard } from '../hooks/useTitlesQueries';
 import {
-  MAX_DISPLAYED, TITLE_FILTERS, TITLE_FILTER_PARAM, buildChases, buildDisplayedRows, buildTitlesView, heldTitleIds, summaryText,
+  TITLE_FILTERS, TITLE_FILTER_PARAM, buildChases, buildDisplayedRows, buildTitlesView, heldTitleIds, summaryText,
   type TitleFilter,
 } from '../titlesModel';
 import '../titles.css';
@@ -113,7 +114,7 @@ export function TitlesScreen() {
             showChevron={isDesktop}
             displayPositions={displayPositions}
             canPick={selectionReady}
-            selectionFull={selection.selected.length >= MAX_DISPLAYED}
+            selectionFull={selection.selected.length >= MAX_DISPLAYED_TITLES}
             onTogglePick={selection.toggle}
           />
         ))}
@@ -135,7 +136,7 @@ export function TitlesScreen() {
 
   return (
     <div className="rq-titles">
-      <FeatureTour slug="tour_titles_v2" steps={TOUR_TITLES_V2} />
+      <FeatureTour slug={TITLES_TOUR_SLUG} steps={TOUR_TITLES_V2} />
 
       <header className="rq-titles__head">
         <div>

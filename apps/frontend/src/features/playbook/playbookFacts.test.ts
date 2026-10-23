@@ -8,11 +8,11 @@ import {
   MANUAL_RUN_MIN_DISTANCE_KM,
   STRAVA_DISTANCE_MUST_EXCEED_KM,
   STRAVA_LOOKBACK_BUFFER_DAYS,
+  STORM_EVENT_GUST_MS,
   STRAVA_RUN_SPORT_TYPES,
   STRAVA_TREADMILL_FLAG,
   stravaPollIntervalLabel,
 } from '@runquest/shared';
-import { MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
 import { HOW_IT_WORKS, observedStakes } from '@/features/challenges/rulesModel';
 import type { XpRules } from '@/features/log/xpPreviewModel';
 import { EVENT_FACTS, STRAVA_RUN_TYPES_LABEL, WEEKLY_COMPETITIONS, WEEKLY_XP } from './playbookFacts';
@@ -37,9 +37,8 @@ const text = (id: ChapterId): string => {
 };
 
 describe('Run — minimidistans (konstanterna i shared)', () => {
-  it('manuella rundor kräver minst 1,0 km, samma som appens konstant; Strava-rundor har ingen distansgräns utöver > 0', () => {
+  it('manuella rundor kräver minst 1,0 km; Strava-rundor har ingen distansgräns utöver > 0', () => {
     expect(MANUAL_RUN_MIN_DISTANCE_KM).toBe(1);
-    expect(MIN_RUN_DISTANCE_KM).toBe(MANUAL_RUN_MIN_DISTANCE_KM);
     expect(STRAVA_DISTANCE_MUST_EXCEED_KM).toBe(0);
   });
 
@@ -105,7 +104,7 @@ describe('Run — minimidistans (konstanterna i shared)', () => {
 describe('Titles — säsongstitlar och när titlarna räknas om', () => {
   it('vinterfönstret är 1 december–28/29 februari på Stockholm-datum: december räknar årets vinter, jan–nov den som började föregående december', () => {
     const utils = backend('src/titleEngines/_utils.ts');
-    expect(utils).toContain('toStockholmDate(now.toISOString())');
+    expect(utils).toContain('zoneDay(now, timeZone)');
     expect(utils).toContain('const winterStartYear = month === 12 ? year : year - 1;');
     expect(utils).toContain('start: `${winterStartYear}-12-01`, end: `${winterStartYear + 1}-03-01`');
     expect(backend('src/titleEngines/winterKm.ts')).toContain('r.date >= start && r.date < end');
@@ -223,7 +222,8 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(fetchUrl).toContain('wind_gusts_10m');
     expect(fetchUrl).toContain('&wind_speed_unit=ms');
     expect(service).toContain(`if (hour < ${dayFrom} || hour > ${dayTo}) continue;`);
-    expect(service).toContain(`(gusts[i] ?? 0) >= ${gustMs}`);
+    expect(gustMs).toBe(STORM_EVENT_GUST_MS); // värdet bor i shared; eventService jämför mot just den konstanten
+    expect(service).toContain('(gusts[i] ?? 0) >= STORM_EVENT_GUST_MS');
     expect(text('events')).toContain(`gusts of ${gustMs} m/s (about 54 km/h)`);
     expect(service).toContain(`const qualifies = stormyHours >= ${stormHours} || gustyHours >= ${gustHours};`);
   });
@@ -235,7 +235,7 @@ describe('Events — mot migrationerna, eventService och schemat', () => {
     expect(put).toContain('enforceRunDateWindow: true');
     expect(post).not.toContain('enforceRunDateWindow');
     // Utan flaggan räcker det att eventet startat och att rundans datum inte ligger efter slutet.
-    expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', `\$\{params\.runDate\}T00:00:00Z`\)/);
+    expect(service).toMatch(/\.lte\('starts_at', now\)\s*\.gte\('ends_at', zoneMidnightIso\(params\.runDate, timeZone\)\)/);
     expect(service).toMatch(/if \(params\.enforceRunDateWindow\) \{/);
   });
 

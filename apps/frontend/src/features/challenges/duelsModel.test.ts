@@ -1,4 +1,4 @@
-import { compareChallengeStandings } from '@runquest/shared';
+import { compareChallengeStandings, groupTimeZone } from '@runquest/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   autoStartText, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings, buildTokenGroups,
@@ -263,27 +263,28 @@ describe('buildHistoryRows', () => {
 describe('buildBoosts', () => {
   const history = [challenge({ id: 'c-old', challenger_id: ME, opponent_id: ADAM, metric: 'runs', duration_days: 5, status: 'completed' })];
 
-  it('"+0.25× for 4 days" med bakgrunden ur min historik', () => {
-    // utgår 8 okt 03:00 UTC; från 4 okt 10:00 UTC återstår 3,7 dygn → 4 dagar
+  it('"+0.25× for 5 days" med bakgrunden ur min historik', () => {
+    // utgår 8 okt 05:00 svensk tid; idag är 4 okt (12:00): kalenderdagarna 4–8 okt, idag och slutdagen inräknade → 5 dagar
     const [view] = buildBoosts([boost({ id: 'b1' })], history, ME, NAMES, NOW);
-    expect(view).toEqual({ id: 'b1', positive: true, headline: '+0.25× for 4 days', detail: 'Won against Adam · most runs · 5 d' });
+    expect(view).toEqual({ id: 'b1', positive: true, headline: '+0.25× for 5 days', detail: 'Won against Adam · most runs · 5 d' });
   });
 
   it('förlorarens straff: minustecken, "Lost to"', () => {
     const [view] = buildBoosts([boost({ id: 'b2', outcome: 'loser', delta: -0.07 })], history, ME, NAMES, NOW);
     expect(view.positive).toBe(false);
-    expect(view.headline).toBe('−0.07× for 4 days');
+    expect(view.headline).toBe('−0.07× for 5 days');
     expect(view.detail).toBe('Lost to Adam · most runs · 5 d');
   });
 
   it('utgångna boosts försvinner; saknas utmaningen i historiken utelämnas bakgrunden', () => {
-    expect(buildBoosts([boost({ id: 'b3', expires_at: '2026-10-04T09:00:00Z' })], history, ME, NAMES, NOW)).toEqual([]);
+    expect(buildBoosts([boost({ id: 'b3', expires_at: '2026-10-03T09:00:00Z' })], history, ME, NAMES, NOW)).toEqual([]);
     const [view] = buildBoosts([boost({ id: 'b4', challenge_id: 'c-unknown' })], [], ME, NAMES, NOW);
     expect(view.detail).toBeNull();
   });
 
   it('en dag kvar läses i singular', () => {
-    const [view] = buildBoosts([boost({ id: 'b5', expires_at: '2026-10-05T03:00:00Z' })], [], ME, NAMES, NOW);
+    // Slutdagen är idag (22:00 svensk tid): boosten gäller fortfarande rundor idag, så den visas med en dag kvar.
+    const [view] = buildBoosts([boost({ id: 'b5', expires_at: '2026-10-04T20:00:00Z' })], [], ME, NAMES, NOW);
     expect(view.headline).toBe('+0.25× for 1 day');
   });
 
@@ -299,6 +300,47 @@ describe('buildBoosts', () => {
   it('en boost utan slutdatum visas utan längd', () => {
     const [view] = buildBoosts([boost({ id: 'b7', expires_at: undefined })], [], ME, NAMES, NOW);
     expect(view.headline).toBe('+0.25×');
+  });
+
+  describe('boostens sparade fönster (samma fönster som XP-omräkningen)', () => {
+    // En ny 3-dagarsboost: duellen slutade den 19:e, boosten gäller 20, 21 och 22 oktober och slutar 00:00 den 23:e svensk tid.
+    const fresh = (over = {}) => boost({ id: 'n1', created_at: '2026-10-20T01:00:00Z', expires_at: '2026-10-22T22:00:00Z', start_date: '2026-10-20', end_date: '2026-10-22', ...over });
+    const headline = (b: ReturnType<typeof boost>, at: string, tz?: string) => buildBoosts([b], [], ME, NAMES, new Date(at), undefined, tz)[0]?.headline;
+
+    it('a new 3-day boost shows "3 days" on its start day and before it', () => {
+      expect(headline(fresh(), '2026-10-18T10:00:00Z')).toBe('+0.25× for 3 days');
+      expect(headline(fresh(), '2026-10-19T21:00:00Z')).toBe('+0.25× for 3 days'); // 23:00 den 19:e svensk tid
+      expect(headline(fresh(), '2026-10-20T10:00:00Z')).toBe('+0.25× for 3 days');
+    });
+
+    it('counts down one day per local midnight and is gone from the midnight after the end day', () => {
+      expect(headline(fresh(), '2026-10-21T10:00:00Z')).toBe('+0.25× for 2 days');
+      expect(headline(fresh(), '2026-10-22T10:00:00Z')).toBe('+0.25× for 1 day');
+      expect(headline(fresh(), '2026-10-22T22:00:00Z')).toBeUndefined();
+    });
+
+    it('another time zone through the group resolver moves the turnover of the days left', () => {
+      const lateEvening = '2026-10-22T22:30:00Z'; // efter midnatt den 23:e i Stockholm, 18:30 den 22:a i New York
+      expect(headline(fresh(), lateEvening)).toBeUndefined();
+      expect(headline(fresh(), lateEvening, groupTimeZone('g1', () => 'America/New_York'))).toBe('+0.25× for 1 day');
+    });
+
+    it('a new run boost counts runs from its stored start day, not from when it was created', () => {
+      const perRun = boost({ id: 'n2', type: 'multiplier_runs', remaining: 2, expires_at: undefined, created_at: '2026-10-20T01:00:00Z', start_date: '2026-10-20', end_date: null });
+      const runs = [{ date: '2026-10-19' }, { date: '2026-10-20' }];
+      expect(buildBoosts([perRun], [], ME, NAMES, new Date('2026-10-21T10:00:00Z'), runs)[0].headline).toBe('+0.25× for 1 run');
+    });
+
+    it('an old boost without a stored window keeps the days of its old window', () => {
+      // Skapad 01:30 svensk tid den 20:e: det gamla UTC-fönstret är 19-22 oktober (backfyllet i migration 059 är detsamma).
+      const old = boost({ id: 'o1', created_at: '2026-10-19T23:30:00Z', expires_at: '2026-10-22T23:30:00Z' });
+      const backfilled = boost({ id: 'o2', created_at: '2026-10-19T23:30:00Z', expires_at: '2026-10-22T23:30:00Z', start_date: '2026-10-19', end_date: '2026-10-22' });
+      for (const b of [old, backfilled]) {
+        expect(headline(b, '2026-10-20T10:00:00Z')).toBe('+0.25× for 3 days'); // 20, 21, 22
+        expect(headline(b, '2026-10-22T20:00:00Z')).toBe('+0.25× for 1 day');
+        expect(headline(b, '2026-10-22T22:30:00Z')).toBeUndefined(); // efter midnatt den 23:e svensk tid
+      }
+    });
   });
 });
 

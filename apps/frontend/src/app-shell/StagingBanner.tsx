@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef } from 'react';
-import './staging-banner.css';
 
 const RESERVED_HEIGHT = '--rq-staging-banner-h';
 
 /**
  * Markering för stagingmiljön: en smal rad överst som scrollar bort med sidan, lika på landningen, login och inloggade sidor. App.tsx monterar den
- * bara när bygget har VITE_APP_ENV=staging, så prodbygget varken laddar eller ritar den.
+ * bara när bygget har VITE_APP_ENV=staging, så prodbygget varken laddar eller ritar den. Stilen (staging-banner.css) importeras inte här: i ett stagingbygge
+ * länkas den i båda HTML-filerna (stagingBannerStyle.ts), eftersom bannern står förrenderad i dem före all JS.
  *
- * Raden tar plats i flödet, så sidans 100dvh-ytor räknar bort dess höjd via --rq-staging-banner-h (0 i prod). Höjden mäts, eftersom den växer med
- * safe-area-inset-top (PWA) och kan bryta över två rader på en smal skärm.
+ * Raden tar plats i flödet, så sidans 100dvh-ytor räknar bort dess höjd via --rq-staging-banner-h (0 i prod). Stilmallen räknar ut höjden för en rad, så den
+ * stämmer redan i förrenderingen; här mäts den på riktigt, eftersom raden kan bryta över två rader på en smal skärm.
  */
 export function StagingBanner() {
   const ref = useRef<HTMLElement>(null);

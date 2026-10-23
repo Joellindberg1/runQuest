@@ -66,7 +66,7 @@ describe('auth', () => {
   it('GET /api/news utan token → 401', async () => {
     const res = await server.request('GET', '/api/news');
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'unauthorized' });
   });
   it('POST /api/news/seen utan token → 401', async () => {
     const res = await server.request('POST', '/api/news/seen', { body: {} });
@@ -203,7 +203,7 @@ describe('GET /api/news', () => {
       use(tables([row(1)]));
       const res = await get(`/api/news?${qs}`);
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: expect.any(String) });
+      expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
     });
 
     it('giltiga gränsvärden: limit=1 och limit=100', async () => {
@@ -425,7 +425,7 @@ describe('GET /api/news', () => {
         const db = use(world([rowOf(1, { actor_user_id: ME })]));
         const res = await getMine(`/api/news?${qs}`);
         expect(res.status).toBe(400);
-        expect(res.body).toEqual({ error: expect.any(String) });
+        expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
         expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
       });
 
@@ -697,7 +697,7 @@ describe('GET /api/news', () => {
         use(withExtra([row(1)], { news_read: [] }), { errors: { news_read: { message: 'connection reset' } } });
         const res = await get('/api/news');
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ error: 'Failed to fetch news' });
+        expect(res.body).toEqual({ success: false, error: 'Failed to fetch news', code: 'internal_error' });
       } finally {
         error.mockRestore();
       }
@@ -805,14 +805,14 @@ describe('GET /api/news', () => {
     use(tables([row(1)]), { errors: { users: { message: 'connection reset' } } });
     const res = await get('/api/news');
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to fetch news' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to fetch news', code: 'internal_error' });
   });
 
   it('databasfel → 500 { error } utan att läcka felmeddelandet', async () => {
     use(tables([row(1)]), { errors: { activity_log: { message: 'relation "activity_log" secret detail' } } });
     const res = await get('/api/news');
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to fetch news' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to fetch news', code: 'internal_error' });
   });
 });
 
@@ -868,7 +868,7 @@ describe('POST /api/news/seen', () => {
       use({ ...feed(), news_read: [] }, { errors: { news_read: { message: 'connection reset' } } });
       const res = await post({});
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ error: 'Failed to update news state' });
+      expect(res.body).toEqual({ success: false, error: 'Failed to update news state', code: 'internal_error' });
     } finally {
       error.mockRestore();
     }
@@ -947,14 +947,14 @@ describe('POST /api/news/seen', () => {
     use(feed());
     const res = await post({ up_to_id: bad });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('databasfel vid läsning av användaren → 500 (inte 404)', async () => {
     use(feed(), { errors: { users: { message: 'connection reset' } } });
     const res = await post({});
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to update news state' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to update news state', code: 'internal_error' });
   });
 
   it('höjningen är en enda villkorad UPDATE (null ELLER lägre) — ingen förlorad uppdatering vid race', async () => {
@@ -981,7 +981,7 @@ describe('POST /api/news/seen', () => {
     use(feed(), { errors: { activity_log: { message: 'secret detail' } } });
     const res = await post({});
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to update news state' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to update news state', code: 'internal_error' });
   });
 
   it('flödet: efter seen är is_unread false för allt tidigare men nya rader blir olästa igen', async () => {

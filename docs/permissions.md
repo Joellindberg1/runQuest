@@ -20,7 +20,7 @@ att sänka kraven.
 | Push till `main` | Triggar Railway-deploy av BÅDA tjänsterna = produktionsdeploy. Kräver grön verifiering lokalt (backend-tester + frontend-build) före push |
 | Ändra Railway-variabler för tjänsterna | **ask**; hemliga värden (secret keys) klistras aldrig i chatt/kod — ägaren lägger in dem i Railway-UI:t själv |
 | Radera data i produktion (users/runs/etc.) | **ask**, alltid med exakt omfattning angiven |
-| Backfill-skript mot produktion (`backfill:activity-log`, `backfill:strava-athlete` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
+| Backfill-skript mot produktion (`backfill:activity-log`, `backfill:badges` m.fl.) | dry-run fritt; **`--apply` = ask** med dry-run-rapporten som underlag. Skript skriver alltid ut måldatabasens host. En ev. rensning (`delete … where is_backfill`) = ask |
 | Stravas webhook-prenumeration (`strava:webhook create` och `strava:webhook delete`, `--apply`) | **ask**. Prenumerationen är EN per Strava-app och gemensam för alla miljöer, så en `create` eller `delete` gäller även de andra miljöerna; en `delete` stoppar alla nya händelser. Utan `--apply` är båda dry-run (fritt) och `view` är bara läsning. Skriptet skriver ut vad det gör och sätter aldrig en Railway-variabel |
 | Staging-skripten (`staging:migrate`, `staging:seed-reference`, `staging:seed-group`, `staging:schema-diff`) | Skriver bara till staging (projekt `aormctqrmguvncxrigwy`, hårdkodat), `--apply` fritt, inget ägar-ja. Prod läses bara med `--read-prod`, med en egen token (`RUNQUEST_PROD_READ_TOKEN`), via Management-API:ts skrivskyddade endpoint och ur en fast lista av SELECT-satser (konfigurationstabellerna och katalogfrågorna). Läsning av annat i prod = ask. Skripten körs aldrig av CI eller av builders mot riktiga projekt, bara av Lead |
 | Skriptet `create:group` (`apps/backend/src/scripts/createGroup.ts`, ADR 012) | Går mot den databas som `SUPABASE_URL` pekar på, så målet avgörs av URL:en, inte av en flagga. Staging (`aormctqrmguvncxrigwy`): dry-run och `--apply` fritt, bara för Lead. Prod (`yrrqaxdngayakcivfrck`): **ask** för både dry-run och `--apply`, eftersom även en dry-run läser användare och medlemskap där. Båda vägras utan `--allow-prod`, och `--apply` kräver dessutom `--confirm-prod=I-HAVE-THE-OWNERS-YES-FOR-yrrqaxdngayakcivfrck`. Lead använder flaggorna först efter ägarens uttryckliga ja i den aktuella tråden, och **aldrig för en testgrupp i prod** (ägarbeslut F5). Skriptet skriver ut måldatabasens host, skriver aldrig ut inbjudningskoden utan `--show-invite-code` och körs aldrig av CI eller av builders |
@@ -85,6 +85,60 @@ att sänka kraven.
   `mark_recalculation` och `clear_recalculation_mark` bara för `service_role`. Migration 052 tog bort
   pg_net och det döda cron-jobbet i prod. En ny funktion i schemat `public` utan indraget execute, eller
   en ny tabell utan RLS, räknas som avvikelse och eskaleras.
+- Contract-migration 058 (RUN-309, v0.8.1, ADR 012 addendum 2026-10-19; ask per miljö, inte applicerad förrän
+  Lead gjort det) släpper det 055 lämnade för äldre kod: `update_title_leaderboard`, `update_all_title_leaderboards`,
+  `trigger_update_title_leaderboard` och `user_titles_fill_group_id` (och därmed bara `update_group_title_leaderboard`
+  och `update_group_title_leaderboards` kvar i RPC-ytan, båda bara för `service_role`), triggrarna
+  `title_leaderboard_update_trigger` och `user_titles_group_id_shim` på `user_titles`, samt kolumnerna
+  `titles.current_holder_id`/`current_value` (destruktivt: värdena är frusna och oläsbara för appen, men går förlorade).
+  Ingen ny tabell, funktion, policy eller grant. Efter 058 skriver appen `title_leaderboard` bara via
+  `update_group_title_leaderboards` (en gång per gruppomräkning); en skrivning till `user_titles` utanför appen
+  bygger inte längre om rankingen automatiskt.
+- Migration 059 (RUN-355, v0.8.1; ask per miljö, applicerad i staging 2026-10-20, inte i prod) är additiv: kolumnerna
+  `user_boosts.start_date` och `end_date` (date, får vara null, ingen default) och ett backfyll av befintliga rader med
+  samma fönster som koden räknade förut. Ingen ny tabell, funktion, policy eller grant, och RLS-ytan är oförändrad. Körs
+  i prod före deployen av v0.8.1.
+- Migration 060 (RUN-315, v0.8.1, ADR 013 S6; ask per miljö, applicerad i staging och prod 2026-10-22 med ägar-ja)
+  lägger CHECK-constrainten `strava_tokens_tokens_encrypted_chk`: databasen vägrar spara en token som inte börjar med
+  `enc:v1:`. Ingen ny tabell, funktion, policy eller grant, och RLS-ytan är oförändrad. Att släppa constrainten
+  (rollbacken i filhuvudet, krävs för nödutgången `--decrypt --apply`) är ask.
+
+## Kvarvarande `requireAdmin`-rutter (underlag för fas 2: RUN-267 och RUN-95)
+
+`requireAdmin` (`middleware/admin.ts`) slår upp `users.is_admin` färskt per anrop och prövar ingen grupp. Listan
+är hämtad ur koden 2026-10-19 (v0.8.1); `is_admin` läses i övrigt bara av inloggningen (`/api/auth/login` ger
+`is_admin` till frontendens AuthProvider, som styr admin-ytan) och av stagingens seed-skript. Fas 2 (ADR 012 beslut 2.6):
+gruppnära rutter flyttas till rollen (`group_members.role` via `groupRoleCan`, grupp färskt ur databasen,
+`resolveActingGroupForWrite`), därefter tas `users.is_admin` bort i en contract-migration. **Vad som gäller tills vidare
+(ägarbeslut 2026-10-19):** supportrollen byggs inte nu. De systemnära och globala rutterna (6–15) ligger kvar på
+`is_admin` som systemadmin, och supportrollen (uttrycklig, vald grupp, auditlogg) kommer först med RUN-267, när en andra
+riktig grupp finns. Support sker tills dess som utvecklare med databasen och skripten. Supportrollen får aldrig härledas
+ur att en användare saknar grupp.
+
+| # | Rutt | Vad den gör idag | Gruppavgränsning idag | Mål i fas 2 |
+|---|---|---|---|---|
+| 1 | `GET /api/auth/users` | Listar användarna i adminens grupp | `group_id` ur JWT (`groupIdOrRespondEmpty`), alltså inaktuell efter join | Roll (ny capability, t.ex. `members.read`), grupp färskt ur databasen |
+| 2 | `POST /api/auth/users` | Skapar konto och medlemskap (`join_group`) i adminens grupp | `group_id` ur JWT, 403 utan grupp | Roll (t.ex. `members.create`) via `resolveActingGroupForWrite` |
+| 3 | `PUT /api/auth/users/:id/password` | Återställer lösenord för en användare i adminens grupp | Målet måste ligga i JWT-gruppen, annars 404 | Roll (t.ex. `members.reset_password`); målet kontrolleras mot den färska gruppen |
+| 4 | `POST /api/titles/populate` | Bygger om adminens grupps ranking | `group_id` ur JWT | Roll (gruppnära underhåll); tills vidare `is_admin` |
+| 5 | `POST /api/titles/refresh` | Samma som `populate` | `group_id` ur JWT | Samma som 4; slå ihop 4 och 5 (identiska) |
+| 6 | `POST /api/titles/reprocess-all` | Räknar om titlarna för alla grupper | Ingen: alla grupper | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 7 | `GET /api/admin/waitlist` | Listar väntelistan | Ingen: global tabell | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 8 | `GET /api/auth/admin-settings` | Läser de globala XP-reglerna | Ingen: gäller alla grupper | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 9 | `PUT /api/auth/admin-settings` | Ändrar de globala XP-reglerna | Ingen: ändrar poängen för alla grupper | Systemrutt som 8 (gruppvisa regler via `group_settings` med RUN-94) |
+| 10 | `GET /api/auth/streak-multipliers` | Läser den globala streaktrappan | Ingen | Systemrutt som 8 (gruppvisa regler via `group_settings` med RUN-94) |
+| 11 | `PUT /api/auth/streak-multipliers` | Ändrar den globala streaktrappan | Ingen | Systemrutt som 8 (gruppvisa regler via `group_settings` med RUN-94) |
+| 12 | `POST /api/events/admin/trigger-daily-draw` | Kör dagens eventlottning manuellt | Ingen | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 13 | `POST /api/strava/backfill-extended` | Hämtar om Stravaaktiviteter för alla anslutna användare | Ingen: alla grupper | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 14 | `GET /api/strava/sync-all` | Synkar alla anslutna användare | Ingen | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+| 15 | `GET /api/strava/webhook/health` | Visar globala köräknare | Ingen (bara räknare, ingen gruppdata) | Systemrutt: ligger kvar på `is_admin`; supportrollen kommer först med RUN-267 |
+
+Fem av femton är gruppnära (1–5) och ska bli roll; tio är systemnära (6–15) och är systemrutter: de ligger kvar på
+`is_admin` tills supportrollen finns (RUN-267). Idag räcker flaggan för alla femton, och eftersom det finns en admin
+(ägaren) i en grupp är skillnaden osynlig tills grupp två finns. Med flera grupper skulle varje användare med `is_admin`
+nå alla tio systemrutterna: därför får `is_admin` inte ges till någon annan än ägaren utan att RUN-267/RUN-95 är gjorda. `titles/populate` och `titles/refresh` är redan gruppavgränsade
+(de bygger bara anroparens egen grupp), `GET /api/groups/settings` och `PUT /api/groups/settings` använder redan
+rollen och inte `requireAdmin`.
 - Rollmodell för grupper (ADR 012 beslut 2 och 6). Gruppadmin är en roll i ett aktivt medlemskap
   (`group_members.role = 'admin'`, `left_at is null`), inte flaggan `users.is_admin`. En grupp har högst en
   admin (partiellt unikt index) och admin är gruppens skapare. Rollen läses alltid färskt ur databasen,
@@ -126,12 +180,28 @@ att sänka kraven.
 
 ## CI-grind
 
-Alla steg i `.github/workflows/ci.yml` är blockerande (på push och PR mot `main`):
+`.github/workflows/ci.yml` körs på push och PR mot `main`. Jobben Backend, Shared och Frontend är
+blockerande, alla steg i dem:
 
-- Backend: typecheck, build, tester.
-- Shared: tester.
-- Frontend: versionsvakt (`scripts/check-versions.mjs`), build, statisk
-  serveringskontroll (Caddy), `tsc -b`, `eslint . --max-warnings 0`, tester.
+- Backend: typecheck (`tsc --noEmit`), typecheck av testerna som importerar över paketgräns
+  (`tsc --noEmit -p tsconfig.test.json`), build, tester.
+- Shared: typecheck (`tsc --noEmit -p packages/shared`), tester, och på PR:ar från `integration/*` och
+  `release/*` releasegrinden för integritetstexten (`RUNQUEST_RELEASE_CHECK=1`, dataPolicy-testet).
+- Frontend, i den här ordningen: Version guard (`scripts/check-versions.mjs` och dess test), Repo guards
+  (`scripts/ci-guards.mjs` och dess test), Sentry build settings, CSP guard (`scripts/csp-hashes.test.mjs`),
+  Backup runbook SQL guard, Loadtest script, Lighthouse tooling, E2E target guard, `npm ci`, build,
+  Static serving (Caddy) (`scripts/verify-static-serving.sh`, som också prövar CSP-hasharna mot bygget),
+  `tsc -b`, E2E suite (typecheck and listing; sviten körs inte), `eslint . --max-warnings 0`,
+  Stylelint (`lint:css`), tester.
+
+Jobbet Lighthouse (prestandabudget för `/` och `/legal`) är icke-blockerande: `LIGHTHOUSE_BLOCKING: 'false'`
+ger `continue-on-error` på mätstegen, och jobbet är inte en required check. Omslaget står i
+`docs/release.md` ("Lighthouse-budget").
+
+`.github/workflows/e2e-staging.yml` (Playwright mot staging, manuellt och nattligt 03:20 UTC) blockerar
+ingenting: den har ingen PR-trigger och körs aldrig mot prod. Den typkontrollerar sviten, prövar att vakten
+vägrar en prod-adress, kör sviten och laddar vid fel bara upp skärmbilder, efter en kontroll att de inte bär
+testkontots uppgifter.
 
 Typ- och lintstegen är blockerande sedan 2026-10-04 (typskulden betalades i
 Fas 2, ADR 001): 0 fel/0 varningar är baslinjen och får inte regressa.

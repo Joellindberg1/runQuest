@@ -1,35 +1,7 @@
-// Backendens datumhjälpare i Stockholm-tid. Själva kalender- och tidszonsaritmetiken (addDays, mondayOf, stockholmDay,
-// klockslag -> ögonblick) ligger i packages/shared/src/calendar.ts (RUN-218); här finns bara det som är specifikt för
-// backend: "idag" ur systemklockan och veckointervallet.
-import { addDays, mondayOf, stockholmDay, stockholmWallClockToInstant } from '@runquest/shared';
-
-/** Returns today's date in Stockholm timezone as "YYYY-MM-DD" */
-export function todayStockholm(): string {
-  return stockholmDay(new Date());
-}
-
-/** Returns tomorrow's date in Stockholm timezone as "YYYY-MM-DD" */
-export function tomorrowStockholm(): string {
-  return addDays(todayStockholm(), 1);
-}
-
-/** Konverterar en UTC ISO-sträng (timestamptz) till "YYYY-MM-DD" i Stockholm-tid. */
-export function toStockholmDate(isoString: string): string {
-  return stockholmDay(new Date(isoString));
-}
-
-/** Returns a Date representing 03:00 Stockholm time on the given "YYYY-MM-DD" date */
-export function at3amStockholm(dateStr: string): Date {
-  return stockholmWallClockToInstant(dateStr, 3);
-}
-
-/** True för ett riktigt kalenderdatum på formen "YYYY-MM-DD" (avvisar t.ex. 2026-02-30). */
-export function isIsoCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [y, m, d] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
-}
+// Backendens datumhjälpare. Själva kalender- och tidszonsaritmetiken (addDays, mondayOf, zoneDay, klockslag -> ögonblick) ligger i
+// packages/shared/src/calendar.ts (RUN-218), och gruppens tidszon kommer ur utils/groupTimeZone.ts. Här finns bara veckointervallet:
+// ingen "idag"-hjälpare, för "idag" är zoneDay(new Date(), groupTimeZone(groupId)) och tas fram där klockan läses.
+import { addDays, mondayOf } from '@runquest/shared';
 
 /** Veckan (mån–sön) som datumet tillhör, plus förra veckans måndag. */
 export function weekRange(dateStr: string): { start: string; end: string; previous_start: string } {

@@ -2,7 +2,7 @@
  * stravaWebhookSubscription.ts — view, create and delete the one Strava push subscription of the app (ADR 010 decisions 2 and 16).
  * There is one subscription per Strava app. Creating it makes Strava call GET on the callback url at once, so the backend with the
  * webhook route and STRAVA_WEBHOOK_VERIFY_TOKEN must already be live (decision 16 step 4), and every connection must already have an
- * athlete id (npm run backfill:strava-athlete). `delete` is the rollback (decision 16 step 6).
+ * athlete id (filled in once by the one-off backfillStravaAthleteIds script, now only in git history). `delete` is the rollback (decision 16 step 6).
  *
  * Run:  npm run strava:webhook --workspace=@runquest/backend -- [view|create|delete] [--apply] [--id <subscription id>]
  *   view     (default) lists the subscription(s) Strava has for this app. Read-only.
@@ -24,7 +24,6 @@ import { PUSH_SUBSCRIPTIONS_URL, errorName, listStravaSubscriptions, type Strava
 export { STRAVA_WEBHOOK_CALLBACK_URL };
 export type { StravaSubscriptionRow };
 const MIN_VERIFY_TOKEN_LENGTH = 32;
-const REQUEST_TIMEOUT_MS = 30_000;
 /** A printed line is cut after scrubbing, never before: a cut before it could leave the first part of a secret behind. */
 const MAX_LINE_LENGTH = 600;
 const SUBSCRIPTION_ID_VARIABLE = 'STRAVA_WEBHOOK_SUBSCRIPTION_ID';
@@ -179,7 +178,7 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
   const credentialQuery = () => new URLSearchParams({ client_id: clientId, client_secret: clientSecret }).toString();
   const send = async (url: string, init: RequestInit): Promise<Call> => {
     try {
-      const response = await stravaFetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      const response = await stravaFetch(url, init); // its central timeout covers headers and body
       const body = await readJson(response);
       return response.ok ? { ok: true, status: response.status, body } : { ok: false, reason: describeFailure(response.status, body) };
     } catch (err) {
@@ -188,7 +187,7 @@ export async function runSubscription({ command, apply, id, env, log }: RunSubsc
   };
 
   /** GET /push_subscriptions: the subscriptions of this app. Fail-closed: an unreadable answer is a failure, never "none". */
-  const listSubscriptions = () => listStravaSubscriptions({ clientId, clientSecret, timeoutMs: REQUEST_TIMEOUT_MS });
+  const listSubscriptions = () => listStravaSubscriptions({ clientId, clientSecret });
 
   const describeRow = (row: StravaSubscriptionRow) => {
     say(`  subscription ${row.id}: ${row.callback_url}${row.created_at ? ` (created ${row.created_at})` : ''}`);

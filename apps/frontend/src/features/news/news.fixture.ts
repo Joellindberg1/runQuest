@@ -118,6 +118,8 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null, 
     readCalls: [] as number[][],
     /** news_read(U) ovanför golvet. */
     readIds: new Set<number>(),
+    /** activity_log.created_at per rad-id, för rader som loggades senare än de hände (en backfill). Saknas id:t gäller occurred_at. */
+    createdAt: new Map<number, string>(),
     /** Lagrade (glesa) inställningar. */
     settings: {} as Record<string, SettingsValue>,
     settingsGets: 0,
@@ -140,7 +142,8 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null, 
     targetId: row.target?.id ?? null,
     payload: row.payload,
     isBackfill: row.is_backfill,
-    createdAt: row.occurred_at,
+    // Servern avgör "efter registreringen" på activity_log.created_at, som NewsItem inte bär: tills ett test säger annat är det occurred_at.
+    createdAt: server.createdAt.get(row.id) ?? row.occurred_at,
   });
   const isUnread = (row: NewsItem) => isNotifiable(asNotifiable(row), viewer());
   const unreadCount = () => Math.min(UNREAD_CAP, server.rows.filter(isUnread).length);
@@ -190,7 +193,15 @@ export function newsServer(initial: NewsItem[], lastSeen: number | null = null, 
       server.failNext = null;
       return { success: false as const, error };
     }
-    server.lastSeen = Math.max(server.lastSeen ?? 0, upToId ?? server.rows[0]?.id ?? 0);
+    // Som backendens POST /news/seen: ett ogiltigt id avvisas, ett id bortom flödet kläms till senaste raden, märket sänks aldrig,
+    // och kvitton på eller under det nya golvet rensas.
+    if (upToId !== undefined && !(Number.isSafeInteger(upToId) && upToId > 0)) return { success: false as const, error: 'up_to_id must be a positive integer' };
+    const newest = server.rows[0]?.id ?? null;
+    if (newest !== null) {
+      const target = Math.min(upToId ?? newest, newest);
+      if (server.lastSeen === null || target > server.lastSeen) server.lastSeen = target;
+    }
+    for (const id of [...server.readIds]) if (id <= (server.lastSeen ?? 0)) server.readIds.delete(id);
     return { success: true as const, data: { last_seen_id: server.lastSeen, unread_count: unreadCount() } };
   };
 

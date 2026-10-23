@@ -149,7 +149,7 @@ describe('GET /api/events — participantCount och memberCount', () => {
   it('saknad group_id ger tom lista', async () => {
     useDb({ users: users(), events: [event('ev-1', G1)], event_entries: [] });
     const res = await server.request('GET', '/api/events', { token: mintToken({ user_id: ME, group_id: null }) });
-    expect(res.body).toEqual({ events: [] });
+    expect(res.body).toEqual({ success: true, events: [], data: { events: [] } });
   });
 });
 
@@ -169,7 +169,8 @@ describe('GET /api/events/history — paginering, meta och counts', () => {
     expect(res.status).toBe(200);
     expect(res.body.events).toHaveLength(30);
     expect(res.body.meta).toEqual({ total: 35, limit: 30, offset: 0, has_more: true });
-    expect(res.body.success).toBeUndefined();
+    expect(res.body.success).toBe(true); // steg 1 (ADR 007 Addendum 2026-10-20): success och data bredvid events
+    expect(res.body.data).toEqual({ events: res.body.events });
   });
 
   it('sorterar ends_at desc, id desc — lika ends_at ger deterministisk ordning över sidgräns', async () => {
@@ -264,7 +265,7 @@ describe('GET /api/events/history — paginering, meta och counts', () => {
     useDb({ users: users(), events: [], event_entries: [] });
     const res = await server.request('GET', `/api/events/history?${qs}`, { token: token() });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'invalid_request' });
   });
 
   it('ogiltig pagination ger 400 även utan group_id (validering före gruppkontroll)', async () => {
@@ -277,6 +278,6 @@ describe('GET /api/events/history — paginering, meta och counts', () => {
     useDb({ users: users(), events: [], event_entries: [] }, { errors: { events: { message: 'boom' } } });
     const res = await server.request('GET', '/api/events/history', { token: token() });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: expect.any(String) });
+    expect(res.body).toEqual({ success: false, error: expect.any(String), code: 'internal_error' });
   });
 });

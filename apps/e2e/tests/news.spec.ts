@@ -69,7 +69,8 @@ test.describe('Pack News', () => {
     expect(reads).toEqual([]);
 
     // En riktig pekare som rör sig in över raden gör den läst, och servern får veta det.
-    const readRequest = page.waitForRequest((request) => isReadRequest(request.method(), request.url()));
+    // Vänta på svaret, inte bara begäran: läsningarna buntas, och en omladdning före svaret kan läsa flödet innan raden sparats.
+    const readRequest = page.waitForResponse((response) => isReadRequest(response.request().method(), response.url()));
     await page.mouse.move(1, 1);
     await row.hover();
     await readRequest;

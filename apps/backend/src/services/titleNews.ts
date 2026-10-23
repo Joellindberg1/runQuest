@@ -1,6 +1,6 @@
 // 🏆 Titelhändelser för Pack News (ADR 008 beslut 6, ADR 012 beslut 5.3) — snapshot-diff på appnivå, per grupp.
 //
-// title_leaderboard skrivs över (DELETE + INSERT per grupp och titel via trigger) och user_titles.earned_at sätts
+// title_leaderboard skrivs över (DELETE + INSERT per grupp och titel, en gång per gruppomräkning i processGroupTitles, migration 058) och user_titles.earned_at sätts
 // om vid varje värdeändring, så ett holderskifte går inte att återskapa i efterhand. Därför tas en
 // ögonblicksbild av gruppens position 1–2 FÖRE och EFTER en titelbearbetning, och den rena
 // diffTitleHolders (shared) avgör vad som hänt (bara position 1; tvåan bärs med för "låg tvåa", ADR 011 beslut 7).
@@ -10,9 +10,9 @@
 // Alla funktioner här är icke-kastande: loggen får aldrig fälla titelkedjan.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
-import { todayStockholm } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import { recordActivities } from './activityLog.js';
-import { buildTitleDrafts, diffTitleHolders, type TitleHolder, type TitleMeta } from '@runquest/shared';
+import { buildTitleDrafts, diffTitleHolders, zoneDay, type TitleHolder, type TitleMeta } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
 
 /**
@@ -104,7 +104,8 @@ export async function emitTitleNews(groupId: string, before: TitleHolder[], afte
     if (titlesRes.error) throw titlesRes.error;
     const titles = new Map<string, TitleMeta>((titlesRes.data ?? []).map((t: any) => [t.id, t]));
 
-    await recordActivities(buildTitleDrafts(changes, titles, new Date().toISOString(), todayStockholm(), groupBefore));
+    const now = new Date();
+    await recordActivities(buildTitleDrafts(changes, titles, now.toISOString(), zoneDay(now, groupTimeZone(groupId)), groupBefore));
   } catch (e) {
     logger.error(`❌ [TitleNews] Failed to emit title news (${errorCode(e)})`);
   }

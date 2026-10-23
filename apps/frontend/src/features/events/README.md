@@ -25,14 +25,14 @@ rekord + historik, ring till höger, fakta-taggar). `pages/EventsPage.tsx` är t
 
 - **Spelets verkliga regler slår prototypens text.** *Participation*: XP betalas direkt när en runda klarar minimidistansen inom
   fönstret (`checkEventQualification`), inget ranking. *Competition*: alla som loggat en runda under veckan är med, tabellen är live,
-  och söndag natt avräknas topp tre (1st/2nd/3rd ur mallen). Events dras slumpmässigt kvällen före — det finns inget framtida schema.
+  och på måndagen kl 00:05 (Stockholm, strax efter veckans slut söndag 23:59) avräknas topp tre (1st/2nd/3rd ur mallen). Events dras slumpmässigt kvällen före — det finns inget framtida schema.
 - **"This week" = bara det som faktiskt är schemalagt.** `/events` ger aktiva + schemalagda event; det första som öppnar blir "Up next",
   resten hamnar under "This week". Utan schemalagda event finns ingen sektion; utan något alls visas ett streckat tomt läge.
 - **Öppet nu avgörs av klockan, inte av `status`.** Backend flyttar `scheduled → active` var 5:e minut men behandlar ett startat event som
   aktivt (`eventPhase`). Ett participation-event som passerat sitt slut visas inte (avräknas inom fem minuter → historiken); en tävling
-  efter slutdatum visas som "Settling" tills söndagens avräkning har körts.
+  efter slutdatum visas som "Settling" tills måndagens avräkning (00:05) har körts.
 - **Ringen** = andel av fönstret som återstår (`ringFraction`), siffran är nedräkningen (`6h 14m`, `2d 5h`; useNow tickar var 30:e s).
-- **Backend skickar "Du" som namn för mig** i tävlingstabellen — modellen visar "You".
+- **Servern skickar det riktiga namnet och `isMe`** i tävlingstabellen — modellen visar "You" för den raden. Priset per plats kommer ur `prizeForRank` (shared), samma funktion som avräkningen delar ut efter.
 - **"Your record" är all-time** (ägarbeslut 2: begreppet *season* finns inte i datamodellen). Endpointen har inget aggregat, så
   `useEventRecordSource` läser hela historiken i sidor om 50 (endpointens max, högst tio sidor) och `buildRecord` räknar: klarade/avslutade
   participation-event, XP från events (participation + tävlingspriser) och XP för de event jag missade ("left on the table"). Räknaren i
@@ -46,7 +46,7 @@ rekord + historik, ring till höger, fakta-taggar). `pages/EventsPage.tsx` är t
   Web Prototypens namnrad ("Karl ✓ 8.4 km …") ersätts på desktop av en stapel "4 of 6 done".
 - **Ingen guldknapp:** skärmen har ingen primär handling (att logga en runda ligger i skalets +New). Retry är sekundär.
 - **Delad cache, en definition:** skalets "Right now" (`useRightNow`) använder samma hook (`useOpenEvents`) som skärmen — nyckeln `['events']`, formen `{ events }` och hämtintervallet kan inte glida isär. `getEventList()` är den enda events-metoden i `backendApi`. Skalet och skärmen avgör öppet/avslutat med klockan (`eventPhase`), så kalenderpricken, pillerna och skärmen säger samma sak under cron-släppet — och en pågående tävling visas i båda även när jag inte är med än (pill med "Not entered", prick, öppet-kort med "You are not on the board yet"); `src/pages/EventsShellSeam.test.tsx` låser skarven (delad QueryClient, en handler).
-- **Historik/facit följer avräkningen:** tappar öppet-listan ett event mellan två hämtningar (participation-cron, söndagens avräkning) invalideras `['events','history']` — inga egna intervall. Historiken ligger under `['events','history',…]`.
+- **Historik/facit följer avräkningen:** tappar öppet-listan ett event mellan två hämtningar (participation-cron, måndagens avräkning) invalideras `['events','history']` — inga egna intervall. Historiken ligger under `['events','history',…]`.
 - **Facit-loopen** loggar (`console.warn`) när den kapas vid tio sidor (500 event).
 - **En tom historiksida medan gruppen har avslutade event** är aldrig ett tomt läge (det är `?page=` bortom slutet som rättas) — skelett visas.
 - **CSS-ordning:** feature-CSS hamnar före `index.css` i kaskaden — override av delade primitiver (`.rq-card`, `.rq-ring`, `.rq-row`,

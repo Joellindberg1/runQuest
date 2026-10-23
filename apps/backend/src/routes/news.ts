@@ -20,10 +20,13 @@ import {
   type NewsItem,
   type NewsMeta,
   type NewsReadApiResponse,
+  type NewsSeenRequest,
   type NewsSeenApiResponse,
   type NewsUserRef,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
+import { fail, ok } from '../utils/respond.js';
 
 const router = express.Router();
 
@@ -69,8 +72,6 @@ async function fetchUserRefs(ids: string[]): Promise<Map<string, NewsUserRef>> {
   return map;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** PostgREST-citering av ett värde i ett filteruttryck: omslutet av " med " och \ escapade (så att kommatecken, klamrar och citat inte delar villkoret). */
 function postgrestQuote(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
@@ -109,7 +110,7 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     if (rawLimit !== undefined) {
       const n = parsePositiveInt(rawLimit);
       if (n === null || n > MAX_LIMIT) {
-        res.status(400).json({ error: `limit must be an integer between 1 and ${MAX_LIMIT}` }); return;
+        fail(res, 400, `limit must be an integer between 1 and ${MAX_LIMIT}`); return;
       }
       limit = n;
     }
@@ -118,14 +119,14 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
     let after: number | null = null;
     if (rawBefore !== undefined) {
       before = parsePositiveInt(rawBefore);
-      if (before === null) { res.status(400).json({ error: 'before must be a positive integer' }); return; }
+      if (before === null) { fail(res, 400, 'before must be a positive integer'); return; }
     }
     if (rawAfter !== undefined) {
       after = parsePositiveInt(rawAfter);
-      if (after === null) { res.status(400).json({ error: 'after must be a positive integer' }); return; }
+      if (after === null) { fail(res, 400, 'after must be a positive integer'); return; }
     }
     if (before !== null && after !== null) {
-      res.status(400).json({ error: 'before and after cannot be combined' }); return;
+      fail(res, 400, 'before and after cannot be combined'); return;
     }
 
     let types: ActivityType[] | null = null;
@@ -133,34 +134,31 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       const parts = typeof rawType === 'string' ? rawType.split(',').map((t) => t.trim()) : null;
       const bad = parts === null ? ['type'] : parts.filter((t) => !isActivityType(t));
       if (parts === null || parts.length === 0 || bad.length > 0) {
-        res.status(400).json({ error: `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}` }); return;
+        fail(res, 400, `type must be a comma-separated list of: ${ACTIVITY_TYPES.join(', ')}`); return;
       }
       types = [...new Set(parts as ActivityType[])];
     }
 
     // Exakt "me" (versalkänsligt); tomt, andra värden och upprepade parametrar (array) är 400.
     if (rawInvolves !== undefined && rawInvolves !== 'me') {
-      res.status(400).json({ error: 'involves must be "me"' }); return;
+      fail(res, 400, 'involves must be "me"'); return;
     }
     const involvesMe = rawInvolves === 'me';
 
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
     const emptyMeta: NewsMeta = { unread_count: 0, last_seen_id: null, has_more: false, next_before: null };
 
     // Saknad grupp ger tom data, aldrig alla grupper (ADR 007 A6)
-    if (!groupId) {
-      const empty: NewsApiResponse = { success: true, data: { items: [] }, meta: emptyMeta };
-      res.json(empty); return;
-    }
+    const groupId = groupIdOrRespondEmpty(req, res, { success: true, data: { items: [] }, meta: emptyMeta } satisfies NewsApiResponse);
+    if (!groupId) return;
 
     // Id:t kommer ur JWT men interpoleras i filtersträngen nedan: bara ett riktigt UUID släpps igenom.
-    if (involvesMe && !UUID.test(userId)) {
-      res.status(400).json({ error: 'involves requires a valid user id' }); return;
+    if (involvesMe && !isUuid(userId)) {
+      fail(res, 400, 'involves requires a valid user id'); return;
     }
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!reader) { fail(res, 404, 'User not found'); return; }
 
     const supabase = getSupabaseClient();
     let query = supabase
@@ -200,20 +198,15 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
       is_unread: isRowUnread(r, viewer),
     })) as NewsItem[];
 
-    const body: NewsApiResponse = {
-      success: true,
-      data: { items },
-      meta: {
-        unread_count: unreadCount,
-        last_seen_id: reader.news_last_seen_id,
-        has_more: hasMore,
-        next_before: hasMore && items.length > 0 ? items[items.length - 1].id : null,
-      },
-    };
-    res.json(body);
+    ok<NewsApiResponse>(res, { items }, {
+      unread_count: unreadCount,
+      last_seen_id: reader.news_last_seen_id,
+      has_more: hasMore,
+      next_before: hasMore && items.length > 0 ? items[items.length - 1].id : null,
+    });
   } catch (error) {
     logger.error(`❌ Error fetching news (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch news' });
+    fail(res, 500, 'Failed to fetch news');
   }
 });
 
@@ -222,23 +215,21 @@ router.get('/', authenticateJWT, async (req, res): Promise<void> => {
 // eller omkastad request inte kan sänka märket). Utan up_to_id = senaste raden i gruppen ("Mark all read").
 router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const body = (req.body ?? {}) as { up_to_id?: unknown };
+    const body = (req.body ?? {}) as Partial<Record<keyof NewsSeenRequest, unknown>>;
     const upTo = body.up_to_id;
     if (upTo !== undefined && !(typeof upTo === 'number' && Number.isSafeInteger(upTo) && upTo > 0)) {
-      res.status(400).json({ error: 'up_to_id must be a positive integer' }); return;
+      fail(res, 400, 'up_to_id must be a positive integer'); return;
     }
 
     const userId = req.user!.user_id;
-    const groupId = req.user!.group_id;
     const supabase = getSupabaseClient();
 
     const reader = await readReader(userId);
-    if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!reader) { fail(res, 404, 'User not found'); return; }
 
-    if (!groupId) {
-      const empty: NewsSeenApiResponse = { success: true, data: { last_seen_id: reader.news_last_seen_id, unread_count: 0 } };
-      res.json(empty); return;
-    }
+    // Utan grupp finns inget flöde att kvittera: svaret bär märket anroparen redan har, och inget skrivs.
+    const groupId = groupIdOrRespondEmpty(req, res, { success: true, data: { last_seen_id: reader.news_last_seen_id, unread_count: 0 } } satisfies NewsSeenApiResponse);
+    if (!groupId) return;
 
     // Senaste raden i gruppen. up_to_id kläms till den: ett id bortom flödet får inte tysta framtida nyheter.
     const { data: latestRows, error: latestError } = await supabase
@@ -271,14 +262,10 @@ router.post('/seen', authenticateJWT, async (req, res): Promise<void> => {
     await pruneReadReceipts(userId, current);
 
     const refreshed: Reader = { ...reader, news_last_seen_id: current };
-    const result: NewsSeenApiResponse = {
-      success: true,
-      data: { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount },
-    };
-    res.json(result);
+    ok<NewsSeenApiResponse>(res, { last_seen_id: current, unread_count: (await loadUnreadState(groupId, userId, refreshed)).unreadCount });
   } catch (error) {
     logger.error(`❌ Error marking news as seen (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update news state' });
+    fail(res, 500, 'Failed to update news state');
   }
 });
 
@@ -317,28 +304,24 @@ export function createNewsRouter(): express.Router {
     try {
       const ids = parseReadIds(req.body);
       if (!ids) {
-        res.status(400).json({ error: 'ids must be 1 to 50 unique positive integers' }); return;
+        fail(res, 400, 'ids must be 1 to 50 unique positive integers'); return;
       }
 
-      const empty: NewsReadApiResponse = { success: true, data: { unread_count: 0 } };
+      const empty = { success: true, data: { unread_count: 0 } } satisfies NewsReadApiResponse;
       const groupId = groupIdOrRespondEmpty(req, res, empty);
       if (!groupId) return;
 
       const userId = req.user!.user_id;
       const reader = await readReader(userId);
-      if (!reader) { res.status(404).json({ error: 'User not found' }); return; }
+      if (!reader) { fail(res, 404, 'User not found'); return; }
 
       await acknowledgeRows(groupId, userId, ids, reader.news_last_seen_id ?? 0);
       await pruneReadReceipts(userId, reader.news_last_seen_id);
 
-      const body: NewsReadApiResponse = {
-        success: true,
-        data: { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount },
-      };
-      res.json(body);
+      ok<NewsReadApiResponse>(res, { unread_count: (await loadUnreadState(groupId, userId, reader)).unreadCount });
     } catch (error) {
       logger.error(`❌ Error marking news rows as read (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update news state' });
+      fail(res, 500, 'Failed to update news state');
     }
   });
 

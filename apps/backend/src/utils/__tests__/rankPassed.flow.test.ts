@@ -294,7 +294,7 @@ describe('rank_passed i flödet: xp', () => {
     const res = await request('DELETE', `/api/runs/${run.id}`, W);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, message: 'Run deleted successfully' });
+    expect(res.body).toEqual({ success: true, message: 'Run deleted successfully', data: null });
     // XP är tillbaka på 110 (Bertil 135 är åter före), dagens rad är retractad och Bertils klocka är tillbaka där den var.
     expect(totalXp(t, W)).toBe(110);
     expect(rankRows(t)).toEqual([]);
@@ -325,13 +325,13 @@ describe('rank_passed i flödet: challenge_points', () => {
     const t = challengeWorld();
     use(t);
 
-    // Anna tackar ja: utmaningen startar imorgon 2026-10-16 och löper ett dygn.
+    // Anna tackar ja: utmaningen startar imorgon 2026-10-16 och löper ett dygn (en dags duell: start och slut är samma kalenderdag).
     const accept = await request('PUT', '/api/challenges/ch-1/respond', W, { action: 'accept' });
     expect(accept.status).toBe(200);
-    expect(accept.body.data).toEqual({ start_date: '2026-10-16', end_date: '2026-10-17' });
+    expect(accept.body.data).toEqual({ start_date: '2026-10-16', end_date: '2026-10-16' });
     expect(t.activity_log.map((r) => r.type)).toEqual(['challenge_accepted']);
 
-    // Under utmaningen springer Anna 8 km och Cecilia 3 km. Därefter har determine_at (2026-10-18 03:00 Stockholm) passerat.
+    // Under utmaningen springer Anna 8 km och Cecilia 3 km. Därefter har determine_at (2026-10-17 03:00 Stockholm, dagen efter den enda dagen) passerat.
     t.runs.push(
       { id: 'run-w-ch', user_id: W, date: '2026-10-16', distance: 8, xp_gained: 0, streak_day: 1, source: 'manual', is_treadmill: false },
       { id: 'run-c-ch', user_id: C, date: '2026-10-16', distance: 3, xp_gained: 0, streak_day: 1, source: 'manual', is_treadmill: false },

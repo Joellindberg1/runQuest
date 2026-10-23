@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boostText, durationLongText, firstName, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, metricLabel, metricUnit,
+  boostText, durationLongText, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, metricLabel, metricUnit,
   stakeOf, startsInText, tierLabel, timeLeft,
 } from './duelsFormat';
 import { NOW } from './duels.fixture';
@@ -14,11 +14,11 @@ describe('mått och nivåer', () => {
     expect(tierLabel('legendary')).toBe('Legendary');
   });
 
-  it('värden: km med en decimal, runs och XP som heltal i en-GB', () => {
+  it('värden: km med en decimal, runs och XP som heltal med tusentalsmellanrum', () => {
     expect(formatMetricValue('km', 38.44)).toBe('38.4');
     expect(formatMetricValue('km', 5)).toBe('5.0');
     expect(formatMetricValue('runs', 5)).toBe('5');
-    expect(formatMetricValue('total_xp', 1820.4)).toBe('1,820');
+    expect(formatMetricValue('total_xp', 1820.4)).toBe('1 820');
     expect(formatMetricValue('km', null)).toBe('—');
   });
 
@@ -29,9 +29,7 @@ describe('mått och nivåer', () => {
     expect(formatMetricWithUnit('total_xp', 214)).toBe('214 XP');
   });
 
-  it('förnamn och längd', () => {
-    expect(firstName('Daniel Lindblad Lüthje')).toBe('Daniel');
-    expect(firstName('  Karl  ')).toBe('Karl');
+  it('längd', () => {
     expect(durationLongText(1)).toBe('1 day');
     expect(durationLongText(7)).toBe('7 days');
   });
@@ -69,6 +67,14 @@ describe('tider (Stockholm-kalenderdagar, now = 4 okt 12:00)', () => {
     expect(formatDayMonth('2026-08-21T01:00:00Z')).toBe('21 Aug');
     expect(formatDayMonth('2026-09-03T10:00:00Z')).toBe('3 Sep');
     expect(formatDayMonth(null)).toBeNull();
+  });
+
+  it('kolumner som databasen lämnar tomma (null) ger ingen text: datum null är som saknat, en boost utan längd är 0', () => {
+    expect(timeLeft(null, NOW)).toBeNull();
+    expect(startsInText(null, NOW)).toBeNull();
+    expect(hoursUntilStart(null, NOW)).toBeNull();
+    expect(boostText(0.15, null)).toBe('+0.15× / 0 d');
+    expect(boostText(0.25, null, 'multiplier_runs')).toBe('+0.25× / 0 runs');
   });
 
   it('timeLeft: dagar kvar, imorgon, idag, avgörs', () => {

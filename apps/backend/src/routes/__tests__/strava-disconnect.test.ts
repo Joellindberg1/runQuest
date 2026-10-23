@@ -167,7 +167,7 @@ describe('DELETE /api/strava/disconnect', () => {
     const res = await disconnect();
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully' });
+    expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully', data: null });
     expect(strava!.requests).toHaveLength(1);
     expect(strava!.requests[0]).toMatchObject({ route: 'oauthDeauthorize', method: 'POST', body: { access_token: 'SECRET-ACCESS' } });
     expect(seen).toEqual({ runs: 2, tokens: 1 }); // everything was still there when Strava was asked
@@ -194,7 +194,7 @@ describe('DELETE /api/strava/disconnect', () => {
       const res = await disconnect();
 
       expect(res.status, expectedCode).toBe(200);
-      expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully' });
+      expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully', data: null });
       expect(tables.runs, expectedCode).toEqual([]);
       expect(tables.strava_tokens, expectedCode).toEqual([]);
       const warning = lines.find((line) => line.includes('revoke at Strava failed'));
@@ -323,7 +323,7 @@ describe('DELETE /api/strava/disconnect', () => {
     const crashed = await disconnect();
 
     expect(crashed.status).toBe(500);
-    expect(crashed.body).toEqual({ error: 'Failed to disconnect Strava' }); // no code, no message
+    expect(crashed.body).toEqual({ success: false, error: 'Failed to disconnect Strava', code: 'internal_error' }); // no code, no message
     expect(tables.runs).toEqual([]);
     expect(tables.strava_tokens).toHaveLength(1);
 
@@ -331,7 +331,7 @@ describe('DELETE /api/strava/disconnect', () => {
     const rerun = await disconnect();
 
     expect(rerun.status).toBe(200);
-    expect(rerun.body).toEqual({ success: true, message: 'Strava disconnected successfully' });
+    expect(rerun.body).toEqual({ success: true, message: 'Strava disconnected successfully', data: null });
     expect(tables.strava_tokens).toEqual([]);
   });
 
@@ -342,7 +342,7 @@ describe('DELETE /api/strava/disconnect', () => {
     const failed = await disconnect();
 
     expect(failed.status).toBe(500);
-    expect(failed.body).toEqual({ error: 'Failed to disconnect Strava' });
+    expect(failed.body).toEqual({ success: false, error: 'Failed to disconnect Strava', code: 'internal_error' });
     expect(tables.strava_tokens).toHaveLength(1);
     expect(lines.filter((line) => line.includes('59.3293'))).toEqual([]);
 
@@ -395,7 +395,7 @@ describe('DELETE /api/strava/disconnect', () => {
     const res = await disconnect();
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully' });
+    expect(res.body).toEqual({ success: true, message: 'Strava disconnected successfully', data: null });
     expect(strava!.requests).toEqual([]); // no token, nothing to revoke
     expect(db.queries.filter((q) => q.mutation !== undefined)).toEqual([]);
     expect(tables.runs).toHaveLength(1);
@@ -407,7 +407,7 @@ describe('DELETE /api/strava/disconnect', () => {
 
     const status = await server.request('GET', '/api/strava/status', { token: mintToken({ user_id: 'user-1', group_id: 'group-1' }) });
 
-    expect(status.body).toEqual({ connected: false, expired: false });
+    expect(status.body).toEqual({ success: true, connected: false, expired: false, data: { connected: false, expired: false } });
   });
 
   it('disconnect needs a signed-in user', async () => {
@@ -525,7 +525,7 @@ describe('the user lock around a disconnect', () => {
 
     expect(disconnected.status).toBe(200);
     expect(synced.status).toBe(400);
-    expect(synced.body).toEqual({ error: 'User not connected to Strava' });
+    expect(synced.body).toEqual({ success: false, error: 'User not connected to Strava', code: 'strava_not_connected' });
     expect(strava!.calls.athleteActivities).toBe(0);
     expect(tables.runs).toEqual([]);
   });

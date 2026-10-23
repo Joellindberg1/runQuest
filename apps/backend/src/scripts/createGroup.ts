@@ -27,8 +27,9 @@
 import { randomBytes } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { errorCode } from '../utils/errorCode.js';
+import { isUuid } from '../utils/uuid.js';
 import { MembershipError, createGroupWithAdmin, getActiveMembership } from '../utils/membership.js';
-import { todayStockholm } from '../utils/dateUtils.js';
+import { stockholmDay } from '@runquest/shared';
 import { supabaseHost } from './lib/supabaseHost.js';
 import { PROD_PROJECT_REF, STAGING_PROJECT_REF, createSay, runIfEntry } from './staging/stagingTarget.js';
 
@@ -36,7 +37,6 @@ import { PROD_PROJECT_REF, STAGING_PROJECT_REF, createSay, runIfEntry } from './
 export const PROD_CONFIRMATION = `I-HAVE-THE-OWNERS-YES-FOR-${PROD_PROJECT_REF}`;
 export const DEFAULT_GROUP_NAME = 'Staging Second Pack';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** groups/join upper-cases what the user types, so a code with lower case in the database could never be matched. */
 const INVITE_CODE = /^[A-Z0-9]{6,32}$/;
 const MAX_NAME_LENGTH = 60;
@@ -68,7 +68,7 @@ export function parseArgs(argv: string[]): CreateGroupOptions {
     else throw new Error(`Unknown argument. ${usage}`);
   }
   if ((options.ownerId ? 1 : 0) + (options.ownerEmail ? 1 : 0) !== 1) throw new Error(`Give exactly one of --owner-id and --owner-email. ${usage}`);
-  if (options.ownerId !== undefined && !UUID.test(options.ownerId)) throw new Error('--owner-id must be a uuid.');
+  if (options.ownerId !== undefined && !isUuid(options.ownerId)) throw new Error('--owner-id must be a uuid.');
   if (options.name === '' || options.name.length > MAX_NAME_LENGTH) throw new Error(`--name must be 1 to ${MAX_NAME_LENGTH} characters.`);
   if (options.inviteCode !== undefined && !INVITE_CODE.test(options.inviteCode)) {
     throw new Error('The invite code must be 6 to 32 upper-case letters or digits (a join upper-cases what is typed).');
@@ -230,7 +230,7 @@ export async function runCreateGroup(input: RunCreateGroupInput): Promise<Create
   }
 
   try {
-    const group = await createGroupWithAdmin({ name: options.name, inviteCode, ownerId: owner.id, today: input.today ?? todayStockholm() }, db);
+    const group = await createGroupWithAdmin({ name: options.name, inviteCode, ownerId: owner.id, today: input.today ?? stockholmDay(new Date()) }, db);
     say(`Created the group "${group.name}" (${group.id}) with ${who} as admin.`);
     const done = { ...report, outcome: 'created' as const, groupId: group.id };
     if (options.showInviteCode) {

@@ -108,6 +108,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - **Footern:** Privacy och Legal (→ `/legal`), Strava-attribution och versionen (`v` + `version` i `apps/frontend/package.json`). Playbook, FAQ och Bug report är borta
   (inloggade sidor och ingen FAQ finns). Stravas "Compatible with Strava" visas oförändrad i footern, vit på mörk botten och svart på ljus (`data-theme="light"` kan
   nås av den som valt ljust tema i appen och sedan loggat ut).
+- **Väntelistformuläret finns i den förrenderade HTML:en men är `inert` tills komponenten har hydrerats** (`LandingWaitlist.tsx`, kommentaren på rad 36-37 och attributet på rad 97): före hydreringen går inget att skriva eller skicka, så ingenting ifyllt skrivs över av tomt state och Enter i fältet ger ingen nativ GET-submit som laddar om sidan.
 - **Mobilens header** har Sign in som konturknapp bredvid wordmarken (designens mobil hade den under hjälten). Wordmarken är ingen länk (en tabbstopp till samma sida).
 - **Rutnätet `rqGrid`** ligger över hela sidan även på mobil (designens mobilram har det inte), och reducerad rörelse stoppar det.
 - **Desktopbanans "+XP"-text** följer ovalens lutning (−31°) som i designen; mobilens text (−72°) vrids tillbaka och läses upprätt (som före v0.6.2).
@@ -153,7 +154,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   Namnen är engelska i prod (migration 025/029 seedar dem; 017/022 skrevs med "Morgonrunda"/"Kvällsrunda"/"Weekly höjdmeter" och testet slår upp siffrorna där med de gamla namnen).
 - **Storm Chaser-tröskeln är 15 m/s (löst i v0.5.3, issue #19).** Före v0.5.3 hämtade `eventService.checkStormChaserForecast` Open-Meteo utan `wind_speed_unit`, så `>= 15`
   jämfördes i km/h (≈ 4 m/s). Nu skickas `&wind_speed_unit=ms` (ägarbeslut 15 m/s 2026-10-06); Playbook säger "gusts of 15 m/s (about 54 km/h)", och `stormChaserForecast.test.ts` + fakta-testet kräver parametern.
-  Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 m/s, dagtimmar 06–21 imorgon. `run_weather` hämtas också i m/s från v0.5.3; äldre rader räknas om av `scripts/convertWindToMs.ts` (gräns = deploytiden, via `fetched_at`).
+  Regeln i sin helhet: ≥ 3 stormiga timmar (väderkod duggregn/regn/snö/skurar/åska) ELLER ≥ 4 timmar med byar ≥ 15 m/s, dagtimmar 06–21 imorgon. `run_weather` hämtas också i m/s från v0.5.3; äldre rader räknades om av engångsskriptet `convertWindToMs` (gräns = deploytiden, via `fetched_at`; skriptet är borttaget och finns i git-historiken).
 - **Kvalificering:** ett deltagarevent kräver att eventet är öppet när rundan loggas/synkas och att rundans datum inte ligger efter eventets slut (inte rundans starttid); bara REDIGERING (PUT, `enforceRunDateWindow`) kräver datum inom eventets dagar — Playbook säger "log or sync a run while the event is open (the run’s date can’t be after the event ends)".
 - **Strava:** synken räknar från en vecka före senast Strava-importerade rundan; en aktivitet med distans 0 sparas inte ("any distance above zero"). Intervallet är `STRAVA_POLL_INTERVAL_HOURS` (12) i `packages/shared/src/rules.ts`; väderbackfillen har eget 30-minutersschema i stravaSync.ts.
 - **Utmaningstokens:** enligt seeden (006) delas token ut vid nivå 3, 5, 8, 10, 12, 14, 15 och sedan vid varje nivå från 16 (major var 5:e, legendary vid 15/30/45) — inga tokens vid 2, 4, 6, 7, 9, 11, 13. Playbook säger "many level-ups at first and, from level 16, at every level-up".
@@ -179,7 +180,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   fokus aldrig tappas. `App.login.test` väntar på alert-textens innehåll (regionen finns tom från början). Ingen "Forgot password" (ingen funktion).
 - **Formulärfält är 16/18 px** (`--rq-fs-stat-value`), inte Components-filens 19 px och inte `.rq-field`-standardens lead (17/22): prototypens Settings/Admin-fält är
   17 px på desktop, och 16 px på mobil hindrar iOS från att zooma in vid fokus.
-- **Borttaget som dött:** `constants/streakConstants.ts` (Playbook var sista användaren), `shared/components/PageTabs.tsx` (shadcn-flikar, Playbook var sista
+- **Borttaget som dött:** filen streakConstants (Playbook var sista användaren), komponenten PageTabs (shadcn-flikar, Playbook var sista
   användaren) och de gamla `XPSettings/UserManagement/TitleConfig/AdminSecurity`, `StravaSettings/PasswordSettings`.
 
 ## Skal & delat
@@ -189,9 +190,23 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 - Feature-CSS i huvudbunten laddas före index.css (main.tsx-importordningen); de lazy-laddade sidornas CSS (Playbook, Settings, Admin, Features) laddas EFTER. Tailwind 3:s `@layer` blir vanlig CSS i bygget, så ordningen avgör vid lika specificitet — overrides av
   delade klasser kräver sammansatta selektorer (dokumenterat i
   features/challenges/README.md).
-- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU —
-  nya datumformat använder egna månadsnamn (eventsFormat gör rätt; titleFormat
-  använder en-GB och är stabil i test men kan skilja mellan miljöer).
+- `toLocaleDateString('en-GB', {month:'short'})` kan ge "Sept" i nyare ICU — datumformat använder egna månadsnamn (`MONTHS_SHORT`/`formatDayMonth` i
+  `shared/utils/format`). Sedan formatmodulen samlades finns inget `Intl`/`toLocale*`-anrop kvar i frontendens features; lint (`rq/design-syntax`) och
+  en regel för `format.ts` håller det så.
+- Formatmodulen (`shared/utils/format.ts`): tusentalsavgränsaren är det svenska "1 240" (U+00A0) överallt, även i Events och Duels (ägarbeslut). Antagande: samma
+  mellanrum gäller heltalsdelen av km (`formatKm(1240.5)` = "1 240.5", punkt kvar som decimaltecken), så att XP och km på samma skärm skrivs likadant; det syns
+  först vid 1 000 km eller mer (Runner/Board totalsiffror, Titles). Dagens skilda "tid sedan"- och nedräkningstexter är oförändrade men namngivna stilar
+  (`formatAgo`: spelled, compact, feed, feed-long; `formatCountdown`: hms, hm, coarse, pill). Vill ägaren ha en enhetlig stil är det en separat designfråga.
+- `formatKm` avrundar halv uppåt på talets kortaste decimalskrivning, räknat på siffrorna som text (`toFixedHalfUp`, med minnessiffra genom heltalsdelen), utan Intl.
+  Det är samma regel som den gamla Intl en-GB i Events och Duels följde, också för flyttalssummor strax under en halvgräns (104.94999999999999 blir "104.9",
+  3.4499999999999997 blir "3.4"). Differentialprovat mot Intl en-GB med 1 och 2 decimaler över 3 320 001 tal (2 020 001 rena tvådecimalstal, 1 000 000 summor av
+  2–9 slumpade tvådecimalstal och 300 000 fyrdecimalstal): 0 avvikelser utöver tusentalsavgränsaren. `toFixed` avrundar däremot det binära värdet, så Log, Board, Runner, Profile, Playbook och Titles ger nu
+  ny text för ungefär 4 % av tvådecimalstal: 0.95 skrivs "1.0" (förut "0.9"), 12.35 "12.4" (förut "12.3"), 1.15 "1.2" (förut "1.1"), 9.95 "10.0" (förut "9.9").
+  Ytorna är alla som visar km via `formatKm`: rundans distans och XP-förhandsvisningen (Log), veckans och säsongens km (Board), Runner card och Profile,
+  Playbook och titelvärden för km (Titles). Multiplikatorn (`formatMultiplier`/`formatTimes`) behåller `toFixed(1)`: halv uppåt skulle ändra text för 36 av 900
+  tvådecimalsvärden mellan 1.00 och 9.99 (1.15, 1.45, 1.65 …), och standardtrappan (ett decimal) är oberörd.
+- Titles skriver "Sep" för september i "senaste söndagsrundan" (`lastRunOfWeek`); den gamla `toLocaleDateString('en-GB')` gav "Sept" i nyare ICU. Godtaget: egna
+  månadsnamn överallt. Ett värde som inte är ett datum (NaN, oändligt, utanför datumintervallet) visas som "—" i stället för att kasta i render.
 - Stadion-ovalens löparprickar (`TrackLoader`) har ingen negativ marginal, till skillnad från designfilen (`RunQuest Loaders.dc.html`, `marginLeft/marginTop: -dotR`).
   Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
   gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:
@@ -254,8 +269,24 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **`activity_log.dedupe_key` saknar grupp.** Nyckeln för `title_taken`, `title_unlocked` och `title_revoked` bär användare, titel, värde och dag men inte gruppen. Med flera
   medlemskap (RUN-95) kan samma användare, titel, värde och dag i två grupper kollidera och den andra raden tappas. Ofarligt med ett medlemskap per användare i v0.8.0.
 
+## Säkerhetshuvuden och CSP (RUN-344, v0.8.1)
+- Sentrys host matchar `https://*.ingest.de.sentry.io` (`connect-src`). DSN-värdet läses aldrig; EU-regionen antas ur `docs/release.md`. Fel host = inga felrapporter från det inloggade skalet. Prövas i prod-röken.
+- Umamis tracker skickar till `https://gateway.umami.is` (`data-host-url`, trackerns eget standardvärde i `public/vendor/umami.v1.js`). Flyttar Umami endpointen slutar statistiken tyst tills filen och `connect-src` uppdateras (`docs/release.md`, Umami).
+- Inga användarstyrda inline-stilar eller HTML finns i appen; därför är `style-src 'unsafe-inline'` godtaget. Blir fel om användarskriven HTML eller CSS någonsin renderas.
+
+## Integritetstexten /legal (RUN-345, v0.8.1, `DATA_POLICY_VERSION` 2026-10-22)
+- **Umamis lagringsregion "EU, Frankfurt" vilar på ägarens uppgift** (`UMAMI_DATA_LOCATION` i `packages/shared/src/legal/dataPolicy.ts`; ägaren bekräftade senast 2026-10-22). Umami publicerar ingen region, så texten kan inte beläggas mot en offentlig källa. Blir fel om kontot flyttas eller Umami byter lagringsplats: då ändras texten, versionen höjs och snapshotpinnen byts (`docs/release.md`, steg 1.5).
+- **Sentrys överföringsgrund är belagd mot Sentrys offentliga DPA-sidor** (https://sentry.io/legal/dpa/, version 5.1.0; ägaren accepterade den 2026-10-21 och bekräftade versionen 2026-10-22): EU-US Data Privacy Framework som huvudväg och standardavtalsklausulerna (SCC) som reserv. Blir fel om DPF upphävs eller ändras, eller om Sentry byter DPA-version: kontrollera då formuleringen mot DPA:n och ändra texten med höjd version.
+- **Invändningar (art. 21.1) hanteras manuellt per e-post** till den personuppgiftsansvariga (ägaren 2026-10-22). Det finns ingen knapp eller automatik; blir fel om volymen växer så att manuell hantering inte hinner.
+
+## Övergångar i v0.8.1
+- Samtyckesversionen jämförs med exakt likhet i Strava-callbacken (`apps/backend/src/routes/strava.ts`). Under deployfönstret, eller i en gammal flik, får en ny koppling 400 `consent_required` tills båda tjänsterna kör samma version. Antaget ofarligt (bara nya kopplingar, övergående); blir fel om versionen byts ofta eller kopplingar sker mitt i en deploy.
+- `groupTimeZone` ger Stockholm för alla grupper tills RUN-21 (`apps/backend/src/utils/groupTimeZone.ts`). Blir fel den dag en grupp i en annan tidszon finns före RUN-21.
+- Svarskuvertet går med dubbelsvar (gamla toppnivånycklar bredvid `data`) tills steg 2 (RUN-364, ADR 007 Addendum 2026-10-20). Blir fel om steg 2 tas innan alla klienter läser `data`.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
+- **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).

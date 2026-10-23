@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { errorCode } from '../utils/errorCode.js';
+import { fail } from '../utils/respond.js';
 
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -10,7 +11,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     
     if (!user || !user.user_id) {
       logger.info('❌ Admin check: No authenticated user');
-      res.status(401).json({ error: 'Authentication required' });
+      fail(res, 401, 'Authentication required');
       return;
     }
 
@@ -27,13 +28,13 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 
     if (error) {
       logger.error(`❌ Error checking admin status (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to verify admin status' });
+      fail(res, 500, 'Failed to verify admin status');
       return;
     }
 
     if (!userData?.is_admin) {
       logger.info(`❌ Access denied: user_id ${user.user_id} is not admin`);
-      res.status(403).json({ error: 'Admin access required' });
+      fail(res, 403, 'Admin access required', 'admin_required');
       return;
     }
 
@@ -42,7 +43,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     
   } catch (error) {
     logger.error(`❌ Admin middleware error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' });
+    fail(res, 500, 'Internal server error');
   }
 };
 

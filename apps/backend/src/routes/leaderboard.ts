@@ -3,20 +3,26 @@ import express from 'express';
 import { getSupabaseClient } from '../config/database.js';
 import { authenticateJWT } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
-import { isIsoCalendarDate, todayStockholm, toStockholmDate, weekRange } from '../utils/dateUtils.js';
+import { weekRange } from '../utils/dateUtils.js';
+import { groupTimeZone } from '../utils/groupTimeZone.js';
 import {
   addDays,
   bestWeekKm,
   buildRankDelta,
   buildWeekLeaderboard,
   buildXpLedger,
+  isCalendarDay,
   mondayOf,
   percentOfBest,
+  zoneDay,
+  zoneMidnightIso,
   type LedgerEventEntry,
   type RankDeltaApiResponse,
   type WeekLeaderboardApiResponse,
 } from '@runquest/shared';
 import { errorCode } from '../utils/errorCode.js';
+import { fail, ok } from '../utils/respond.js';
+import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 
 const router = express.Router();
 
@@ -58,20 +64,21 @@ async function fetchGroupBestWeekKm(groupId: string): Promise<number> {
 // GET /api/leaderboard/week[?week_start=YYYY-MM-DD]
 router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const today = todayStockholm();
+    const timeZone = groupTimeZone(tokenGroupId(req));
+    const today = zoneDay(new Date(), timeZone);
     const currentStart = mondayOf(today);
 
     let weekStart = currentStart;
     const requested = req.query.week_start;
     if (requested !== undefined) {
-      if (typeof requested !== 'string' || !isIsoCalendarDate(requested)) {
-        res.status(400).json({ error: 'week_start must be a date in the format YYYY-MM-DD' }); return;
+      if (typeof requested !== 'string' || !isCalendarDay(requested)) {
+        fail(res, 400, 'week_start must be a date in the format YYYY-MM-DD'); return;
       }
       if (mondayOf(requested) !== requested) {
-        res.status(400).json({ error: 'week_start must be a Monday' }); return;
+        fail(res, 400, 'week_start must be a Monday'); return;
       }
       if (requested > currentStart) {
-        res.status(400).json({ error: 'week_start must not be in the future' }); return;
+        fail(res, 400, 'week_start must not be in the future'); return;
       }
       weekStart = requested;
     }
@@ -79,19 +86,17 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     const { end, previous_start } = weekRange(weekStart);
     const week = { start: weekStart, end, previous_start, is_current: weekStart === currentStart, today };
 
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      const empty: WeekLeaderboardApiResponse = {
-        success: true,
-        data: {
-          week,
-          users: [],
-          totals: { km: 0, runs: 0, xp: 0, active_runners: 0, members: 0, best_week_km: 0, pct_of_best_week: null },
-          mover: null,
-        },
-      };
-      res.json(empty); return;
-    }
+    const emptyBody = {
+      success: true,
+      data: {
+        week,
+        users: [],
+        totals: { km: 0, runs: 0, xp: 0, active_runners: 0, members: 0, best_week_km: 0, pct_of_best_week: null },
+        mover: null,
+      },
+    } satisfies WeekLeaderboardApiResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const [membersResult, runsResult] = await Promise.all([
@@ -115,7 +120,7 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
       name: u.name,
       profile_picture: u.profile_picture ?? null,
       level: u.current_level ?? 1,
-      created_date: u.created_at ? toStockholmDate(u.created_at) : null,
+      created_date: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
     }));
 
     const computed = buildWeekLeaderboard(members, runsResult.data ?? [], weekStart);
@@ -130,31 +135,26 @@ router.get('/week', authenticateJWT, async (req, res): Promise<void> => {
     }
     const bestKm = Math.max(historicalBest, computed.totals.km);
 
-    const body: WeekLeaderboardApiResponse = {
-      success: true,
-      data: {
-        week,
-        users: computed.users,
-        totals: { ...computed.totals, best_week_km: bestKm, pct_of_best_week: percentOfBest(computed.totals.km, bestKm) },
-        mover: computed.mover,
-      },
-    };
-    res.json(body);
+    ok<WeekLeaderboardApiResponse>(res, {
+      week,
+      users: computed.users,
+      totals: { ...computed.totals, best_week_km: bestKm, pct_of_best_week: percentOfBest(computed.totals.km, bestKm) },
+      mover: computed.mover,
+    });
   } catch (error) {
     logger.error(`❌ Error fetching week leaderboard (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch week leaderboard' });
+    fail(res, 500, 'Failed to fetch week leaderboard');
   }
 });
 
 // GET /api/leaderboard/rank-delta
 router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
   try {
-    const asOf = mondayOf(todayStockholm());
-    const groupId = req.user!.group_id;
-    if (!groupId) {
-      const empty: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users: [] } };
-      res.json(empty); return;
-    }
+    const timeZone = groupTimeZone(tokenGroupId(req));
+    const asOf = mondayOf(zoneDay(new Date(), timeZone));
+    const emptyBody = { success: true, data: { as_of: asOf, users: [] } } satisfies RankDeltaApiResponse;
+    const groupId = groupIdOrRespondEmpty(req, res, emptyBody);
+    if (!groupId) return;
 
     const supabase = getSupabaseClient();
     const [usersResult, runsResult, entriesResult] = await Promise.all([
@@ -174,7 +174,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
         .from('event_entries')
         .select('id, user_id, event_id, xp_awarded, qualified_at, events!inner(type, ends_at, settled_at, group_id)')
         .eq('events.group_id', groupId)
-        .gte('events.ends_at', `${addDays(asOf, -14)}T00:00:00Z`)
+        .gte('events.ends_at', zoneMidnightIso(addDays(asOf, -14), timeZone))
         .gt('xp_awarded', 0),
     ]);
     if (usersResult.error) throw usersResult.error;
@@ -197,7 +197,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
       id: u.id,
       name: u.name,
       total_xp: u.total_xp ?? 0,
-      created_date: u.created_at ? toStockholmDate(u.created_at) : null,
+      created_date: u.created_at ? zoneDay(new Date(u.created_at), timeZone) : null,
     }));
 
     const { users, diverged } = buildRankDelta(members, ledger, asOf);
@@ -205,11 +205,10 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
       logger.warn(`⚠️ rank-delta: XP-liggaren överstiger total_xp för ${diverged.length} användare (${diverged.join(', ')}) — previous_xp klampad till 0`);
     }
 
-    const body: RankDeltaApiResponse = { success: true, data: { as_of: asOf, users } };
-    res.json(body);
+    ok<RankDeltaApiResponse>(res, { as_of: asOf, users });
   } catch (error) {
     logger.error(`❌ Error fetching rank delta (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch rank delta' });
+    fail(res, 500, 'Failed to fetch rank delta');
   }
 });
 

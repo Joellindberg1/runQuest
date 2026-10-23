@@ -1,6 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import type { GroupRunHistoryResponse } from '@runquest/shared';
-import { backendApi } from '@/shared/services/backendApi';
+import { backendApi, type GroupRunHistoryPage } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
 import { HISTORY_PAGE_SIZE } from '../historyModel';
 
@@ -21,7 +20,7 @@ export function useGroupHistory(enabled = true) {
   return useInfiniteQuery({
     queryKey: LOG_QUERY_KEYS.history,
     initialPageParam: 0,
-    queryFn: async ({ pageParam }): Promise<GroupRunHistoryResponse> => {
+    queryFn: async ({ pageParam }): Promise<GroupRunHistoryPage> => {
       const res = await backendApi.getGroupRunHistoryPage(HISTORY_PAGE_SIZE, pageParam);
       if (!res.success || !res.data) throw new Error(res.error || 'Failed to load the group history');
       return res.data;

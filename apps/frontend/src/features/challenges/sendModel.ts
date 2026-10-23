@@ -1,8 +1,8 @@
 import type { User } from '@runquest/types';
-import type { HeadToHeadRecord } from '@runquest/shared';
+import type { ChallengeGroupStat, HeadToHeadRecord } from '@runquest/shared';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
-import { firstName } from './duelsFormat';
-import type { GroupStat, ResultTone, SentCard } from './duelsModel';
+import { firstName } from '@/shared/utils/format';
+import type { ResultTone, SentCard } from './duelsModel';
 
 // Send-sheetens logik: varför man inte kan skicka, motståndarvalen och head-to-head-tipsen. Ren logik.
 
@@ -66,12 +66,11 @@ export function h2hHint(record: HeadToHeadRecord | undefined, opponentFirstName:
 }
 
 export function buildOpponents(input: {
-  members: readonly GroupStat[];
+  members: readonly ChallengeGroupStat[];
   users: readonly User[] | undefined;
   meId: string;
   headToHead: Record<string, HeadToHeadRecord | undefined>;
 }): OpponentOption[] {
-  const sortedUsers = input.users ? leaderboardUtils.filterAndSortUsers([...input.users]) : [];
   const userOf = (id: string) => input.users?.find((user) => user.id === id);
 
   const entries = input.members
@@ -79,12 +78,12 @@ export function buildOpponents(input: {
     .map((member) => {
       const user = userOf(member.user_id);
       const stats = user ? leaderboardUtils.calculateUserStats(user) : null;
-      const rank = user ? leaderboardUtils.getUserPosition(user, sortedUsers) : Number.MAX_SAFE_INTEGER;
+      const rank = (user && input.users ? leaderboardUtils.rankOfUser(user, input.users) : null) ?? Number.MAX_SAFE_INTEGER;
       const busy = member.challenge_active ? 'In a duel' : member.has_pending_challenge ? 'Waiting on a reply' : null;
       const option: OpponentOption = {
         userId: member.user_id,
         name: member.name,
-        initials: getInitials(member.name).slice(0, 2),
+        initials: getInitials(member.name),
         pictureUrl: member.profile_picture ?? user?.profile_picture ?? null,
         note: stats
           ? `Level ${stats.level} · #${rank} · ${stats.avgXpPer14Days} XP / day`

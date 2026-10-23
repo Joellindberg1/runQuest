@@ -1,6 +1,7 @@
 export const LANDING_MARKER: string;
 export const LOADER_MARKER: string;
 export const SESSION_HINT_MARKER: string;
+export const LOADER_PHASE_MARKER: string;
 
 /** Läget ur kommandoraden (`--mode x`, `--mode=x`, `-m x`), eller undefined. */
 export function modeFromArgs(argv: string[]): string | undefined;

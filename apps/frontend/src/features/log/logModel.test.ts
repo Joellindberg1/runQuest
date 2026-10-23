@@ -1,13 +1,14 @@
+import { zoneDay } from '@runquest/shared';
 import { describe, expect, it } from 'vitest';
 import {
-  buildSubmission, confirmationText, initialForm, parseKm, streakOutlook, todayOf, validateDate, validateDistance, validateForm,
+  buildSubmission, confirmationText, initialForm, parseKm, streakOutlook, validateDate, validateDistance, validateForm,
 } from './logModel';
 
-describe('todayOf / initialForm', () => {
+describe('zoneDay / initialForm', () => {
   it('idag är Stockholm-dagen, inte UTC-dagen', () => {
     // 22:30 UTC den 4 okt = 00:30 CEST den 5 okt.
-    expect(todayOf(new Date('2026-10-04T22:30:00Z'))).toBe('2026-10-05');
-    expect(todayOf(new Date('2026-10-04T10:00:00Z'))).toBe('2026-10-04');
+    expect(zoneDay(new Date('2026-10-04T22:30:00Z'))).toBe('2026-10-05');
+    expect(zoneDay(new Date('2026-10-04T10:00:00Z'))).toBe('2026-10-04');
   });
 
   it('startar tomt, utomhus och med dagens datum', () => {
@@ -143,5 +144,9 @@ describe('confirmationText', () => {
   it('visar serverns siffror, och streak bara när den är över en dag', () => {
     expect(confirmationText({ distance: 8, xp_gained: 44, multiplier: 1.4, streak_day: 5 })).toBe('Run logged: 8.0 km for 44 XP · streak day 5 at 1.4×');
     expect(confirmationText({ distance: 3, xp_gained: 21, multiplier: 1, streak_day: 1 })).toBe('Run logged: 3.0 km for 21 XP');
+  });
+
+  it('en runda som bara har id (servern kunde inte läsa tillbaka den) ger en kort bekräftelse, aldrig NaN', () => {
+    expect(confirmationText({ id: 'r9' })).toBe('Run logged');
   });
 });

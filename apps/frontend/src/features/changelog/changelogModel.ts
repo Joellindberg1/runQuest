@@ -1,3 +1,4 @@
+import { patchSlugForVersion } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import type { ChangeKind, PatchNote, Release, ReleaseType } from './changelogTypes';
 
@@ -30,7 +31,7 @@ export const toggleOpenVersion = (current: string | null, clicked: string): stri
 export const releasePanelId = (version: string): string => `fx-release-${version.replace(/\./g, '-')}`;
 
 /** Slugen som sparas som "sett" när användaren stängt popupen för en version. Ändra den aldrig för en redan släppt version. */
-export const slugForVersion = (version: string): string => `patch_v${version}`;
+export const slugForVersion = patchSlugForVersion;
 
 /** Posterna med `announce: true`, nyaste först — det onboarding-kön och popupen visar. */
 export const announcedNotes = (releases: readonly Release[]): PatchNote[] =>

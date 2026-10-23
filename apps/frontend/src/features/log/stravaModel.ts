@@ -1,4 +1,4 @@
-import { formatAgo } from './logFormat';
+import { formatAgo } from '@/shared/utils/format';
 
 // Strava-banderollen överst på mobilens formulär: kopplad/inte kopplad + när senaste rundan kom in (Last import, ingen nästa synk). Ren logik.
 

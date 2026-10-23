@@ -218,7 +218,7 @@ describe('public stats failures', () => {
     });
     const res = await get();
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to load stats' });
+    expect(res.body).toEqual({ success: false, error: 'Failed to load stats', code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('supabase');
   });
 

@@ -18,7 +18,7 @@ const api = vi.hoisted(() => ({
 }));
 const sender = vi.hoisted(() => ({ send: vi.fn<(url: string) => void>(), sendEvent: vi.fn() }));
 
-vi.mock('@/shared/services/backendApi', () => ({ backendApi: api, default: api }));
+vi.mock('@/shared/services/backendApi', () => ({ backendApi: api }));
 vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 vi.mock('@/shared/analytics/umamiPageviews', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/shared/analytics/umamiPageviews')>()),

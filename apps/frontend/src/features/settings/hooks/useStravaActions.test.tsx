@@ -83,6 +83,30 @@ describe('useStravaActions callback', () => {
   });
 });
 
+describe('useStravaActions consent_required', () => {
+  const HINT = /privacy text has been updated/i;
+  const GENERIC = 'Could not connect Strava';
+
+  it('shows the reload hint for the code consent_required, whatever the text says', async () => {
+    api.connectStrava.mockResolvedValue({ success: false, error: 'Some other wording from a later server', code: 'consent_required' });
+    const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
+
+    await callback({ stravaCode: 'abc' });
+
+    await waitFor(() => expect(result.current.error).toMatch(HINT));
+  });
+
+  it('shows the generic error for the old text without a code: the accepted downgrade against a backend from before step 1', async () => {
+    // Medvetet (ADR 007 Addendum 2026-10-20 punkt 7): klienten grenar på koden, inte på texten. En backend före steg 1 ger bara texten, och då blir felet det generella.
+    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required' });
+    const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
+
+    await callback({ stravaCode: 'abc' });
+
+    await waitFor(() => expect(result.current.error).toBe(GENERIC));
+  });
+});
+
 describe('useStravaActions web analytics', () => {
   const CODE = 'abc-athlete-code';
 
@@ -105,7 +129,7 @@ describe('useStravaActions web analytics', () => {
   it('reports nothing when the server refuses the connection, throws, or the authorisation fails', async () => {
     const { result } = renderHook(() => useStravaActions({ clientId: '12345' }), { wrapper });
 
-    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required' });
+    api.connectStrava.mockResolvedValue({ success: false, error: 'Consent required', code: 'consent_required' });
     await callback({ stravaCode: CODE });
     await waitFor(() => expect(result.current.error).not.toBeNull());
 

@@ -15,8 +15,8 @@ namn/regler) gäller: loggen OBSERVERAR spelet, den ändrar inget.
 Verifierat i koden/schemat 2026-10-04:
 
 - **Ingen händelsehistorik finns.** Titelrankingen i `title_leaderboard`
-  skrivs över (`update_title_leaderboard` gör `DELETE` + `INSERT` för
-  titeln, triggad av varje `user_titles`-ändring) och `user_titles.earned_at`
+  skrivs över (HISTORIK 2026-10-04: `update_title_leaderboard` gjorde `DELETE` + `INSERT` för
+  titeln, triggad av varje `user_titles`-ändring; funktionen och triggern är borta sedan migration 058, se ADR 012 addendum 2026-10-19: gruppens ranking byggs om en gång per gruppomräkning) och `user_titles.earned_at`
   sätts om vid varje värdeändring i `EnhancedTitleService` — ett titelbyte
   går därför inte att återskapa i efterhand. Övriga händelser finns delvis
   kvar i tabeller: `challenges` (completed, `outcome`, `determine_at`,
@@ -34,6 +34,7 @@ Verifierat i koden/schemat 2026-10-04:
     `POST /titles/reprocess-all`) skriver `user_titles` (insert/update/
     delete = återkallelse, issue #10); holder = `position = 1` i
     `title_leaderboard`, som är GLOBAL (ej gruppavgränsad — STATE zon 8);
+    Senare ändrat: ADR 012 (processGroupTitles). `processAllUsersTitles` ersattes av `processGroupTitles(groupId, { emitNews })` (och `processAllGroupsTitles` för alla grupper) i v0.8.0, och `title_leaderboard` är per grupp, inte global. Beskrivningen ovan är historiken från när beslutet togs.
   - **level skrivs på tre ställen:** `calculateUserTotals` (efter `users`-
     uppdateringen, `reconcileTokensForLevel` för tokens),
     `eventService.checkEventQualification` (participation-XP) och
@@ -221,6 +222,8 @@ Titelhändelser loggas **endast framåt** (se beslut 7). Eftersom
 detektionen en grupp (som i dag); multi-grupp kräver gruppavgränsad
 titelranking först (revisit-trigger).
 
+Senare ändrat: ADR 012 (processGroupTitles). `processAllUsersTitles` ersattes av `processGroupTitles(groupId, { emitNews })` (och `processAllGroupsTitles` för alla grupper) i v0.8.0, och `title_leaderboard` är per grupp, inte global. Beskrivningen ovan är historiken från när beslutet togs.
+
 ### 7. Retroaktiv backfill (härledbara typer)
 Engångs-/repareringsskript `apps/backend/src/scripts/backfillActivityLog.ts`
 (som `backfillTreadmill.ts`): default dry-run (skriver räknare per typ +
@@ -345,7 +348,7 @@ reparation, inte rutin. Migrationen måste ligga före kod som skriver
   hybridflöde (vissa typer lagrade, andra härledda) ger två paginerings-/
   oläst-/ordningsmekanismer och ingen enhetlig ström att bygga realtid på.
 - **DB-triggrar som skriver loggen** (på `challenges`, `user_titles`/
-  `update_title_leaderboard`, `events`, `users`). Fördel: fångar även
+  `update_title_leaderboard` (historik, släppt i 058), `events`, `users`). Fördel: fångar även
   ändringar utanför appkoden. Bortvalt: ADR 005 tog bort triggrar som
   skrev härledd data av goda skäl (domänlogik i PL/pgSQL, osynlig, otestad,
   två skribenter); level-/milstolpe-/streak-detektion kräver appens

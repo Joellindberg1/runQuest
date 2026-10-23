@@ -94,6 +94,16 @@ export function resolveE2eTargets(env) {
 }
 
 /**
+ * Det fejkade API:et (apps/e2e/support/stubApi.ts) får bara besvara förfrågningar när både frontenden och API:et är localhost. Mot staging vore ett fejkat svar
+ * ett prov som tyst slutat bevisa något, så körningen fäller sig i stället. `envName` är variabeln som slog på stubben, för felmeddelandet.
+ */
+export function assertStubApiAllowed(targets, envName) {
+  if (!targets.isLocal) {
+    throw new E2eTargetError(`${envName}=1 is only allowed when both E2E_BASE_URL and E2E_API_URL are localhost; the stubbed API never stands in for staging.`);
+  }
+}
+
+/**
  * Sant för en adress som sviten aldrig får nå: runquest.dev med subdomäner och varje Railway-adress (*.up.railway.app) utom de två stagingtjänsterna.
  * Det är en tillåtelselista för Railway: prodtjänsternas värdnamn (runquest-production-…, spectacular-rebirth-production-… m.fl.) går inte att gissa,
  * och en ny prodvärd är blockerad redan innan någon hunnit lista den. Oläsbar adress ger false (den kan ändå inte skickas).

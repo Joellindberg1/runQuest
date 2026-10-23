@@ -27,7 +27,7 @@ export interface WaitlistSignupRequest {
 }
 
 /** Svar för POST /api/waitlist — identiskt för ny anmälan, dubblett, honeypot och tidsfälla (ingen e-postuppräkning). */
-export type WaitlistSignupResponse = { success: true };
+export type WaitlistSignupResponse = ApiSuccess<null>;
 
 export interface AdminWaitlistEntry {
   id: string;

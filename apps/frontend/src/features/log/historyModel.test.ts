@@ -10,6 +10,10 @@ describe('buildHistoryRow', () => {
     });
   });
 
+  it('initialer: första och sista namnets, så Anna Maria Lindqvist är AL', () => {
+    expect(buildHistoryRow(historyItem({ user_name: 'Anna Maria Lindqvist' }), ME).initials).toBe('AL');
+  });
+
   it('de fem cellerna: streakdag, multiplikator, base, km och bonus', () => {
     const { cells } = buildHistoryRow(historyItem(), ME);
     expect(cells.map((cell) => [cell.label, cell.value, cell.tone])).toEqual([

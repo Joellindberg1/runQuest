@@ -72,7 +72,45 @@
 //     `if (process.env.NODE_ENV === 'production') { … }` som regel 9 och 10 (samma vakt, samma begränsningar). Utan anropet plockar ingenting upp
 //     en omräkning som en kraschad avstämning eller ett fel lämnade efter en radering.
 //
-// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|media|fonts|all]   (standard: all)
+// 17. Frontend utan Supabase (ADR 006, RUN-347): klienten pratar bara med backend-API:t. Inget under apps/frontend (källkod, typdeklarationer, `.env.example`,
+//     `package.json`, `vite.config.ts`) får nämna `VITE_SUPABASE_*` eller paketet `@supabase/…`. Variablerna ligger kvar i hostingen tills ägaren tar bort
+//     dem; vakten hindrar att koden börjar läsa dem igen. Textbaserad: den läser raderna och ser inte skillnad på kod och kommentar.
+//
+// 18. Varje route har ett svar med en kontraktstyp (ADR 007 A7, RUN-352): varje `router.<verb>(…)` i `apps/backend/src/routes` (även aliaset `root`) måste i sin
+//     handler skriva ett svar mot en exporterad typ ur `packages/shared/src/contracts` vars namn slutar på `Response`, antingen `… satisfies XResponse`
+//     eller `const body: XResponse = …`. Då följer klientens typ och serverns svar samma definition, och en ändrad form syns som typfel på båda sidor.
+//     Undantaget är Stravas webhookprotokoll (GET och POST `/` i stravaWebhook.ts, ROUTE_CONTRACT_EXEMPT); `/health` i samma fil är en vanlig adminroute.
+//     Vakten är textbaserad: den läser handlerns text (från en `router.<verb>(` till nästa) utan kommentarer och räknar en träff i handlern som
+//     "typad" (även `ok<XResponse>(res, …)` och `okWithLegacy<XResponse>(res, …)` ur utils/respond.ts). Fångas INTE: att bara ett av flera svar i handlern är typat (felsvaren typas med `ApiError`, men det kräver ingen vakt), en typning som
+//     görs i en hjälpfunktion utanför handlern, eller en typ med rätt namn som inte stämmer med det som skickas (det prövar kompilatorn, men bara när svarets data är typad: Supabase-klienten är otypad, så data som kommer direkt därifrån är `any` och `satisfies` säger då ingenting om serverns faktiska form).
+//     Fångas heller INTE: en route med en icke-literal väg (`router.get(PATH, …)` eller en väg byggd av en variabel; mönstret kräver en sträng direkt
+//     efter parentesen), `router.route('/x').get(…)` (kedjad registrering), och routes i undermappar under routes/ (bara routes/*.ts läses). Den sista
+//     routen i en fil får handlertext till filens slut, så en `…Response`-typ i kod efter den (en hjälpfunktion, en annan export) räknas som dess svar.
+//
+// 19. Dummy-hashen värms upp vid start (RUN-365): `apps/backend/src/server.ts` måste anropa `warmUpDummyPasswordHash()` på översta nivån. Utan anropet
+//     skapas hashen först av det första inloggningsförsöket mot ett okänt konto, som då tar en hash längre än alla andra och avslöjar att kontot saknas.
+//     Samma vakt och samma begränsningar som regel 8: raden måste börja i kolumn 0.
+//
+// 20. Felsvar går via fail (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2): ett handskrivet `res.status(4xx|5xx|207).json(…)` (eller `res.status(variabel)`, `res.sendStatus`,
+//     `res.json({ error … })`) i apps/backend/src/routes, middleware, utils eller app.ts fäller bygget. `fail` (utils/respond.ts) tar en fast text och en kod ur katalogen och
+//     aldrig ett `Error`, så ett felmeddelande, en stack eller Strava- och databastext kan inte ekas av misstag. Undantag: respond.ts själv och Strava-webhookens GET / och POST /
+//     (ERROR_RESPONSE_EXEMPT_ROUTES). Textbaserad (se checkErrorResponsesViaFail för vad den inte fångar).
+//
+// 21. Dokumenten hänvisar inte till filer som inte finns (RUN-361): backtick-sökvägar i README.md, STATE.md, docs/*.md och README.md i varje feature måste finnas bland
+//     de spårade filerna. Avsiktliga undantag (byggutdata, mönster som NNN_namn.sql, tredjepartsfiler) står i DOC_PATH_EXEMPT med skäl, och ett undantag som inte längre
+//     träffar något fäller bygget. Textbaserad (se checkDocPaths för vad den inte fångar). Hoppas över när listan över spårade filer inte går att hämta.
+//
+// 22. Gruppen i token läses på ett ställe (RUN-358, ADR 012 anteckningen "Var gruppen kommer ifrån"): ingen fil under apps/backend/src/{routes,services,middleware,utils} läser
+//     `req.user.group_id` direkt (`req.user!.group_id`, `req.user?.group_id`, `req.user['group_id']`, `(req.user as AuthUser).group_id`, ett alias som `const u = req.user; u.group_id`, eller destructuring som
+//     `const { group_id } = req.user`). Läsningen ligger i `utils/groupScope.ts` (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`), så en användare utan
+//     grupp får samma fail-closed-svar överallt (ADR 007 A6). Undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester. Textbaserad (se checkTokenGroupIdReads
+//     för vad den inte fångar).
+//
+// 23. node-crons logger installeras i produktionsblocket (RUN-346): `installCronLogger()` direkt i samma `if (process.env.NODE_ENV === 'production') { … }` som
+//     regel 9, 10 och 16 (samma vakt, samma begränsningar). Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett databas- eller
+//     Stravafel kan föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6). Loggern (scheduler/cronLogger.ts) skickar bara fast text och errorCode vidare.
+//
+// Körs:  node scripts/ci-guards.mjs [empty-suites|todos|test-names|group-filter|strava-fetch|strava-token-path|rate-budget-hook|token-key-startup|dummy-hash-warmup|group-role-mapping|users-group-id|group-settings-writes|webhook-scheduler-start|reconcile-scheduler-start|recovery-scheduler-start|cron-logger-install|frontend-supabase|route-contracts|error-responses|token-group-id|doc-paths|media|fonts|all]   (standard: all)
 // Inga beroenden (körs före `npm ci`). Logiken är rena funktioner — CLI:t längst ned är ett tunt skal.
 import { execFileSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
@@ -529,10 +567,29 @@ export function checkTokenKeyStartupCheck(files) {
     : [`${SERVER_FILE}: saknar ett anrop av reportTokenKeyAtStartup() på översta nivån — utan det larmar ingenting när tokennyckeln saknas eller är fel och Strava-synken står stilla (ADR 013 beslut 9)`];
 }
 
+const DUMMY_HASH_WARMUP_CALL = /^warmUpDummyPasswordHash\s*\(\s*\)/m;
+
+/**
+ * Regel 19. `files`: [{ path, content }]. Backendens server.ts måste anropa warmUpDummyPasswordHash() på översta nivån (RUN-365).
+ * Ett repo utan någon backendkälla har inget att kontrollera.
+ */
+export function checkDummyHashWarmup(files) {
+  const server = files.find(({ path }) => path === SERVER_FILE);
+  if (!server) {
+    return files.some(({ path }) => BACKEND_SOURCE.test(path))
+      ? [`${SERVER_FILE}: filen saknas, så dummy-hashen för login värms aldrig upp vid start`]
+      : [];
+  }
+  return DUMMY_HASH_WARMUP_CALL.test(server.content)
+    ? []
+    : [`${SERVER_FILE}: saknar ett anrop av warmUpDummyPasswordHash() på översta nivån — utan det tar det första inloggningsförsöket mot ett okänt konto en hash längre än övriga och avslöjar att kontot saknas (RUN-365)`];
+}
+
 const PRODUCTION_BLOCK_START = /if\s*\(\s*process\.env\.NODE_ENV\s*===\s*['"]production['"]\s*\)\s*\{/;
 const WEBHOOK_SCHEDULER_CALL = /(?<![\w.])startStravaWebhookScheduler\s*\(\s*\)/;
 const RECONCILE_SCHEDULER_CALL = /(?<![\w.])startStravaReconcileScheduler\s*\(\s*\)/;
 const RECOVERY_SCHEDULER_CALL = /(?<![\w.])startRecalculationRecoveryScheduler\s*\(\s*\)/;
+const CRON_LOGGER_CALL = /(?<![\w.])installCronLogger\s*\(\s*\)/;
 
 /**
  * Texten direkt i första `if (process.env.NODE_ENV === 'production') { … }`-blocket: utan kommentarer och utan innehållet i
@@ -603,6 +660,19 @@ export function checkRecoverySchedulerStart(files) {
   });
 }
 
+/**
+ * Regel 23. Samma form som regel 9, 10 och 16, för loggern som node-cron får (RUN-346): `installCronLogger();` direkt i produktionsblocket,
+ * (vakten prövar inte ordningen mot schedulers; node-crons logger är sent bunden, så ett jobbfel loggas via appens logger oavsett). Utan anropet skriver node-cron 4 ett jobbs fel med hela Error-objektet till console, och ett Supabase- eller Stravafel
+ * kan då föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6).
+ */
+export function checkCronLoggerInstall(files) {
+  return checkSchedulerStart(files, {
+    call: CRON_LOGGER_CALL,
+    missingFile: 'node-crons logger installeras aldrig',
+    missingCall: 'installCronLogger() måste anropas direkt i produktionsblocket — annars skriver node-cron ett jobbs fel med hela Error-objektet till console, och ett databas- eller Stravafel kan föra med sig radvärden, Strava-id eller adresser in i loggarna (ADR 010 beslut 8.6)',
+  });
+}
+
 function checkSchedulerStart(files, { call, missingFile, missingCall }) {
   const server = files.find(({ path }) => path === SERVER_FILE);
   if (!server) {
@@ -611,6 +681,274 @@ function checkSchedulerStart(files, { call, missingFile, missingCall }) {
   const block = productionBlockTopLevelText(server.content);
   if (block === null) return [`${SERVER_FILE}: saknar produktionsblocket if (process.env.NODE_ENV === 'production') { … } där schedulers startas`];
   return call.test(block) ? [] : [`${SERVER_FILE}: ${missingCall}`];
+}
+
+const FRONTEND_FILE = /^apps\/frontend\//;
+const FRONTEND_SUPABASE = /VITE_SUPABASE_\w*|@supabase\//;
+// Filer utanför src/ där en Supabase-variabel eller ett Supabase-paket kunde smyga in igen.
+const FRONTEND_EXTRA_FILES = ['apps/frontend/.env.example', 'apps/frontend/package.json', 'apps/frontend/vite.config.ts'];
+
+/** Regel 17. `files`: [{ path, content }]. Returnerar "path:rad: text" för varje rad under apps/frontend som nämner VITE_SUPABASE_* eller @supabase/. */
+export function checkNoFrontendSupabase(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!FRONTEND_FILE.test(path)) continue;
+    content.split(/\r?\n/).forEach((text, index) => {
+      const match = FRONTEND_SUPABASE.exec(text);
+      if (match) errors.push(`${path}:${index + 1}: frontend nämner ${match[0]} — klienten pratar bara med backend-API:t (ADR 006), ingen Supabase-klient eller -nyckel`);
+    });
+  }
+  return errors;
+}
+
+const ROUTE_RESPONSE_FILE = /^apps\/backend\/src\/routes\/[^/]+\.[cm]?ts$/;
+const CONTRACT_FILE = /^packages\/shared\/src\/contracts\/[^/]+\.[cm]?ts$/;
+// `router.get('/x'` och `root.post(\n  '/y'`: verb och sökväg. router och root är de enda namn routerfilerna ger sin Router.
+const ROUTE_REGISTRATION = /(?<![\w$.])(?:router|root)\s*\.\s*(get|post|put|patch|delete)\s*\(\s*(['"`])([^'"`]*)\2/g;
+const CONTRACT_EXPORT = /^export\s+(?:interface|type)\s+([A-Za-z_$][\w$]*)/gm;
+/** Routes som inte behöver någon kontraktstyp: Stravas protokoll (verifieringsanropet och händelserna) bestäms av Strava, inte av oss. Fil -> "VERB /sökväg". */
+export const ROUTE_CONTRACT_EXEMPT = new Map([['apps/backend/src/routes/stravaWebhook.ts', new Set(['GET /', 'POST /'])]]);
+
+/**
+ * Regel 18. `files`: [{ path, content }] (routes/*.ts och contracts/*.ts, path relativt repo-roten, snedstreck). Returnerar "path:rad: text" för varje route
+ * vars handler inte skriver något svar mot en `…Response`-typ som exporteras ur packages/shared/src/contracts.
+ */
+export function checkRouteResponseContracts(files, exempt = ROUTE_CONTRACT_EXEMPT) {
+  const contracts = new Set();
+  for (const { path, content } of files) {
+    if (!CONTRACT_FILE.test(path) || TEST_FILE.test(path)) continue;
+    for (const match of content.matchAll(CONTRACT_EXPORT)) if (match[1].endsWith('Response')) contracts.add(match[1]);
+  }
+  if (contracts.size === 0) return []; // inget att jämföra mot (t.ex. ett provrepo utan shared)
+  const names = [...contracts].map((name) => name.replaceAll('$', String.raw`\$`)).join('|');
+  // `ok<XResponse>(res, …)` och `okWithLegacy<XResponse>(res, …)` (utils/respond.ts) räknas också: typparametern kontrollerar data, de gamla nycklarna och meta mot kontraktet.
+  const typed = new RegExp(String.raw`\bsatisfies\s+(?:${names})\b|:\s*(?:${names})\s*=(?![=>])|\bok(?:WithLegacy)?\s*<\s*(?:${names})\b`);
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!ROUTE_RESPONSE_FILE.test(path) || TEST_FILE.test(path)) continue;
+    const code = withoutComments(content);
+    const routes = [...code.matchAll(ROUTE_REGISTRATION)];
+    routes.forEach((route, index) => {
+      const key = `${route[1].toUpperCase()} ${route[3]}`;
+      if (exempt.get(path)?.has(key)) return;
+      const handler = code.slice(route.index, routes[index + 1]?.index ?? code.length);
+      if (typed.test(handler)) return;
+      const line = code.slice(0, route.index).split(/\r?\n/).length;
+      errors.push(`${path}:${line}: ${key} skriver inget svar mot en kontraktstyp — typa svaret med \`satisfies XResponse\` (eller \`const body: XResponse = …\`) för en typ ur packages/shared/src/contracts som heter …Response (ADR 007 A7)`);
+    });
+  }
+  return errors;
+}
+
+const ERROR_RESPONSE_FILE = /^apps\/backend\/src\/(?:app\.ts|(?:routes|middleware|utils)\/[^/]+\.[cm]?ts)$/;
+const RESPOND_HELPERS_FILE = 'apps/backend/src/utils/respond.ts';
+/**
+ * Routes där felsvar får skrivas för hand (ADR 007 Addendum 2026-10-20 punkt 4): Strava-webhookens GET `/` och POST `/`, där Stravas protokoll styr svaret (verifieringen kräver exakt
+ * `{"hub.challenge": …}`, POST läser bara statuskoden) och även felsvaren (`{error}` med 400, 403, 413, 500, 503) är oförändrade. Resten av filen, bland annat `/health`, svarar i
+ * kuvertet och går genom `fail`. Undantaget gäller route-blocket (från `router.<verb>(` till nästa route, den sista till filens slut: routerns egen felhanterare efter POST `/` ingår
+ * alltså), samma blockläsning som regel 18. Nyckeln är "VERB /sökväg". En ny avvikelse kräver en ändring här och i testet som fäster listan, alltså en granskad diff.
+ */
+export const ERROR_RESPONSE_EXEMPT_ROUTES = new Map([['apps/backend/src/routes/stravaWebhook.ts', new Set(['GET /', 'POST /'])]]);
+// `.status(` med en literal 4xx/5xx eller 207 (2xx som inte är ett fel är tillåtna), `.status(` med något annat än en literal (en variabel kan vara en felstatus),
+// `.sendStatus(` och ett felobjekt utan status (`res.json({ error: … })`, `res.json({ success: false, … })`).
+const ERROR_RESPONSE_PATTERNS = [
+  /\.status\(\s*(?:[45]\d\d|207)\s*\)/g,
+  /\.status\(\s*(?![0-9\s])[^)\s]/g,
+  /\.sendStatus\(/g,
+  /\.json\(\s*\{\s*(?:error\s*:|success\s*:\s*false\b)/g,
+];
+
+/**
+ * Regel 20 (RUN-354, ADR 007 Addendum 2026-10-20 punkt 2). Alla felsvar går via `fail` (apps/backend/src/utils/respond.ts): `fail` har en fast text och en kod ur katalogen, och
+ * tar aldrig ett `Error`, så ett felmeddelande, en stack, Strava- eller databastext kan inte ekas av misstag. Ett handskrivet `res.status(4xx|5xx).json(...)` i routes/, middleware/, utils/
+ * eller app.ts fäller bygget. Undantag: respond.ts själv och routes i ERROR_RESPONSE_EXEMPT_ROUTES (Strava-webhookens GET och POST `/`).
+ * `files`: [{ path, content }]. Returnerar "path:rad: text".
+ * Vakten är textbaserad och förstår inte kod (kommentarer hoppas över). Fångas INTE: ett svar som skrivs via en variabel för `res` (`const r = res; r.status(500)`), ett svar i en
+ * annan mapp än de fyra ovan (services/ svarar inte mot klienten), eller ett felsvar som byggs som en sträng och skickas med `res.end`/`res.send`.
+ */
+export function checkErrorResponsesViaFail(files, exempt = ERROR_RESPONSE_EXEMPT_ROUTES) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!ERROR_RESPONSE_FILE.test(path) || path === RESPOND_HELPERS_FILE || TEST_FILE.test(path)) continue;
+    const code = withoutComments(content);
+    // Teckenintervallen för de undantagna route-blocken i den här filen.
+    const exemptRoutes = exempt.get(path);
+    const routes = exemptRoutes ? [...code.matchAll(ROUTE_REGISTRATION)] : [];
+    const exemptRanges = routes
+      .map((route, index) => ({ key: `${route[1].toUpperCase()} ${route[3]}`, from: route.index, to: routes[index + 1]?.index ?? code.length }))
+      .filter(({ key }) => exemptRoutes?.has(key));
+    const lines = new Set();
+    for (const pattern of ERROR_RESPONSE_PATTERNS) {
+      for (const match of code.matchAll(pattern)) {
+        if (exemptRanges.some(({ from, to }) => match.index >= from && match.index < to)) continue;
+        lines.add(code.slice(0, match.index).split(/\r?\n/).length);
+      }
+    }
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: ett felsvar skrivs för hand — svara med fail(res, status, text, code?) från utils/respond.ts (ADR 007 Addendum 2026-10-20): fast text, kod ur katalogen, aldrig ett felobjekt`);
+    }
+  }
+  return errors;
+}
+
+const TOKEN_GROUP_FILE = /^apps\/backend\/src\/(?:routes|services|middleware|utils)\/.+\.[cm]?ts$/;
+/** auth.ts sätter req.user (och därmed group_id) ur token; groupScope.ts är den enda läsaren (regel 22). */
+const TOKEN_GROUP_EXEMPT_FILES = new Set(['apps/backend/src/middleware/auth.ts', 'apps/backend/src/utils/groupScope.ts']);
+const IDENT = '[A-Za-z_$][\\w$]*';
+const escapeRegExp = (text) => text.replace(/[$^\\.*+?()[\]{}|]/g, '\\$&');
+// req.user.group_id, req.user?.group_id, req.user!.group_id, req.user!?.group_id och req.user!['group_id'] (blanksteg tillåtna), och samma läsning genom en
+// parentes: (req.user as AuthUser).group_id, (req.user!).group_id, (req as AuthenticatedRequest).user.group_id.
+const TOKEN_GROUP_DIRECT = [
+  /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
+  /\b(?:req|request)\s*\.\s*user\s*!?\s*(?:\?\.)?\s*\[\s*['"`]group_id['"`]\s*\]/g,
+  /\(\s*(?:req|request)\s*\.\s*user\b[^()]*\)\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
+  /\(\s*(?:req|request)\b[^().]*\)\s*!?\s*(?:\?\.|\.)\s*user\s*!?\s*(?:\?\.|\.)\s*group_id\b/g,
+];
+// const u = req.user!;   let me: AuthUser = req.user as AuthUser;
+const TOKEN_USER_ALIAS = new RegExp(`(?:const|let|var)\\s+(${IDENT})\\s*(?::[^=;]+)?=\\s*(?:req|request)\\s*\\.\\s*user\\s*!?\\s*(?:as\\s+[^;\\n]+)?\\s*(?:;|$)`, 'gm');
+// const { user } = req;   const { user: me } = req;
+const TOKEN_USER_DESTRUCTURED = /\{([^{}]*)\}\s*=(?![=>])\s*(?:req|request)\b(?!\s*\.)/g;
+// const r = req;   const r = req as Request;
+const TOKEN_REQ_ALIAS = new RegExp(`(?:const|let|var)\\s+(${IDENT})\\s*(?::[^=;]+)?=\\s*(?:req|request)\\s*(?:as\\s+[^;\\n]+)?\\s*(?:;|$)`, 'gm');
+// { group_id } = <höger sida>, med en nivå av nästlade klamrar: { user: { group_id } } = req.
+const DESTRUCTURING = /\{((?:[^{}]|\{[^{}]*\})*)\}\s*=(?![=>])\s*([^;\n]*)/g;
+
+/**
+ * Regel 22 (ADR 012, anteckningen "Var gruppen kommer ifrån"). Gruppen i token (`req.user.group_id`) läses på ETT ställe: `apps/backend/src/utils/groupScope.ts`
+ * (`groupIdOrRespondEmpty`, `groupIdOrRespondForbidden`, `tokenGroupId`). Annars glider routes tillbaka till egna kontroller som svarar olika för en användare
+ * utan grupp (fail-closed, ADR 007 A6). Granskar apps/backend/src/{routes,services,middleware,utils}; undantag: middleware/auth.ts (sätter group_id), groupScope.ts och tester.
+ * `files`: [{ path, content }]. Returnerar "path:rad: text". Fångar `req.user!.group_id`, `req.user?.group_id`, `req.user.group_id`, `req.user!['group_id']`,
+ * läsningar genom en parentes (`(req.user as AuthUser).group_id`, `(req.user!).group_id`, `(req as AuthenticatedRequest).user.group_id`),
+ * alias i samma fil (`const u = req.user; u.group_id`, `const { user } = req; user.group_id`, `const r = req; r.user.group_id`) och destructuring
+ * (`const { group_id } = req.user`, `{ group_id: g } = req.user!`, `{ user: { group_id } } = req`, `const { group_id } = u`). Kommentarer räknas inte.
+ * Vakten är textbaserad och förstår inte kod. Fångas INTE: ett alias i en annan fil, req eller req.user som skickas som argument till en funktion som läser fältet
+ * (`readGroup(req.user)`), en parameterlista som destrukturerar (`({ group_id }: AuthUser) => …`), en sträng som byggs ihop av delar (`req.user[key]`), och ett alias som
+ * får ett annat namn av en kedja (`const a = u;`). Ett alias räknas i hela filen, så en annan variabel med samma namn (`user.group_id` ur en databasrad) fälls
+ * om filen någonstans gör `const user = req.user` — byt namn.
+ */
+export function checkTokenGroupIdReads(files) {
+  const errors = [];
+  for (const { path, content } of files) {
+    if (!TOKEN_GROUP_FILE.test(path) || TOKEN_GROUP_EXEMPT_FILES.has(path) || TEST_FILE.test(path) || TEST_SUPPORT_DIR.test(path)) continue;
+    const code = withoutComments(content);
+    const lineAt = (index) => code.slice(0, index).split(/\r?\n/).length;
+    const lines = new Set();
+
+    const userAliases = new Set([...code.matchAll(TOKEN_USER_ALIAS)].map((match) => match[1]));
+    for (const match of code.matchAll(TOKEN_USER_DESTRUCTURED)) {
+      for (const entry of match[1].split(',')) {
+        const renamed = /^\s*user\s*(?::\s*([A-Za-z_$][\w$]*))?\s*$/.exec(entry);
+        if (renamed) userAliases.add(renamed[1] ?? 'user');
+      }
+    }
+    const reqAliases = new Set([...code.matchAll(TOKEN_REQ_ALIAS)].map((match) => match[1]));
+
+    for (const pattern of TOKEN_GROUP_DIRECT) {
+      for (const match of code.matchAll(pattern)) lines.add(lineAt(match.index));
+    }
+    for (const alias of reqAliases) {
+      const name = escapeRegExp(alias);
+      const reads = [
+        new RegExp(`(?<![\\w$.])${name}\\s*\\.\\s*user\\s*!?\\s*(?:\\?\\.|\\.)\\s*group_id\\b`, 'g'),
+        new RegExp(`(?<![\\w$.])${name}\\s*\\.\\s*user\\s*!?\\s*(?:\\?\\.)?\\s*\\[\\s*['"\`]group_id['"\`]\\s*\\]`, 'g'),
+      ];
+      for (const read of reads) for (const match of code.matchAll(read)) lines.add(lineAt(match.index));
+    }
+    for (const alias of userAliases) {
+      const name = escapeRegExp(alias);
+      const reads = [
+        new RegExp(`(?<![\\w$.])${name}\\s*!?\\s*(?:\\?\\.|\\.)\\s*group_id\\b`, 'g'),
+        new RegExp(`(?<![\\w$.])${name}\\s*!?\\s*(?:\\?\\.)?\\s*\\[\\s*['"\`]group_id['"\`]\\s*\\]`, 'g'),
+      ];
+      for (const read of reads) for (const match of code.matchAll(read)) lines.add(lineAt(match.index));
+    }
+    for (const match of code.matchAll(DESTRUCTURING)) {
+      const pattern = match[1];
+      const source = match[2].replace(/^[\s(]+/, '');
+      const fromUser = /^(?:req|request)\s*\.\s*user\b/.test(source) || [...userAliases].some((alias) => new RegExp(`^${escapeRegExp(alias)}\\b(?!\\s*[.(\\[])`).test(source));
+      const fromReq = /^(?:req|request)\b(?!\s*\.)/.test(source);
+      const reads = fromUser ? /\bgroup_id\b/.exec(pattern) : fromReq ? /\buser\s*:\s*\{[^{}]*?(\bgroup_id\b)/.exec(pattern) : null;
+      if (!reads) continue;
+      const offset = match.index + match[0].indexOf(pattern) + (reads[1] === undefined ? reads.index : reads.index + reads[0].lastIndexOf('group_id'));
+      lines.add(lineAt(offset));
+    }
+
+    for (const line of [...lines].sort((a, b) => a - b)) {
+      errors.push(`${path}:${line}: gruppen i token läses utanför utils/groupScope.ts — använd groupIdOrRespondEmpty (läsning), groupIdOrRespondForbidden (adminskrivning) eller tokenGroupId (egna data, tidszon) (ADR 012, "Var gruppen kommer ifrån")`);
+    }
+  }
+  return errors;
+}
+
+// Dokumentens filhänvisningar (RUN-361): ett backtick-spann som ser ut som en filsökväg måste peka på en spårad fil eller mapp.
+// Dokumenten som läses är README.md, STATE.md, docs/*.md (inte undermappar som docs/archive, docs/adr och docs/design) och README.md i varje
+// feature under apps/frontend/src/features. Ett spann räknas som en sökväg när det slutar på en känd filändelse eller på `/`. En sökväg finns när en
+// spårad fil är exakt den eller slutar på `/<sökvägen>` (dokumenten skriver ofta bara `routes/runs.ts` eller `board.css`), eller, för en mapp, när någon
+// spårad fil ligger i en mapp med det namnet. `:12` och `:12-34` efter sökvägen räknas bort.
+const DOC_PATH_SOURCES = [/^README\.md$/, /^STATE\.md$/, /^docs\/[^/]+\.md$/, /^apps\/frontend\/src\/features\/[^/]+\/README\.md$/];
+const DOC_PATH_EXTENSION = /\.(?:md|tsx?|mts|mjs|js|json|sql|ya?ml|css|html|sh|toml|woff2|webp)$/;
+const DOC_PATH_NOT_A_PATH = /^(?:https?:|\/|~|\.{1,2}\/)|[\s*<>{}$|()@]|\.\.\./;
+const DOC_PATH_SPAN = /`([^`\n]+)`/g;
+const DOC_PATH_LOCATION_SUFFIX = /:\d+(?:-\d+)?$/;
+
+/**
+ * Hänvisningar som avsiktligt inte pekar på en spårad fil. Varje post bär sitt skäl. En post som inte träffar något span längre fäller kontrollen
+ * (annars växer listan tyst). `doc` begränsar posten till ett dokument.
+ */
+export const DOC_PATH_EXEMPT = [
+  { pattern: /^(?:.*\/)?dist\//, reason: 'byggutdata (apps/frontend/dist, apps/backend/dist), gitignorerad' },
+  { doc: 'docs/performance.md', pattern: /^(?:.*\/)?assets\/|-[\w-]{8}\.(?:js|css)$/, reason: 'hashade filer i ett bygge, namnet ändras vid varje bygge' },
+  { pattern: /^NNN_/, reason: 'mönster för migrationsnamn, inte en fil' },
+  { pattern: /^(?:error|mock)\/$/, reason: 'mapparna i Lighthouse-artefakten lighthouse-reports, inte i repot' },
+  { pattern: /^(?:.*\/)?(?:lighthouse-reports|test-results|\.auth)\/|^scripts\/loadtest\/out\//, reason: 'körningsutdata som gitignoreras' },
+  { pattern: /^error-context\.md$/, reason: 'Playwright skriver filen vid ett fel i test-results' },
+  { pattern: /^assertion-results\.json$/, reason: 'Lighthouse CI skriver filen vid en körning' },
+  { pattern: /^(?:script|driver)\.js$/, reason: 'tredjepartsfiler (Umamis spårningsskript, driver.js-biblioteket)' },
+  { pattern: /^docs\/design\/landing-media\/$/, reason: 'originalen till filmen ligger utanför git (.gitignore, vakt 4)' },
+];
+
+/** Filhänvisningarna i ett dokument som saknar en spårad fil, som `dokument:rad: sökväg`. `used` samlar de undantag som träffat något. */
+function missingDocPaths({ path, content }, trackedFiles, exempt, used) {
+  const missing = [];
+  content.split(/\r?\n/).forEach((line, index) => {
+    for (const match of line.matchAll(DOC_PATH_SPAN)) {
+      const token = match[1].replace(DOC_PATH_LOCATION_SUFFIX, '').replace(/[.,;]+$/, '');
+      const isDirectory = token.endsWith('/');
+      if (!isDirectory && !DOC_PATH_EXTENSION.test(token)) continue;
+      if (DOC_PATH_NOT_A_PATH.test(token) || /^\.[\w.-]*$/.test(token)) continue;
+      const exemption = exempt.find((entry) => (entry.doc === undefined || entry.doc === path) && entry.pattern.test(token));
+      if (exemption) {
+        used.add(exemption);
+        continue;
+      }
+      const bare = token.replace(/\/$/, '');
+      const found = isDirectory
+        ? trackedFiles.some((file) => file.startsWith(`${bare}/`) || file.includes(`/${bare}/`))
+        : trackedFiles.some((file) => file === bare || file.endsWith(`/${bare}`));
+      if (!found) missing.push(`${path}:${index + 1}: ${token}`);
+    }
+  });
+  return missing;
+}
+
+/**
+ * Vakt 21 (RUN-361): inget dokument hänvisar till en fil som inte finns. `docs` är { path, content } för alla spårade dokument (filtret på vilka som läses
+ * görs här), `trackedFiles` är `git ls-files`. Fångas INTE: en sökväg utan känd ändelse (`Dockerfile`, `.env.example`), en sökväg med mellanrum, en sökväg som
+ * delas över två spann och en hänvisning utan backticks (STATE.md:53 nämner docs/STATE-proposal.md som löpande text). Ett bart filnamn räcker som träff om en
+ * fil med det namnet finns var som helst, så en flyttad fil med samma namn märks inte; en struken eller omdöpt fil märks.
+ */
+export function checkDocPaths(docs, trackedFiles, exempt = DOC_PATH_EXEMPT) {
+  const errors = [];
+  const used = new Set();
+  for (const doc of docs.filter(({ path }) => DOC_PATH_SOURCES.some((source) => source.test(path)))) {
+    for (const missing of missingDocPaths(doc, trackedFiles, exempt, used)) {
+      errors.push(`${missing} finns inte bland de spårade filerna — rätta hänvisningen (eller skriv den som löpande text utan backticks om filen är borta med flit)`);
+    }
+  }
+  for (const entry of exempt.filter((candidate) => !used.has(candidate))) {
+    errors.push(`undantaget ${entry.pattern} i DOC_PATH_EXEMPT (${entry.reason}) träffar ingen hänvisning längre — ta bort det`);
+  }
+  return errors;
 }
 
 /** Källfiler att skanna efter TODO: src/ i varje workspace under apps/* och packages/*. */
@@ -732,8 +1070,8 @@ function gitTrackedFiles(root) {
 
 function runCli(argv = process.argv.slice(2)) {
   const mode = argv[0] ?? 'all';
-  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'media', 'fonts'].includes(mode)) {
-    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | media | fonts`);
+  if (!['all', 'empty-suites', 'todos', 'test-names', 'group-filter', 'strava-fetch', 'strava-token-path', 'rate-budget-hook', 'token-key-startup', 'dummy-hash-warmup', 'group-role-mapping', 'users-group-id', 'group-settings-writes', 'webhook-scheduler-start', 'reconcile-scheduler-start', 'recovery-scheduler-start', 'cron-logger-install', 'frontend-supabase', 'route-contracts', 'error-responses', 'token-group-id', 'doc-paths', 'media', 'fonts'].includes(mode)) {
+    console.error(`Okänt läge "${mode}". Använd: all | empty-suites | todos | test-names | group-filter | strava-fetch | strava-token-path | rate-budget-hook | token-key-startup | dummy-hash-warmup | group-role-mapping | users-group-id | group-settings-writes | webhook-scheduler-start | reconcile-scheduler-start | recovery-scheduler-start | cron-logger-install | frontend-supabase | route-contracts | error-responses | token-group-id | doc-paths | media | fonts`);
     process.exit(2);
   }
   const root = argv[1] ? resolve(argv[1]) : join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -748,7 +1086,7 @@ function runCli(argv = process.argv.slice(2)) {
     const tested = workspaces.filter((workspace) => workspace.hasTestScript).map((workspace) => workspace.dir);
     summary.push(`testsviter finns i ${tested.join(', ')}`);
   }
-  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start') {
+  if (mode === 'all' || mode === 'todos' || mode === 'test-names' || mode === 'group-filter' || mode === 'strava-fetch' || mode === 'strava-token-path' || mode === 'rate-budget-hook' || mode === 'token-key-startup' || mode === 'dummy-hash-warmup' || mode === 'group-role-mapping' || mode === 'users-group-id' || mode === 'group-settings-writes' || mode === 'webhook-scheduler-start' || mode === 'reconcile-scheduler-start' || mode === 'recovery-scheduler-start' || mode === 'cron-logger-install' || mode === 'route-contracts' || mode === 'error-responses' || mode === 'token-group-id') {
     const files = collectSourceFiles(root, workspaces);
     if (mode === 'all' || mode === 'strava-fetch') {
       errors.push(...checkRawStravaFetch(files));
@@ -765,6 +1103,10 @@ function runCli(argv = process.argv.slice(2)) {
     if (mode === 'all' || mode === 'token-key-startup') {
       errors.push(...checkTokenKeyStartupCheck(files));
       summary.push('tokennyckeln kontrolleras vid start i server.ts');
+    }
+    if (mode === 'all' || mode === 'dummy-hash-warmup') {
+      errors.push(...checkDummyHashWarmup(files));
+      summary.push('dummy-hashen för login värms upp vid start i server.ts');
     }
     if (mode === 'all' || mode === 'group-role-mapping') {
       errors.push(...checkGroupRoleMapping(files));
@@ -786,9 +1128,25 @@ function runCli(argv = process.argv.slice(2)) {
       errors.push(...checkReconcileSchedulerStart(files));
       summary.push('den nattliga Strava-avstämningen startas i produktionsblocket i server.ts');
     }
+    if (mode === 'all' || mode === 'cron-logger-install') {
+      errors.push(...checkCronLoggerInstall(files));
+      summary.push('node-crons logger installeras i produktionsblocket i server.ts');
+    }
     if (mode === 'all' || mode === 'recovery-scheduler-start') {
       errors.push(...checkRecoverySchedulerStart(files));
       summary.push('omräkningsåterhämtningen startas i produktionsblocket i server.ts');
+    }
+    if (mode === 'all' || mode === 'route-contracts') {
+      errors.push(...checkRouteResponseContracts(files));
+      summary.push('varje route svarar mot en kontraktstyp ur shared');
+    }
+    if (mode === 'all' || mode === 'error-responses') {
+      errors.push(...checkErrorResponsesViaFail(files));
+      summary.push('alla felsvar går via fail');
+    }
+    if (mode === 'all' || mode === 'token-group-id') {
+      errors.push(...checkTokenGroupIdReads(files));
+      summary.push('gruppen i token läses bara i groupScope');
     }
     if (mode === 'all' || mode === 'group-filter') {
       errors.push(...checkConditionalGroupFilter(files));
@@ -802,6 +1160,28 @@ function runCli(argv = process.argv.slice(2)) {
       const testFiles = files.filter(({ path }) => TEST_FILE.test(path));
       errors.push(...checkTestNames(testFiles));
       summary.push(`${testFiles.length} testfiler utan Jira-ID i testnamn`);
+    }
+  }
+
+  if (mode === 'all' || mode === 'frontend-supabase') {
+    const files = collectSourceFiles(root, workspaces);
+    for (const path of FRONTEND_EXTRA_FILES) {
+      if (existsSync(join(root, path))) files.push({ path, content: readFileSync(join(root, path), 'utf8') });
+    }
+    errors.push(...checkNoFrontendSupabase(files));
+    summary.push('frontend nämner ingen Supabase-variabel eller -klient');
+  }
+
+  if (mode === 'all' || mode === 'doc-paths') {
+    const tracked = gitTrackedFiles(root);
+    if (tracked) {
+      const docs = tracked
+        .filter((path) => DOC_PATH_SOURCES.some((source) => source.test(path)) && existsSync(join(root, path)))
+        .map((path) => ({ path, content: readFileSync(join(root, path), 'utf8') }));
+      errors.push(...checkDocPaths(docs, tracked));
+      summary.push(`${docs.length} dokument utan hänvisningar till filer som saknas`);
+    } else {
+      summary.push('dokumentens filhänvisningar ej prövade (listan över spårade filer ej tillgänglig)');
     }
   }
 

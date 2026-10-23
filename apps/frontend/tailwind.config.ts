@@ -4,9 +4,6 @@ export default {
 	// Mörkt är standardtemat (:root); ljust slås på med <html data-theme="light">.
 	darkMode: ["selector", ':root:not([data-theme="light"])'],
 	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
 		// Testfiler innehåller klassnamn-liknande strängar som annars ger tomma selektorer i CSS:en.
 		"!./src/**/*.test.{ts,tsx}",
@@ -51,37 +48,15 @@ export default {
 			},
 			colors: {
 				border: 'hsl(var(--border))',
-				input: 'hsl(var(--input))',
-				ring: 'hsl(var(--ring))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))'
 				},
-				secondary: {
-					DEFAULT: 'hsl(var(--secondary))',
-					foreground: 'hsl(var(--secondary-foreground))'
-				},
-				destructive: {
-					DEFAULT: 'hsl(var(--destructive))',
-					foreground: 'hsl(var(--destructive-foreground))'
-				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
 					foreground: 'hsl(var(--muted-foreground))'
-				},
-				accent: {
-					DEFAULT: 'hsl(var(--accent))',
-					foreground: 'hsl(var(--accent-foreground))'
-				},
-				popover: {
-					DEFAULT: 'hsl(var(--popover))',
-					foreground: 'hsl(var(--popover-foreground))'
-				},
-				card: {
-					DEFAULT: 'hsl(var(--card))',
-					foreground: 'hsl(var(--card-foreground))'
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background) / <alpha-value>)',
@@ -92,38 +67,9 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				},
-				'podium-gold':          'hsl(var(--podium-gold))',
-				'podium-gold-border':   'hsl(var(--podium-gold-border))',
-				'podium-silver':        'hsl(var(--podium-silver))',
-				'podium-silver-border': 'hsl(var(--podium-silver-border))',
-				'podium-bronze':        'hsl(var(--podium-bronze))',
-				'podium-bronze-border': 'hsl(var(--podium-bronze-border))',
-				success: 'hsl(var(--success))'
-			},
-			keyframes: {
-				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
-				},
-				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
-					},
-					to: {
-					height: '0'
 				}
 			}
-		},
-		animation: {
-			'accordion-down': 'accordion-down 0.2s ease-out',
-			'accordion-up': 'accordion-up 0.2s ease-out'
 		}
-	}
 	},
 	plugins: [],
 } satisfies Config;

@@ -78,7 +78,7 @@ describe('title routes when the database returns an error', () => {
     const res = await server.request(c.method, c.path, { token: token() });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: c.error });
+    expect(res.body).toEqual({ success: false, error: c.error, code: 'internal_error' });
     expectOnlyTheCode('23505');
     const events = JSON.stringify(await sentry.drain());
     expect(events).toContain('23505');
@@ -94,7 +94,7 @@ describe('title routes when a call throws', () => {
     const res = await server.request(c.method, c.path, { token: token() });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: c.error });
+    expect(res.body).toEqual({ success: false, error: c.error, code: 'internal_error' });
     expect(JSON.stringify(res.body)).not.toContain('LEAKMARKER');
     expectOnlyTheCode('ECONNRESET');
     const events = JSON.stringify(await sentry.drain());

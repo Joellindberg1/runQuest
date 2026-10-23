@@ -29,13 +29,11 @@ const {
   mockGetTitleLeaderboard,
   mockGetAllTitles,
   mockGetUserTitles,
-  mockRefreshTitleLeaderboard,
   mockPopulateTitleLeaderboard,
 } = vi.hoisted(() => ({
   mockGetTitleLeaderboard: vi.fn(),
   mockGetAllTitles: vi.fn(),
   mockGetUserTitles: vi.fn(),
-  mockRefreshTitleLeaderboard: vi.fn(),
   mockPopulateTitleLeaderboard: vi.fn(),
 }));
 
@@ -45,14 +43,12 @@ vi.mock('../../services/titleLeaderboardService', () => ({
     getTitleLeaderboard: mockGetTitleLeaderboard,
     getAllTitles: mockGetAllTitles,
     getUserTitles: mockGetUserTitles,
-    refreshTitleLeaderboard: mockRefreshTitleLeaderboard,
     populateTitleLeaderboard: mockPopulateTitleLeaderboard,
   })),
   titleLeaderboardService: {
     getTitleLeaderboard: mockGetTitleLeaderboard,
     getAllTitles: mockGetAllTitles,
     getUserTitles: mockGetUserTitles,
-    refreshTitleLeaderboard: mockRefreshTitleLeaderboard,
     populateTitleLeaderboard: mockPopulateTitleLeaderboard,
   },
 }));
@@ -62,14 +58,12 @@ vi.mock('../../services/titleLeaderboardService.js', () => ({
     getTitleLeaderboard: mockGetTitleLeaderboard,
     getAllTitles: mockGetAllTitles,
     getUserTitles: mockGetUserTitles,
-    refreshTitleLeaderboard: mockRefreshTitleLeaderboard,
     populateTitleLeaderboard: mockPopulateTitleLeaderboard,
   })),
   titleLeaderboardService: {
     getTitleLeaderboard: mockGetTitleLeaderboard,
     getAllTitles: mockGetAllTitles,
     getUserTitles: mockGetUserTitles,
-    refreshTitleLeaderboard: mockRefreshTitleLeaderboard,
     populateTitleLeaderboard: mockPopulateTitleLeaderboard,
   },
 }));

@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ChallengeTier, User } from '@runquest/types';
+import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat, type ChallengeTier } from '@runquest/shared';
+import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
-import { firstName, tierLabel } from '../duelsFormat';
-import type { GroupStat, TierGroup, TokenCombo } from '../duelsModel';
+import { firstName } from '@/shared/utils/format';
+import { tierLabel } from '../duelsFormat';
+import type { TierGroup, TokenCombo } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
 import { buildOpponents, resolveOpponentParam, type OpponentOption, type SendBlocker } from '../sendModel';
 import { TierRibbon } from './TierRibbon';
 
 const ICON_HEAD = 21;
-/** Legendary startar av sig själv efter fyra dagar utan svar (challengeScheduler). */
-const LEGENDARY_AUTO_START_DAYS = 4;
 
 interface SendSheetProps {
   groups: TierGroup[];
   /** Varför jag inte kan skicka just nu — då visar sheeten bara orsaken. */
   blocker: SendBlocker | null;
-  members: GroupStat[];
+  members: ChallengeGroupStat[];
   users: User[] | undefined;
   meId: string;
   /** Nivån som tryckts på i tokens-panelen. */
@@ -160,7 +160,7 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
                     </div>
                     <div data-tone="muted">
                       <dt>Starts</dt>
-                      <dd>{combo.tier === 'legendary' ? `When accepted, or in ${LEGENDARY_AUTO_START_DAYS} d` : 'When accepted'}</dd>
+                      <dd>{combo.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
                     </div>
                   </dl>
                 </section>

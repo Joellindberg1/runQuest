@@ -2,7 +2,7 @@ import type { SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import { RQ_ICON_FALLBACK, RQ_ICON_PATHS, type RQIconName } from "./rq-icon-paths";
 
-/** Linjetjockleken är en del av ikongrammatiken (temafilen: --rq-icon-stroke). */
+/** Linjetjockleken 1.9 är hårdkodad: den är en del av ikongrammatiken, inte ett tema. */
 const ICON_STROKE_WIDTH = 1.9;
 const CIRCLE_PREFIX = "@";
 

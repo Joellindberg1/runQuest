@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger.js';
 import { installSentryErrorHandler } from './observability/sentry.js';
+import { jsonErrorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { sentryRouteNaming } from './observability/tracing.js';
 
 import adminRoutes from './routes/admin.js';
@@ -92,7 +93,7 @@ export function createApp(): express.Express {
       endpoints: {
         health: '/health',
         api: '/api',
-        auth: { login: '/api/auth/login', refresh: '/api/auth/refresh' },
+        auth: { login: '/api/auth/login' },
         public: { stats: '/api/public/stats' },
         strava: { config: '/api/strava/config', status: '/api/strava/status', callback: '/api/strava/callback', webhook: STRAVA_WEBHOOK_PATH },
         waitlist: { join: 'POST /api/waitlist', adminList: 'GET /api/admin/waitlist' }
@@ -121,18 +122,12 @@ export function createApp(): express.Express {
   app.use('/api/runs', runRoutes);
   app.use('/api/users', userRoutes);
 
-  // 404 handler
-  app.use((req, res) => {
-    logger.info(`❓ 404 - Route not found: ${req.method} ${req.originalUrl}`);
-    res.status(404).json({
-      error: 'Route not found',
-      path: req.originalUrl,
-      method: req.method
-    });
-  });
-
-  // Sist: rapporterar fel som kastats i en route utan att fångas (500+), och skickar dem vidare till Expresss svar.
+  // Sist, i den här ordningen (ADR 007 Addendum 2026-10-20 punkt 2): 404 för en route som ingen matchade, Sentry-hanteraren som rapporterar fel
+  // som kastats i en route utan att fångas (500+) och skickar dem vidare, och till sist JSON-felhanteraren som svarar för allt som nått Express som ett fel
+  // (trasig JSON, för stor body, ett okastat fel). Utan den sista svarar Express med en HTML-sida.
+  app.use(notFoundHandler);
   installSentryErrorHandler(app);
+  app.use(jsonErrorHandler);
 
   return app;
 }

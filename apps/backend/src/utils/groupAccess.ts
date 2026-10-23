@@ -15,6 +15,7 @@ import { groupRoleCan } from '@runquest/shared';
 import { logger } from './logger.js';
 import { errorCode } from './errorCode.js';
 import { getActiveMembership } from './membership.js';
+import { fail } from './respond.js';
 
 export type ActingGroupDenial =
   /** Inget aktivt medlemskap, eller en roll som inte får skriva. Samma svar för båda: ingen ledtråd om vilken grupp som finns. */
@@ -61,7 +62,7 @@ export async function actingGroupForWriteOrRespond(req: Request, res: Response, 
   const userId = req.user?.user_id;
   const acting: ActingGroupForWrite = userId ? await resolveActingGroupForWrite(userId, db) : { allowed: false, reason: 'forbidden' };
   if (acting.allowed) return acting.groupId;
-  if (acting.reason === 'unavailable') res.status(500).json({ error: 'Internal server error' });
-  else res.status(403).json({ error: 'Forbidden' });
+  if (acting.reason === 'unavailable') fail(res, 500, 'Internal server error');
+  else fail(res, 403, 'Forbidden');
   return null;
 }

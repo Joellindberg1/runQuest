@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, MIN_RUN_DATE } from '@runquest/shared';
+import type { AdminUser } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
+import { USERS_WITH_RUNS_QUERY_KEY } from '@/shared/hooks/useUsersWithRuns';
 import { log } from '@/shared/utils/logger';
 import { validatePassword } from '@/shared/utils/validation';
-import type { AdminUser } from '@/shared/services/backendApi';
 import { findSettingsProblem } from '../adminModel';
 
-export interface AdminSettings {
+/**
+ * Formulärets tillstånd (camelCase, ett fält per inmatningsruta, multiplikatorerna som karta days -> värde). Inte svarsformen: den är `AdminSettingsRow`
+ * och `StreakMultipliersResponse` i @runquest/shared; fetchAdminSettings flyttar över värdena och handleSaveSettings bygger requesten ur dem.
+ */
+export interface AdminSettingsForm {
   xpPerRun: number;
   xpPerKm: number;
   bonus5km: number;
@@ -14,27 +21,20 @@ export interface AdminSettings {
   bonus20km: number;
   minKmForRun: number;
   minRunDate: string;
-  streakBonuses: { [key: number]: number };
   multipliers: { [key: number]: number };
 }
 
-const DEFAULT_SETTINGS: AdminSettings = {
-  xpPerRun: 15,
-  xpPerKm: 2,
-  bonus5km: 5,
-  bonus10km: 15,
-  bonus15km: 25,
-  bonus20km: 50,
-  minKmForRun: 1.0,
-  minRunDate: '2025-06-01',
-  streakBonuses: {
-    10: 50, 30: 50, 60: 50, 90: 50, 120: 50, 150: 50,
-    180: 50, 210: 50, 240: 50, 270: 50, 300: 50, 330: 50,
-  },
-  multipliers: {
-    5: 1.1, 15: 1.2, 30: 1.3, 60: 1.4, 90: 1.5,
-    120: 1.6, 180: 1.7, 220: 1.8, 240: 1.9, 270: 2.0,
-  },
+// Fälten visas bara tills läsningen lyckats (Save är låst innan); värdena är shared:s standardvärden, inga egna kopior.
+const DEFAULT_SETTINGS: AdminSettingsForm = {
+  xpPerRun: DEFAULT_ADMIN_SETTINGS.base_xp,
+  xpPerKm: DEFAULT_ADMIN_SETTINGS.xp_per_km,
+  bonus5km: DEFAULT_ADMIN_SETTINGS.bonus_5km,
+  bonus10km: DEFAULT_ADMIN_SETTINGS.bonus_10km,
+  bonus15km: DEFAULT_ADMIN_SETTINGS.bonus_15km,
+  bonus20km: DEFAULT_ADMIN_SETTINGS.bonus_20km,
+  minKmForRun: DEFAULT_ADMIN_SETTINGS.min_run_distance,
+  minRunDate: MIN_RUN_DATE,
+  multipliers: Object.fromEntries(DEFAULT_STREAK_MULTIPLIERS.map(({ days, multiplier }) => [days, multiplier])),
 };
 
 /** Bekräftelser och fel per skärmdel — visas i permanenta live-regioner (status/alert), inte som toasts. */
@@ -46,7 +46,8 @@ export interface AdminNotice {
 export type AdminNotices = Partial<Record<AdminSection, AdminNotice>>;
 
 export function useAdminData() {
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
+  const queryClient = useQueryClient();
+  const [settings, setSettings] = useState<AdminSettingsForm>(DEFAULT_SETTINGS);
   // Save skickar hela trappan och servern tar bort steg som saknas — sparas DEFAULT_SETTINGS
   // (inläsningen misslyckades) skulle prod-trappan skrivas över. Därför låst tills båda läsningarna lyckats.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -80,13 +81,13 @@ export function useAdminData() {
         const data = result.data;
         setSettings(prev => ({
           ...prev,
-          xpPerRun: data.base_xp ?? 15,
-          xpPerKm: data.xp_per_km ?? 2,
-          bonus5km: data.bonus_5km ?? 5,
-          bonus10km: data.bonus_10km ?? 15,
-          bonus15km: data.bonus_15km ?? 25,
-          bonus20km: data.bonus_20km ?? 50,
-          minKmForRun: data.min_run_distance ?? 1.0,
+          xpPerRun: data.base_xp ?? DEFAULT_ADMIN_SETTINGS.base_xp,
+          xpPerKm: data.xp_per_km ?? DEFAULT_ADMIN_SETTINGS.xp_per_km,
+          bonus5km: data.bonus_5km ?? DEFAULT_ADMIN_SETTINGS.bonus_5km,
+          bonus10km: data.bonus_10km ?? DEFAULT_ADMIN_SETTINGS.bonus_10km,
+          bonus15km: data.bonus_15km ?? DEFAULT_ADMIN_SETTINGS.bonus_15km,
+          bonus20km: data.bonus_20km ?? DEFAULT_ADMIN_SETTINGS.bonus_20km,
+          minKmForRun: data.min_run_distance ?? DEFAULT_ADMIN_SETTINGS.min_run_distance,
         }));
 
         const multipliersResult = await backendApi.getStreakMultipliers();
@@ -185,8 +186,11 @@ export function useAdminData() {
     try {
       const result = await backendApi.createUser(newUser.name, newUser.email, newUser.password);
       if (result.success && result.data) {
-        const created = result.data;
+        // Servern svarar med sju kolumner (CreatedUser); ett nytt konto har ännu inga rundor, ingen sträcka och ingen streak att visa.
+        const created: AdminUser = { ...result.data, total_km: 0, longest_streak: 0, total_runs: 0 };
         setUsers(prev => [...prev, created]);
+        // Board läser gruppen ur users-with-runs (staleTime 10 s): utan invalidering visar den listan från före kontot.
+        void queryClient.invalidateQueries({ queryKey: USERS_WITH_RUNS_QUERY_KEY });
         setNewUser({ name: '', email: '', password: '' });
         notify('users', { status: 'Member added.' });
       } else {

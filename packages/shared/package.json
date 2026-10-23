@@ -6,9 +6,6 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "clean": "rimraf dist",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -23,7 +20,6 @@
     "src"
   ],
   "devDependencies": {
-    "rimraf": "^5.0.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },

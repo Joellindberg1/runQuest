@@ -3,6 +3,7 @@ import {
   challengeScore,
   compareChallengeStandings,
   detectRankPasses,
+  rankOf,
   type ChallengeRecord,
   type ChallengeStanding,
   type RankPassMember,
@@ -465,5 +466,34 @@ describe('compareChallengeStandings', () => {
     expect([draws, wins, mixed].sort(compareChallengeStandings).map((r) => r.id)).toEqual(['a', 'b', 'c']); // lika poäng: vinster går före namn
     const equalPoints = s('d', 'Ada', 0, 1, 1); // 0,25, 0 vinster
     expect(compareChallengeStandings(mixed, equalPoints)).toBeGreaterThan(0); // Bo efter Ada på namn
+  });
+});
+
+describe('rankOf', () => {
+  const standing = (id: string, name: string, xpValue: number) => ({ id, name, xp: xpValue });
+
+  it('placerar efter XP fallande, oberoende av listans ordning', () => {
+    const table = [standing('b', 'Bea', 900), standing('a', 'Adam', 4000), standing('c', 'Cy', 100)];
+    expect([rankOf('a', table), rankOf('b', table), rankOf('c', table)]).toEqual([1, 2, 3]);
+  });
+
+  it('lika XP ger placering i namnordning (skiftlägesokänsligt), sedan id, aldrig delad plats', () => {
+    const table = [standing('3', 'zara', 500), standing('2', 'Bea', 500), standing('1', 'bea', 500), standing('4', 'Adam', 500)];
+    expect(['4', '1', '2', '3'].map((id) => rankOf(id, table))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('en medlem som saknas i tabellen har ingen placering', () => {
+    expect(rankOf('nobody', [standing('a', 'Adam', 1)])).toBeNull();
+    expect(rankOf('a', [])).toBeNull();
+  });
+
+  it('ger samma rang som detektionen när XP blir lika efter en skrivning', () => {
+    // Anna och Bea har lika XP efter skrivningen: Anna kommer först på namn, så Bea (W) hamnar efter Anna men före Cy.
+    const members = [xp('a', 'Anna', 500), xp('b', 'Bea', 400, 500), xp('c', 'Cy', 450)];
+    const [pass] = detectXp('b', members).passes;
+    const table = members.map((m) => standing(m.id, m.name, m.after));
+    expect(pass.passerRank).toBe(rankOf('b', table));
+    expect(pass.passedRank).toBe(rankOf('c', table));
+    expect(rankOf('a', table)).toBe(1);
   });
 });

@@ -5,6 +5,7 @@ import { getXpConfig } from '../services/xpConfig.js';
 import { levelService } from '../services/levelService.js';
 import { logger } from '../utils/logger.js';
 import type { XpConfigApiResponse, LevelsApiResponse } from '@runquest/shared';
+import { fail, ok } from '../utils/respond.js';
 import { errorCode } from '../utils/errorCode.js';
 
 const router = express.Router();
@@ -15,11 +16,10 @@ const router = express.Router();
 router.get('/xp', authenticateJWT, async (_req, res): Promise<void> => {
   try {
     const { settings, streak_multipliers, meta } = await getXpConfig();
-    const body: XpConfigApiResponse = { success: true, data: { settings, streak_multipliers }, meta };
-    res.json(body);
+    ok<XpConfigApiResponse>(res, { settings, streak_multipliers }, meta);
   } catch (error) {
     logger.error(`❌ Error fetching XP config (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch XP config' });
+    fail(res, 500, 'Failed to fetch XP config');
   }
 });
 
@@ -31,11 +31,10 @@ router.get('/levels', authenticateJWT, async (_req, res): Promise<void> => {
     const data = rows
       .map(({ level, xp_required }) => ({ level, xp_required }))
       .sort((a, b) => a.level - b.level);
-    const body: LevelsApiResponse = { success: true, data };
-    res.json(body);
+    ok<LevelsApiResponse>(res, data);
   } catch (error) {
     logger.error(`❌ Error fetching level requirements (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch level requirements' });
+    fail(res, 500, 'Failed to fetch level requirements');
   }
 });
 

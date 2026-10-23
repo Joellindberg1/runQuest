@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import type { ChallengeTier } from '@runquest/types';
+import type { ChallengeTier } from '@runquest/shared';
+import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
@@ -12,7 +13,7 @@ import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
-import { firstName } from '../duelsFormat';
+import { firstName } from '@/shared/utils/format';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
   buildTokenGroups, nameMap, summaryText, tokenTotal,
@@ -147,7 +148,7 @@ export function DuelsScreen() {
   const sendChallenge = async (tokenId: string, opponentId: string) => {
     await actions.send.mutateAsync({ tokenId, opponentId });
     const opponent = names[opponentId];
-    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts when they accept.` });
+    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts at midnight after they accept.` });
     closeSend();
   };
 
@@ -163,7 +164,7 @@ export function DuelsScreen() {
 
   return (
     <>
-      <FeatureTour slug="tour_duels_v2" steps={TOUR_DUELS_V2} />
+      <FeatureTour slug={DUELS_TOUR_SLUG} steps={TOUR_DUELS_V2} />
       <DuelsLayout
         isDesktop={isDesktop}
         view={view}

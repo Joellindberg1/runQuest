@@ -9,23 +9,32 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   checkConditionalGroupFilter,
+  checkDocPaths,
   checkEmptySuites,
+  checkErrorResponsesViaFail,
   checkFontFiles,
   checkGroupRoleMapping,
   checkGroupSettingsWrites,
   checkGitignoreForVideo,
   checkMediaFiles,
+  checkNoFrontendSupabase,
   checkNoTrackedVideoOriginals,
   checkRateBudgetHook,
   checkReconcileSchedulerStart,
   checkRecoverySchedulerStart,
+  checkCronLoggerInstall,
   checkStravaTokenPath,
   checkTokenKeyStartupCheck,
+  checkDummyHashWarmup,
   checkWebhookSchedulerStart,
   checkRawStravaFetch,
+  checkRouteResponseContracts,
   checkTestNames,
   checkTodos,
+  checkTokenGroupIdReads,
   checkUsersGroupIdWrites,
+  DOC_PATH_EXEMPT,
+  ERROR_RESPONSE_EXEMPT_ROUTES,
   GROUP_SETTINGS_EXEMPT_FILES,
   isEntryPoint,
   listWorkspaces,
@@ -633,6 +642,301 @@ describe('checkRecoverySchedulerStart', () => {
   });
 });
 
+describe('checkCronLoggerInstall', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+  const prod = (inside) => `import x from 'x';\nserver.on('listening', () => {\n  if (process.env.NODE_ENV === 'production') {\n${inside}\n  }\n});\n`;
+
+  it('passes when the logger is installed directly in the production block, before the schedulers', () => {
+    assert.deepEqual(checkCronLoggerInstall(server(prod('    installCronLogger();\n    startStravaScheduler();'))), []);
+  });
+
+  it('flags a server.ts where the install line is removed', () => {
+    const errors = checkCronLoggerInstall(server(prod('    startStravaScheduler();')));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: installCronLogger\(\) måste anropas direkt i produktionsblocket/);
+  });
+
+  it('flags a call outside the production block, in a nested callback, or only in a comment or string', () => {
+    const cases = [
+      "installCronLogger();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  setTimeout(() => {\n    installCronLogger();\n  }, 1);\n}\n",
+      "if (process.env.NODE_ENV === 'production') {\n  // installCronLogger();\n  logger.info('installCronLogger()');\n}\n",
+    ];
+    for (const code of cases) assert.equal(checkCronLoggerInstall(server(code)).length, 1, code);
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkCronLoggerInstall([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkCronLoggerInstall([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
+describe('checkNoFrontendSupabase', () => {
+  const scan = (content, path = 'apps/frontend/src/shared/services/backendApi.ts') => checkNoFrontendSupabase([{ path, content }]);
+
+  it('passes frontend code that only talks to the backend API', () => {
+    assert.deepEqual(scan("const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';\n"), []);
+  });
+
+  it('flags a read of the Supabase URL or the publishable key, in code, in the env example and in the type declarations', () => {
+    assert.equal(scan('const url = import.meta.env.VITE_SUPABASE_URL;\n').length, 1);
+    assert.equal(scan('VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_x\n', 'apps/frontend/.env.example').length, 1);
+    assert.equal(scan('readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;\n', 'apps/frontend/src/vite-env.d.ts').length, 1);
+    assert.match(scan('\n\nconst k = import.meta.env.VITE_SUPABASE_ANON_KEY;\n')[0], /^apps\/frontend\/src\/shared\/services\/backendApi\.ts:3: /);
+  });
+
+  it('flags the Supabase client package, as an import and as a dependency', () => {
+    assert.equal(scan("import { createClient } from '@supabase/supabase-js';\n").length, 1);
+    assert.equal(scan('{ "dependencies": { "@supabase/supabase-js": "^2.0.0" } }', 'apps/frontend/package.json').length, 1);
+  });
+
+  it('leaves the backend and other workspaces alone', () => {
+    assert.deepEqual(scan('const url = process.env.SUPABASE_URL;\n', 'apps/backend/src/config.ts'), []);
+    assert.deepEqual(scan("import { createClient } from '@supabase/supabase-js';\n", 'apps/backend/src/db.ts'), []);
+  });
+});
+
+describe('checkRouteResponseContracts', () => {
+  const CONTRACTS = {
+    path: 'packages/shared/src/contracts/things.ts',
+    content: [
+      'export interface Thing { id: string }',
+      'export interface ThingResponse { success: true; data: Thing }',
+      'export type ThingListApiResponse = { success: true; data: Thing[] };',
+      'export interface ApiError { error: string }',
+      'export interface OffsetPageMeta { total: number }',
+    ].join('\n'),
+  };
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE, exempt) => checkRouteResponseContracts([CONTRACTS, { path, content }], exempt);
+
+  it('passes a route that answers with satisfies against a Response contract', () => {
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true, data: thing } satisfies ThingResponse);\n});\n"), []);
+  });
+
+  it('passes a route whose body is annotated with a Response contract, with ApiResponse names and across several routes', () => {
+    const content = [
+      "router.get('/a', auth, async (_req, res) => {",
+      '  const body: ThingResponse = { success: true, data: thing };',
+      '  res.json(body);',
+      '});',
+      "router.put('/b', auth, async (_req, res) => {",
+      '  const empty: ThingListApiResponse = { success: true, data: [] };',
+      '  res.json(empty);',
+      '});',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('passes a route that answers through ok or okWithLegacy with a Response contract as the type parameter', () => {
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  ok<ThingResponse>(res, thing);\n});\n"), []);
+    assert.deepEqual(scan("router.get('/a', auth, async (_req, res) => {\n  okWithLegacy<ThingResponse>(res, { thing }, { thing });\n});\n"), []);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok(res, thing);\n});\n").length, 1);
+    assert.equal(scan("router.get('/a', auth, async (_req, res) => {\n  ok<LocalThing>(res, thing);\n});\n").length, 1);
+  });
+
+  it('flags a route that sends an untyped object, with its line, verb and path', () => {
+    const errors = scan("\nrouter.post('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: POST \/a skriver inget svar mot en kontraktstyp/);
+  });
+
+  it('flags only the untyped route among several, and a route is not rescued by the type in the next one', () => {
+    const content = [
+      "router.get('/typed', auth, async (_req, res) => {",
+      '  res.json({ success: true, data: thing } satisfies ThingResponse);',
+      '});',
+      "router.get('/untyped', auth, async (_req, res) => {",
+      '  res.json({ ok: true });',
+      '});',
+      "router.get('/typed-too', auth, async (_req, res) => {",
+      '  res.json({ success: true, data: thing } satisfies ThingResponse);',
+      '});',
+    ].join('\n');
+    const errors = scan(content);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /:4: GET \/untyped /);
+  });
+
+  it('does not count an error-only type, a type that is not a Response contract, a local type or a cast', () => {
+    for (const body of [
+      "res.status(400).json({ error: 'x' } satisfies ApiError);",
+      'const meta: OffsetPageMeta = { total: 1 }; res.json({ meta });',
+      'const body: LocalThing = { id: 1 }; res.json(body);',
+      'res.json({ success: true } as ThingResponse);',
+      'res.json({ success: true, data: thing } satisfies ThingResponseDraft);',
+    ]) {
+      assert.equal(scan(`router.get('/a', auth, async (_req, res) => {\n  ${body}\n});\n`).length, 1, body);
+    }
+  });
+
+  it('ignores a contract name that only appears in a comment', () => {
+    const content = "// svarar med ThingResponse\nrouter.get('/a', auth, async (_req, res) => {\n  // satisfies ThingResponse\n  res.json({});\n});\n";
+    assert.equal(scan(content).length, 1);
+  });
+
+  it('reads routes registered over several lines and on the root alias', () => {
+    const multiline = "router.post(\n  '/profile-picture',\n  auth,\n  async (req, res) => {\n    res.json({ ok: true });\n  },\n);\n";
+    assert.match(scan(multiline)[0], /:1: POST \/profile-picture /);
+    assert.equal(scan("root.post('/read', auth, async (req, res) => {\n  res.json({});\n});\n").length, 1);
+    assert.deepEqual(scan("root.post('/read', auth, async (req, res) => {\n  res.json({ success: true, data: thing } satisfies ThingResponse);\n});\n"), []);
+  });
+
+  it('exempts the Strava webhook protocol routes (GET and POST /) but not its health route', () => {
+    const webhook = 'apps/backend/src/routes/stravaWebhook.ts';
+    const content = [
+      "router.get('/', (req, res) => { res.json({ 'hub.challenge': 'x' }); });",
+      "router.get('/health', auth, async (_req, res) => { res.json({ success: true }); });",
+      "router.post('/', json, async (req, res) => { res.status(200).json({ received: true }); });",
+    ].join('\n');
+    const errors = scan(content, webhook);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /:2: GET \/health /);
+    assert.equal(scan("router.get('/', (req, res) => {});", 'apps/backend/src/routes/other.ts').length, 1);
+  });
+
+  it('leaves files outside routes/ and test files alone', () => {
+    const untyped = "router.get('/a', auth, async (_req, res) => { res.json({}); });\n";
+    assert.deepEqual(scan(untyped, 'apps/backend/src/app.ts'), []);
+    assert.deepEqual(scan(untyped, 'apps/backend/src/routes/things.test.ts'), []);
+    assert.deepEqual(scan(untyped, 'apps/frontend/src/routes/things.ts'), []);
+  });
+
+  it('has nothing to compare against without contracts', () => {
+    assert.deepEqual(checkRouteResponseContracts([{ path: ROUTE, content: "router.get('/a', auth, (_req, res) => { res.json({}); });\n" }]), []);
+  });
+});
+
+describe('checkErrorResponsesViaFail', () => {
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE, exempt) => checkErrorResponsesViaFail([{ path, content }], exempt);
+
+  it('passes a route that answers its errors through fail and its successes through ok', () => {
+    const content = [
+      "router.get('/a', async (_req, res) => {",
+      "  if (bad) { fail(res, 400, 'Bad input'); return; }",
+      '  res.status(201).json({ success: true });',
+      '  ok(res, data);',
+      '});',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('flags res.status(4xx|5xx|207).json with its line', () => {
+    for (const status of [400, 401, 403, 404, 409, 413, 429, 500, 503, 207]) {
+      const errors = scan(`\nres.status(${status}).json({ error: 'x' });\n`);
+      assert.equal(errors.length, 1, String(status));
+      assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: /);
+    }
+  });
+
+  it('flags the same call spread over several lines, with a typed body and in a one-line early return', () => {
+    const multiline = scan("res\n  .status(500)\n  .json({ error: 'x' } satisfies ApiError);");
+    assert.match(multiline[0], /things\.ts:2: /); // raden med .status(500); .json({ error … }) på nästa rad ger en rad till
+    assert.equal(scan("res.status(500).json({ error: 'x' } satisfies ApiError);").length, 1);
+    assert.equal(scan("if (!x) { res.status(404).json({ error: 'x' }); return; }").length, 1);
+  });
+
+  it('flags res.status(...) with anything but a literal status, res.sendStatus and an error body without a status', () => {
+    assert.equal(scan('res.status(code).json(body);').length, 1);
+    assert.equal(scan('res.status(error.status ?? 500).json(body);').length, 1);
+    assert.equal(scan('res.sendStatus(404);').length, 1);
+    assert.equal(scan("res.json({ error: 'x' });").length, 1);
+    assert.equal(scan("res.json({ success: false, error: 'x' });").length, 1);
+  });
+
+  it('leaves 2xx statuses, a comment and respond.ts itself alone', () => {
+    assert.deepEqual(scan('res.status(200).json(body);\nres.status(201).json(body);'), []);
+    assert.deepEqual(scan("// res.status(500).json({ error: 'x' }) var förut\n/* res.status(404).json() */"), []);
+    assert.deepEqual(scan("res.status(500).json({ error: 'x' });", 'apps/backend/src/utils/respond.ts'), []);
+  });
+
+  it('covers routes, middleware, utils and app.ts but not tests or other apps', () => {
+    const bad = "res.status(500).json({ error: 'x' });";
+    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/middleware/a.ts', 'apps/backend/src/utils/a.ts', 'apps/backend/src/app.ts']) {
+      assert.equal(scan(bad, path).length, 1, path);
+    }
+    for (const path of ['apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/test-utils/a.ts', 'apps/frontend/src/routes/a.ts', 'apps/backend/src/services/a.ts']) {
+      assert.deepEqual(scan(bad, path), [], path);
+    }
+  });
+
+  describe('the Strava webhook exemption', () => {
+    const WEBHOOK = 'apps/backend/src/routes/stravaWebhook.ts';
+    const webhook = [
+      'export function createStravaWebhookRouter() {',
+      '  const router = express.Router();',
+      "  router.get('/', (req, res) => {",
+      "    res.status(403).json({ error: 'Forbidden' });",
+      '  });',
+      "  router.get('/health', authenticateJWT, requireAdmin, async (_req, res) => {",
+      "    res.status(500).json({ success: false, error: 'Failed to read webhook health' });",
+      '  });',
+      "  router.post('/', express.json(), async (req, res) => {",
+      "    res.status(400).json({ error: 'Invalid event' });",
+      '  });',
+      '  router.use((err, _req, res, next) => {',
+      "    if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'Request body too large' }); return; }",
+      '    next(err);',
+      '  });',
+      '  return router;',
+      '}',
+    ].join('\n');
+
+    it('exempts exactly the two Strava protocol routes (ADR 007 Addendum 2026-10-20 punkt 4), GET / and POST /, and nothing else', () => {
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.keys()], [WEBHOOK]);
+      assert.deepEqual([...ERROR_RESPONSE_EXEMPT_ROUTES.get(WEBHOOK)].sort(), ['GET /', 'POST /']);
+    });
+
+    it('lets the protocol routes (and the router error handler that follows POST /) through and catches a hand-written answer in /health', () => {
+      const errors = scan(webhook, WEBHOOK);
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /stravaWebhook\.ts:7: ett felsvar skrivs för hand/);
+    });
+
+    it('catches a hand-written answer in a webhook route that is not one of the two, and in code before the first route', () => {
+      assert.equal(scan(webhook.replace("router.get('/health'", "router.put('/other'"), WEBHOOK).length, 1);
+      assert.equal(scan("res.status(500).json({ error: 'x' });\n" + webhook, WEBHOOK).length, 2);
+    });
+
+    it('does not exempt the other route files', () => {
+      assert.equal(scan("res.status(403).json({ error: 'x' });", 'apps/backend/src/routes/strava.ts').length, 1);
+      assert.equal(scan("router.get('/', (req, res) => { res.status(403).json({ error: 'x' }); });", 'apps/backend/src/routes/other.ts').length, 1);
+    });
+  });
+});
+
+describe('checkDummyHashWarmup', () => {
+  const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
+
+  it('passes when server.ts calls warmUpDummyPasswordHash() at the top level', () => {
+    assert.deepEqual(checkDummyHashWarmup(server("import { x } from './x.js';\nwarmUpDummyPasswordHash();\nconst app = 1;\n")), []);
+    assert.deepEqual(checkDummyHashWarmup(server('warmUpDummyPasswordHash()\r\n')), []);
+  });
+
+  it('flags a server.ts without the call', () => {
+    const errors = checkDummyHashWarmup(server("import { warmUpDummyPasswordHash } from './utils/passwordHash.js';\nconst app = 1;\n"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /apps\/backend\/src\/server\.ts: saknar ett anrop av warmUpDummyPasswordHash\(\)/);
+  });
+
+  it('flags a call that is only in a comment, indented inside a block or callback, or a different function', () => {
+    for (const code of [
+      '// warmUpDummyPasswordHash();\n',
+      "if (process.env.NODE_ENV === 'production') {\n  warmUpDummyPasswordHash();\n}\n",
+      "server.on('listening', () => {\n  warmUpDummyPasswordHash();\n});\n",
+      'warmUpDummyPasswordHashLater();\n',
+    ]) {
+      assert.equal(checkDummyHashWarmup(server(code)).length, 1, code);
+    }
+  });
+
+  it('flags a backend without server.ts and leaves a repo without backend sources alone', () => {
+    assert.equal(checkDummyHashWarmup([{ path: 'apps/backend/src/app.ts', content: '' }]).length, 1);
+    assert.deepEqual(checkDummyHashWarmup([{ path: 'apps/one/src/a.ts', content: '' }]), []);
+  });
+});
+
 describe('checkTokenKeyStartupCheck', () => {
   const server = (content) => [{ path: 'apps/backend/src/server.ts', content }];
 
@@ -986,6 +1290,147 @@ describe('checkGitignoreForVideo', () => {
   });
 });
 
+describe('checkDocPaths', () => {
+  const tracked = [
+    'README.md',
+    'apps/backend/src/routes/runs.ts',
+    'apps/frontend/src/features/badges/badges.css',
+    'apps/frontend/src/features/badges/README.md',
+    'docs/release.md',
+    'docs/archive/roadmap.md',
+    'scripts/ci-guards.mjs',
+  ];
+  const doc = (path, content) => ({ path, content });
+  const check = (docs, exempt = []) => checkDocPaths(docs, tracked, exempt);
+
+  it('accepts a full path, a path from a subfolder and a bare file name that exist', () => {
+    const content = 'See `scripts/ci-guards.mjs`, `routes/runs.ts`, `badges.css` and `docs/release.md`.\n';
+    assert.deepEqual(check([doc('README.md', content)]), []);
+  });
+
+  it('names the document, the line and the path of a reference to a file that does not exist', () => {
+    const errors = check([doc('docs/release.md', 'Intro\nThe check lives in `scripts/gone.mjs:12`.\n')]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^docs\/release\.md:2: scripts\/gone\.mjs finns inte/);
+  });
+
+  it('rejects a reference to a document that was moved to docs/archive', () => {
+    assert.equal(check([doc('README.md', 'See `docs/roadmap.md`.\n')]).length, 1);
+    assert.deepEqual(check([doc('README.md', 'See `docs/archive/roadmap.md`.\n')]), []);
+  });
+
+  it('checks directories by their name and rejects one that holds no tracked file', () => {
+    assert.deepEqual(check([doc('README.md', '`docs/archive/` and `features/badges/`\n')]), []);
+    assert.equal(check([doc('README.md', '`docs/nowhere/`\n')]).length, 1);
+  });
+
+  it('skips spans that are not file paths: URLs, absolute URL paths, globs, placeholders, calls and bare extensions', () => {
+    const content = ['`https://runquest.dev/a.html`', '`/api/runs.json`', '`src/**/*.test.ts`', '`<name>.ts`', '`run(x).ts`', '`.js`', '`a b.ts`', '`~/.config/x.json`', '`../up.md`'].join(' ');
+    assert.deepEqual(check([doc('README.md', content)]), []);
+  });
+
+  it('reads README.md, STATE.md, docs/*.md and a feature README, and nothing else', () => {
+    const bad = 'See `missing.ts`.\n';
+    for (const path of ['README.md', 'STATE.md', 'docs/e2e.md', 'apps/frontend/src/features/badges/README.md']) {
+      assert.equal(check([doc(path, bad)]).length, 1, path);
+    }
+    for (const path of ['docs/adr/001-teststrategi.md', 'docs/archive/old.md', 'docs/design/x.md', 'CHANGELOG.md', 'apps/backend/README.md']) {
+      assert.deepEqual(check([doc(path, bad)]), [], path);
+    }
+  });
+
+  it('lets an exempt reference through, only in the document the exemption names', () => {
+    const exempt = [{ doc: 'docs/release.md', pattern: /^dist\/landing\.html$/, reason: 'build output' }];
+    const content = 'The page is `dist/landing.html`.\n';
+    assert.deepEqual(check([doc('docs/release.md', content)], exempt), []);
+    assert.equal(check([doc('README.md', content)], exempt).length, 2); // the missing path, and the exemption that no longer matches
+  });
+
+  it('fails an exemption that no longer matches any reference, so the list cannot grow stale', () => {
+    const errors = check([doc('README.md', 'Nothing to see.\n')], [{ pattern: /^old\.ts$/, reason: 'a file that was removed' }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /träffar ingen hänvisning längre/);
+  });
+
+  it('keeps every exemption in DOC_PATH_EXEMPT explained', () => {
+    for (const entry of DOC_PATH_EXEMPT) assert.ok(entry.reason.length > 10, String(entry.pattern));
+  });
+});
+
+describe('checkTokenGroupIdReads', () => {
+  const ROUTE = 'apps/backend/src/routes/things.ts';
+  const scan = (content, path = ROUTE) => checkTokenGroupIdReads([{ path, content }]);
+
+  it('flags every direct read of the group in the token, with its line', () => {
+    for (const read of ['req.user!.group_id', 'req.user?.group_id', 'req.user.group_id', 'req.user!?.group_id', "req.user!['group_id']", 'req . user ! . group_id', '(req.user as AuthUser).group_id', '(req.user as any)?.group_id', '(req.user!).group_id', '(req as AuthenticatedRequest).user.group_id', '(req as any).user!.group_id']) {
+      const errors = scan(`\nconst groupId = ${read};\n`);
+      assert.equal(errors.length, 1, read);
+      assert.match(errors[0], /^apps\/backend\/src\/routes\/things\.ts:2: /, read);
+    }
+  });
+
+  it('flags a read through an alias of req.user or of req in the same file', () => {
+    assert.equal(scan('const u = req.user!;\nconst g = u.group_id;').length, 1);
+    assert.equal(scan('const u = req.user as AuthUser;\nconst g = u?.group_id;').length, 1);
+    assert.equal(scan('let me: AuthUser = req.user!;\nuse(me!.group_id);').length, 1);
+    assert.equal(scan('const { user } = req;\nconst g = user.group_id;').length, 1);
+    assert.equal(scan('const { user: me } = req;\nconst g = me.group_id;').length, 1);
+    assert.equal(scan('const r = req;\nconst g = r.user!.group_id;').length, 1);
+    const twice = scan('const u = req.user;\nuse(u.group_id);\nuse(u.group_id);');
+    assert.deepEqual(twice.map((error) => error.split(': ')[0]), ['apps/backend/src/routes/things.ts:2', 'apps/backend/src/routes/things.ts:3']);
+  });
+
+  it('flags destructuring of group_id out of req.user, out of req, or out of an alias', () => {
+    assert.equal(scan('const { group_id } = req.user;').length, 1);
+    assert.equal(scan('const { group_id: g } = req.user!;').length, 1);
+    assert.equal(scan('const { user_id, group_id } = req.user!;').length, 1);
+    assert.equal(scan('const {\n  user_id,\n  group_id: g,\n} = req.user!;').length, 1);
+    assert.equal(scan('const { user: { group_id } } = req;').length, 1);
+    assert.equal(scan('const u = req.user;\nconst { group_id } = u;').length, 1);
+    assert.equal(scan('({ group_id } = req.user!);').length, 1);
+  });
+
+  it('covers routes, services (also nested), middleware and utils', () => {
+    const bad = 'const g = req.user!.group_id;';
+    for (const path of ['apps/backend/src/routes/a.ts', 'apps/backend/src/services/a.ts', 'apps/backend/src/services/stravaWebhook/handlers/a.ts', 'apps/backend/src/middleware/admin.ts', 'apps/backend/src/utils/a.ts']) {
+      assert.equal(scan(bad, path).length, 1, path);
+    }
+    assert.equal(scan('a(req.user!.group_id, req.user?.group_id);').length, 1);
+  });
+
+  it('leaves groupScope.ts, auth.ts (which sets group_id), tests, other folders and other apps alone', () => {
+    const bad = 'const g = req.user!.group_id;';
+    for (const path of ['apps/backend/src/utils/groupScope.ts', 'apps/backend/src/middleware/auth.ts', 'apps/backend/src/routes/a.test.ts', 'apps/backend/src/routes/__tests__/a.ts', 'apps/backend/src/services/test-utils/a.ts', 'apps/backend/src/scripts/a.ts', 'apps/frontend/src/routes/a.ts']) {
+      assert.deepEqual(scan(bad, path), [], path);
+    }
+  });
+
+  it('lets through reads of group_id that do not come from the token, other token fields, the helpers and comments', () => {
+    const content = [
+      'const g = row.group_id;',
+      'const { group_id } = row;',
+      'const { group_id: g2 } = data;',
+      'const g3 = user.group_id;', // en användarrad ur databasen, inget alias av req.user
+      'const { user_id, name } = req.user!;',
+      'const me = req.user!.user_id;',
+      'const u = req.user!;\nuse(u.user_id);',
+      'const g4 = req.body.group_id;',
+      'const g5 = tokenGroupId(req);',
+      'const g6 = groupIdOrRespondEmpty(req, res);',
+      'const g7 = (row as TitleRow).group_id;\nconst g8 = (req.body as Body).group_id;',
+      '// const g = req.user!.group_id; var förut\n/* req.user.group_id */',
+    ].join('\n');
+    assert.deepEqual(scan(content), []);
+  });
+
+  it('uses an alias only in the file that declares it', () => {
+    assert.deepEqual(checkTokenGroupIdReads([
+      { path: 'apps/backend/src/routes/a.ts', content: 'const u = req.user;\n' },
+      { path: 'apps/backend/src/routes/b.ts', content: 'const g = u.group_id;\n' },
+    ]), []);
+  });
+});
+
 describe('walkFiles / listWorkspaces', () => {
   it('skips node_modules and dist, and returns slash-separated relative paths', () => {
     const fs = { '/r/p': ['src', 'node_modules', 'dist'], '/r/p/src': ['a.ts', 'sub'], '/r/p/src/sub': ['b.ts'] };
@@ -1185,6 +1630,32 @@ describe('CLI', () => {
     assert.equal(runCli('token-key-startup', makeBackend('key-check-good', 'reportTokenKeyAtStartup();\n')).status, 0);
   });
 
+  it('exits 1 when server.ts lacks the dummy hash warm-up (also under all) and 0 once it is planted', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('warmup-bad', 'registerStravaRateBudget();\n');
+    for (const mode of ['dummy-hash-warmup', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/server\.ts: saknar ett anrop av warmUpDummyPasswordHash/);
+    }
+    assert.equal(runCli('dummy-hash-warmup', makeBackend('warmup-good', 'warmUpDummyPasswordHash();\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in dummy-hash-warmup mode', () => {
+    const result = runCli('dummy-hash-warmup');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /dummy-hashen/);
+  });
+
   it('exits 0 on the current repo in token-key-startup mode', () => {
     const result = runCli('token-key-startup');
     assert.equal(result.status, 0, result.stderr);
@@ -1233,6 +1704,32 @@ describe('CLI', () => {
     assert.equal(runCli('reconcile-scheduler-start', good).status, 0);
   });
 
+  it('exits 1 when frontend code reads a Supabase variable (also under all) and 0 once it is gone', () => {
+    const makeFrontend = (name, envExample) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'frontend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'frontend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, '.env.example'), envExample);
+      return root;
+    };
+    const bad = makeFrontend('supabase-bad', 'VITE_API_URL=x\nVITE_SUPABASE_URL=https://example.invalid\n');
+    for (const mode of ['frontend-supabase', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/frontend\/\.env\.example:2: /);
+    }
+    assert.equal(runCli('frontend-supabase', makeFrontend('supabase-good', 'VITE_API_URL=x\n')).status, 0);
+  });
+
+  it('exits 0 on the current repo in frontend-supabase mode', () => {
+    const result = runCli('frontend-supabase');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Supabase/);
+  });
+
   it('exits 1 when server.ts does not start the recalculation recovery in the production block (also under all) and 0 once it does', () => {
     const makeBackend = (name, serverContent) => {
       const root = join(temp, name);
@@ -1252,6 +1749,33 @@ describe('CLI', () => {
     }
     const good = makeBackend('recovery-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaReconcileScheduler();\n  startRecalculationRecoveryScheduler();\n}\n");
     assert.equal(runCli('recovery-scheduler-start', good).status, 0);
+  });
+
+  it('exits 1 when server.ts does not install the node-cron logger in the production block (also under all) and 0 once it does', () => {
+    const makeBackend = (name, serverContent) => {
+      const root = join(temp, name);
+      const ws = join(root, 'apps', 'backend');
+      mkdirSync(join(ws, 'src'), { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+      writeFileSync(join(ws, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(ws, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(ws, 'src', 'server.ts'), serverContent);
+      return root;
+    };
+    const bad = makeBackend('cron-logger-bad', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  startStravaScheduler();\n}\n");
+    for (const mode of ['cron-logger-install', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /installCronLogger\(\) måste anropas direkt i produktionsblocket/);
+    }
+    const good = makeBackend('cron-logger-good', "registerStravaRateBudget();\nif (process.env.NODE_ENV === 'production') {\n  installCronLogger();\n  startStravaScheduler();\n}\n");
+    assert.equal(runCli('cron-logger-install', good).status, 0);
+  });
+
+  it('exits 0 on the current repo in cron-logger-install mode', () => {
+    const result = runCli('cron-logger-install');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /node-cron/);
   });
 
   it('exits 0 on the current repo in recovery-scheduler-start mode', () => {
@@ -1431,6 +1955,83 @@ describe('CLI', () => {
     const ok = fontsDir('fonts-ok');
     writeFileSync(join(ok.dir, 'fine.v1.woff2'), Buffer.concat([Buffer.from('wOF2'), Buffer.alloc(100)]));
     assert.equal(runCli('fonts', ok.root).status, 0);
+  });
+
+  it('exits 0 on the current repo in token-group-id mode', () => {
+    const result = runCli('token-group-id');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /gruppen i token läses bara i groupScope/);
+  });
+
+  it('exits 1 on a planted read of the group in the token (also under all) and 0 once it goes through groupScope', () => {
+    const bad = makeRepo('token-group-bad');
+    mkdirSync(join(bad, 'apps', 'one', 'src', 'routes'), { recursive: true });
+    writeFileSync(join(bad, 'apps', 'one', 'src', 'routes', 'things.ts'), 'const g = req.user!.group_id;\n');
+    assert.equal(runCli('token-group-id', bad).status, 0, 'only apps/backend is covered');
+    const backendBad = join(temp, 'token-group-backend');
+    mkdirSync(join(backendBad, 'apps', 'backend', 'src', 'routes'), { recursive: true });
+    writeFileSync(join(backendBad, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*'] }));
+    writeFileSync(join(backendBad, 'apps', 'backend', 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'a.test.ts'), 'export {};\n');
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'routes', 'things.ts'), 'const g = req.user!.group_id;\n');
+    for (const mode of ['token-group-id', 'all']) {
+      const result = runCli(mode, backendBad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/things\.ts:1: /);
+    }
+    writeFileSync(join(backendBad, 'apps', 'backend', 'src', 'routes', 'things.ts'), 'const g = tokenGroupId(req);\n');
+    assert.equal(runCli('token-group-id', backendBad).status, 0);
+  });
+
+  it('exits 0 on the current repo in route-contracts mode', () => {
+    const result = runCli('route-contracts');
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /varje route svarar mot en kontraktstyp/);
+  });
+
+  it('exits 1 on a planted untyped route (also under all) and 0 once it answers with a shared contract', () => {
+    const makeRepoWithRoute = (name, route) => {
+      const root = join(temp, name);
+      const backend = join(root, 'apps', 'backend');
+      const contracts = join(root, 'packages', 'shared', 'src', 'contracts');
+      mkdirSync(join(backend, 'src', 'routes'), { recursive: true });
+      mkdirSync(contracts, { recursive: true });
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r', workspaces: ['apps/*', 'packages/*'] }));
+      writeFileSync(join(backend, 'package.json'), JSON.stringify({ name: 'backend', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(backend, 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(root, 'packages', 'shared', 'package.json'), JSON.stringify({ name: 'shared', scripts: { test: 'vitest run' } }));
+      writeFileSync(join(root, 'packages', 'shared', 'src', 'a.test.ts'), 'export {};\n');
+      writeFileSync(join(contracts, 'things.ts'), 'export interface ThingResponse { success: true }\n');
+      writeFileSync(join(backend, 'src', 'routes', 'things.ts'), route);
+      return root;
+    };
+    const bad = makeRepoWithRoute('contract-bad', "router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true });\n});\n");
+    for (const mode of ['route-contracts', 'all']) {
+      const result = runCli(mode, bad);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /apps\/backend\/src\/routes\/things\.ts:1: GET \/a skriver inget svar mot en kontraktstyp/);
+    }
+    const good = makeRepoWithRoute('contract-good', "router.get('/a', auth, async (_req, res) => {\n  res.json({ success: true } satisfies ThingResponse);\n});\n");
+    assert.equal(runCli('route-contracts', good).status, 0);
+  });
+
+  it('exits 0 on the current repo for doc-paths: no document refers to a file that is not tracked', () => {
+    const result = runCli('doc-paths');
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  it('exits 1 on a temp repo whose README names a file that is not tracked (also under all)', () => {
+    const root = join(temp, 'doc-paths-bad');
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'r' }));
+    writeFileSync(join(root, 'README.md'), 'See `scripts/gone.mjs`.\n');
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['add', 'package.json', 'README.md'], { cwd: root });
+    for (const mode of ['doc-paths', 'all']) {
+      const result = runCli(mode, root);
+      assert.equal(result.status, 1, mode);
+      assert.match(result.stderr, /README\.md:1: scripts\/gone\.mjs finns inte/);
+    }
   });
 
   it('rejects an unknown mode', () => {

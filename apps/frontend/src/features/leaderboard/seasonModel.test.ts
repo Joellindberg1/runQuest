@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Run, User } from '@runquest/types';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { badgeShowcaseMap, buildSeasonRows, displayedTitleNames, rankDeltaMap, titleLine } from './seasonModel';
-import type { UserTitleEntry } from '@runquest/shared';
+import { detectRankPasses, type UserTitleEntry } from '@runquest/shared';
 
 const NOW = new Date('2026-10-04T10:00:00Z');
 
@@ -29,12 +29,26 @@ afterEach(() => vi.useRealTimers());
 const input = { now: NOW, titlesByUser: {}, rankDeltaByUser: {} };
 
 describe('buildSeasonRows', () => {
-  it('rankar på nivå och XP, ger placering 1..n och döljer admin', () => {
+  it('rankar på XP och ger placering 1..n utan att dölja någon', () => {
     const rows = buildSeasonRows(
-      [user({ id: 'b', name: 'Bea', total_xp: 900 }), user({ id: 'a', name: 'Adam', total_xp: 4000 }), user({ id: 'z', name: 'Admin', total_xp: 99999 })],
+      [user({ id: 'b', name: 'Bea', total_xp: 900 }), user({ id: 'a', name: 'Adam', total_xp: 4000 }), user({ id: 'j', name: 'Joel Lindberg', total_xp: 99999 })],
       input,
     );
-    expect(rows.map((row) => [row.rank, row.name])).toEqual([[1, 'Adam'], [2, 'Bea']]);
+    expect(rows.map((row) => [row.rank, row.name])).toEqual([[1, 'Joel Lindberg'], [2, 'Adam'], [3, 'Bea']]);
+  });
+
+  it('lika XP får samma placering på Board som i rank_passed', () => {
+    // Bea går från 4000 till 4500 och blir lika med Anna. Namnordningen lägger Anna först, så Bea passerar Cy men inte Anna.
+    const member = (id: string, name: string, before: number, after = before) =>
+      ({ id, name, createdDate: '2026-01-01', midnight: before, before, after });
+    const members = [member('a', 'Anna', 4500), member('b', 'Bea', 4000, 4500), member('c', 'Cy', 4200)];
+    const [pass] = detectRankPasses({ measure: 'xp', passerId: 'b', today: '2026-10-04', members }).passes;
+
+    const rows = buildSeasonRows(members.map((m) => user({ id: m.id, name: m.name, total_xp: m.after })), input);
+    const rankOnBoard = (id: string) => rows.find((row) => row.id === id)?.rank;
+    expect(rankOnBoard('b')).toBe(pass.passerRank);
+    expect(rankOnBoard('c')).toBe(pass.passedRank);
+    expect(rows.map((row) => row.name)).toEqual(['Anna', 'Bea', 'Cy']);
   });
 
   it('nivåframsteg: xpInto/pct räknas mot nivåtabellen (levelService)', () => {
@@ -96,7 +110,7 @@ describe('buildSeasonRows', () => {
     expect(rows[0].pace).toEqual({ perDay: 40, text: '40 / d', tone: 'up' });
     expect(rows[1].pace).toEqual({ perDay: 10, text: '10 / d', tone: 'down' });
     const level = getLevelFromXP(4000);
-    expect(rows[0].nextLevelDays).toBe(Math.ceil((Math.round((getXPForLevel(level + 1) - 4000) * 10) / 10) / 40));
+    expect(rows[0].nextLevelDays).toBe(Math.ceil((getXPForLevel(level + 1) - 4000) / 40));
   });
 
   it('challenge-ribbons = osända tokens per nivå, tokensLeft = summan', () => {
@@ -109,6 +123,7 @@ describe('buildSeasonRows', () => {
     const [row] = buildSeasonRows([user({ id: 'a', name: 'Karl Persson', total_xp: 4000, profile_picture: 'https://x/k.png' })], input);
     expect(row.pictureUrl).toBe('https://x/k.png');
     expect(row.initials).toBe('KP');
+    expect(buildSeasonRows([user({ id: 'b', name: 'Anna Maria Lindqvist', total_xp: 4000 })], input)[0].initials).toBe('AL');
   });
 });
 

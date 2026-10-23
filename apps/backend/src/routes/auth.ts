@@ -9,7 +9,16 @@ import { requireAdmin } from '../middleware/admin.js';
 import { loginRateLimiter } from '../middleware/rateLimit.js';
 import { invalidateXpConfigCache } from '../services/xpConfig.js';
 import { groupIdOrRespondEmpty, groupIdOrRespondForbidden } from '../utils/groupScope.js';
-import { compareXpStandings } from '@runquest/shared';
+import {
+  DEFAULT_ADMIN_SETTINGS, MAX_DISPLAYED_TITLES, MULTIPLIER_MAX, MULTIPLIER_MIN, PASSWORD_MIN_LENGTH, compareXpStandings, multiplierProblem,
+} from '@runquest/shared';
+import type {
+  AdminSettingsResponse, AdminSettingsRow, AdminUsersResponse, ChangePasswordResponse, CreateUserResponse, LoginResponse, RecalculateTotalsResponse,
+  ResetUserPasswordResponse, StreakMultipliersResponse, UpdateAdminSettingsResponse, UpdateDisplayedTitlesResponse, UpdateStreakMultipliersResponse,
+  UsersWithRunsResponse,
+} from '@runquest/shared';
+import { fail, ok, okWithLegacy } from '../utils/respond.js';
+import { BCRYPT_COST, getDummyPasswordHash } from '../utils/passwordHash.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { joinGroup } from '../utils/membership.js';
@@ -26,7 +35,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
 
     if (!nameOrEmail || !password) {
       logger.info('❌ Missing name/email or password');
-      res.status(400).json({ error: 'Name/email and password required' }); return;
+      fail(res, 400, 'Name/email and password required'); return;
     }
 
     // Inloggningsfältet kan vara en e-postadress — det får inte hamna i loggen.
@@ -35,36 +44,44 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     // Get Supabase client and query users table
     const supabase = getSupabaseClient();
     
-    // Find user by email, then by name. .eq() skickar värdet parametriserat —
+    // Find user by email, then by name (e-post vinner). Båda uppslagen görs alltid och samtidigt, så att antalet
+    // databasrundturer inte skiljer sig mellan känt och okänt konto. .eq() skickar värdet parametriserat —
     // användarinput får aldrig bli en del av filteruttrycket (PostgREST-injektion).
-    const { data: byEmail, error } = await supabase
+    const lookupBy = (column: 'email' | 'name') => supabase
       .from('users')
       .select('id, name, email, password_hash, is_admin, group_id')
-      .eq('email', nameOrEmail)
+      .eq(column, nameOrEmail)
       .limit(1);
+    const emailLookup = lookupBy('email');
+    // Namnuppslaget fångar sitt eget kast så att det inte fäller ett svar som e-postuppslaget redan avgjort.
+    const nameLookup = (async () => lookupBy('name'))().then(
+      (result) => ({ result, thrown: null as unknown }),
+      (thrown: unknown) => ({ result: null, thrown }),
+    );
+    const [{ data: byEmail, error }, named] = await Promise.all([emailLookup, nameLookup]);
 
+    // Som förut: namnet slås bara upp "efter" en tom e-posträff utan fel. Då blir ett returnerat fel ingen träff och
+    // ett kast ett 500 via catch nedan; efter en e-posträff eller ett e-postfel spelar namnuppslaget ingen roll.
     let user = byEmail?.[0] ?? null;
     if (!user && !error) {
-      const { data: byName } = await supabase
-        .from('users')
-        .select('id, name, email, password_hash, is_admin, group_id')
-        .eq('name', nameOrEmail)
-        .limit(1);
-      user = byName?.[0] ?? null;
+      if (named.result === null) throw named.thrown;
+      user = named.result.data?.[0] ?? null;
     }
+
+    // bcrypt-arbetet görs i alla fall (okänt konto, databasfel, fel lösenord) så att svarstiden inte avslöjar
+    // vilka konton som finns. Mot dummy-hashen kan jämförelsen aldrig lyckas, och `user` styr utfallet.
+    const passwordMatch = await bcrypt.compare(password, !error && user ? user.password_hash : await getDummyPasswordHash());
 
     if (error || !user) {
       logger.info(`❌ User not found or database error (${error ? errorCode(error) : 'no row'})`);
-      res.status(401).json({ error: 'Invalid credentials' }); return;
+      fail(res, 401, 'Invalid credentials', 'invalid_credentials'); return;
     }
 
-    logger.info(`🔑 User found, verifying password for user ${user.id}`);
+    logger.info(`🔑 User found, password checked for user ${user.id}`);
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
       logger.info('❌ Password mismatch');
-      res.status(401).json({ error: 'Invalid credentials' }); return;
+      fail(res, 401, 'Invalid credentials', 'invalid_credentials'); return;
     }
 
     logger.info('✅ Password verified, creating JWT token');
@@ -75,7 +92,7 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
     
     if (!jwtSecret) {
       logger.error('❌ JWT_SECRET not configured');
-      res.status(500).json({ error: 'Server configuration error' }); return;
+      fail(res, 500, 'Server configuration error'); return;
     }
 
     const token = jwt.sign(
@@ -94,9 +111,8 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
 
     logger.info(`🎉 Login successful for user ${user.id} (Admin: ${user.is_admin})`);
 
-    // Return token and user info
-    res.json({
-      success: true,
+    // Return token and user info. Steg 1 (dubbelsvar): token och user ligger kvar på toppnivå för en klient från före kuvertet, och i data för den nya.
+    const login = {
       token,
       user: {
         id: user.id,
@@ -104,18 +120,13 @@ router.post('/login', loginRateLimiter, async (req, res): Promise<void> => {
         email: user.email,
         is_admin: user.is_admin || false
       }
-    });
+    };
+    okWithLegacy<LoginResponse>(res, login, login);
 
   } catch (error) {
     logger.error(`❌ Login error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
-});
-
-// POST /api/auth/refresh (placeholder for now)
-router.post('/refresh', async (_req, res) => {
-  logger.info('🔄 Token refresh requested (not implemented yet)');
-  res.json({ message: 'Token refresh - to be implemented' });
 });
 
 // POST /api/auth/change-password
@@ -127,12 +138,12 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 
     if (!currentPassword || !newPassword) {
       logger.info('❌ Missing current or new password');
-      res.status(400).json({ error: 'Current password and new password required' }); return;
+      fail(res, 400, 'Current password and new password required'); return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+      fail(res, 400, `New password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     logger.info(`🔍 Looking up user for password change: ${userId}`);
@@ -150,11 +161,11 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     // databasen som felar: 500 och en felhändelse med koden, aldrig ett 404 som döljer avbrottet.
     if (error && error.code !== 'PGRST116') {
       logger.error(`❌ Could not read the user for a password change (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to change password' }); return;
+      fail(res, 500, 'Failed to change password'); return;
     }
     if (!user) {
       logger.info('❌ User not found for password change');
-      res.status(404).json({ error: 'User not found' }); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🔑 User found, verifying current password for user ${user.id}`);
@@ -163,13 +174,13 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
     const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!passwordMatch) {
       logger.info('❌ Current password is incorrect');
-      res.status(401).json({ error: 'Current password is incorrect' }); return;
+      fail(res, 401, 'Current password is incorrect', 'current_password_incorrect'); return;
     }
 
     logger.info('✅ Current password verified, hashing new password');
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
@@ -180,19 +191,16 @@ router.post('/change-password', authenticateJWT, async (req, res): Promise<void>
 
     if (updateError) {
       logger.error(`❌ Error updating password (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update password' }); return;
+      fail(res, 500, 'Failed to update password'); return;
     }
 
     logger.info(`🎉 Password successfully changed for user ${user.id}`);
 
-    res.json({
-      success: true,
-      message: 'Password changed successfully'
-    });
+    okWithLegacy<ChangePasswordResponse>(res, null, { message: 'Password changed successfully' });
 
   } catch (error) {
     logger.error(`❌ Password change error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -217,7 +225,7 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 
     if (error) {
       logger.error(`❌ Error fetching users (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch users' }); return;
+      fail(res, 500, 'Failed to fetch users'); return;
     }
 
     const usersWithRunCount = (users ?? []).map((u: any) => {
@@ -227,14 +235,11 @@ router.get('/users', authenticateJWT, requireAdmin, async (req, res): Promise<vo
 
     logger.info(`✅ Successfully fetched ${usersWithRunCount.length} users`);
 
-    res.json({
-      success: true,
-      data: usersWithRunCount
-    });
+    ok<AdminUsersResponse>(res, usersWithRunCount);
 
   } catch (error) {
     logger.error(`❌ Error fetching users (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -251,12 +256,12 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     if (!name || !email || !password || typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       logger.info('❌ Missing required fields');
-      res.status(400).json({ error: 'Name, email, and password are required' }); return;
+      fail(res, 400, 'Name, email, and password are required'); return;
     }
 
-    if (password.length < 6) {
+    if (password.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ Password too short');
-      res.status(400).json({ error: 'Password must be at least 6 characters long' }); return;
+      fail(res, 400, `Password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     logger.info('🔍 Creating a new user');
@@ -272,16 +277,16 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     if (byName.error || byEmail.error) {
       // Bara felkoden: PostgREST-meddelandet kan bära radvärden och går via Sentry-kopplingen vidare som log_detail.
       logger.error(`❌ Error checking for existing user (${errorCode(byName.error ?? byEmail.error)})`);
-      res.status(500).json({ error: 'Internal server error' }); return;
+      fail(res, 500, 'Internal server error'); return;
     }
 
     if ((byName.data?.length ?? 0) > 0 || (byEmail.data?.length ?? 0) > 0) {
       logger.info('❌ User already exists');
-      res.status(409).json({ error: 'User with this name or email already exists' }); return;
+      fail(res, 409, 'User with this name or email already exists', 'user_exists'); return;
     }
 
     // Hash password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create new user. Gruppen sätts inte här: join_group ger medlemskapet och sätter pekaren users.group_id (ADR 012 beslut 2.2).
@@ -302,7 +307,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     if (error) {
       logger.error(`❌ Error creating user (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to create user' }); return;
+      fail(res, 500, 'Failed to create user'); return;
     }
 
     // Medlemskapet i adminens grupp (rollen member; första medlemskapet räknar hela historiken). Misslyckas det tas kontot bort igen:
@@ -316,7 +321,7 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
     } catch (joinError) {
       const { error: cleanupError } = await supabase.from('users').delete().eq('id', newUser.id);
       logger.error(`❌ Error adding new user ${newUser.id} to the group (${errorCode(joinError)})${cleanupError ? `; the user could not be removed again (${errorCode(cleanupError)})` : ''}`);
-      res.status(500).json({ error: 'Failed to create user' }); return;
+      fail(res, 500, 'Failed to create user'); return;
     }
 
     // Gruppens ranking byggs om efter en lyckad join (ADR 012 beslut 2.4), utan titelnyheter. Ett fel fäller inte kontot: medlemskapet är sparat.
@@ -324,14 +329,11 @@ router.post('/users', authenticateJWT, requireAdmin, async (req, res): Promise<v
 
     logger.info(`🎉 Successfully created user ${newUser.id}`);
 
-    res.json({
-      success: true,
-      data: newUser
-    });
+    ok<CreateUserResponse>(res, newUser);
 
   } catch (error) {
     logger.error(`❌ Error creating user (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -350,18 +352,18 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (!newPassword) {
       logger.info('❌ Missing new password');
-      res.status(400).json({ error: 'New password is required' }); return;
+      fail(res, 400, 'New password is required'); return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       logger.info('❌ New password too short');
-      res.status(400).json({ error: 'New password must be at least 6 characters long' }); return;
+      fail(res, 400, `New password must be at least ${PASSWORD_MIN_LENGTH} characters long`); return;
     }
 
     // Ett id som inte är ett uuid kan inte finnas: samma 404 som för en saknad rad, före frågan (annars svarar databasen 22P02 och det blir ett 500).
     if (!isUuid(id)) {
       logger.info('❌ User not found (id is not a uuid)');
-      res.status(404).json({ error: 'User not found' }); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🔍 Resetting password for user ID: ${id}`);
@@ -379,18 +381,18 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (findError) {
       logger.error(`❌ Error looking up the user for a password reset (${errorCode(findError)})`);
-      res.status(500).json({ error: 'Failed to look up the user' }); return;
+      fail(res, 500, 'Failed to look up the user'); return;
     }
 
     if (!user) {
       logger.info('❌ User not found');
-      res.status(404).json({ error: 'User not found' }); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`✅ User ${user.id} found, hashing new password`);
 
     // Hash new password
-    const saltRounds = 10;
+    const saltRounds = BCRYPT_COST;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password in database
@@ -405,24 +407,21 @@ router.put('/users/:id/password', authenticateJWT, requireAdmin, async (req, res
 
     if (updateError) {
       logger.error(`❌ Error updating password (${errorCode(updateError)})`);
-      res.status(500).json({ error: 'Failed to update password' }); return;
+      fail(res, 500, 'Failed to update password'); return;
     }
 
     if (!updated?.length) {
       logger.info('❌ User not found when updating the password (moved or removed since the lookup)');
-      res.status(404).json({ error: 'User not found' }); return;
+      fail(res, 404, 'User not found'); return;
     }
 
     logger.info(`🎉 Password successfully reset for user ${user.id}`);
 
-    res.json({
-      success: true,
-      message: 'Password reset successfully'
-    });
+    okWithLegacy<ResetUserPasswordResponse>(res, null, { message: 'Password reset successfully' });
 
   } catch (error) {
     logger.error(`❌ Password reset error (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -438,19 +437,12 @@ router.post('/recalculate-totals', authenticateJWT, async (req, res) => {
     const { calculateUserTotals } = await import('../utils/calculateUserTotals.js');
     await calculateUserTotals(userId);
     
-    res.json({
-      success: true,
-      message: 'User totals recalculated successfully',
-      userId: userId,
-      timestamp: new Date().toISOString()
-    });
+    const recalculated = { userId, timestamp: new Date().toISOString() };
+    okWithLegacy<RecalculateTotalsResponse>(res, recalculated, { message: 'User totals recalculated successfully', ...recalculated });
   } catch (error) {
     logger.error(`❌ Error recalculating user totals (${errorCode(error)})`);
     // Aldrig error.message i svaret: det kan bära databasvärden. Detaljerna finns i loggen som felkod.
-    res.status(500).json({
-      success: false,
-      error: 'Failed to recalculate user totals'
-    });
+    fail(res, 500, 'Failed to recalculate user totals');
   }
 });
 
@@ -462,8 +454,9 @@ function validateMultipliers(input: unknown): string | null {
     const multiplier = (step as { multiplier?: unknown })?.multiplier;
     if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) return 'days must be a whole number of at least 1';
     // Kolumnen är numeric(3,2): över 9.99 ger överflöd, fler decimaler avrundas tyst.
-    if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier < 1 || multiplier > 9.99) return 'multiplier must be a number between 1 and 9.99';
-    if (Math.round(multiplier * 100) / 100 !== multiplier) return 'multiplier can have at most two decimals';
+    const problem = multiplierProblem(multiplier);
+    if (problem === 'range') return `multiplier must be a number between ${MULTIPLIER_MIN} and ${MULTIPLIER_MAX}`;
+    if (problem === 'decimals') return 'multiplier can have at most two decimals';
     if (seen.has(days)) return `days ${days} appears more than once`;
     seen.add(days);
   }
@@ -474,7 +467,7 @@ function validateMultipliers(input: unknown): string | null {
 // Svaret byggs fält för fält så att admin_password_hash aldrig kan följa med.
 const ADMIN_SETTINGS_COLUMNS = 'id, base_xp, xp_per_km, bonus_5km, bonus_10km, bonus_15km, bonus_20km, min_run_distance, updated_at';
 
-function toAdminSettingsResponse(row: Record<string, unknown>) {
+function toAdminSettingsResponse(row: AdminSettingsRow): AdminSettingsRow {
   return {
     id: row.id,
     base_xp: row.base_xp,
@@ -502,15 +495,15 @@ router.get('/admin-settings', authenticateJWT, requireAdmin, async (_req, res): 
 
     if (error || !settings) {
       logger.error(`❌ Failed to fetch admin settings (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
+      fail(res, 500, 'Failed to fetch admin settings'); return;
     }
 
     logger.info('✅ Admin settings fetched successfully');
-    res.json({ success: true, data: toAdminSettingsResponse(settings) });
+    ok<AdminSettingsResponse>(res, toAdminSettingsResponse(settings));
     
   } catch (error) {
     logger.error(`❌ Error fetching admin settings (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch admin settings' }); return;
+    fail(res, 500, 'Failed to fetch admin settings'); return;
   }
 });
 
@@ -530,7 +523,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     
     // Validate required fields
     if (base_xp === undefined || xp_per_km === undefined) {
-      res.status(400).json({ error: 'base_xp and xp_per_km are required' }); return;
+      fail(res, 400, 'base_xp and xp_per_km are required'); return;
     }
     
     const supabase = getSupabaseClient();
@@ -542,7 +535,7 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .single();
     if (findError || !current) {
       logger.error(`❌ Failed to find admin settings row (${errorCode(findError)})`);
-      res.status(500).json({ error: 'Failed to update admin settings' }); return;
+      fail(res, 500, 'Failed to update admin settings'); return;
     }
 
     const { data: updatedSettings, error } = await supabase
@@ -550,11 +543,11 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
       .update({
         base_xp,
         xp_per_km,
-        bonus_5km: bonus_5km ?? 5,
-        bonus_10km: bonus_10km ?? 15,
-        bonus_15km: bonus_15km ?? 25,
-        bonus_20km: bonus_20km ?? 50,
-        min_run_distance: min_run_distance ?? 1.0,
+        bonus_5km: bonus_5km ?? DEFAULT_ADMIN_SETTINGS.bonus_5km,
+        bonus_10km: bonus_10km ?? DEFAULT_ADMIN_SETTINGS.bonus_10km,
+        bonus_15km: bonus_15km ?? DEFAULT_ADMIN_SETTINGS.bonus_15km,
+        bonus_20km: bonus_20km ?? DEFAULT_ADMIN_SETTINGS.bonus_20km,
+        min_run_distance: min_run_distance ?? DEFAULT_ADMIN_SETTINGS.min_run_distance,
         updated_at: new Date().toISOString()
       })
       .eq('id', current.id)
@@ -564,20 +557,16 @@ router.put('/admin-settings', authenticateJWT, requireAdmin, async (req, res): P
     if (error || !updatedSettings) {
       invalidateXpConfigCache(); // släng cachen oavsett utfall — raden kan ha ändrats
       logger.error(`❌ Failed to update admin settings (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update admin settings' }); return;
+      fail(res, 500, 'Failed to update admin settings'); return;
     }
     
     invalidateXpConfigCache();
     logger.info('✅ Admin settings updated successfully');
-    res.json({
-      success: true,
-      data: toAdminSettingsResponse(updatedSettings),
-      message: 'Admin settings updated successfully'
-    });
+    okWithLegacy<UpdateAdminSettingsResponse>(res, toAdminSettingsResponse(updatedSettings), { message: 'Admin settings updated successfully' });
     
   } catch (error) {
     logger.error(`❌ Error updating admin settings (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update admin settings' }); return;
+    fail(res, 500, 'Failed to update admin settings'); return;
   }
 });
 
@@ -594,15 +583,15 @@ router.get('/streak-multipliers', authenticateJWT, requireAdmin, async (_req, re
     
     if (error) {
       logger.error(`❌ Failed to fetch streak multipliers (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
+      fail(res, 500, 'Failed to fetch streak multipliers'); return;
     }
     
     logger.info('✅ Streak multipliers fetched successfully');
-    res.json({ success: true, data: multipliers });
+    ok<StreakMultipliersResponse>(res, multipliers);
     
   } catch (error) {
     logger.error(`❌ Error fetching streak multipliers (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to fetch streak multipliers' }); return;
+    fail(res, 500, 'Failed to fetch streak multipliers'); return;
   }
 });
 
@@ -614,7 +603,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     
     const invalid = validateMultipliers(multipliers);
     if (invalid) {
-      res.status(400).json({ error: invalid }); return;
+      fail(res, 400, invalid); return;
     }
     const ladder = (multipliers as Array<{ days: number; multiplier: number }>).map(({ days, multiplier }) => ({ days, multiplier }));
 
@@ -630,7 +619,7 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     if (error) {
       invalidateXpConfigCache();
       logger.error(`❌ Failed to update streak multipliers (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
+      fail(res, 500, 'Failed to update streak multipliers'); return;
     }
 
     const { error: pruneError } = await supabase
@@ -641,19 +630,15 @@ router.put('/streak-multipliers', authenticateJWT, requireAdmin, async (req, res
     invalidateXpConfigCache();
     if (pruneError) {
       logger.error(`❌ Failed to remove old streak multipliers (new steps were saved) (${errorCode(pruneError)})`);
-      res.status(500).json({ error: 'Saved the new steps but could not remove old ones — try saving again' }); return;
+      fail(res, 500, 'Saved the new steps but could not remove old ones — try saving again'); return;
     }
 
     logger.info('✅ Streak multipliers updated successfully');
-    res.json({ 
-      success: true, 
-      data: insertedMultipliers,
-      message: 'Streak multipliers updated successfully' 
-    });
+    okWithLegacy<UpdateStreakMultipliersResponse>(res, insertedMultipliers, { message: 'Streak multipliers updated successfully' });
     
   } catch (error) {
     logger.error(`❌ Error updating streak multipliers (${errorCode(error)})`);
-    res.status(500).json({ error: 'Failed to update streak multipliers' }); return;
+    fail(res, 500, 'Failed to update streak multipliers'); return;
   }
 });
 
@@ -663,8 +648,8 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
     const userId = req.user!.user_id;
     const { title_ids } = req.body;
 
-    if (!Array.isArray(title_ids) || title_ids.length > 3) {
-      res.status(400).json({ error: 'title_ids must be an array of up to 3 IDs' }); return;
+    if (!Array.isArray(title_ids) || title_ids.length > MAX_DISPLAYED_TITLES) {
+      fail(res, 400, `title_ids must be an array of up to ${MAX_DISPLAYED_TITLES} IDs`); return;
     }
 
     const supabase = getSupabaseClient();
@@ -675,14 +660,14 @@ router.put('/me/displayed-titles', authenticateJWT, async (req, res): Promise<vo
 
     if (error) {
       logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to update displayed titles' }); return;
+      fail(res, 500, 'Failed to update displayed titles'); return;
     }
 
     logger.info(`✅ Updated displayed titles for user ${userId} (${title_ids.length} selected)`);
-    res.json({ success: true });
+    ok<UpdateDisplayedTitlesResponse>(res, null);
   } catch (error) {
     logger.error(`❌ Error updating displayed titles (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 
@@ -711,7 +696,7 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
 
     if (error) {
       logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
-      res.status(500).json({ error: 'Failed to fetch users' }); return;
+      fail(res, 500, 'Failed to fetch users'); return;
     }
 
     // Boardens All-time-ordning = rank_passed-komparatorn (ADR 011 beslut 6): xp fallande, namn (skiftlägesokänsligt), id. Sorteras i TS
@@ -743,14 +728,11 @@ router.get('/users-with-runs', authenticateJWT, async (req, res): Promise<void> 
 
     logger.info(`✅ Successfully fetched ${data.length} users with runs`);
 
-    res.json({
-      success: true,
-      data,
-    });
+    ok<UsersWithRunsResponse>(res, data);
 
   } catch (error) {
     logger.error(`❌ Error fetching users with runs (${errorCode(error)})`);
-    res.status(500).json({ error: 'Internal server error' }); return;
+    fail(res, 500, 'Internal server error'); return;
   }
 });
 

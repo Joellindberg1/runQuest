@@ -1,4 +1,5 @@
 import { cssVars } from '@/features/leaderboard/cssVars';
+import { formatInt } from '@/shared/utils/format';
 import type { RecordView } from '../eventsModel';
 
 interface RecordPanelProps {
@@ -11,7 +12,7 @@ interface RecordPanelProps {
  * Stapeln = klarade av avslutade participation-event; "left on the table" = XP för de jag missade.
  */
 export function RecordPanel({ record, isDesktop }: RecordPanelProps) {
-  const left = record.left > 0 ? `${record.left} XP left on the table` : 'Nothing left on the table';
+  const left = record.left > 0 ? `${formatInt(record.left)} XP left on the table` : 'Nothing left on the table';
   const percent = Math.round(record.fraction * 100);
   return (
     <section className="rq-card rq-events-record" aria-labelledby="events-record-heading">
@@ -22,7 +23,7 @@ export function RecordPanel({ record, isDesktop }: RecordPanelProps) {
       <div className="rq-track" role="img" aria-label={`${record.taken} of ${record.total} events taken`}>
         <div className="rq-fill" style={cssVars({ '--w': `${percent}%` })} />
       </div>
-      <p className="rq-events-record__text">{`${record.earned} XP earned${isDesktop ? ' from events' : ''} · ${left}`}</p>
+      <p className="rq-events-record__text">{`${formatInt(record.earned)} XP earned${isDesktop ? ' from events' : ''} · ${left}`}</p>
     </section>
   );
 }

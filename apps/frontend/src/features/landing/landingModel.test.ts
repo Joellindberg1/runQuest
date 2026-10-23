@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PREVIEW_RANK_DELTAS, PREVIEW_USERS } from '@/features/leaderboard/previewUsers';
-import { formatInt } from '@/features/log/logFormat';
+import { formatInt } from '@/shared/utils/format';
 import { calculateRunXP, DEFAULT_ADMIN_SETTINGS, stravaPollIntervalLabel } from '@runquest/shared';
 import {
   ARENA, LANDING_NAV, PREVIEW_NOTES, PREVIEW_SIZE, STAT_PLACEHOLDER,

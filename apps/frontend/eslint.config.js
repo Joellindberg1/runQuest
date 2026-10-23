@@ -62,15 +62,17 @@ const LANDING_IMPORTS = [
 ];
 // Förrenderingen (ADR 006-addendum 2026-10-19, punkt 5 och 9) vet varken skärmbredd eller språk: landningens första rendering på klienten måste
 // vara identisk med serverns. Breddval görs av CSS (båda varianterna ligger i HTML), tal formateras utan Intl (formatInt är regex med NBSP).
+// Samma regel gäller formatmodulen (shared/utils/format.ts), som Landing delar: ett Intl-anrop där vore ett Intl-anrop på Landing.
+const NO_INTL_FORMATTING = {
+  selector: "Identifier[name=/^(Intl|toLocale(Date|Time)?String)$/]",
+  message: "Tal och datum formateras inte med Intl/toLocaleString på Landing eller i formatmodulen (olika svar på byggdatorn och i webbläsaren ger hydreringsfel): använd formatInt.",
+};
 const LANDING_NO_VIEWPORT_OR_LOCALE = [
   {
     selector: "Identifier[name=/^(useIsDesktop|matchMedia)$/]",
     message: "Landningen väljer aldrig variant på bredd i JS (förrenderingen vet inte bredden): rendera båda varianterna och låt CSS (@media (min-width: 1024px)) dölja den ena. Rörelsepreferensen läses via shared/utils/prefersReducedMotion.",
   },
-  {
-    selector: "Identifier[name=/^(Intl|toLocale(Date|Time)?String)$/]",
-    message: "Landningen formaterar inte tal eller datum med Intl/toLocaleString (olika svar på byggdatorn och i webbläsaren ger hydreringsfel): använd formatInt.",
-  },
+  NO_INTL_FORMATTING,
 ];
 const LANDING_SYNTAX = [
   ...LANDING_NO_VIEWPORT_OR_LOCALE,
@@ -170,6 +172,10 @@ const DESIGN = {
       "Engelskt UI i en-GB: inga Intl-/toLocale-datumformat; månadsnamnen är egna (Intl ger \"Sept\" i nyare ICU).",
       "MemberExpression[property.name=/^toLocale(Date|Time)?String$/]",
       "MemberExpression[object.name='Intl'][property.name='DateTimeFormat']",
+    ),
+    ...syntaxRule(
+      "Tal formateras med formatInt/formatKm ur shared/utils/format (svenskt tusentalsmellanrum, \"1 240\"), inte med Intl.NumberFormat.",
+      "MemberExpression[object.name='Intl'][property.name='NumberFormat']",
     ),
   ],
   // no-restricted-imports granskar statiska importer; import() och require() fångas här.
@@ -292,6 +298,14 @@ export default tseslint.config(
     },
   },
 
+  // Testerna ska ge samma resultat oavsett var vitest startas (i appen eller från repo-roten med --root): sökvägar räknas från filen (import.meta.url), aldrig från arbetskatalogen.
+  {
+    files: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-properties": ["error", { object: "process", property: "cwd", message: "Läs filer relativt testfilen (new URL('…', import.meta.url)), inte relativt arbetskatalogen." }],
+    },
+  },
+
   // Gränser för all produktionskod: lazy-sidorna och changelog.json (changelogData.ts får läsa JSON-filen).
   {
     files: ["src/**/*.{ts,tsx}"],
@@ -315,6 +329,24 @@ export default tseslint.config(
     rules: {
       "no-restricted-imports": importRestrictions(STREAK_CONSTANTS),
       "no-restricted-syntax": ["error", NO_STREAK_DEFAULTS],
+    },
+  },
+
+  // Formatmodulen är hydreringssäker (Landing förrenderas och importerar den): inga Intl- eller toLocale*-anrop.
+  {
+    files: ["src/shared/utils/format.ts"],
+    rules: { "no-restricted-syntax": ["error", NO_INTL_FORMATTING] },
+  },
+
+  // Titelmåttens kodning (referenstiderna 60/360/720, skalan 10000, minut- och timomvandlingen) ligger i shared/titleMetrics. titleFormat
+  // avkodar via decodeTitleMetric och får inga egna talliteraler för dem, annars blir ett värde tyst fel när backend ändrar kodningen.
+  {
+    files: ["src/features/titles/titleFormat.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "Literal[value=60], Literal[value=360], Literal[value=720], Literal[value=10000]",
+        message: "Titelmåttens kodning och tidsenheter hör hemma i @runquest/shared (titleMetrics): använd decodeTitleMetric, SECONDS_PER_MINUTE och MINUTES_PER_HOUR.",
+      }],
     },
   },
 
@@ -402,7 +434,7 @@ export default tseslint.config(
   ),
   designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"]),
   designGroup(["src/features/runner/**/*.{ts,tsx}", "src/pages/RunnerPage.tsx"]),
-  designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"], { ignores: ["src/features/titles/titleFormat.ts"] }),
+  designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"]),
   designGroup(["src/features/legal/**/*.{ts,tsx}", "src/pages/LegalPage.tsx"]),
   designGroup(
     [
@@ -439,14 +471,11 @@ export default tseslint.config(
     ],
   }),
   // Kända luckor som vakterna aldrig täckte och som finns kvar (ingen kodändring i det här steget). Varje fil har bara det enda undantaget.
-  // - boardFormat.ts: tusentalsmellanrummet "1 126" kommer ur toLocaleString('sv-SE').
   // - BoardParts.tsx: vimpeln ritas som en <svg> ur den delade geometrin (challengeMark).
   // - useLeaderboardData.ts: ett toast.error vid hämtningsfel.
-  // - titleFormat.ts: dagen skrivs med toLocaleDateString('en-GB', { timeZone: 'UTC' }).
-  designGroup(["src/features/leaderboard/boardFormat.ts"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["locale"] }),
+  designGroup(["src/features/leaderboard/boardFormat.ts"], { style: "noLiteral", extra: NO_NAMEROW }),
   designGroup(["src/features/leaderboard/components/BoardParts.tsx"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["svg"] }),
   designGroup(["src/features/leaderboard/hooks/useLeaderboardData.ts"], { style: "noLiteral", extra: NO_NAMEROW, omit: ["toast"], allowSonner: true }),
-  designGroup(["src/features/titles/titleFormat.ts"], { omit: ["locale"] }),
 
   // Loggning går via logger (en enda plats att styra nivåer/maskering), aldrig console.* direkt.
   { files: ["src/shared/services/backendApi.ts"], rules: { "no-console": "error" } },

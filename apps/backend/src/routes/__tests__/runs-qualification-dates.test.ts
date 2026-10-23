@@ -246,7 +246,7 @@ describe('DELETE /api/runs/:id', () => {
     const t = use({ event_entries: [{ id: 'en1', event_id: 'e1', user_id: 'user-1', run_id: 'run-1' }] });
     const res = await del('run-1');
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: "This run qualified an event and can't be deleted — edit it instead" });
+    expect(res.body).toEqual({ success: false, error: "This run qualified an event and can't be deleted — edit it instead", code: 'run_qualified_event' });
     expect(t.runs).toHaveLength(1);
     expect(t.event_entries).toHaveLength(1); // ingen null-out/radering av entry
     expect(calculateUserTotals).not.toHaveBeenCalled();

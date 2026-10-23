@@ -113,7 +113,7 @@ describe('POST /api/auth/users', () => {
       });
       const res = await create({ name: 'Fresh', email: 'fresh@example.com', password: 'secret123' });
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ error: 'Internal server error' });
+      expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
       expect(JSON.stringify(res.body)).not.toContain('secret db detail');
       expect(db.tables.users).toHaveLength(2);
     });

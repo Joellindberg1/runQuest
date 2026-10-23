@@ -1,7 +1,8 @@
 import type { GroupRunHistoryItem } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import { getInitials } from '@/shared/utils/formatters';
-import { describeWeather, formatInt, formatKm, formatMultiplier } from './logFormat';
+import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { describeWeather } from './logFormat';
 import type { Tone } from './xpPreviewModel';
 
 // Group history: gruppens rundor som kort. Ren logik — ingen DOM, ingen datahämtning.
@@ -59,7 +60,7 @@ export function buildHistoryRow(item: GroupRunHistoryItem, meId: string | undefi
     id: item.id,
     userId: item.user_id,
     name: item.user_name,
-    initials: getInitials(item.user_name).slice(0, 2),
+    initials: getInitials(item.user_name),
     pictureUrl: item.user_profile_picture ?? null,
     date: item.date.slice(0, 10),
     surface: item.is_treadmill === null ? null : item.is_treadmill ? 'treadmill' : 'outdoor',

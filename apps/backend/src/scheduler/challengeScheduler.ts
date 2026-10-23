@@ -4,8 +4,7 @@ import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
 import { settleChallenge } from '../services/challengeService.js';
 import { retractChallengeReceived } from '../services/activityLog.js';
-import { MS_DAY, addDays } from '@runquest/shared';
-import { todayStockholm, at3amStockholm } from '../utils/dateUtils.js';
+import { LEGENDARY_AUTO_START_DAYS, MS_DAY, UNANSWERED_CHALLENGE_LAPSE_DAYS, challengeWindow, groupNextMidnight } from '@runquest/shared';
 import { summarizeSettled } from './settledSummary.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
@@ -35,7 +34,7 @@ async function settleEndedChallenges(): Promise<void> {
 
 async function autoStartLegendaryChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 4 * MS_DAY).toISOString();
+  const cutoff = new Date(Date.now() - LEGENDARY_AUTO_START_DAYS * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')
@@ -50,16 +49,20 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
   logger.info(`⚔️ Auto-starting ${challenges.length} legendary challenge(s)...`);
 
-  const startDate = todayStockholm();
+  // Samma startregel som en accept: gruppens nästa midnatt (Stockholm tills RUN-21), aldrig samma ögonblick, och exakt
+  // duration_days kalenderdagar. Rundor från dagen då den autostartades räknas därför aldrig.
+  const { day: startDate } = groupNextMidnight(new Date());
 
   const results = await Promise.allSettled(
     challenges.map(async (c: any) => {
-      const endDate = addDays(startDate, c.duration_days);
-      const determineAt = at3amStockholm(addDays(startDate, c.duration_days + 1)).toISOString();
+      const { endDate, determineAt: determineAtInstant } = challengeWindow(startDate, c.duration_days);
+      const determineAt = determineAtInstant.toISOString();
       const { error: startError } = await supabase
         .from('challenges')
         .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-        .eq('id', c.id);
+        .eq('id', c.id)
+        // Villkorad på pending: en accept som hann före, eller en tidigare körning, skrivs aldrig över (idempotent).
+        .eq('status', 'pending');
       if (startError) {
         throw errorWithCode(`Failed to auto-start legendary challenge ${c.id}`, startError);
       }
@@ -73,7 +76,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
 export async function autoDeclinePendingChallenges(): Promise<void> {
   const supabase = getSupabaseClient();
-  const cutoff = new Date(Date.now() - 3 * MS_DAY).toISOString();
+  const cutoff = new Date(Date.now() - UNANSWERED_CHALLENGE_LAPSE_DAYS * MS_DAY).toISOString();
 
   const { data: challenges, error } = await supabase
     .from('challenges')

@@ -28,9 +28,9 @@ till `/news`. Notiserna (ADR 011, v0.7.0) styr bara klockan: `/news` visar allti
 - `news.fixture.ts` — testdata + `newsServer` (en liten fake av GET /news, POST /news/seen, POST /news/read och GET/PUT /settings; oläst avgörs av samma `isNotifiable` som servern; frågeparametrarna valideras som servern)
 - `news.samples.fixture.ts` — `newsSamples`: ett exempel per händelsetyp, uttömmande mot `ACTIVITY_TYPES` (en ny typ i shared ger tsc-fel här).
   **Paritet:** `apps/backend/src/routes/__tests__/newsFakeParity.test.ts` kör samma rader genom den riktiga `GET /api/news` (mot backendens fakeDb) och genom `newsServer` och kräver identiska svar
-  (fält, filter per typ, paginering, `involves=me`, oläst med golv/kvitton/avstängda slag, felmeddelanden). Ändras serverns svar utan att fejken följer med fäller testet CI. Fältlistorna är `NEWS_ITEM_FIELDS`/`NEWS_META_FIELDS` ur shared.
+  (fält, filter per typ, paginering, `involves=me`, oläst med golv/kvitton/avstängda slag, felmeddelanden) och likadant `POST /news/seen`, `POST /news/read` och `GET`/`PUT /settings` (svar, felmeddelanden och det lagrade läget efteråt). Ändras serverns svar utan att fejken följer med fäller testet CI. Fältlistorna är `NEWS_ITEM_FIELDS`/`NEWS_META_FIELDS` ur shared.
   Tak och sidstorlekar (`UNREAD_CAP`, `NEWS_DEFAULT_LIMIT`, `NEWS_MAX_LIMIT`) kommer ur shared och delas av rutten och fejken.
-  **Känd begränsning:** backend avgör "efter registreringen" på `activity_log.created_at`, fejken på `occurred_at` (`NewsItem` har inget `created_at`). Testet sätter dem lika, så paritet gäller bara rader där tiderna ligger på samma sida av användarens registrering.
+  **Oläst-tiden:** backend avgör "efter registreringen" på `activity_log.created_at`; `NewsItem` har inget `created_at`, så fejken använder `occurred_at` om inget annat sägs. En rad som loggades senare än den hände (en backfill) anges med `server.createdAt.set(id, iso)`; paritetstestet täcker det fallet.
   Ändra aldrig fejkens svarsform eller filterregler utan att köra det testet.
 
 ## Regler värda att komma ihåg

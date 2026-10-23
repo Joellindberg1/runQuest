@@ -1,28 +1,8 @@
 import type { Run } from '@runquest/types';
-import { MS_DAY, addDays, dayOfWeek, daysBetween, stockholmClock, wallClockToInstantMs } from '@runquest/shared';
+import { MS_DAY, daysBetween, stockholmClock, wallClockToInstantMs } from '@runquest/shared';
+import { formatAgo } from '@/shared/utils/format';
 
 // Rena formatterare för Board. `now` skickas alltid in så att tiderna går att testa med fasta klockslag.
-
-const MS_MINUTE = 60_000;
-const MS_HOUR = 3_600_000;
-
-/** "1 126" — heltal med tusentalsmellanrum som designen. */
-export function formatInt(value: number): string {
-  return Math.round(value).toLocaleString('sv-SE');
-}
-
-/** "32.8" — en decimal, punkt som decimaltecken. */
-export function formatDecimal(value: number, digits = 1): string {
-  return value.toFixed(digits);
-}
-
-/** ISO-veckonummer (mån–sön, vecka 1 = veckan med årets första torsdag) för en kalenderdag. */
-export function isoWeekNumber(isoDate: string): number {
-  const weekday = (dayOfWeek(isoDate) + 6) % 7; // 0 = måndag
-  const thursday = addDays(isoDate, 3 - weekday);
-  const year = thursday.slice(0, 4);
-  return Math.floor(daysBetween(`${year}-01-01`, thursday) / 7) + 1;
-}
 
 /**
  * Exakt tidpunkt (epoch-ms) för en runda, om den går att lita på: Strava-rundans `start_time`, eller
@@ -63,31 +43,11 @@ export function formatRunAge(run: Pick<Run, 'date' | 'start_time' | 'created_at'
   const precise = preciseRunTime(run);
   if (precise !== null) {
     const age = now.getTime() - precise;
-    if (age < MS_MINUTE) return 'just now';
-    if (age < MS_HOUR) return `${Math.floor(age / MS_MINUTE)} m ago`;
-    if (age < MS_DAY) return `${Math.floor(age / MS_HOUR)} h ago`;
+    if (age < MS_DAY) return formatAgo(age, 'compact');
   }
   const days = daysBetween(run.date.slice(0, 10), stockholmClock(now).date);
   if (days <= 0) return 'today';
-  return `${days} d ago`;
-}
-
-/** "6h 12m" — för "left"-texter i streak-listan; Right now-pillen använder den grövre formatRemaining. */
-export function formatHoursMinutes(ms: number): string {
-  const totalMinutes = Math.max(0, Math.floor(ms / MS_MINUTE));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-}
-
-/** "6h 12m 05s" — nedräkningen i "Your streak dies in". */
-export function formatCountdown(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+  return formatAgo(days * MS_DAY, 'compact');
 }
 
 export type DeltaDirection = 'up' | 'down' | 'flat';

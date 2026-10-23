@@ -8,8 +8,8 @@ const PODIUM_SIZE = 3;
 test.describe('the standings', () => {
   test('the board lists the whole group in the order the server ranks it', async ({ page }) => {
     test.skip(apiIsStubbed(), 'Reads the group through the real API with Node fetch (support/api.ts); the stubbed API has one runner.');
-    // Servern rankar efter XP (nivån följer XP), Board visar samma ordning: podiet (topp 3) och sedan tabellen "Rest of the pack". "admin" visas inte.
-    const names = (await fetchRunners(readSession())).map((runner) => runner.name).filter((name) => name.toLowerCase() !== 'admin');
+    // Servern rankar efter XP, sedan namn (samma ordning som rank_passed), och Board visar den ordningen rakt av: podiet (topp 3) och sedan tabellen "Rest of the pack". Ingen löpare döljs.
+    const names = (await fetchRunners(readSession())).map((runner) => runner.name);
     expect(names.length, 'the staging group needs at least one runner').toBeGreaterThan(0);
 
     await page.goto('/board');
@@ -17,7 +17,7 @@ test.describe('the standings', () => {
     await expect(page.getByRole('heading', { name: 'The standings' })).toBeVisible();
     await expect(page.getByText(new RegExp(`Week \\d+ · ${names.length} runners`))).toBeVisible();
 
-    // Podiet har ingen egen roll och lika XP ger lika placering, så topp 3 kontrolleras som namn på sidan; ordningen bevisas av tabellen under.
+    // Podiet har ingen egen roll, så topp 3 kontrolleras som namn på sidan; ordningen bevisas av tabellen under.
     for (const name of names.slice(0, PODIUM_SIZE)) {
       await expect(page.getByRole('button', { name, exact: true }).first()).toBeVisible();
     }

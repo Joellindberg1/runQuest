@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
-import { scrubSentryEvent, secretsFromEnv, isExpectedClientStatus, CLIENT_STATUSES_NOT_REPORTED } from '../scrub.js';
+import { scrubSentryEvent, scrubString, secretsFromEnv, isExpectedClientStatus, CLIENT_STATUSES_NOT_REPORTED, MAX_SCRUBBED_STRING_LENGTH } from '../scrub.js';
 
 // Fixtur: en händelse som bär allt vi lovar att inte skicka. Varje känsligt värde är en unik markör, så ett läckage går att peka ut.
 const JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidTEifQ.c2lnbmF0dXJlLXNpZ25hdHVyZQ';
@@ -234,5 +234,287 @@ describe('encrypted values and key material in events', () => {
 
     expect(out).not.toContain(active);
     expect(out).not.toContain(retired);
+  });
+});
+
+describe('Strava activity numbers and coordinates in free text', () => {
+  const messageOf = (text: string) => (scrubSentryEvent({ message: text } as never, []) as { message: string }).message;
+
+  it.each([
+    ['activity 12345678901 not found', '12345678901', 'not found'],
+    ['Activity #12345678901 could not be fetched', '12345678901', 'could not be fetched'],
+    ['no run for activity_id=12345678901 (attempt 2)', '12345678901', 'attempt 2'],
+    ['athlete 424242424 is not connected', '424242424', 'is not connected'],
+    ['Strava answered 404 for activity 12345678901: Record Not Found', '12345678901', 'Record Not Found'],
+  ])('masks the number in "%s" and keeps the rest of the sentence', (text, number, rest) => {
+    const out = messageOf(text);
+    expect(out).not.toContain(number);
+    expect(out).toContain(rest);
+  });
+
+  it('masks every number of a list of activities', () => {
+    const out = messageOf('activities 12345678901 and 12345678902 skipped');
+    expect(out).not.toMatch(/\d{8,}/);
+    expect(out).toContain('skipped');
+  });
+
+  it.each([
+    ['GET /activities/12345678901', 'GET /activities/:id'],
+    ['GET https://www.strava.com/api/v3/activities/12345678901?include_all_efforts=false 404', 'GET https://www.strava.com/api/v3/activities/:id?include_all_efforts=false 404'],
+    ['GET /api/v3/activities/12345678901/streams failed', 'GET /api/v3/activities/:id/streams failed'],
+    ['GET /api/v3/athletes/424242424/stats failed', 'GET /api/v3/athletes/:id/stats failed'],
+  ])('turns the id in the path of "%s" into :id', (text, expected) => {
+    expect(messageOf(text)).toBe(expected);
+  });
+
+  it.each([
+    ['lat 57.70887, lng 11.97456', '57.70887', '11.97456'],
+    ['lat=57.70887 lon=11.97456', '57.70887', '11.97456'],
+    ['latitude: -33.86882, longitude: 151.20929', '33.86882', '151.20929'],
+    ['{"lat":57.70887,"lng":11.97456}', '57.70887', '11.97456'],
+    ['start_latlng=[57.70887, 11.97456]', '57.70887', '11.97456'],
+    ['weather lookup failed at 57.70887, 11.97456 (status 503)', '57.70887', '11.97456'],
+    ['weather lookup failed at [57.70887,11.97456]', '57.70887', '11.97456'],
+  ])('masks the coordinates in "%s"', (text, first, second) => {
+    const out = messageOf(text);
+    expect(out).not.toContain(first);
+    expect(out).not.toContain(second);
+  });
+
+  it('keeps what debugging needs: status codes, error codes, route patterns and counts', () => {
+    const text = 'GET /api/v3/activities/:id 503 (strava_503, PGRST116, ECONNRESET) after 3 attempts, 12.5 s, 4 activities, v1.2.3';
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it('keeps ordinary decimals and the word "activity" when no number follows', () => {
+    const text = 'no activity found; took 1.2345 s, 2.3456 s; lag 120 ms; response 404';
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it('masks the same things in exception values, extra and nested lists', () => {
+    const event = {
+      exception: { values: [{ type: 'Error', value: 'activity 12345678901 not found' }] },
+      extra: { note: 'GET /activities/12345678901', where: ['lat 57.70887, lng 11.97456'] },
+    };
+    const out = JSON.stringify(scrubSentryEvent(event, []));
+    expect(out).not.toMatch(/12345678901|57\.70887|11\.97456/);
+  });
+
+  it.each(['object_id', 'owner_id', 'athlete_id', 'strava_activity_id', 'strava_athlete_id'])('masks a numeric %s field and keeps its neighbours', (key) => {
+    const out = scrubSentryEvent({ extra: { [key]: 12345678901, attempts: 3 } } as never, []) as { extra: Record<string, unknown> };
+    expect(out.extra[key]).toBe('[Filtered]');
+    expect(out.extra.attempts).toBe(3);
+  });
+
+  it('keeps our own ids that share a name with Strava ones: a group owner_id (UUID) and a news activity_id (small running number)', () => {
+    const event = { extra: { owner_id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', activity_id: 4711 }, message: 'news row activity_id=4711 and activity 4711 missing' };
+    const out = scrubSentryEvent(event as never, []) as typeof event;
+    expect(out.extra).toEqual(event.extra);
+    expect(out.message).toBe(event.message);
+  });
+
+  it.each(['lat', 'lng', 'latlng', 'start_latlng', 'end_latlng', 'latitude', 'longitude'])('masks a %s field', (key) => {
+    const value = key.includes('latlng') ? [57.70887, 11.97456] : 57.70887;
+    const out = scrubSentryEvent({ extra: { [key]: value, status: 503 } } as never, []) as { extra: Record<string, unknown> };
+    expect(out.extra[key]).toBe('[Filtered]');
+    expect(out.extra.status).toBe(503);
+  });
+});
+
+describe('Strava numbers in JSON text, camelCase, quotes and database errors', () => {
+  const messageOf = (text: string) => (scrubSentryEvent({ message: text } as never, []) as { message: string }).message;
+
+  it.each(['object_id', 'owner_id', 'athlete_id', 'activity_id', 'strava_activity_id', 'strava_athlete_id'])('masks "%s" quoted in a JSON string and keeps its neighbours', (key) => {
+    const out = messageOf(`webhook body {"${key}":12345678901,"attempts":3,"aspect_type":"create"}`);
+    expect(out).not.toContain('12345678901');
+    expect(out).toContain('"attempts":3');
+    expect(out).toContain('"aspect_type":"create"');
+  });
+
+  it('masks several ids in one JSON string', () => {
+    expect(messageOf('{"object_id":12345678901,"owner_id":424242424}')).not.toMatch(/\d{6,}/);
+  });
+
+  it.each([
+    'activityId=12345678901', 'athleteId=424242424', 'stravaActivityId: 12345678901', 'stravaAthleteId=424242424', 'objectId=12345678901', 'ownerId = 424242424',
+    '"activityId":12345678901', 'startLatLng=[57.70887, 11.97456]', 'endLatLng: [57.70887,11.97456]',
+  ])('masks the camelCase form "%s"', (text) => {
+    expect(messageOf(`failed ${text} attempts=3`)).not.toMatch(/12345678901|424242424|57\.70887|11\.97456/);
+    expect(messageOf(`failed ${text} attempts=3`)).toContain('attempts=3');
+  });
+
+  it.each([
+    ['activity "12345678901" not found', 'not found'],
+    ['activity (12345678901) not found', 'not found'],
+    ["activity '12345678901' not found", 'not found'],
+    ['activities [12345678901, 12345678902] skipped', 'skipped'],
+    ['activities ("12345678901", "12345678902") skipped', 'skipped'],
+    ['activity id 12345678901 not found', 'not found'],
+  ])('masks the number in the quoted or bracketed form "%s"', (text, rest) => {
+    const out = messageOf(text);
+    expect(out).not.toMatch(/\d{7,}/);
+    expect(out).toContain(rest);
+  });
+
+  it.each([
+    ['duplicate key value violates unique constraint "runs_strava_activity_id_key"\nKey (strava_activity_id)=(12345678901) already exists.', 'already exists'],
+    ['duplicate key value\nKey (user_id, strava_activity_id)=(7c9e6679-7425-40de-944b-e07fc1f90ae7, 12345678901) already exists.', 'already exists'],
+    ['Key (strava_athlete_id)=(424242424) already exists.', 'already exists'],
+  ])('masks the values of a Postgres key detail naming a Strava column: %s', (text, rest) => {
+    const out = messageOf(text);
+    expect(out).not.toMatch(/12345678901|424242424/);
+    expect(out).toContain(rest);
+    expect(out).toContain('Key (');
+  });
+
+  it.each([
+    'activity 12345678-1234-5678-9abc-def012345678 not found',
+    'athlete 12345678-1234-5678-9abc-def012345678 not found',
+    'athlete_id=12345678-1234-5678-9abc-def012345678 not found',
+    'activity_id: 12345678-1234-5678-9abc-def012345678 not found',
+    '"activityId":"12345678-1234-5678-9abc-def012345678" not found',
+    'GET /athletes/12345678-1234-5678-9abc-def012345678/stats not found',
+  ])('leaves the start of a UUID alone: %s', (text) => {
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it.each([
+    'athlete_id=1234567a-1234-5678-9abc-def012345678 not found',
+    'activity 1234567a-1234-5678-9abc-def012345678 not found',
+    'activity 12345678-ABCD-5678-9ABC-DEF012345678 not found',
+    'owner_id=7c9e6679-7425-40de-944b-e07fc1f90ae7 not found',
+  ])('leaves a UUID that starts with digits and a hex letter alone: %s', (text) => {
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it.each([
+    ['activity 12345678901-retry', 'activity [Filtered]-retry'],
+    ['activities 12345678901-12345678902', 'activities [Filtered]'],
+    ['athlete 424242424-x', 'athlete [Filtered]-x'],
+    ['GET /activities/12345678901-copy', 'GET /activities/:id-copy'],
+    ['activity_id=12345678901-2', 'activity_id=[Filtered]-2'],
+    ['object_id=12345678901-2', 'object_id=[Filtered]-2'],
+    ['activity 12345678901abc', 'activity [Filtered]abc'],
+    ['object_id=12345678901x', 'object_id=[Filtered]x'],
+  ])('masks a Strava number that is followed by a hyphen or a letter, as it did before: %s', (text, expected) => {
+    expect(messageOf(text)).toBe(expected);
+  });
+
+  it('still masks a real number next to a UUID in the same text', () => {
+    const out = messageOf('activity 12345678901 and athlete_id=424242424 belong to 12345678-1234-5678-9abc-def012345678');
+    expect(out).not.toMatch(/12345678901|424242424/);
+    expect(out).toContain('12345678-1234-5678-9abc-def012345678');
+  });
+
+  it('keeps the values of a Postgres key detail that does not name a Strava column', () => {
+    const text = 'Key (invite_code)=(WOLF42) already exists.';
+    expect(messageOf(text)).toBe(text);
+  });
+
+  it.each([
+    ['strava_activity_id.eq.12345678901', 'strava_activity_id.eq.'],
+    ['strava_activity_id=eq.12345678901', 'strava_activity_id=eq.'],
+    ['strava_athlete_id.in.(424242424,424242425)', 'strava_athlete_id.in.'],
+  ])('masks the PostgREST filter %s and keeps the column and operator', (text, kept) => {
+    const out = messageOf(`GET /rest/v1/runs?select=id&${text}&order=id`);
+    expect(out).not.toMatch(/\d{7,}/);
+    expect(out).toContain(kept);
+    expect(out).toContain('select=id');
+    expect(out).toContain('order=id');
+  });
+
+  it('masks long numbers in activity and athlete fields, but keeps a short activity number', () => {
+    const out = scrubSentryEvent({ extra: { activity: '12345678901', athleteId: 424242424, activityId: 4711 } } as never, []) as { extra: Record<string, unknown> };
+    expect(out.extra).toEqual({ activity: '[Filtered]', athleteId: '[Filtered]', activityId: 4711 });
+  });
+});
+
+describe('the scrubber is bounded in time and size', () => {
+  const HARD_LIMIT_MS = 2000; // the unbounded patterns took 8 to 12 s on these inputs, the bounded ones a few ms
+
+  // 100 kB each. Machine speed does not matter: the margin to the hard limit is more than 20 times.
+  const HOSTILE: Array<[string, string]> = [
+    ['spaces after lat', 'lat' + ' '.repeat(100_000) + 'x'],
+    ['spaces after activity', 'activity' + ' '.repeat(100_000) + 'x'],
+    ['spaces after a quoted key', '"object_id"' + ' '.repeat(100_000) + 'x'],
+    ['spaces after token', 'token"' + ' '.repeat(100_000) + 'x'],
+    ['repeated latlng=[', 'latlng=['.repeat(12_500)],
+    ['repeated activities list', 'activities 1234567,'.repeat(5_000)],
+    ['repeated Key (', 'Key ('.repeat(20_000)],
+    ['digits', '1'.repeat(100_000)],
+    ['repeated "1."', '1.'.repeat(50_000)],
+    ['letters', 'a'.repeat(100_000)],
+    ['repeated eyJ-', 'eyJ-'.repeat(25_000)],
+    ['repeated JWT header with a dashed body', 'eyJaaaaa.aaaaa-'.repeat(6_600)],
+    ['repeated JWT header and payload', 'eyJaaaaa.eyJaaaaa-'.repeat(5_500)],
+    ['one long JWT payload without a second dot', 'eyJaaaaa.' + 'b'.repeat(100_000)],
+    ['repeated Bearer', 'Bearer '.repeat(14_000)],
+    ['repeated a@', 'a@'.repeat(50_000)],
+    ['dotted local part without @', 'a.'.repeat(50_000)],
+    ['email with a long dotted domain', 'x@' + 'a.'.repeat(50_000)],
+    ['repeated enc:v1', 'enc:v1:'.repeat(14_000)],
+    ['repeated object_id=', 'object_id='.repeat(10_000)],
+  ];
+
+  it.each(HOSTILE)('finishes 100 kB of "%s" inside the hard limit even with the size cap off', (_name, input) => {
+    const started = performance.now();
+    scrubString(input, [], Infinity);
+    expect(performance.now() - started).toBeLessThan(HARD_LIMIT_MS);
+  });
+
+  it.each(HOSTILE)('finishes 100 kB of "%s" inside the hard limit through the whole event', (_name, input) => {
+    const started = performance.now();
+    scrubSentryEvent({ message: input, extra: { note: input } } as never, []);
+    expect(performance.now() - started).toBeLessThan(HARD_LIMIT_MS);
+  });
+
+  it('cuts a long string to the maximum length plus a marker before any pattern runs, in every string of the event', () => {
+    const long = 'x'.repeat(MAX_SCRUBBED_STRING_LENGTH * 3);
+    const out = scrubSentryEvent({ message: long, exception: { values: [{ type: 'Error', value: long }] }, extra: { list: [long] } } as never, []) as any;
+
+    for (const text of [out.message, out.exception.values[0].value, out.extra.list[0]]) {
+      expect(text.startsWith('x'.repeat(MAX_SCRUBBED_STRING_LENGTH))).toBe(true);
+      expect(text).toBe('x'.repeat(MAX_SCRUBBED_STRING_LENGTH) + '…[truncated]');
+    }
+  });
+
+  it('leaves a string at exactly the maximum length untouched, and masks secrets in the part that is kept', () => {
+    const exact = 'y'.repeat(MAX_SCRUBBED_STRING_LENGTH);
+    expect(scrubString(exact, [])).toBe(exact);
+    expect(scrubString(`attempt 2 key=hunter2-long-secret ${'z'.repeat(MAX_SCRUBBED_STRING_LENGTH * 2)}`, ['hunter2-long-secret'])).toContain('key=[Filtered]');
+  });
+
+  describe('a bare JWT that crosses the cut', () => {
+    const HEADER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+    const PAYLOAD = 'eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoiamFuZS5kb2VAZXhhbXBsZS5jb20ifQ';
+    const SIGNATURE = 'c2lnbmF0dXJlLXNpZ25hdHVyZS1zaWduYXR1cmUtc2lnbmF0dXJl';
+    const JWT = `${HEADER}.${PAYLOAD}.${SIGNATURE}`;
+    // How many characters of the token are kept: in the header, at the first dot, in the payload, at the second dot, in the signature.
+    const KEPT = [3, 10, HEADER.length, HEADER.length + 1, HEADER.length + 8, HEADER.length + 1 + PAYLOAD.length, HEADER.length + PAYLOAD.length + 2, HEADER.length + PAYLOAD.length + 12];
+    const text = (kept: number) => `${' '.repeat(MAX_SCRUBBED_STRING_LENGTH - kept)}${JWT} and the rest`;
+    const leaks = (out: string) => /eyJ|zdWIi|bGciOi|aGFuZ|ZXhhbXBsZ|c2lnbmF0/.test(out);
+
+    it.each(KEPT)('masks all of it when %i characters of the token are inside the cut (scrubString)', (kept) => {
+      const out = scrubString(text(kept), []);
+      expect(leaks(out)).toBe(false);
+      expect(out.endsWith('…[truncated]')).toBe(true);
+    });
+
+    it.each([2_500, MAX_SCRUBBED_STRING_LENGTH - 400])('masks a whole JWT with a %i character payload, and one cut inside such a payload', (payloadLength) => {
+      const long = `${HEADER}.eyJ${'A'.repeat(payloadLength)}.${SIGNATURE}`;
+      expect(scrubString(`token was ${long} done`, [])).toBe('token was [Filtered] done');
+      const cut = scrubString(`${' '.repeat(MAX_SCRUBBED_STRING_LENGTH - 2_000)}${long}`, []);
+      expect(cut).not.toMatch(/eyJ|AAAA/);
+    });
+
+    it.each(KEPT)('masks all of it when %i characters of the token are inside the cut (whole event)', (kept) => {
+      const event = scrubSentryEvent({ message: text(kept), extra: { note: text(kept) } } as never, []) as any;
+      expect(leaks(JSON.stringify(event))).toBe(false);
+    });
+  });
+
+  it('does not let a secret that lies beyond the cut survive in a shortened string', () => {
+    const out = scrubString(`${'a'.repeat(MAX_SCRUBBED_STRING_LENGTH - 5)}hunter2-long-secret-tail`, ['hunter2-long-secret-tail']);
+    expect(out).not.toContain('hunter2');
   });
 });

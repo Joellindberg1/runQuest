@@ -66,7 +66,7 @@ describe('POST /api/strava/callback — consent', () => {
     const res = await connect({ code: 'auth-code' });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'Consent required' });
+    expect(res.body).toEqual({ success: false, error: 'Consent required', code: 'consent_required' });
     expect(strava.calls.oauthToken).toBe(0);
     expect(t.strava_tokens).toEqual([]);
   });
@@ -78,7 +78,7 @@ describe('POST /api/strava/callback — consent', () => {
     for (const consent_version of ['2020-01-01', '', null, 7, true, {}, [STRAVA_CONSENT_VERSION], ` ${STRAVA_CONSENT_VERSION}`, `${STRAVA_CONSENT_VERSION} `]) {
       const res = await connect({ code: 'auth-code', consent_version });
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'Consent required' });
+      expect(res.body).toEqual({ success: false, error: 'Consent required', code: 'consent_required' });
     }
 
     expect(strava.calls.oauthToken).toBe(0);
@@ -143,7 +143,7 @@ describe('POST /api/strava/callback — consent', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(Object.keys(res.body).sort()).toEqual(['message', 'success']);
+    expect(Object.keys(res.body).sort()).toEqual(['data', 'message', 'success']); // steg 1: data: null bredvid message
     expect(JSON.stringify(res.body)).not.toMatch(/fake_runner|Fake|Runner|4711/);
   });
 });
@@ -176,7 +176,7 @@ describe('GET /api/strava/status — consent', () => {
     const res = await status();
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ connected: false, expired: false });
+    expect(res.body).toEqual({ success: true, connected: false, expired: false, data: { connected: false, expired: false } });
   });
 
   it('status includes consent_version when an expired token is refreshed', async () => {

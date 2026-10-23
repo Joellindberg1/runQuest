@@ -41,13 +41,6 @@ export interface XPCalculationResult {
   };
 }
 
-export interface StreakCalculationResult {
-  streakDay: number;
-  multiplier: number;
-  streakBonus: number;
-  calculation: string;
-}
-
 export interface CompleteRunXP {
   baseXP: number;
   kmXP: number;
@@ -87,14 +80,14 @@ export function calculateRunXP(
     };
   }
 
-  const safeSettings = {
-    base_xp: settings?.base_xp ?? 15,
-    xp_per_km: settings?.xp_per_km ?? 2,
-    bonus_5km: settings?.bonus_5km ?? 5,
-    bonus_10km: settings?.bonus_10km ?? 15,
-    bonus_15km: settings?.bonus_15km ?? 25,
-    bonus_20km: settings?.bonus_20km ?? 50,
-    min_run_distance: settings?.min_run_distance ?? 1.0
+  const safeSettings: AdminSettings = {
+    base_xp: settings?.base_xp ?? DEFAULT_ADMIN_SETTINGS.base_xp,
+    xp_per_km: settings?.xp_per_km ?? DEFAULT_ADMIN_SETTINGS.xp_per_km,
+    bonus_5km: settings?.bonus_5km ?? DEFAULT_ADMIN_SETTINGS.bonus_5km,
+    bonus_10km: settings?.bonus_10km ?? DEFAULT_ADMIN_SETTINGS.bonus_10km,
+    bonus_15km: settings?.bonus_15km ?? DEFAULT_ADMIN_SETTINGS.bonus_15km,
+    bonus_20km: settings?.bonus_20km ?? DEFAULT_ADMIN_SETTINGS.bonus_20km,
+    min_run_distance: settings?.min_run_distance ?? DEFAULT_ADMIN_SETTINGS.min_run_distance
   };
 
   const meetsMinimum = distanceKm >= safeSettings.min_run_distance;

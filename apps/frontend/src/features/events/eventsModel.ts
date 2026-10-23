@@ -1,6 +1,7 @@
-import type { EventItem } from '@runquest/shared';
+import { prizeForRank, zoneDay, type EventItem } from '@runquest/shared';
+import { formatCountdown } from '@/shared/utils/format';
 import {
-  dateRangeText, dayLabel, formatClock, formatCountdown, formatEventValue, formatMinKm, stockholmDate, weekdayOf, windowText,
+  dateRangeText, dayLabel, formatClock, formatEventValue, formatMinKm, weekdayOf, windowText,
 } from './eventsFormat';
 
 // Vymodeller för Events: vad som är öppet, vad som kommer, mitt facit och historikraderna. Rena funktioner — `now` skickas in.
@@ -124,7 +125,8 @@ function rewardLabel(event: EventItem): string | null {
 }
 
 function prizeFor(event: EventItem, rank: number): string | null {
-  const xp = [event.template.rewardXp1st, event.template.rewardXp2nd, event.template.rewardXp3rd][rank - 1] ?? 0;
+  const { rewardXp1st, rewardXp2nd, rewardXp3rd } = event.template;
+  const xp = prizeForRank(rank, [rewardXp1st, rewardXp2nd, rewardXp3rd]);
   return xp > 0 ? `+${xp} XP` : null;
 }
 
@@ -135,7 +137,7 @@ function buildBoard(event: EventItem): BoardRow[] {
     .map(({ row, rank }) => ({
       userId: row.userId,
       rank,
-      // Backend skickar "Du" för mig — UI:t är engelskt.
+      // Servern skickar det riktiga namnet och flaggan isMe; UI:t är engelskt och skriver "You" själv.
       name: row.isMe ? 'You' : row.userName,
       mine: row.isMe,
       value: formatEventValue(event.metric, row.totalValue),
@@ -157,7 +159,7 @@ function openChips(event: EventItem, done: boolean): EventChip[] {
     chips.push({ key: 'closes', label: `Closes ${formatClock(event.endsAt)}`, tone: 'tag' });
   } else {
     chips.push({ key: 'metric', label: event.metric === 'km' ? 'Total distance' : 'Total elevation', tone: 'tag' });
-    chips.push({ key: 'ends', label: `Ends ${weekdayOf(stockholmDate(event.endsAt))} ${formatClock(event.endsAt)}`, tone: 'tag' });
+    chips.push({ key: 'ends', label: `Ends ${weekdayOf(zoneDay(new Date(event.endsAt)))} ${formatClock(event.endsAt)}`, tone: 'tag' });
   }
   weatherTags(template.requiresWeather).forEach((weather) => chips.push({ key: `weather-${weather}`, label: weather, tone: 'tag' }));
   const reward = rewardLabel(event);
@@ -184,7 +186,7 @@ function buildOpenCard(event: EventItem, now: Date, phase: EventPhase): OpenCard
     name: event.template.name,
     rule: event.template.description,
     chips: openChips(event, mineDone),
-    countdown: settling ? 'Final' : formatCountdown(remaining),
+    countdown: settling ? 'Final' : formatCountdown(remaining, 'coarse'),
     ringLabel: settling ? 'settling soon' : 'left to run',
     ringFraction: settling || total <= 0 ? 0 : Math.min(1, remaining / total),
     doneText: isParticipation && event.memberCount > 0 ? `${takenCount(event)} of ${event.memberCount} done` : null,
@@ -219,7 +221,7 @@ function buildUpNext(event: EventItem, now: Date): UpNextCard {
     rule: template.description,
     facts: facts.join(' · '),
     chips,
-    countdown: formatCountdown(Math.max(0, startMs(event) - now.getTime())),
+    countdown: formatCountdown(Math.max(0, startMs(event) - now.getTime()), 'coarse'),
   };
 }
 

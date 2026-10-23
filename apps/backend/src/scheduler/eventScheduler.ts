@@ -1,8 +1,7 @@
 // 📅 Event Scheduler
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
-import { addDays, stockholmWallClockToInstant } from '@runquest/shared';
-import { tomorrowStockholm, todayStockholm } from '../utils/dateUtils.js';
+import { STOCKHOLM_TZ, addDays, stockholmDay, stockholmWallClockToInstant, type DailyDraw } from '@runquest/shared';
 import {
   maybeCreateEvent,
   getAllGroupIds,
@@ -49,16 +48,8 @@ async function createForAllGroups(
  *   Kvällsrunda  10%
  *   Storm Chaser 30%  (ingår bara om väderprognosen kvalificerar)
  */
-interface DailyDrawResult {
-  fired: boolean;
-  picked: string | null;
-  stormQualifies: boolean;
-  totalWeight: number;
-  pool: Array<{ name: string; weight: number; sharePct: number }>;
-}
-
-async function runDailyParticipationDraw(): Promise<DailyDrawResult> {
-  const tomorrow = tomorrowStockholm();
+async function runDailyParticipationDraw(): Promise<DailyDraw> {
+  const tomorrow = addDays(stockholmDay(new Date()), 1);
 
   const eventPool = await getEventPool('daily');
   if (!eventPool) {
@@ -111,7 +102,7 @@ async function scheduleDailyParticipationEvent(): Promise<void> {
 }
 
 /** Exponerad för admin-endpoint — kör draget och returnerar resultat. */
-export async function scheduleDailyParticipationEventTest(): Promise<DailyDrawResult> {
+export async function scheduleDailyParticipationEventTest(): Promise<DailyDraw> {
   return runDailyParticipationDraw();
 }
 
@@ -135,7 +126,7 @@ async function scheduleHangoverRun(): Promise<void> {
   }
 
   const picked = pool.members[0];
-  const tomorrow = tomorrowStockholm();
+  const tomorrow = addDays(stockholmDay(new Date()), 1);
   const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
   const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
@@ -170,7 +161,7 @@ async function scheduleFridayEvent(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const tomorrow = tomorrowStockholm(); // torsdag kväll → imorgon = fredag
+  const tomorrow = addDays(stockholmDay(new Date()), 1); // torsdag kväll → imorgon = fredag
   const startsAt = stockholmWallClockToInstant(tomorrow, picked.startHour, 0);
   const endDate  = picked.endDayOffset > 0 ? addDays(tomorrow, picked.endDayOffset) : tomorrow;
   const endsAt   = stockholmWallClockToInstant(endDate, picked.endHour, picked.endMinute);
@@ -206,7 +197,7 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
   let picked = pool.members[pool.members.length - 1];
   for (const c of pool.members) { rand -= c.weight; if (rand <= 0) { picked = c; break; } }
 
-  const today   = todayStockholm();
+  const today   = stockholmDay(new Date());
   const monday  = addDays(today, 2);
   const sunday  = addDays(today, 8);
   const startsAt = stockholmWallClockToInstant(monday, 0, 1);
@@ -217,6 +208,14 @@ async function scheduleWeeklyCompetitions(): Promise<void> {
 }
 
 // ─── Scheduler entry point ───────────────────────────────────────────────────
+
+/**
+ * Timtick som försöker avräkna tävlingar som fortfarande är active efter sitt slut (se startEventScheduler).
+ * Känt i node-cron 4.6.0 (fastlåst i cronSchedules.test.ts): natten då klockan ställs tillbaka (sista söndagen i oktober) infaller timmen 02:xx två
+ * gånger i Stockholm, och ett minutmönster hoppar över den första (CEST). Ticken 02:35 CEST uteblir alltså den natten; nästa tick 02:35 CET tar
+ * samma tävlingar, så retryn försenas som mest en timme. Sätt aldrig TZ på backendtjänsten: processen kör i UTC (docs/release.md).
+ */
+export const COMPETITION_RETRY_CRON = '35 * * * *';
 
 export function startEventScheduler(): void {
   logger.info('📅 Starting event scheduler...');
@@ -230,7 +229,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Daily participation draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Fredag + Lördag 22:00 Stockholm — Hangover Run (20% spawn chance)
   cron.schedule('0 22 * * 5,6', async () => {
@@ -240,7 +239,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Hangover Run draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Torsdag 18:00 Stockholm — 5K Friday (30% spawn chance)
   cron.schedule('0 18 * * 4', async () => {
@@ -250,7 +249,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] 5K Friday draw error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Lördag 20:00 Stockholm — Weekly km + Weekly elevation (deterministisk)
   cron.schedule('0 20 * * 6', async () => {
@@ -260,7 +259,7 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Weekly competition error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
 
   // Måndag 00:05 Stockholm — alltid strikt efter weekly events ends_at (sön 23:59
   // Stockholm). settleCompetitionEvents settlar bara events vars ends_at passerat.
@@ -271,7 +270,18 @@ export function startEventScheduler(): void {
     } catch (e) {
       logger.error(`❌ [EventScheduler] Competition settlement error (${errorCode(e)})`);
     }
-  }, { timezone: 'Europe/Stockholm' });
+  }, { timezone: STOCKHOLM_TZ });
+
+  // Varje timme (minut 35, så att måndagens 00:05 alltid går först) — försöker igen med en tävling som inte kunde avräknas (läsfel före claimen
+  // lämnar den active). Samma funktion som måndagskörningen: den läser bara active-tävlingar vars ends_at passerat, rör aldrig ett settlat
+  // event och är idempotent via claimen. När inget har slutat blir det en enda läsning av events och inget mer.
+  cron.schedule(COMPETITION_RETRY_CRON, async () => {
+    try {
+      await settleCompetitionEvents();
+    } catch (e) {
+      logger.error(`❌ [EventScheduler] Competition settlement retry error (${errorCode(e)})`);
+    }
+  }, { timezone: STOCKHOLM_TZ });
 
   // Var 5:e minut — aktiverar schemalagda events + settlar utgångna
   cron.schedule('*/5 * * * *', async () => {

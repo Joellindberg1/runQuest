@@ -12,9 +12,9 @@ import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
 import { paths } from '@/paths';
-import { formatCountdown } from '../boardFormat';
+import { formatCountdown, formatMultiplier } from '@/shared/utils/format';
 import {
-  buildLadderRows, buildStreakRow, buildStreakRows, formatMultiplier, nextRunXp, topMultiplier,
+  buildLadderRows, buildStreakRow, buildStreakRows, nextRunXp, topMultiplier,
   type StreakRow, type StreakStatus,
 } from '../streakModel';
 import { RunnerName } from './BoardParts';
@@ -136,7 +136,7 @@ function StreakAlert({ user, config, meId }: AlertProps) {
       {row.status === 'at-risk' && row.msLeft !== null && (
         <>
           <p className="rq-board-alert__eyebrow"><span className="rq-dot rq-dot--alarm" aria-hidden="true" />Your streak dies in</p>
-          <div className="rq-counter" role="timer">{formatCountdown(row.msLeft)}</div>
+          <div className="rq-counter" role="timer">{formatCountdown(row.msLeft, 'hms')}</div>
           <p className="rq-body rq-board-alert__text">
             {outcome.keep.xp > outcome.broken.xp
               ? `Your run today earns ${formatMultiplier(outcome.keep.multiplier)}. Miss it and your next ${NEXT_RUN_KM} km run drops from ${outcome.keep.xp} to ${outcome.broken.xp} XP.`
@@ -148,7 +148,7 @@ function StreakAlert({ user, config, meId }: AlertProps) {
       {row.status === 'safe' && row.msLeft !== null && (
         <>
           <p className="rq-board-alert__eyebrow"><span className="rq-dot rq-dot--live" aria-hidden="true" />Your streak is safe</p>
-          <div className="rq-counter" role="timer">{formatCountdown(row.msLeft)}</div>
+          <div className="rq-counter" role="timer">{formatCountdown(row.msLeft, 'hms')}</div>
           <p className="rq-body rq-board-alert__text">
             Run again before the clock hits zero and your streak reaches day {row.days + 1} at {formatMultiplier(outcome.keep.multiplier)}.
           </p>

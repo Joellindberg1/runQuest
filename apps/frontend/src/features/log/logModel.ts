@@ -1,7 +1,8 @@
 import type { Run } from '@runquest/types';
-import { advanceStreakDay, isNextDay, stockholmClock } from '@runquest/shared';
-import { MIN_RUN_DATE, MIN_RUN_DISTANCE_KM } from '@/constants/appConstants';
-import { formatInt, formatKm, formatLongDate, formatMultiplier } from './logFormat';
+import type { RunIdOnly } from '@runquest/shared';
+import { MANUAL_RUN_MIN_DISTANCE_KM, MIN_RUN_DATE, advanceStreakDay, isCalendarDay, isNextDay, zoneDay } from '@runquest/shared';
+import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { formatLongDate } from './logFormat';
 
 // Formulärets ren logik: tillstånd, validering (speglar POST /runs) och streakdagen en ny runda får.
 // Ingen DOM, ingen datahämtning — `now`/`today` skickas alltid in.
@@ -28,13 +29,9 @@ export interface FieldErrors {
   distance?: string;
 }
 
-/** Idag som Stockholm-dag — samma dygnsgräns som streaken och resten av appen. */
-export function todayOf(now: Date): string {
-  return stockholmClock(now).date;
-}
-
+/** Formuläret börjar på idag: dagen i appens tidszon, samma dygnsgräns som streaken och resten av appen. */
 export function initialForm(now: Date): LogForm {
-  return { date: todayOf(now), distance: '', surface: 'outdoor' };
+  return { date: zoneDay(now), distance: '', surface: 'outdoor' };
 }
 
 /** "8.4" / "8,4" → 8.4. Tomt eller något som inte är ett tal → null. */
@@ -45,27 +42,18 @@ export function parseKm(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isCalendarDate(value: string): boolean {
-  if (!DATE_SHAPE.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
-}
-
 /** Vänliga fel med backendens regler: minst 1.0 km. Tomt fält är ett fel först vid inlämning (`allowEmpty`). */
 export function validateDistance(raw: string, { allowEmpty = false } = {}): string | undefined {
   if (raw.trim() === '') return allowEmpty ? undefined : 'Enter a distance in km';
   const km = parseKm(raw);
   if (km === null) return 'Distance must be a number, like 8.4';
-  if (km < MIN_RUN_DISTANCE_KM) return `A run needs at least ${formatKm(MIN_RUN_DISTANCE_KM)} km to count`;
+  if (km < MANUAL_RUN_MIN_DISTANCE_KM) return `A run needs at least ${formatKm(MANUAL_RUN_MIN_DISTANCE_KM)} km to count`;
   return undefined;
 }
 
 /** Backendens datumregler: inte före 2025-06-01 och inte i framtiden. `today` = Stockholm-dagen. */
 export function validateDate(date: string, today: string): string | undefined {
-  if (!isCalendarDate(date)) return 'Pick a date';
+  if (!isCalendarDay(date)) return 'Pick a date';
   if (date < MIN_RUN_DATE) return `Runs can only be logged from ${formatLongDate(MIN_RUN_DATE)}`;
   if (date > today) return 'You cannot log a run for a future date';
   return undefined;
@@ -130,8 +118,12 @@ export function streakOutlook(runs: readonly StreakRun[], date: string): StreakO
   return isNextDay(prevDate, date) ? { day: next, kind: 'continue' } : { day: next, kind: 'start' };
 }
 
-/** Bekräftelsen efter en lyckad inlämning — siffrorna är serverns, inte förhandsvisningens. */
-export function confirmationText(run: Pick<Run, 'distance' | 'xp_gained' | 'multiplier' | 'streak_day'>): string {
+/**
+ * Bekräftelsen efter en lyckad inlämning — siffrorna är serverns, inte förhandsvisningens. Kunde servern inte läsa tillbaka rundan (bara `id`)
+ * finns inga siffror att visa, och då står det bara att rundan är loggad.
+ */
+export function confirmationText(run: Pick<Run, 'distance' | 'xp_gained' | 'multiplier' | 'streak_day'> | RunIdOnly): string {
+  if (!('xp_gained' in run)) return 'Run logged';
   const streak = run.streak_day > 1 ? ` · streak day ${run.streak_day} at ${formatMultiplier(run.multiplier)}` : '';
   return `Run logged: ${formatKm(Number(run.distance))} km for ${formatInt(run.xp_gained)} XP${streak}`;
 }

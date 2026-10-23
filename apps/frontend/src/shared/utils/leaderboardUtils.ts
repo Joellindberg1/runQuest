@@ -1,52 +1,35 @@
 
-import type { Run, User } from '@runquest/types'
-import { MS_DAY, dayOfWeek, mondayOf } from '@runquest/shared';
-import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
+import type { Run, User } from '@runquest/types';
+import { STOCKHOLM_TZ, addDays, compareXpStandings, rankOf, weekendAverageKm, zoneDay, type XpStanding } from '@runquest/shared';
+import { getLevelProgress } from '@/shared/services/levelService';
 import { MAX_LEVEL } from '@/constants/appConstants';
-export { getInitials, formatXPForDisplay } from '@/shared/utils/formatters';
+export { getInitials } from '@/shared/utils/formatters';
+
+const standingOf = (user: User): XpStanding => ({ id: user.id, name: user.name, xp: user.total_xp });
 
 export const leaderboardUtils = {
-  filterAndSortUsers(users: User[]): User[] {
-    const filteredUsers = users.filter(user => user.name.toLowerCase() !== 'admin');
-    return [...filteredUsers].sort((a, b) => {
-      const aLevel = getLevelFromXP(a.total_xp);
-      const bLevel = getLevelFromXP(b.total_xp);
-      if (aLevel !== bLevel) {
-        return bLevel - aLevel; // Higher level first
-      }
-      return b.total_xp - a.total_xp; // Higher XP first if same level
-    });
+  /** All-time-ordningen: samma som backendens användarlista och rank_passed (XP, namn, id). Ingen filtreras bort. */
+  rankedUsers<T extends User>(users: readonly T[]): T[] {
+    return [...users].sort((a, b) => compareXpStandings(standingOf(a), standingOf(b)));
   },
 
-  getUserPosition(user: User, sortedUsers: User[]): number {
-    let position = 1;
-    const userLevel = getLevelFromXP(user.total_xp);
-    
-    for (const sortedUser of sortedUsers) {
-      if (sortedUser.id === user.id) break;
-      
-      const sortedUserLevel = getLevelFromXP(sortedUser.total_xp);
-      if (sortedUserLevel > userLevel || 
-          (sortedUserLevel === userLevel && sortedUser.total_xp > user.total_xp)) {
-        position++;
-      }
-    }
-    return position;
+  /** Placeringen (1-baserad, aldrig delad) i `users`, eller null om användaren inte finns där. */
+  rankOfUser(user: User, users: readonly User[]): number | null {
+    return rankOf(user.id, users.map(standingOf));
   },
 
   calculateUserStats(user: User) {
-    const level = getLevelFromXP(user.total_xp);
-    const currentLevelXP = getXPForLevel(level);
-    const nextLevelXP = getXPForLevel(level + 1);
-    const xpProgress = level < MAX_LEVEL ? ((user.total_xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100 : 100;
-    const xpLeftForNextLevel = level < MAX_LEVEL ? Math.round((nextLevelXP - user.total_xp) * 10) / 10 : 0;
+    const progress = getLevelProgress(user.total_xp);
+    const level = progress.currentLevel;
+    const atMax = level >= MAX_LEVEL;
+    const xpLeftForNextLevel = progress.xpToNext;
 
     const numberOfRuns = user.runs?.length || 0;
     const longestRun = numberOfRuns > 0 ? Math.max(...(user.runs?.map(run => run.distance) || [0])) : 0;
     const averageKmPerRun = numberOfRuns > 0 ? (user.total_km / numberOfRuns) : 0;
     const weekendAverage = this.calculateWeekendAverage(user.runs || []);
     const last14DaysXP = this.calculateLast14DaysXP(user);
-    const daysToNextLevel = last14DaysXP > 0 && level < MAX_LEVEL ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
+    const daysToNextLevel = last14DaysXP > 0 && !atMax ? Math.ceil(xpLeftForNextLevel / last14DaysXP) : 0;
 
     // Get latest run
     const latestRun = user.runs && user.runs.length > 0 
@@ -57,10 +40,10 @@ export const leaderboardUtils = {
 
     return {
       level,
-      xpProgress: Math.max(0, Math.min(100, xpProgress)),
+      xpProgress: progress.progress,
       xpLeftForNextLevel,
-      xpInLevel: level < MAX_LEVEL ? Math.round(user.total_xp - currentLevelXP) : 0,
-      xpLevelRange: level < MAX_LEVEL ? Math.round(nextLevelXP - currentLevelXP) : 0,
+      xpInLevel: atMax ? 0 : Math.round(user.total_xp - progress.currentLevelXP),
+      xpLevelRange: atMax ? 0 : Math.round(progress.nextLevelXP - progress.currentLevelXP),
       numberOfRuns,
       longestRun,
       averageKmPerRun,
@@ -72,31 +55,17 @@ export const leaderboardUtils = {
   },
 
   calculateWeekendAverage(runs: Run[]): number {
-    const weekendTotals = new Map<string, number>();
-    
-    runs.forEach(run => {
-      const date = run.date.slice(0, 10);
-      const day = dayOfWeek(date);
-
-      if (day === 0 || day === 6) { // Sunday or Saturday
-        // The Monday of the week containing this weekend day groups Saturday and Sunday together
-        const weekKey = mondayOf(date);
-
-        weekendTotals.set(weekKey, (weekendTotals.get(weekKey) || 0) + run.distance);
-      }
-    });
-
-    const weekends = Array.from(weekendTotals.values());
-    return weekends.length > 0 ? weekends.reduce((sum, total) => sum + total, 0) / weekends.length : 0;
+    return weekendAverageKm(runs.map(run => ({ day: run.date.slice(0, 10), km: run.distance })));
   },
 
-  calculateLast14DaysXP(user: User): number {
-    const today = new Date();
-    const fourteenDaysAgo = new Date(today.getTime() - (13 * MS_DAY)); // 13 days ago + today = 14 days
-    
+  /** XP-snittet per dag över 14 kalenderdagar: idag och de 13 dagarna före, dagen i gruppens tidszon. Rundornas datum är kalenderdagar. */
+  calculateLast14DaysXP(user: User, now: Date = new Date(), timeZone: string = STOCKHOLM_TZ): number {
+    const today = zoneDay(now, timeZone);
+    const firstDay = addDays(today, -13); // 13 days ago + today = 14 days
+
     const last14DaysRuns = (user.runs || []).filter(run => {
-      const runDate = new Date(run.date);
-      return runDate >= fourteenDaysAgo && runDate <= today;
+      const runDay = run.date.slice(0, 10);
+      return runDay >= firstDay && runDay <= today;
     });
 
     const totalXP = last14DaysRuns.reduce((sum, run) => sum + (run.xp_gained || 0), 0);

@@ -11,7 +11,7 @@ Mobil = App Prototypens landing i en kolumn (390 px). Desktop (≥ 1024 px) är 
 ögonbrynet och de tre förklaringarna, sektionsrubrikernas synlighet, filmens vy) ligger i HTML i båda varianterna och CSS visar en med
 `@media (min-width: 1024px)`; den dolda är `display: none` (utanför tillgänglighetsträdet och tab-ordningen, och utan animationer). Ett undantag från
 skalets beslut 5 ("exakt EN variant i DOM") som bara gäller landningen. ESLint (`LANDING_NO_VIEWPORT_OR_LOCALE` i `eslint.config.js`) förbjuder
-`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` (regex med NBSP, samma text på server och klient).
+`useIsDesktop`, `matchMedia`, `Intl` och `toLocaleString` i featuren; tal formateras med `formatInt` ur `shared/utils/format` (regex med NBSP, samma text på server och klient; lint förbjuder `Intl` även i den modulen).
 Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En ny variant får alltså en regel i `landing.css`/`landingFilm.css`
 (grundregeln mobil, desktop i `@media (min-width: 1024px)`) och en rad i listan i `guards.test.ts`.
 
@@ -43,7 +43,7 @@ Rörelsepreferensen vid klick läses via `shared/utils/prefersReducedMotion`. En
   reservsiffror: medan svaret laddas står "—" (`aria-busy="true"`), vid fel (nätverk, 5xx, ogiltigt svar) står raden kvar som en tom, osynlig remsa (`aria-hidden` + `visibility: hidden`, samma höjd, inget meddelande), noll visas som 0. Posterna reserverar sin bredd i CSS: värdet (km 5,5 ch = "99 999", löpare och utmaningar 3 ch) och etiketten (osynligt pseudoelement med pluralformen, så "1 runner" inte gör posten smalare). Mätt i Chromium vid 360 och 1440 px med 4 551 / 6 / 4, 99 999 / 12 / 11, 4 551 / 1 / 1 och 0 / 0 / 0: inget element flyttas (±1 px) när talen anländer, och inget flyttas vid fel. Varje tal läses som en
   enhet ("4 551 km logged"); ingen live-region. Ingen "packs running" förrän grupperna är fler (inte i v0.6.2).
 - **Previewn återanvänder `features/leaderboard/previewUsers`** — samma påhittade flock som `/preview` (LeaderboardPreviewPage importerar därifrån). Kortet heter "Sample pack", är märkt
-  "Example" (inte "Live") och har ingen nedräkning. Bara förnamn visas. Radens delta-pil är Boards `DeltaMark`/`deltaView`. Topp fem sorteras som Board (nivå, sedan XP).
+  "Example" (inte "Live") och har ingen nedräkning. Bara förnamn visas. Radens delta-pil är Boards `DeltaMark`/`deltaView`. Topp fem sorteras som Board: XP, sedan namn, sedan id (`compareXpStandings`).
 - **How it works och XP-formeln ur shared.** XP-raden (15 + 2/km, bonus vid 5/10/15/20 km), streak-raden (från dag 5 ×1.1 upp till ×2.0 vid dag 270) och formelrutan
   ("BASE 15 + KM × 2 + DISTANCE BONUS × STREAK 1.0–2.0×", exemplet 10 km → +50 XP) läses ur `DEFAULT_ADMIN_SETTINGS` / `DEFAULT_STREAK_MULTIPLIERS` / `calculateRunXP` (spelets VERKLIGA
   standardregler, ägarbeslut 1). Landing hämtar inte admin-inställningarna, så en ändring där syns inte i texten. Formeln finns på mobil och desktop och har en textversion för skärmläsare.

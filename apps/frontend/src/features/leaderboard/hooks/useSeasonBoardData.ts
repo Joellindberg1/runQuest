@@ -18,7 +18,7 @@ export function useSeasonBoardData(decorations = true) {
   const { user } = useAuth();
   const usersQuery = useUsersWithRuns(!!user);
   const users = usersQuery.data;
-  const ranked = useMemo(() => leaderboardUtils.filterAndSortUsers(users ?? []), [users]);
+  const ranked = useMemo(() => leaderboardUtils.rankedUsers(users ?? []), [users]);
   const rankedIds = useMemo(() => (decorations ? ranked.map((runner) => runner.id) : NO_IDS), [decorations, ranked]);
   const titlesQuery = useMultipleUserTitles(rankedIds);
   const rankDeltaQuery = useRankDelta(decorations);
