@@ -1,6 +1,6 @@
 /**
  * RUN-98 T3/T5 — GET /api/titles/group-eligibility: runs-selecten hämtar run_weather och ctx.now skickas till
- * motorerna, medan svarets form är oförändrad (envelope, {userId, name, gender, values}, de 21 nycklarna).
+ * motorerna, medan svarets form är oförändrad (envelope, {userId, name, gender, values}, de 20 nycklarna).
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
@@ -28,10 +28,10 @@ const spyEngine = { metricKey: SPY_KEY, calculate: vi.fn(() => 1) };
 
 const ENGINE_KEYS = [
   'longestRun', 'totalKm', 'longestStreak', 'weekendAvg', 'nightRunCount', 'earlyRunCount', 'lunchRunCount',
-  'maxRunsOneWeek', 'longestRunAfterBreak14', 'longestRunAfterBreak30', 'lowestPaceStdDev', 'maxWeekdayStreak',
+  'maxRunsOneWeek', 'longestRunAfterBreak14', 'longestRunAfterBreak30', 'maxWeekdayStreak',
   'bestDoubleDayKm', 'fastestMarathon', 'fastestHalfMarathon', 'lastRunOfWeek', 'maxKmRolling30',
   'totalElevationGain', 'bestSingleRunElevation', 'fastest5km', 'avgPaceStdDev',
-  'winterKm', // RUN-100: första motorn efter de 21
+  'winterKm', // RUN-100: första motorn efter de 20
   'stormRunCount', 'coldRunCount', // RUN-99
 ];
 
@@ -79,7 +79,7 @@ function seed() {
 }
 
 describe('GET /api/titles/group-eligibility', () => {
-  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och motornycklarna (21 + winterKm, stormRunCount, coldRunCount)', async () => {
+  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och motornycklarna (20 + winterKm, stormRunCount, coldRunCount)', async () => {
     seed();
     const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
 

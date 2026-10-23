@@ -28,6 +28,6 @@ export interface TitleContext {
 
 export interface TitleEngine {
   metricKey: string;
-  /** `ctx` är valfri: motorer som inte behöver den ignorerar den (de 21 första gör det). */
+  /** `ctx` är valfri: motorer som inte behöver den ignorerar den (de 20 första gör det). */
   calculate(runs: RunData[], userStats: UserStats, ctx?: TitleContext): number;
 }

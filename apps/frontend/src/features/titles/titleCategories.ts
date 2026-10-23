@@ -46,7 +46,6 @@ const METRICS: Record<string, MetricDef> = {
   fastest5km: { category: 'pace', icon: 'zap' },
   fastestHalfMarathon: { category: 'pace', icon: 'zap' },
   fastestMarathon: { category: 'pace', icon: 'zap' },
-  lowestPaceStdDev: { category: 'pace', icon: 'target' },
   avgPaceStdDev: { category: 'pace', icon: 'target' },
 
   maxRunsOneWeek: { category: 'volume', icon: 'sync' },

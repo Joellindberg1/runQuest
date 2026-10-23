@@ -1,7 +1,7 @@
 /**
  * RUN-98 T4 — regressionstest för titelmotorerna (första motortestet, ADR 001).
  *
- * De 21 motorernas värden på en fast fixtur är HÅRDKODADE, räknade med mappningen och motorerna som de såg ut
+ * De 20 motorernas värden på en fast fixtur är HÅRDKODADE, räknade med mappningen och motorerna som de såg ut
  * INNAN ramverksändringen (väderfält, ctx). Ändras ett värde här har motorernas beteende ändrats — inte bara
  * mappningen. Fixturen körs dessutom genom den gamla mappningen (kopierad nedan) och den nya (toRunData), med
  * och utan run_weather, så att väderfälten bevisligen inte rubbar något.
@@ -38,7 +38,6 @@ const EXPECTED: Record<string, number> = {
   maxRunsOneWeek: 8,
   longestRunAfterBreak14: 42.5,
   longestRunAfterBreak30: 15.5,
-  lowestPaceStdDev: 694.4444444444445,
   maxWeekdayStreak: 8,
   bestDoubleDayKm: 17.5,
   fastestMarathon: 480,
@@ -63,7 +62,7 @@ const legacyMap = (r: any): RunData => ({
 
 const stats: UserStats = { ...FIXTURE_STATS };
 
-// Motorer som tillkommit efter RUN-98 har egna tester (t.ex. winterKm.test.ts) och ingår inte i de 21 fasta värdena.
+// Motorer som tillkommit efter RUN-98 har egna tester (t.ex. winterKm.test.ts) och ingår inte i de 20 fasta värdena.
 const ADDED_AFTER_RUN98 = ['winterKm', 'stormRunCount', 'coldRunCount'];
 const withoutNewer = (values: Record<string, number>): Record<string, number> =>
   Object.fromEntries(Object.entries(values).filter(([key]) => !ADDED_AFTER_RUN98.includes(key)));
@@ -87,16 +86,16 @@ afterAll(() => {
 });
 
 describe('titelmotorernas regression', () => {
-  it('registret har de 21 förväntade motorerna (plus de som tillkommit senare)', () => {
+  it('registret har de 20 förväntade motorerna (plus de som tillkommit senare)', () => {
     expect([...titleEngineRegistry.keys()].sort()).toEqual([...Object.keys(EXPECTED), ...ADDED_AFTER_RUN98].sort());
-    expect(titleEngineRegistry.size).toBe(24);
+    expect(titleEngineRegistry.size).toBe(23);
   });
 
-  it('de 21 befintliga motorerna ger oförändrade värden på en fast fixtur (gamla mappningen)', () => {
+  it('de 20 befintliga motorerna ger oförändrade värden på en fast fixtur (gamla mappningen)', () => {
     expect(valuesFrom(FIXTURE_ROWS.map(legacyMap))).toEqual(EXPECTED);
   });
 
-  it('de 21 befintliga motorerna ger oförändrade värden på en fast fixtur (nya toRunData)', () => {
+  it('de 20 befintliga motorerna ger oförändrade värden på en fast fixtur (nya toRunData)', () => {
     expect(valuesFrom(FIXTURE_ROWS.map(toRunData))).toEqual(EXPECTED);
   });
 
