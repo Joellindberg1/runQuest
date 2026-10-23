@@ -25,7 +25,7 @@ import { FIXTURE_ROWS, FIXTURE_STATS, type FixtureRow } from './regressionFixtur
 // Räknat på ORÖRD kod, inte på den nya: `git archive 57c0f21 apps/backend/src/titleEngines` (före RUN-98) extraherat
 // utanför repot, fixturen kopierad dit och körd genom den gamla mappningen (legacyMap nedan) och de gamla motorerna
 // med TZ=UTC och systemtid 2026-07-15 (→ förra månaden = juni, 6 × 7 km = 42).
-// Fixturen når bestDoubleDayKm:s kvalificerade gren (2026-08-15: 9 + 8,5 km, 12 h emellan → 17,5, inte "bästa försök")
+// Fixturen når bestDoubleDayKm:s kvalificerade gren (2026-08-15: 9 + 8,5 km, 12 h emellan → 17,5)
 // och lastRunOfWeek:s fallback (söndag 2026-08-16 utan start_time → 2026-08-16T23:00:00Z = 1786921200).
 const EXPECTED: Record<string, number> = {
   longestRun: 42.5,
