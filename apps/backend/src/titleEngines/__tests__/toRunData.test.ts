@@ -78,6 +78,13 @@ describe('toRunData', () => {
     });
   });
 
+  it('is_treadmill is passed through, and a missing value becomes null', () => {
+    expect(toRunData({ ...base, is_treadmill: true }).is_treadmill).toBe(true);
+    expect(toRunData({ ...base, is_treadmill: false }).is_treadmill).toBe(false);
+    expect(toRunData({ ...base, is_treadmill: null }).is_treadmill).toBeNull();
+    expect(toRunData(base).is_treadmill).toBeNull();
+  });
+
   it('befintliga fält skickas igenom oförändrade', () => {
     const run = toRunData({
       ...base,

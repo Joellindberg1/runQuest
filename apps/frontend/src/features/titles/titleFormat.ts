@@ -43,7 +43,6 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
       const mins = Math.round(seconds / SECONDS_PER_MINUTE);
       return `${Math.floor(mins / MINUTES_PER_HOUR)}h${String(mins % MINUTES_PER_HOUR).padStart(2, '0')}m`;
     }
-    case 'lowestPaceStdDev':
     case 'avgPaceStdDev': {
       const stdDev = decodeTitleMetric(metricKey, value);
       return stdDev === null ? '—' : `${stdDev.toFixed(1)}s/km std`;
@@ -80,7 +79,7 @@ export function formatTitleValue(metricKey: string | undefined, value: number): 
 
 /** Mått där värdet är kodat för sortering (tid, spridning, datum) — en differens vore meningslös. */
 const NON_LINEAR_METRICS = new Set([
-  'fastestMarathon', 'fastestHalfMarathon', 'fastest5km', 'lowestPaceStdDev', 'avgPaceStdDev', 'lastRunOfWeek',
+  'fastestMarathon', 'fastestHalfMarathon', 'fastest5km', 'avgPaceStdDev', 'lastRunOfWeek',
 ]);
 
 /** Går skillnaden mellan två värden att läsa som ett tal i måttets enhet ("4 runs")? */

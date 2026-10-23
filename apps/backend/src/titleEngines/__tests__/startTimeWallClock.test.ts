@@ -68,8 +68,8 @@ describe.each(zones)('titelmotorernas klockslag — TZ=%s', (tz) => {
       at(`${day}T09:59:00Z`, { distance_km: 7 }),
       at(`${day}T20:00:00Z`, { distance_km: 2 }),
     ];
-    // Under 4 h: ingen kvalificerad dag, så motorn faller tillbaka på bästa försöket (alla rundor den dagen).
-    expect(bestDoubleDayKmEngine.calculate(tooClose, stats)).toBe(15);
+    // Under 4 h: ingen kvalificerad dag, så inget värde (0).
+    expect(bestDoubleDayKmEngine.calculate(tooClose, stats)).toBe(0);
   });
 
   it('bestDoubleDayKm: mellanrummet mäts på väggklockan även över sommartidsbyte (2026-03-29, 00:30 -> 04:30)', () => {
@@ -79,8 +79,8 @@ describe.each(zones)('titelmotorernas klockslag — TZ=%s', (tz) => {
       at('2026-03-29T04:30:00Z', { distance_km: 6 }),
       at('2026-03-29T20:00:00Z', { distance_km: 2 }),
     ];
-    // 12 = giltig dubbeldag med bara ≥ 5 km-rundorna. Hade gapet mätts i verkliga ögonblick (3 h) hade motorn
-    // fallit tillbaka på bästa försöket (14), så värdet skiljer rätt beteende från fel.
+    // 12 = giltig dubbeldag med bara ≥ 5 km-rundorna. Hade gapet mätts i verkliga ögonblick (3 h) hade dagen
+    // inte kvalat och värdet blivit 0, så värdet skiljer rätt beteende från fel.
     expect(bestDoubleDayKmEngine.calculate(runs, stats)).toBe(12);
   });
 });

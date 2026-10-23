@@ -45,7 +45,7 @@ export async function getGroupEligibility(groupId: string): Promise<GroupEligibi
     users.map(async (user: any): Promise<GroupEligibilityEntry> => {
       const { data: runs } = await supabase.client
         .from('runs')
-        .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
+        .select('date, distance, start_time, total_elevation_gain, is_treadmill, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
         .eq('user_id', user.id)
         .order('date', { ascending: true });
 

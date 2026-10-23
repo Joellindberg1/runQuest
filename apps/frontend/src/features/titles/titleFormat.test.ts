@@ -84,7 +84,7 @@ describe('formatTitleValue (värden är kodade för sortering)', () => {
   });
 
   it('pace-spridning avkodas till sekunder per km', () => {
-    expect(formatTitleValue('lowestPaceStdDev', 2000)).toBe('5.0s/km std');
+    expect(formatTitleValue('avgPaceStdDev', 2000)).toBe('5.0s/km std');
   });
 });
 
@@ -175,7 +175,6 @@ describe('visningen av kodade värden är oförändrad mot de gamla formlerna', 
   it('spridning: varje tiondels sekund per km', () => {
     for (let tenths = 1; tenths <= 3000; tenths++) {
       for (const raw of [10000 / (tenths / 10), stored(10000 / (tenths / 10))]) {
-        expect(formatTitleValue('lowestPaceStdDev', raw)).toBe(`${(10000 / raw).toFixed(1)}s/km std`);
         expect(formatTitleValue('avgPaceStdDev', raw)).toBe(`${(10000 / raw).toFixed(1)}s/km std`);
       }
     }

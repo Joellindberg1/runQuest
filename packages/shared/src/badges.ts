@@ -8,6 +8,7 @@
 // ändå generisk och tillåter olika mått per tier; kontraktstestet är det som håller serierna enhetliga.
 
 import { wallClockMinutes } from './calendar.js';
+import { countedElevationGain } from './runElevation.js';
 
 /** Antal nivåer per serie. */
 export const MAX_TIER = 6;
@@ -115,12 +116,12 @@ export const BADGE_METRICS = {
       return { value: sum };
     },
   },
-  /** Summa höjdmeter, hundradelar av m; null räknas som 0. */
+  /** Summa höjdmeter, hundradelar av m; null räknas som 0 och löpbandsrundor bidrar inte (countedElevationGain). */
   total_elevation_m: {
     scale: 100,
     measure(runs) {
       let sum = 0;
-      for (const run of runs) sum += toHundredths(run.total_elevation_gain);
+      for (const run of runs) sum += toHundredths(countedElevationGain(run));
       return { value: sum };
     },
   },

@@ -6,9 +6,9 @@ import { MAPPED_METRIC_KEYS, TITLE_CATEGORIES, categoryOf, iconOf } from './titl
 import { TITLE_ENGINE_METRIC_KEYS } from './titleMetricKeys.fixture';
 
 describe('kategorimappningen metric_key → grupp', () => {
-  it('fixturen har de 24 motorerna', () => {
-    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(24);
-    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(24);
+  it('fixturen har de 23 motorerna', () => {
+    expect(TITLE_ENGINE_METRIC_KEYS).toHaveLength(23);
+    expect(new Set(TITLE_ENGINE_METRIC_KEYS).size).toBe(23);
   });
 
   it.each(TITLE_ENGINE_METRIC_KEYS)('%s är mappad till en riktig kategori (inte Other)', (key) => {

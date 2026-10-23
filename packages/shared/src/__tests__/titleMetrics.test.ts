@@ -27,16 +27,16 @@ describe('decode(encode(x)) === x för varje kodat mått', () => {
     for (const seconds of moveTimes[key]) expect(decodeTitleMetric(key, encodeTitleMetric(key, seconds))).toBe(seconds);
   });
 
-  it('lowestPaceStdDev och avgPaceStdDev: spridning i sekunder per km', () => {
-    for (const key of ['lowestPaceStdDev', 'avgPaceStdDev'] as const) {
-      for (const stdDev of [0.5, 8, 12.5, 16, 22.5, 50, 100, 250]) expect(decodeTitleMetric(key, encodeTitleMetric(key, stdDev))).toBe(stdDev);
+  it('avgPaceStdDev: spridning i sekunder per km', () => {
+    for (const stdDev of [0.5, 8, 12.5, 16, 22.5, 50, 100, 250]) {
+      expect(decodeTitleMetric('avgPaceStdDev', encodeTitleMetric('avgPaceStdDev', stdDev))).toBe(stdDev);
     }
   });
 
   it('pace-spridning: tur och retur ligger inom flyttalsfel för alla ett-decimalsvärden 0,1–300', () => {
     for (let tenths = 1; tenths <= 3000; tenths++) {
       const stdDev = tenths / 10;
-      expect(decodeTitleMetric('lowestPaceStdDev', encodeTitleMetric('lowestPaceStdDev', stdDev))).toBeCloseTo(stdDev, 9);
+      expect(decodeTitleMetric('avgPaceStdDev', encodeTitleMetric('avgPaceStdDev', stdDev))).toBeCloseTo(stdDev, 9);
     }
   });
 
@@ -48,7 +48,7 @@ describe('decode(encode(x)) === x för varje kodat mått', () => {
 
   it('täcker exakt de kodade måtten', () => {
     expect([...ENCODED_TITLE_METRICS].sort()).toEqual([
-      'avgPaceStdDev', 'fastest5km', 'fastestHalfMarathon', 'fastestMarathon', 'lastRunOfWeek', 'lowestPaceStdDev',
+      'avgPaceStdDev', 'fastest5km', 'fastestHalfMarathon', 'fastestMarathon', 'lastRunOfWeek',
     ]);
   });
 });
@@ -66,8 +66,8 @@ describe('värdena är bitidentiska med de gamla inbäddade formlerna', () => {
   });
 
   it('spridningsmåtten: 10000 delat med spridningen', () => {
-    expect(encodeTitleMetric('lowestPaceStdDev', 14.4)).toBe(10000 / 14.4);
-    expect(encodeTitleMetric('lowestPaceStdDev', 3.3)).toBe(3030.3030303030305);
+    expect(encodeTitleMetric('avgPaceStdDev', 14.4)).toBe(10000 / 14.4);
+    expect(encodeTitleMetric('avgPaceStdDev', 3.3)).toBe(3030.3030303030305);
     expect(encodeTitleMetric('avgPaceStdDev', 22.5)).toBe(444.44444444444446);
     expect(encodeTitleMetric('avgPaceStdDev', 25.3125)).toBe(10000 / 25.3125);
   });
@@ -89,7 +89,7 @@ describe('avkodning för visning', () => {
     expect(decodeTitleMetric('fastestHalfMarathon', -9999)).toBeNull();
     expect(decodeTitleMetric('fastestMarathon', -100.5)).toBeNull();
     expect(decodeTitleMetric('avgPaceStdDev', 0)).toBeNull();
-    expect(decodeTitleMetric('lowestPaceStdDev', -3)).toBeNull();
+    expect(decodeTitleMetric('avgPaceStdDev', -3)).toBeNull();
   });
 
   it('en riktig men långsam tid (värde -100 eller högre) är fortfarande en tid', () => {
@@ -109,7 +109,6 @@ describe('"inget värde" per mått', () => {
     expect(noValueFor('fastest5km')).toBe(-9999);
     expect(noValueFor('fastestHalfMarathon')).toBe(-9999);
     expect(noValueFor('fastestMarathon')).toBe(-9999);
-    expect(noValueFor('lowestPaceStdDev')).toBe(0);
     expect(noValueFor('avgPaceStdDev')).toBe(0);
     expect(noValueFor('lastRunOfWeek')).toBe(0);
   });

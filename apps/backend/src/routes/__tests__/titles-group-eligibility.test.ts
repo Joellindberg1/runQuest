@@ -1,6 +1,6 @@
 /**
  * RUN-98 T3/T5 — GET /api/titles/group-eligibility: runs-selecten hämtar run_weather och ctx.now skickas till
- * motorerna, medan svarets form är oförändrad (envelope, {userId, name, gender, values}, de 21 nycklarna).
+ * motorerna, medan svarets form är oförändrad (envelope, {userId, name, gender, values}, de 20 nycklarna).
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
@@ -28,10 +28,10 @@ const spyEngine = { metricKey: SPY_KEY, calculate: vi.fn(() => 1) };
 
 const ENGINE_KEYS = [
   'longestRun', 'totalKm', 'longestStreak', 'weekendAvg', 'nightRunCount', 'earlyRunCount', 'lunchRunCount',
-  'maxRunsOneWeek', 'longestRunAfterBreak14', 'longestRunAfterBreak30', 'lowestPaceStdDev', 'maxWeekdayStreak',
+  'maxRunsOneWeek', 'longestRunAfterBreak14', 'longestRunAfterBreak30', 'maxWeekdayStreak',
   'bestDoubleDayKm', 'fastestMarathon', 'fastestHalfMarathon', 'lastRunOfWeek', 'maxKmRolling30',
   'totalElevationGain', 'bestSingleRunElevation', 'fastest5km', 'avgPaceStdDev',
-  'winterKm', // RUN-100: första motorn efter de 21
+  'winterKm', // RUN-100: första motorn efter de 20
   'stormRunCount', 'coldRunCount', // RUN-99
 ];
 
@@ -79,7 +79,7 @@ function seed() {
 }
 
 describe('GET /api/titles/group-eligibility', () => {
-  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och motornycklarna (21 + winterKm, stormRunCount, coldRunCount)', async () => {
+  it('svarets form är oförändrad: envelope, {userId, name, gender, values} och motornycklarna (20 + winterKm, stormRunCount, coldRunCount)', async () => {
     seed();
     const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
 
@@ -126,6 +126,26 @@ describe('GET /api/titles/group-eligibility', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, data: [] });
     expect(db.queries).toEqual([]);
+  });
+});
+
+describe('GET /api/titles/group-eligibility — treadmill runs', () => {
+  it('reads is_treadmill, and a treadmill run adds no elevation to the values', async () => {
+    const db = createFakeDb({
+      users: [{ id: 'user-1', name: 'Alice', group_id: 'group-1', total_km: 20, longest_streak: 2, gender: 'female' }],
+      group_members: [{ group_id: 'group-1', user_id: 'user-1', starts_on: null, left_at: null }],
+      runs: [
+        { id: 'r1', user_id: 'user-1', date: '2026-12-01', distance: 10, start_time: null, total_elevation_gain: 100, is_treadmill: false, pace_std_dev: null, moving_time: null, run_weather: null },
+        { id: 'r2', user_id: 'user-1', date: '2026-12-02', distance: 10, start_time: null, total_elevation_gain: 400, is_treadmill: true, pace_std_dev: null, moving_time: null, run_weather: null },
+      ],
+    });
+    holder.client = db.client;
+
+    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
+
+    expect(res.status).toBe(200);
+    for (const q of db.queries.filter((x) => x.table === 'runs')) expect(q.select).toContain('is_treadmill');
+    expect(res.body.data[0].values).toMatchObject({ totalElevationGain: 100, bestSingleRunElevation: 100 });
   });
 });
 

@@ -28,6 +28,7 @@ export function toRunData(row: Record<string, unknown>): RunData {
     distance_km: parseFloat(row.distance_km as string) || 0,
     start_time: (row.start_time as string | null | undefined) ?? null,
     total_elevation_gain: (row.total_elevation_gain as number | null | undefined) ?? null,
+    is_treadmill: (row.is_treadmill as boolean | null | undefined) ?? null,
     pace_std_dev: (row.pace_std_dev as number | null | undefined) ?? null,
     moving_time: (row.moving_time as number | null | undefined) ?? null,
     temperature_c: toNullableNumber(weather?.temperature_c),
