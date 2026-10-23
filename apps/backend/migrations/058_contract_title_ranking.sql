@@ -1,6 +1,6 @@
 -- 058: contract-migration för titelrankingen — släpp omslagsfunktionerna, shim-triggern, rebuild-triggern, titles.current_holder_id/current_value och slutstämplingen av titles.updated_at.
 -- ADR 012 beslut 1.5 och 8 (RUN-309, v0.8.1). Slår ihop rankingens tre uppdateringsvägar till en (se EN VÄG nedan).
--- Datum: 2026-10-19. APPLICERAD i staging 2026-10-19 (ägar-ja i chatten); EJ APPLICERAD i prod. Kräver ägar-ja per miljö (kolumnerna släpps: destruktivt enligt docs/permissions.md): först staging (supabase-staging, projekt
+-- Datum: 2026-10-19. APPLICERAD i staging 2026-10-19 och i prod 2026-10-23 efter v0.8.1-deployen (ägar-ja i chatten; A1 8→0, A3 0/0, A4 och A5 identiska före och efter, B1–B4 OK). Kräver ägar-ja per miljö (kolumnerna släpps: destruktivt enligt docs/permissions.md): först staging (supabase-staging, projekt
 -- aormctqrmguvncxrigwy), sedan prod (yrrqaxdngayakcivfrck). Körs av Lead via Supabase MCP apply_migration, name: 058_contract_title_ranking, aldrig av en builder.
 -- Lead uppdaterar den här raden till APPLICERAD med datum och miljö.
 --
