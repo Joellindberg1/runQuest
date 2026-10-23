@@ -297,6 +297,15 @@ describe('climber (summa höjdmeter)', () => {
     expect(tier('climber', runs)).toBe(4); // exakt 8848
   });
 
+  it('does not count the elevation of a treadmill run', () => {
+    expect(tier('climber', [run({ total_elevation_gain: 600, is_treadmill: true })])).toBe(0);
+    expect(tier('climber', [run({ total_elevation_gain: 300, is_treadmill: false }), run({ total_elevation_gain: 300, is_treadmill: true })])).toBe(0);
+  });
+
+  it('counts a run with is_treadmill null as outdoors', () => {
+    expect(tier('climber', [run({ total_elevation_gain: 600, is_treadmill: null })])).toBe(1);
+  });
+
   it('ignorerar negativa och icke-ändliga värden i stället för att förgifta summan', () => {
     const runs = [
       run({ total_elevation_gain: 600 }),

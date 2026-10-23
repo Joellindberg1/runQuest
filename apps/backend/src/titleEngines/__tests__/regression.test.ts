@@ -113,9 +113,9 @@ describe('titelmotorernas regression', () => {
 
   it('toRunData ger samma värden som den gamla mappningen för alla fält som fanns i den ursprungliga mappningen', () => {
     for (const r of FIXTURE_ROWS) {
-      const { temperature_c, wind_speed_ms, wind_gusts_ms, ...legacyFields } = toRunData(r);
+      const { temperature_c, wind_speed_ms, wind_gusts_ms, is_treadmill, ...legacyFields } = toRunData(r);
       expect(legacyFields).toEqual(legacyMap(r));
-      expect([temperature_c, wind_speed_ms, wind_gusts_ms]).toEqual([null, null, null]);
+      expect([temperature_c, wind_speed_ms, wind_gusts_ms, is_treadmill]).toEqual([null, null, null, null]);
     }
   });
 

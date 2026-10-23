@@ -129,6 +129,26 @@ describe('GET /api/titles/group-eligibility', () => {
   });
 });
 
+describe('GET /api/titles/group-eligibility — treadmill runs', () => {
+  it('reads is_treadmill, and a treadmill run adds no elevation to the values', async () => {
+    const db = createFakeDb({
+      users: [{ id: 'user-1', name: 'Alice', group_id: 'group-1', total_km: 20, longest_streak: 2, gender: 'female' }],
+      group_members: [{ group_id: 'group-1', user_id: 'user-1', starts_on: null, left_at: null }],
+      runs: [
+        { id: 'r1', user_id: 'user-1', date: '2026-12-01', distance: 10, start_time: null, total_elevation_gain: 100, is_treadmill: false, pace_std_dev: null, moving_time: null, run_weather: null },
+        { id: 'r2', user_id: 'user-1', date: '2026-12-02', distance: 10, start_time: null, total_elevation_gain: 400, is_treadmill: true, pace_std_dev: null, moving_time: null, run_weather: null },
+      ],
+    });
+    holder.client = db.client;
+
+    const res = await server.request('GET', '/api/titles/group-eligibility', { token: mintToken({ user_id: 'user-1' }) });
+
+    expect(res.status).toBe(200);
+    for (const q of db.queries.filter((x) => x.table === 'runs')) expect(q.select).toContain('is_treadmill');
+    expect(res.body.data[0].values).toMatchObject({ totalElevationGain: 100, bestSingleRunElevation: 100 });
+  });
+});
+
 describe('GET /api/titles/group-eligibility — medlemmar och fönster', () => {
   // Rundor 1 dec (8.5 km) och 2 dec (5 km); lagrade totaler (100 km, streak 7) gäller all historik och skiljer sig medvetet från rundorna.
   const RUNS = [

@@ -3,6 +3,8 @@ export interface RunData {
   distance_km: number;
   start_time?: string | null;
   total_elevation_gain?: number | null;
+  /** Löpband (runs.is_treadmill); true ger 0 höjdmeter i titlarna (countedElevationGain). null/saknas = utomhus. */
+  is_treadmill?: boolean | null;
   pace_std_dev?: number | null;
   moving_time?: number | null;
   /** Väder vid rundan (run_weather). null = ingen väderrad (inomhus, utan koordinater eller ännu inte hämtad). */

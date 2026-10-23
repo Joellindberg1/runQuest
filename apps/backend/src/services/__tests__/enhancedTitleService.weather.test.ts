@@ -30,12 +30,12 @@ function tables(): Record<string, Row[]> {
       { id: 'u2', group_id: 'g1', total_km: 20, longest_streak: 2 },
     ],
     runs: [
-      { id: 'r1', user_id: 'u1', date: '2026-12-01', distance: '8.5', start_time: null, total_elevation_gain: null,
+      { id: 'r1', user_id: 'u1', date: '2026-12-01', distance: '8.5', start_time: null, total_elevation_gain: null, is_treadmill: false,
         pace_std_dev: null, moving_time: null,
         run_weather: { temperature_c: '-3.5', wind_speed_ms: '11.0', wind_gusts_ms: 17.5 } },
-      { id: 'r2', user_id: 'u1', date: '2026-12-02', distance: 5, start_time: null, total_elevation_gain: null,
+      { id: 'r2', user_id: 'u1', date: '2026-12-02', distance: 5, start_time: null, total_elevation_gain: null, is_treadmill: true,
         pace_std_dev: null, moving_time: null, run_weather: null },
-      { id: 'r3', user_id: 'u2', date: '2026-12-03', distance: 6, start_time: null, total_elevation_gain: null,
+      { id: 'r3', user_id: 'u2', date: '2026-12-03', distance: 6, start_time: null, total_elevation_gain: null, is_treadmill: null,
         pace_std_dev: null, moving_time: null,
         run_weather: [{ temperature_c: 4, wind_speed_ms: 1.5, wind_gusts_ms: null }] },
     ],
@@ -101,6 +101,20 @@ describe('processGroupTitles — väder och ctx', () => {
 
     const u2 = byFirstDate.get('2026-12-03')!;
     expect(u2[0]).toMatchObject({ temperature_c: 4, wind_speed_ms: 1.5, wind_gusts_ms: null });
+  });
+
+  it('processGroupTitles reads is_treadmill and the flag reaches the engine (true, false and null)', async () => {
+    const { db, service } = setup();
+    await service.processGroupTitles('g1', { emitNews: false });
+
+    for (const q of db.queries.filter((x) => x.table === 'runs')) expect(q.select).toContain('is_treadmill');
+
+    const byFirstDate = new Map<string, any[]>();
+    for (const call of spyEngine.calculate.mock.calls as unknown as any[][]) byFirstDate.set(call[0][0].date, call[0]);
+    const u1 = byFirstDate.get('2026-12-01')!;
+    expect(u1[0].is_treadmill).toBe(false);
+    expect(u1[1].is_treadmill).toBe(true);
+    expect(byFirstDate.get('2026-12-03')![0].is_treadmill).toBeNull();
   });
 
   it('alla användare i en körning delar samma ctx.now (ett "nu" per omräkning)', async () => {
