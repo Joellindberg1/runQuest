@@ -38,9 +38,12 @@ Underhållsversion (patch). Släpps 2026-10-22 via release-PR:en från `release/
 ### Prod-steg
 1. **KÖRT 2026-10-22.** Backfillens dry-run i prod (ägaren) och migration 060 i staging och prod (ägar-ja), `docs/release.md` avsnitt 5 punkt 6.
 2. **KÖRT 2026-10-22 21:44.** Migration 059 i prod FÖRE deployen (ägar-ja): Q1 kolumnerna date och NULL-bara, Q2 8 rader, 0 utan fönster, 0 avvikande, Q3 RLS oförändrad, `get_advisors security` utan nya fynd. `docs/release.md` avsnitt 5 punkt 7.
-3. Release-PR mot `main`, grön CI, merge (= deploy). Rök enligt `docs/release.md` steg 4, med Sentrys host under skarp CSP och hälsoblocket (`plaintext_rows` och `unrecognised_rows` 0).
-4. Migration 058 i prod EFTER grön rök (ägar-ja), sedan röken C1 i filhuvudet.
-5. Tagg `v0.8.1` på merge-commiten, stagingtjänsterna pekas om till `integration/v0.8.2`, docs-PR "live". Ingen `announce:release`.
+3. **KÖRT 2026-10-23 10:25.** Release-PR #54 mot `main`, grön CI (alla fyra jobben, Lighthouse-budgeten hålls), squash-merge 12971285 (= deploy, båda tjänsterna SUCCESS 10:30). Rök enligt `docs/release.md` steg 4, med Sentrys host under skarp CSP och hälsoblocket (`plaintext_rows` och `unrecognised_rows` 0).
+4. **KÖRT 2026-10-23.** Migration 058 i prod efter grön rök (ägar-ja, backup 05:30 samma dag): A1 8→0, A3 0/0, A4 och A5 identiska före och efter, B1–B4 OK. C1 efter nästa rundloggning.
+5. **KÖRT 2026-10-23.** Tagg `v0.8.1` på 12971285, stagingtjänsterna pekade om till `integration/v0.8.2`, den här docs-PR:en. Ingen `announce:release`.
+
+### Utfall (2026-10-23)
+Röken efter deploy: startloggen (`prod-1`, Sentry på, schedulers startade, ingen KRITISKT, ingen TZ-varning), skarp CSP, HSTS, Referrer-Policy och X-Frame-Options på `/`, `/board` och 404, CSP-hasharna matchar inline-skripten i den riktiga prod-HTML:en (`/`, `/board`, `/legal`, `/strava-popup.html`), apex 308, `/health` OK, skyddade rutter 401, `/auth/refresh` 404, `.map` 404. Riktiga användare inloggade direkt efter deploy.
 
 Under deployfönstret (frontend och backend byts var för sig) kan en NY Strava-koppling få 400 `consent_required`: samtyckesversionen går från `2026-10-19.1` till `2026-10-22` och callbacken kräver exakt likhet. Redan kopplade berörs inte. Koppla inte Strava förrän båda tjänsterna är deployade.
 

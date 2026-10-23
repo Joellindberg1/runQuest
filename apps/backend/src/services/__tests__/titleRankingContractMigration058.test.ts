@@ -286,7 +286,7 @@ describe(`migration ${file}: den ersatta rebuild-funktionen`, () => {
 describe(`migration ${file}: huvudet`, () => {
   it('anger syfte, status (ej applicerad), ordning, körordning, kör-när-inget-skriver, staging-sekvens och att en builder aldrig applicerar', () => {
     expect(sql).toMatch(/^-- 058: contract-migration/);
-    expect(sql).toContain('EJ APPLICERAD');
+    expect(sql).toContain('APPLICERAD i staging 2026-10-19 och i prod 2026-10-23');
     expect(sql).toContain('ägar-ja per miljö');
     expect(sql).toMatch(/-- ORDNING: kräver 055 och 056/);
     expect(sql).toMatch(/-- KÖRORDNING:/);
