@@ -31,11 +31,11 @@
 /* Siffrorna: hjältekortet med etikett och rader i hårlinjegrid, värdet i Bebas guld */
 .rq-playbook-table { min-width: 0; }
 .rq-playbook-table__label { margin: 0 0 var(--rq-sp-12); }
-.rq-playbook-rows { margin: 0; }
+.rq-playbook-rows { margin: 0; grid-template-columns: minmax(0, 1fr); }
 .rq-playbook-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--rq-sp-12); background: var(--rq-cell); padding: var(--rq-sp-10) var(--rq-sp-14); }
 .rq-playbook-row__label { min-width: 0; font-size: var(--rq-fs-body); color: var(--rq-text-3); }
 .rq-playbook-row__note { display: block; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-playbook-row__value { margin: 0; flex-shrink: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }
+.rq-playbook-row__value { margin: 0; min-width: 0; text-align: right; overflow-wrap: anywhere; text-wrap: balance; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 
 /* Titellistan ur databasen */
 .rq-playbook-titles { margin-top: var(--rq-sp-24); }
