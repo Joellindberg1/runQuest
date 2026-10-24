@@ -91,7 +91,7 @@ kedjeordning) med en **minimal in-memory-fake av Supabase-klienten**:
   fönsterlogik): `earlyRunCount`, `lunchRunCount`, `nightRunCount`,
   `lastRunOfWeek`, `maxWeekdayStreak`, `longestRunAfterBreak14/30`,
   `maxKmRolling30`, `maxRunsOneWeek`, `weekendAvg`, `bestDoubleDayKm`,
-  `avgPaceStdDev`, `lowestPaceStdDev`, `fastest5km/HalfMarathon/Marathon`.
+  `avgPaceStdDev`, `fastest5km/HalfMarathon/Marathon`.
   Triviala motorer (`totalKm`, `longestStreak`, `longestRun` m.fl.) täcks av
   kontraktstestet. Att ett test avslöjar tidszonsantagande i `start_time`
   (UTC vs Stockholm) är ett förväntat fynd — det rapporteras, fixas inte tyst.
