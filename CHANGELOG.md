@@ -2,6 +2,8 @@
 
 ## Buggfixar 2026-10-24 (buggrelease utan versionsnummer)
 
+**Live 2026-10-24** via PR #57, main `9c346bc1` (rollbackreferens: 69506fed). Prod-katalogen lästes före deploy: 23 titlar, ingen med `lowestPaceStdDev`. Röken efter deploy grön (hälsa, säkerhetshuvuden, CSP med den nya popup-hashen och utan den gamla, 0 `console.` i popupen, 401 på skyddade rutter, `.map` 404). Tyst titelomräkning (`reprocess:titles`, 6 av 6 användare): inga innehavare bytta och 0 nyhetsrader; badgeomräkningens dry-run hade inget att skriva.
+
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-24` (ägarbeslut 2026-10-24: buggar går direkt till Todo, prioriteras före stories och släpps separat från versionen som byggs, utan versionstagg). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.1.
 
 ### Titlar och badges
