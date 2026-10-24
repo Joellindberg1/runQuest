@@ -284,6 +284,10 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - `groupTimeZone` ger Stockholm för alla grupper tills RUN-21 (`apps/backend/src/utils/groupTimeZone.ts`). Blir fel den dag en grupp i en annan tidszon finns före RUN-21.
 - Svarskuvertet går med dubbelsvar (gamla toppnivånycklar bredvid `data`) tills steg 2 (RUN-364, ADR 007 Addendum 2026-10-20). Blir fel om steg 2 tas innan alla klienter läser `data`.
 
+## Löpband i titlar och badges (bugg 2026-10-24)
+- **`titles.outdoor_only` är oanvänd.** Ingen kod bestämmer något utifrån kolumnen (den väljs bara ut och följer med i katalogkontraktet). Löpbandsregeln (en löpbandsrunda ger 0 höjdmeter i The Mountain Goat, The Vertical Runner och badgen The Climber; ägarbeslut 2026-10-23) ligger i `countedElevationGain` i `packages/shared/src/runElevation.ts`. Kolumnen lämnades orörd och kan tas bort i en framtida migration. Blir fel om någon börjar läsa kolumnen som om den styrde löpbandsregeln.
+- Eventet Weekly elevation använder inte `countedElevationGain`: det filtrerar i databasen (`is_treadmill = false`), vilket också utesluter rader där `is_treadmill` är null. Titlarna och badgen räknar null som utomhus. Att låta eventet gå genom hjälparen vore en beteendeändring för null-rader.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).

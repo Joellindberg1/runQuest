@@ -585,3 +585,12 @@ användarversion. Kedjan ovan gäller i övrigt, med dessa skillnader:
 - `CHANGELOG.md` får en fyrdelad rubrik (`## v0.6.1.1`), och taggen får samma nummer (`v0.6.1.1`).
 - Migrationer (steg 5) gäller som vanligt, ett ja per migration; en intern version kan innehålla en.
 - Om previewn behövs för ett rent internt steg avgör ägaren; hoppas den över finns inget att logga eller återställa i steg 2.
+
+## Buggreleaser (utan versionsnummer)
+
+Ägarbeslut 2026-10-24: buggar får ingen epic och ingen fixVersion i Jira, går direkt överst i Todo och släpps separat från versionen som byggs. Kedjan ovan gäller i övrigt (kritiker, integrationskritiker, deploy-critic, Release Council, ägarens preview), med dessa skillnader:
+
+- Egen integrationsbranch från `main`, t.ex. `integration/bugfix-2026-10-24`. Staging pekas om till den under previewn och tillbaka till versionens integrationsbranch efteråt; `main` mergas sedan in i versionens branch.
+- Ingen versionsbump i `package.json`, ingen post i `changelog.json`, ingen "What's new" och ingen tagg. Steg 1 (bump), 6 (`announce:release`) och 7 (tagg) hoppas över. Versionsvakten är grön eftersom versionen inte ändras.
+- `CHANGELOG.md` får en rubrik med datum (`## Buggfixar ÅÅÅÅ-MM-DD`) med Prod-steg och Rollback. Main-commiten efter squash-mergen noteras där i steg 8 som referens, eftersom det inte finns någon tagg.
+- Migrationer (steg 5) gäller som vanligt, ett ja per migration.

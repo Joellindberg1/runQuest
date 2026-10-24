@@ -135,6 +135,16 @@ describe('evaluateBadges — läsning (T2, T3)', () => {
     expect(rows.find((b) => b.series === 'climber')).toMatchObject({ tier: 1 });
   });
 
+  it('is_treadmill reaches the badge measure: treadmill elevation does not count, null counts as outdoors', async () => {
+    const treadmill = setup({ runs: [run({ id: 't1', total_elevation_gain: 600, is_treadmill: true })] });
+    await evaluateBadges(USER, { now: NOW });
+    expect((await badgesOf(treadmill)).find((b) => b.series === 'climber')).toBeUndefined();
+
+    const legacy = setup({ runs: [run({ id: 't2', total_elevation_gain: 600, is_treadmill: null })] });
+    await evaluateBadges(USER, { now: NOW });
+    expect((await badgesOf(legacy)).find((b) => b.series === 'climber')).toMatchObject({ tier: 1 });
+  });
+
   it('longestStreak i opts används och users.longest_streak läses inte', async () => {
     const db = setup({ runs: [run()] });
 

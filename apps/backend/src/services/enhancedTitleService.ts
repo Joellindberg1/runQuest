@@ -217,7 +217,7 @@ export class EnhancedTitleService {
         const window = titleWindow({ starts_on: member.starts_on });
         const { data: runs, error: runsError } = await supabase.client
           .from('runs')
-          .select('date, distance, start_time, total_elevation_gain, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
+          .select('date, distance, start_time, total_elevation_gain, is_treadmill, pace_std_dev, moving_time, run_weather(temperature_c, wind_speed_ms, wind_gusts_ms)')
           .eq('user_id', member.user_id)
           .order('date', { ascending: true });
 

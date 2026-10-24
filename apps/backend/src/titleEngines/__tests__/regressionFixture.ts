@@ -1,6 +1,6 @@
 /**
  * Fast fixtur för titelmotorernas regressionstest (RUN-98): rader i DB-form som runs-selecten ger dem
- * (kolumnen heter `distance`; `distance_km` är aliaset som anroparna lägger på). Täcker alla 21 motorer:
+ * (kolumnen heter `distance`; `distance_km` är aliaset som anroparna lägger på). Täcker alla 20 motorer:
  * nattpass, tidiga pass, lunch, söndagar (lastRunOfWeek), helgveckor, veckodagsserie, uppehåll ≥14/≥30 dagar,
  * maraton/halvmaraton/5 km, höjdmeter, pace-spridning samt rader med null/saknade fält.
  * Ligger i __tests__ (inte i titleEngines/) så frontendens driftvakt inte räknar den som en motor.

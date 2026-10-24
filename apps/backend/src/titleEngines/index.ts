@@ -10,7 +10,6 @@ import { lunchRunCountEngine }         from './lunchRunCount';
 import { maxRunsOneWeekEngine }        from './maxRunsOneWeek';
 import { longestRunAfterBreak14Engine } from './longestRunAfterBreak14';
 import { longestRunAfterBreak30Engine } from './longestRunAfterBreak30';
-import { lowestPaceStdDevEngine }      from './lowestPaceStdDev';
 import { maxWeekdayStreakEngine }       from './maxWeekdayStreak';
 import { bestDoubleDayKmEngine }       from './bestDoubleDayKm';
 import { fastestMarathonEngine }       from './fastestMarathon';
@@ -36,7 +35,6 @@ const engines: TitleEngine[] = [
   maxRunsOneWeekEngine,
   longestRunAfterBreak14Engine,
   longestRunAfterBreak30Engine,
-  lowestPaceStdDevEngine,
   maxWeekdayStreakEngine,
   bestDoubleDayKmEngine,
   fastestMarathonEngine,

@@ -6,7 +6,7 @@
  *  - tid (fastest5km, fastestHalfMarathon, fastestMarathon): referensminuter minus rörelsetiden i minuter, alltså
  *    snabbare tid ger högre värde. Referensen (60 / 360 / 720) är en tak-tid som ingen löpare överskrider.
  *    "Ingen kvalificerande runda" är sentinelvärdet -9999, långt under varje riktigt värde.
- *  - spridning (lowestPaceStdDev, avgPaceStdDev): 10000 delat med pace-spridningen i s/km, så jämnare löpning ger högre
+ *  - spridning (avgPaceStdDev): 10000 delat med pace-spridningen i s/km, så jämnare löpning ger högre
  *    värde. "Ingen runda" är 0.
  *  - lastRunOfWeek: väggklockan för den senaste söndagsrundan som epok-sekunder. start_time är löparens lokala väggklocka med ett
  *    falskt 'Z' (se calendar.ts), så ögonblicket ÄR väggklockan och dagen läses i UTC.
@@ -21,7 +21,6 @@ export const ENCODED_TITLE_METRICS = [
   'fastest5km',
   'fastestHalfMarathon',
   'fastestMarathon',
-  'lowestPaceStdDev',
   'avgPaceStdDev',
   'lastRunOfWeek',
 ] as const;
@@ -29,7 +28,7 @@ export const ENCODED_TITLE_METRICS = [
 export type EncodedTitleMetric = (typeof ENCODED_TITLE_METRICS)[number];
 
 type TimeMetric = 'fastest5km' | 'fastestHalfMarathon' | 'fastestMarathon';
-type SpreadMetric = 'lowestPaceStdDev' | 'avgPaceStdDev';
+type SpreadMetric = 'avgPaceStdDev';
 
 /** Taktid i minuter per tidsmått: 1 h, 6 h och 12 h. */
 const TIME_REFERENCE_MINUTES: Record<TimeMetric, number> = {
@@ -55,7 +54,7 @@ function isTimeMetric(key: EncodedTitleMetric): key is TimeMetric {
 }
 
 function isSpreadMetric(key: EncodedTitleMetric): key is SpreadMetric {
-  return key === 'lowestPaceStdDev' || key === 'avgPaceStdDev';
+  return key === 'avgPaceStdDev';
 }
 
 /**

@@ -258,11 +258,11 @@
 .rq-duels-avatar { width: var(--rq-duels-avatar); height: var(--rq-duels-avatar); flex-shrink: 0; overflow: hidden; font-size: var(--rq-fs-label); }
 .rq-duels-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-.rq-duels-bet { padding: var(--rq-sp-12) var(--rq-sp-14); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
+.rq-duels-bet { padding: var(--rq-sp-10) var(--rq-sp-12); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
 .rq-duels-bet__label { margin: 0 0 var(--rq-sp-4); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
 .rq-duels-bet__summary { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
 .rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rq-sp-10); }
-.rq-duels-bet__stakes > div { text-align: center; }
+.rq-duels-bet__stakes > div { min-width: 0; text-align: start; }
 .rq-duels-bet__stakes dt { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up); }

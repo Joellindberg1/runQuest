@@ -1,5 +1,28 @@
 # Changelog
 
+## Buggfixar 2026-10-24 (buggrelease utan versionsnummer)
+
+Buggrelease mellan versionerna, från `integration/bugfix-2026-10-24` (ägarbeslut 2026-10-24: buggar går direkt till Todo, prioriteras före stories och släpps separat från versionen som byggs, utan versionstagg). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.1.
+
+### Titlar och badges
+- The Double Trouble räknar bara dagar som uppfyller regeln: minst två rundor på minst 5 km var, med giltig starttid och minst 4 timmar mellan starterna. Det tidigare reservvärdet (summan av alla rundor en dag med två eller fler rundor) är borta, så en titel som byggde på det blir vakant eller byter innehavare vid nästa omräkning (RUN-382).
+- Löpbandsrundor ger inga höjdmeter i The Mountain Goat, The Vertical Runner och badgen The Climber (ägarbeslut 2026-10-23). Regeln finns på ett ställe, `countedElevationGain` i shared; `is_treadmill: null` räknas som utomhus. Eventet Weekly elevation filtrerar som förut i databasen (RUN-381, se `docs/open-assumptions.md`).
+- Den döda titelmotorn `lowestPaceStdDev`, som ingen titel i katalogen använde, är borttagen: 23 motorer (RUN-383).
+
+### Gränssnitt
+- Strava-popupen skriver inte längre ut OAuth-koden i webbläsarkonsolen; CSP-hashen för popupens skript är uppdaterad (RUN-367).
+- Playbook: svaren i rutan "The basics" ryms i rutan på mobil och dator (RUN-374).
+- Landningen: luft mellan funktionskorten och "Join the waitlist" på dator, samma avstånd som mellan övriga sektioner (RUN-375).
+- Utmaningsarket: kortet "The bet" har samma padding och vänsterställda kolumner som övriga kort (RUN-376).
+
+### Prod-steg
+1. Före deploy: läs prod-katalogen `titles` (bara `metric_key`, med ägarens ja) och bekräfta att ingen titel använder `lowestPaceStdDev`. En okänd nyckel hoppas annars tyst över (`enhancedTitleService`, logger.warn).
+2. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks, Lighthouse och "Static serving (Caddy)" är gröna.
+3. Efter deploy: rök enligt `docs/release.md` steg 4, plus CSP-hashen för `strava-popup.html` mot det som serveras och 0 `console.` i popupen. Titlarna räknas om enligt ägarens val (tyst med `emitNews: false`, eller vid nästa rundändring eller nattsynk).
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras: redeploya 69506fed i Railway (frontend och backend), sedan en revert-PR på `main`. Titlar och badges räknas om till det gamla resultatet vid nästa omräkning.
+
 ## v0.8.1 — Städvarvet (2026-10-23)
 
 Underhållsversion (patch), live 2026-10-23 via release-PR #54 från `release/v0.8.1`. Tyst: posten i `changelog.json` (Feature & Version) har ingen `announce`, alltså ingen popup och ingen Pack News-rad. Posten lades till i efterhand (#56): ägarbeslut 2026-10-23, varje användarversion får en post och patchar är tysta om ägaren inte säger annat; versionsvakten kräver det sedan dess. Flyttat till v0.8.2 (ägarbeslut 2026-10-22): uppföljningarna RUN-366–372, RUN-317 (rotationsövningen för tokennyckeln) och RUN-270 (Strava-rök del B). react-router v7 blir en egen story efter v0.8.1 (ägarbeslut 2026-10-20).
