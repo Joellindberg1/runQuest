@@ -199,6 +199,12 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   | CSS (överförd storlek) | högst 50 kB | **högst 30 kB** | 23 338 B | 23 338 B | 6 662 B (22,2 %) |
   | Totalvikt | högst 500 kB | **högst 355 kB** | 304 866 / 305 135 B | 305 135 B | 49 865 B (14,0 %) |
 
+  **Marginalen efter react-router v7 (RUN-366, v0.8.2):** routerns chunk växte från 53,3 till 59,7 kB gzip, och landningen
+  förhämtar den. Lokal mätning (integrationskritiken 2026-10-25, Edge headless) gav JS 141,7 kB för `/` mot taket 150 kB
+  (marginal ca 5,5 %), mot 135,0 kB före v7; på CI väntas ca 134 kB (127,6 + ca 6,4), alltså ca 10 % marginal i stället för
+  15 % enligt tabellen ovan. Nästa funktion på landningen har mindre utrymme. Chunken bär oanvända `HydratedRouter` och
+  `RouterProvider`; att trimma bundlen är en möjlig senare story. Budgeten lättas inte utan ägarens ok.
+
   Hur taken räknades (ADR 006, punkt 10): LCP-taket blev målet 2 500 ms eftersom medianen (1 960 ms) ligger under 2 250 ms; prestanda
   `min(0,90; median − 0,03)`; JS uppmätt × 1,15 uppåt till 5 kB; TBT 150 ms eftersom medianen är under 100 ms; CLS 0,02 eftersom medianen är
   under 0,01; FCP uppmätt × 1,15 uppåt till 50 ms, räknat på den högsta jobbmedianen (1 655 ms, FCP hoppar i steg om ca 150 ms mellan 1 505

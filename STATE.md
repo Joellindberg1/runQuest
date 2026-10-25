@@ -151,8 +151,8 @@ Produkt: ny kod kräver tester · hela sviten grön + CI-status före merge ·
          finnas på main). Lasttestet (scripts/loadtest, docs/loadtest.md)
          går bara mot staging.
          Lighthouse: CI-jobbet mäter `/` och `/legal` på varje PR mot main,
-         icke-blockerande första veckan; omslaget till blockerande och
-         skärpningen av budgeten (RUN-334, v0.8.1) efter kalibrering mot
-         CI-körningarna.
+         med en kasserad uppvärmningskörning per sida och läge; budgeten
+         skärptes i RUN-334 (v0.8.1) och jobbet är blockerande sedan RUN-368
+         (v0.8.2) men ännu inte required check (villkor i docs/release.md).
          Frontend-typecheck/lint: blockerande, 0 fel/0 varningar (ADR 001,
          skulden betald 2026-10-04).
