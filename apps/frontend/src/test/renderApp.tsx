@@ -18,6 +18,7 @@ interface RenderOptions {
   width?: number;
 }
 
+// Samma val som AppBrowserRouter (app-shell): v7 lägger annars adressbyten i en övergång, och ett prov som läser sidan direkt efter ett svar ser tillståndet före adressbytet.
 export function renderWithApp(ui: React.ReactNode, { entry = '/', user = AUTH_USER, admin = false, width = 390 }: RenderOptions = {}) {
   setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
@@ -33,7 +34,7 @@ export function renderWithApp(ui: React.ReactNode, { entry = '/', user = AUTH_US
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={entries}>
+        <MemoryRouter initialEntries={entries} useTransitions={false}>
           {ui}
           <LocationProbe />
         </MemoryRouter>
