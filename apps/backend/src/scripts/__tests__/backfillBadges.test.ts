@@ -306,13 +306,13 @@ describe('--apply (T2)', () => {
     expect(report.failed).toBe(0);
   });
 
-  it('skriver bara user_badges (och users.displayed_badge_series vid behov) — inga andra tabeller', async () => {
+  it('skriver bara user_badges och users.displayed_badge_series — inga andra tabeller', async () => {
     const { db } = setup();
 
     await runBackfillBadges(opts({ apply: true }), NOW);
 
     const tablesWritten = new Set(mutations(db).map((q) => q.table));
-    expect([...tablesWritten]).toEqual(['user_badges']);
+    expect([...tablesWritten].sort()).toEqual(['user_badges', 'users']);
   });
 
   it('uppgradering av befintlig rad: seen_tier följer tier (ingen popup)', async () => {
@@ -348,7 +348,8 @@ describe('--apply (T2)', () => {
     await runBackfillBadges(opts({ apply: true }), NOW);
 
     expect(badgesOf(tables, 'anna').some((b) => b.series === 'earth_trotter')).toBe(false);
-    expect(tables.users[0].displayed_badge_series).toEqual([]);
+    // Earth Trotter städas bort; de tre nya serierna tar de lediga platserna.
+    expect(tables.users[0].displayed_badge_series).not.toContain('earth_trotter');
   });
 
   it('utan --silent lämnas befintliga oförändrade rader med seen_tier < tier, och rapporten varnar för popups', async () => {
@@ -437,6 +438,76 @@ describe('--silent (T3)', () => {
     await runBackfillBadges(opts({ apply: true, silent: true }), NOW);
 
     expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+  });
+});
+
+describe('visningen fylls av nya serier (samma skrivväg som evaluateBadges)', () => {
+  const showcaseOf = (tables: Record<string, Row[]>, userId: string): string[] =>
+    tables.users.find((u) => u.id === userId)!.displayed_badge_series;
+
+  it('--apply fyller lediga platser med de nya serierna i serieordning, utan activity_log-rader', async () => {
+    const { db, tables } = setup();
+
+    await runBackfillBadges(opts({ apply: true }), NOW);
+
+    expect(showcaseOf(tables, 'anna')).toEqual(['milestoner', 'streak_keeper', 'speedster']);
+    expect(showcaseOf(tables, 'bosse')).toEqual(['milestoner']);
+    expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+    expect(tables.activity_log).toEqual([]);
+  });
+
+  it('--apply --silent fyller också, och fyller bara med nya serier (en befintlig rad som aldrig visats rörs inte)', async () => {
+    const { db, tables } = setup(world({
+      user_badges: [badge({ user_id: 'anna', series: 'milestoner', tier: 2, seen_tier: 0 })],
+    }));
+
+    await runBackfillBadges(opts({ apply: true, silent: true }), NOW);
+
+    expect(showcaseOf(tables, 'anna')).toEqual(['streak_keeper', 'speedster']);
+    expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
+  });
+
+  it('en full visning ändras inte när en ny serie kommer', async () => {
+    const full = ['milestoner', 'streak_keeper', 'speedster'];
+    const { db, tables } = setup(world({
+      user_badges: [
+        badge({ user_id: 'anna', series: 'milestoner', tier: 2, seen_tier: 2 }),
+        badge({ user_id: 'anna', series: 'streak_keeper', tier: 1, seen_tier: 1 }),
+        badge({ user_id: 'anna', series: 'speedster', tier: 2, seen_tier: 2 }),
+      ],
+    }));
+    tables.users[0].displayed_badge_series = [...full];
+    tables.runs.push(run({ id: 'r4', date: '2026-09-04', distance: 3, total_elevation_gain: 600 })); // Climber 1 är ny
+
+    await runBackfillBadges(opts({ apply: true, silent: true }), NOW);
+
+    expect(badgesOf(tables, 'anna').map((b) => b.series)).toContain('climber');
+    expect(showcaseOf(tables, 'anna')).toEqual(full);
+    expect(mutations(db, 'users').filter((q) => q.filters.some((f) => f.column === 'id' && f.value === 'anna'))).toEqual([]);
+  });
+
+  it('en serie som användaren tagit bort ur visningen läggs inte tillbaka vid omkörning', async () => {
+    const { db, tables } = setup();
+    await runBackfillBadges(opts({ apply: true, silent: true }), NOW);
+    expect(showcaseOf(tables, 'anna')).toEqual(['milestoner', 'streak_keeper', 'speedster']);
+
+    // Anna tar bort Milestoner ur visningen.
+    tables.users[0].displayed_badge_series = ['streak_keeper', 'speedster'];
+    const writesBefore = mutations(db).length;
+
+    const rerun = await runBackfillBadges(opts({ apply: true, silent: true }), NOW);
+
+    expect(showcaseOf(tables, 'anna')).toEqual(['streak_keeper', 'speedster']);
+    expect(mutations(db).length).toBe(writesBefore);
+    expect(rerun.totals.written).toBe(0);
+  });
+
+  it('dry-run fyller ingenting', async () => {
+    const { tables } = setup();
+
+    await runBackfillBadges(opts(), NOW);
+
+    expect(showcaseOf(tables, 'anna')).toEqual([]);
   });
 });
 

@@ -16,6 +16,11 @@
 // Självläkning: users.displayed_badge_series stäms av mot serierna som FINNS i user_badges efter varje
 // utvärdering (inte bara mot den här körningens raderingar), så en serie som blev kvar i showcasen efter
 // ett tidigare fel städas vid nästa körning.
+//
+// Fyllning (ägarbeslut 2026-10-23): i samma avstämning och EN update fyller serierna som den här körningen
+// FAKTISKT lade till (written.inserts, första nivån i en ny serie) de lediga platserna (fillShowcase). Bara en
+// insert är kandidat: en serie som redan har en rad (uppgraderad, nedgraderad eller borttagen ur visningen av
+// användaren) läggs aldrig tillbaka, så ingen separat markering av "borttagen" behövs.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { readUserGroupId } from './userGroupId.js';
@@ -24,6 +29,7 @@ import {
   badgeNewsChanges,
   computeBadgeTiers,
   diffBadgeTiers,
+  fillShowcase,
   type BadgeDiff,
   type BadgeRun,
   type ExistingBadgeRow,
@@ -53,7 +59,7 @@ export interface EvaluateBadgesResult {
   /**
    * Det som FAKTISKT skrevs till user_badges (en post per lyckad skrivning). news (RUN-123) bygger på
    * detta: en lyckad uppgradering ska ge news även om en annan skrivning föll. `showcaseRemovals` är
-   * serierna vars rader raderades. Rensningen av displayed_badge_series ingår inte (ingen news).
+   * serierna vars rader raderades. Rensningen och fyllningen av displayed_badge_series ingår inte (ingen news).
    */
   written: BadgeDiff;
   /** false om någon skrivning eller showcase-läsning/-rensning föll; det som ändå skrevs står i `written`. */
@@ -142,10 +148,11 @@ export async function readExistingBadges(userId: string): Promise<ExistingBadgeR
  * Skriver diffen. Varje skrivning är oberoende: en som faller stoppar inte de andra. Ger det som
  * faktiskt skrevs (en lyckad upgrade/downgrade per post, inserts och deletes som grupp) och om allt lyckades.
  */
-async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadgesResult> {
+async function writeDiff(userId: string, diff: BadgeDiff): Promise<WriteDiffResult> {
   const supabase = getSupabaseClient();
   const written: BadgeDiff = { inserts: [], upgrades: [], downgrades: [], deletes: [], showcaseRemovals: [] };
   let complete = true;
+  let ensured: BadgeDiff['inserts'] = [];
 
   const attempt = async (label: string, write: () => PromiseLike<{ error: unknown }>): Promise<boolean> => {
     try {
@@ -160,15 +167,26 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadge
   };
 
   if (diff.inserts.length > 0) {
-    const ok = await attempt('insert badges', () =>
-      supabase
+    // select('series') gör att svaret bara bär raderna som faktiskt sattes in (ON CONFLICT DO NOTHING RETURNING). En
+    // dubblett som en samtidig utvärdering hann före ignoreras och räknas inte som skriven: då fyller vi inte visningen
+    // och skriver ingen news för den. Raden finns i alla fall efteråt, så den hör till `ensured`.
+    let inserted: Array<{ series: string }> = [];
+    const ok = await attempt('insert badges', async () => {
+      const { data, error } = await supabase
         .from(USER_BADGES_TABLE)
         .upsert(
           diff.inserts.map((i) => ({ user_id: userId, ...i })),
           { onConflict: 'user_id,series', ignoreDuplicates: true },
-        ),
-    );
-    if (ok) written.inserts.push(...diff.inserts);
+        )
+        .select('series');
+      inserted = (data ?? []) as Array<{ series: string }>;
+      return { error };
+    });
+    if (ok) {
+      const insertedSeries = new Set(inserted.map((row) => row.series));
+      written.inserts.push(...diff.inserts.filter((i) => insertedSeries.has(i.series)));
+      ensured = diff.inserts;
+    }
   }
 
   for (const u of diff.upgrades) {
@@ -214,26 +232,40 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadge
     }
   }
 
-  return { written, complete };
+  return { written, complete, ensured };
+}
+
+/** writeDiff: det som skrevs, om allt lyckades, och inserts vars rad finns efteråt (även de som en samtidig körning hann före). */
+interface WriteDiffResult extends EvaluateBadgesResult {
+  ensured: BadgeDiff['inserts'];
 }
 
 /**
- * Serierna som finns i user_badges efter skrivningen: tidigare rader + lyckade inserts − lyckade deletes.
- * Upgrade/downgrade ändrar aldrig att en rad finns (tier >= 1).
+ * Serierna som finns i user_badges efter skrivningen: tidigare rader + inserts vars rad finns (`ensured`, även
+ * ignorerade dubbletter) − lyckade deletes. Upgrade/downgrade ändrar aldrig att en rad finns (tier >= 1).
  */
-function seriesAfterWrite(existing: readonly ExistingBadgeRow[], written: BadgeDiff): Set<string> {
+function seriesAfterWrite(
+  existing: readonly ExistingBadgeRow[],
+  ensured: BadgeDiff['inserts'],
+  written: BadgeDiff
+): Set<string> {
   const present = new Set(existing.map((row) => row.series));
-  for (const insert of written.inserts) present.add(insert.series);
+  for (const insert of ensured) present.add(insert.series);
   for (const del of written.deletes) present.delete(del.series);
   return present;
 }
 
 /**
- * Läser users.displayed_badge_series och skriver tillbaka den filtrerad mot serierna som finns, med EN
- * update — bara om något ändras. Läsningen sker EFTER badge-skrivningarna för att minimera tiden mellan
- * läsning och skrivning mot en samtidig ändring av showcasen. Ger false om läsningen eller skrivningen föll.
+ * Läser users.displayed_badge_series och skriver tillbaka den filtrerad mot serierna som finns och fylld med de
+ * nya serierna (`added`, bara lyckade inserts) i de lediga platserna, med EN update — bara om något ändras.
+ * Läsningen sker EFTER badge-skrivningarna för att minimera tiden mellan läsning och skrivning mot en samtidig
+ * ändring av showcasen. Ger false om läsningen eller skrivningen föll.
  */
-async function reconcileShowcase(userId: string, present: ReadonlySet<string>): Promise<boolean> {
+async function reconcileShowcase(
+  userId: string,
+  present: ReadonlySet<string>,
+  added: BadgeDiff['inserts']
+): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('users').select('displayed_badge_series').eq('id', userId).single();
@@ -242,8 +274,8 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
       return false;
     }
     const current: string[] = Array.isArray(data.displayed_badge_series) ? data.displayed_badge_series : [];
-    const next = current.filter((series) => present.has(series));
-    if (next.length === current.length) return true;
+    const next = fillShowcase(current.filter((series) => present.has(series)), added);
+    if (next.length === current.length && next.every((series, index) => series === current[index])) return true;
     const { error: updateError } = await supabase
       .from('users')
       .update({ displayed_badge_series: next })
@@ -260,8 +292,9 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
 }
 
 /**
- * Skriver en färdig diff och städar showcasen mot det som finns efteråt. Den delade skrivvägen: evaluateBadges
- * och backfill:badges (RUN-124) går båda hit, så backfillen skriver exakt som den löpande utvärderingen.
+ * Skriver en färdig diff, städar showcasen mot det som finns efteråt och fyller lediga platser med nya serier.
+ * Den delade skrivvägen: evaluateBadges och backfill:badges (RUN-124) går båda hit, så backfillen skriver exakt
+ * som den löpande utvärderingen (även med --silent) och fyllningen skriver aldrig någon news.
  * Kastar inte på skrivfel (de syns i `complete` och i loggen).
  */
 export async function applyBadgeDiff(
@@ -270,7 +303,11 @@ export async function applyBadgeDiff(
   diff: BadgeDiff
 ): Promise<EvaluateBadgesResult> {
   const result = await writeDiff(userId, diff);
-  const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written));
+  const showcaseOk = await reconcileShowcase(
+    userId,
+    seriesAfterWrite(existing, result.ensured, result.written),
+    result.written.inserts
+  );
   return { written: result.written, complete: result.complete && showcaseOk };
 }
 
