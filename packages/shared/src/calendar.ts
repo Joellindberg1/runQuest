@@ -34,13 +34,13 @@ export const STOCKHOLM_TZ = 'Europe/Stockholm';
 // ─── Kalenderdagar (YYYY-MM-DD) ──────────────────────────────────────────────────────────────────
 
 function utcMidnightMs(day: string): number {
-  const [y, m, d] = day.split('-').map(Number);
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
   return Date.UTC(y, m - 1, d);
 }
 
 /** Lägger N dagar till en YYYY-MM-DD-sträng. Går via UTC-middag, så ingen sommartidsförskjutning kan flytta datumet. */
 export function addDays(day: string, days: number): string {
-  const [y, m, d] = day.split('-').map(Number);
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0)).toISOString().slice(0, 10);
 }
 
@@ -174,7 +174,7 @@ export function wallClockToInstantMs(startTime: string, timeZone = STOCKHOLM_TZ)
     .sort((a, b) => a - b);
 
   // Tom lista = klockslaget finns inte (vårens hopp): offset före hoppet.
-  return valid.length > 0 ? valid[0] : wall - before;
+  return valid[0] ?? wall - before;
 }
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
