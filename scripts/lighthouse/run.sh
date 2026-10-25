@@ -92,8 +92,8 @@ fi
 echo "Lighthouse mot $DIST (STATS_MODE=$STATS_MODE, Caddy på 127.0.0.1:$PORT)"
 # Uppvärmning (RUN-368): en körning av varje sida som inte räknas. Den första körningen av / i jobbet är kall (Chrome och filcachen) och gav i CI
 # oftast TBT och prestanda långt över budgeten (docs/release.md, anmärkning 1), medan nästa körning var normal; en kasserad första körning tar bort den.
-# Rapporterna rensas så att varken medianen, sammanfattningen eller artefakten innehåller den. Ger uppvärmningen fel räknas den ändå inte: de räknade körningarna avgör.
-"$LHCI" collect --config "$HERE/lighthouserc.json" --numberOfRuns=1 || echo "Uppvärmningen gav fel (räknas inte); fortsätter med mätningen."
+# Rapporterna rensas så att varken medianen, sammanfattningen eller artefakten innehåller den. Ger uppvärmningen fel räknas den ändå inte: de räknade körningarna avgör, och felet skrivs som en ::warning::-anteckning så att det syns i körningen.
+"$LHCI" collect --config "$HERE/lighthouserc.json" --numberOfRuns=1 || echo "::warning title=Lighthouse warm-up::Uppvärmningen gav fel (räknas inte); fortsätter med mätningen."
 rm -rf "$OUT_DIR"
 "$LHCI" collect --config "$HERE/lighthouserc.json"
 node "$HERE/summarize.mjs" "$OUT_DIR"

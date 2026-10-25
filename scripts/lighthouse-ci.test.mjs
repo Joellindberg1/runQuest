@@ -442,7 +442,8 @@ createServer((req, res) => {
     const res = run('none', { FAKE_WARMUP_FAILS: '1' });
     assert.equal(res.status, 0, res.stdout + res.stderr);
     assert.deepEqual(readFileSync(join(work, 'calls.log'), 'utf8').trim().split('\n'), ['collect runs=1 failed', 'collect runs=3 urls=2', 'assert lhr=6 maxTbt=20']);
-    assert.match(res.stdout, /Uppvärmningen gav fel/);
+    // Som en GitHub-annotering på en egen rad, så att den syns på körningens sida och inte göms i loggen.
+    assert.match(res.stdout, /^::warning title=Lighthouse warm-up::Uppvärmningen gav fel/m);
   });
 });
 
