@@ -713,6 +713,39 @@ describe('evaluateBadges — nya serier fyller lediga platser i visningen', () =
     expect(await showcaseOf(db)).toEqual([]);
   });
 
+  it('en serie byts mot en annan med samma längd före och efter: visningen skrivs om med exakt en users-skrivning', async () => {
+    // Earth Trotter tappas helt (5 km räcker inte) samtidigt som Milestoner är ny: längden är 1 både före och efter.
+    const db = setup({
+      runs: [run({ id: 'r1', distance: 5 })],
+      users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['earth_trotter'] }],
+      user_badges: [stored('earth_trotter')],
+    });
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(result?.written.deletes.map((d) => d.series)).toEqual(['earth_trotter']);
+    expect(result?.written.inserts.map((i) => i.series)).toEqual(['milestoner']);
+    expect(await showcaseOf(db)).toEqual(['milestoner']);
+    expect(usersWrite(db)).toHaveLength(1);
+  });
+
+  it('en upsert som föll gör inte serien närvarande: en kvarglömd rad i visningen städas', async () => {
+    const db = setup(
+      {
+        runs: [run({ id: 'r1', distance: 5 })],
+        users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner'] }],
+      },
+      { failWhen: (q) => (q.table === 'user_badges' && q.mutation === 'upsert' ? { message: 'boom' } : null) },
+    );
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(result?.complete).toBe(false);
+    expect(await badgesOf(db)).toEqual([]);
+    expect(await showcaseOf(db)).toEqual([]);
+    expect(usersWrite(db)).toHaveLength(1);
+  });
+
   it('fyllningen rör bara anroparens egen rad', async () => {
     const db = setup({
       runs: oneRun(),
