@@ -23,9 +23,9 @@ const CORS_HEADERS = { 'access-control-allow-origin': '*', 'access-control-allow
 // Legendary, som har störst glöd) och den sista har ingen, med samma namn som raden ovanför, så radernas höjd går att jämföra med och utan minis.
 const LONG_NAME = 'Alexandra Wilhelmina Montgomery';
 const SHOWCASE = [{ series: 'milestoner', tier: 3 }, { series: 'climber', tier: 5 }, { series: 'night_owl', tier: 6 }];
-const GROUP = Array.from({ length: 6 }, (_, index) => ({
+const runnerAt = (index: number, name: string) => ({
   id: `board-badge-${index + 1}`,
-  name: `${LONG_NAME} ${index + 1}`,
+  name,
   email: `board-badge-${index + 1}@example.test`,
   is_admin: false,
   total_xp: 6000 - index * 500,
@@ -34,18 +34,23 @@ const GROUP = Array.from({ length: 6 }, (_, index) => ({
   current_streak: 2,
   longest_streak: 4,
   runs: [],
-}));
+});
+const GROUP = Array.from({ length: 6 }, (_, index) => runnerAt(index, `${LONG_NAME} ${index + 1}`));
 const WITHOUT_BADGES = GROUP.length - 1;
 
-async function stubBoardGroup(page: Page): Promise<void> {
+// Podiet med vanliga tvåordsnamn och tre badges på alla tre kort, som när topp 3 har fyllt sina visade badges.
+const PODIUM_NAMES = ['Anna Svensson', 'Joel Lindberg', 'Maria Johansson'];
+const PODIUM_GROUP = Array.from({ length: 6 }, (_, index) => runnerAt(index, PODIUM_NAMES[index] ?? `Runner Number${index + 1}`));
+
+async function stubBoardGroup(page: Page, group: typeof GROUP, withoutBadges: number[]): Promise<void> {
   const reply = (body: unknown) => ({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify(body) });
-  await page.route('**/api/auth/users-with-runs', (route) => route.fulfill(reply({ success: true, data: GROUP })));
+  await page.route('**/api/auth/users-with-runs', (route) => route.fulfill(reply({ success: true, data: group })));
   await page.route('**/api/badges/group', (route) =>
     route.fulfill(
       reply({
         success: true,
-        data: { members: GROUP.map((member, index) => ({ user_id: member.id, showcase: index === WITHOUT_BADGES ? [] : SHOWCASE })), holders: {} },
-        meta: { member_count: GROUP.length },
+        data: { members: group.map((member, index) => ({ user_id: member.id, showcase: withoutBadges.includes(index) ? [] : SHOWCASE })), holders: {} },
+        meta: { member_count: group.length },
       }),
     ),
   );
@@ -58,7 +63,7 @@ test.describe('the badges in the leaderboard rows', () => {
 
   for (const { name, width, height } of WIDTHS) {
     test(`are set one spacing step apart and keep the rows intact on a ${name} (${width} px)`, async ({ page }) => {
-      await stubBoardGroup(page);
+      await stubBoardGroup(page, GROUP, [WITHOUT_BADGES]);
       await page.setViewportSize({ width, height });
       await page.goto('/board');
       await dismissOverlays(page);
@@ -105,6 +110,55 @@ test.describe('the badges in the leaderboard rows', () => {
       expect(measured.restRows, 'the rest of the pack lists three runners').toBe(3);
       expect(Math.abs(measured.withBadgesHeight - measured.withoutBadgesHeight), 'a row with three badges is as tall as one without').toBeLessThanOrEqual(TOLERANCE_PX);
       expect(measured.overflow, 'the page does not scroll sideways').toBeLessThanOrEqual(0);
+    });
+  }
+});
+
+// Podiekortens namn: namnknappen och badgegruppen delar namnraden, och ett namn får aldrig överlappas av badgesen eller klämmas under sitt längsta ord. Rymmer inte namn
+// och tre badges bredvid varandra ligger badgegruppen på en egen rad under namnet.
+const PODIUM_WIDTHS = [340, 360, 375, 1024, 1180, 1280, 1366, 1440];
+const PODIUM_CASES = [
+  { label: 'two-word', group: PODIUM_GROUP, names: PODIUM_NAMES },
+  { label: 'long', group: GROUP, names: GROUP.slice(0, 3).map((runner) => runner.name) },
+];
+
+test.describe('the badges on the podium cards', () => {
+  test.skip(!apiIsStubbed(), 'The group is filled from a stubbed API; run with E2E_STUB_API=1 against a local build.');
+
+  for (const { label, group, names } of PODIUM_CASES) for (const width of PODIUM_WIDTHS) {
+    test(`never overlap a ${label} runner name on a ${width} px wide screen`, async ({ page }) => {
+      await stubBoardGroup(page, group, [3, 4, 5]);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/board');
+      await dismissOverlays(page);
+      await expect(page.getByRole('heading', { name: 'The standings' })).toBeVisible();
+      await expect(page.getByRole('img', { name: /^Badges:/ })).toHaveCount(names.length);
+      await waitForStylesApplied(page);
+
+      const cards = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => {
+          const button = card.querySelector<HTMLElement>('.rq-board-namebtn')!;
+          const minis = card.querySelector('.rq-badge-minis')!.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          const text = Array.from(range.getClientRects()).filter((box) => box.width > 0);
+          const cardBox = card.getBoundingClientRect();
+          return {
+            name: button.textContent ?? '',
+            squeezed: button.scrollWidth > button.clientWidth,
+            overlaps: text.some((box) => box.left < minis.right && box.right > minis.left && box.top < minis.bottom && box.bottom > minis.top),
+            minisInside: minis.left >= cardBox.left - 1 && minis.right <= cardBox.right + 1,
+          };
+        }),
+      );
+
+      // Podiet ritas i ordningen 2, 1, 3, så namnen jämförs utan ordning.
+      expect(cards.map((card) => card.name).sort(), 'the podium shows the three runners').toEqual([...names].sort());
+      for (const card of cards) {
+        expect(card.overlaps, `the badges cover the text of ${card.name}`).toBe(false);
+        expect(card.squeezed, `${card.name} is squeezed narrower than its longest word`).toBe(false);
+        expect(card.minisInside, `the badges stay inside the card of ${card.name}`).toBe(true);
+      }
     });
   }
 });
