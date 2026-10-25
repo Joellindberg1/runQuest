@@ -10,7 +10,7 @@ A running app where you and your friends compete, track progress and import runs
 
 | Part | Technology |
 |------|------------|
-| Frontend | React 18, TypeScript, Vite, Tailwind 3 with its own token set (`--rq-*`), Radix primitives, TanStack Query, react-router v6 |
+| Frontend | React 18, TypeScript, Vite, Tailwind 3 with its own token set (`--rq-*`), Radix primitives, TanStack Query, react-router v7 |
 | Backend | Node.js 20 (`.nvmrc`), Express 5, TypeScript, node-cron |
 | Database | Supabase (PostgreSQL). Only the backend talks to the database (service key); the frontend has no Supabase client |
 | Auth | Own backend JWT + Strava OAuth2 |
