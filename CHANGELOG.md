@@ -2,6 +2,8 @@
 
 ## Buggfixar 2026-10-25 (buggrelease utan versionsnummer)
 
+**Live 2026-10-25** via PR #59, main `02552e4f` (rollbackreferens: f17360b7). CI på Node 20.20.2, Lighthouse inom budget (`/` JS 135,0 kB, totalt 323 kB). Prod-backenden byggd med Node 20.20.2. Röken efter deploy grön: `/health` före och efter med obruten uptime, väntelistans POST okomprimerad och gzip (400 `consent_required`, inget skrivet), gzip med avslutande skräpbytes (snabbt 400 `invalid_request`), 401 på skyddad rutt, säkerhetshuvuden och skarp CSP, `/board` direktladdad, RUN-384-regeln i serverad CSS, `.map` 404. `npm audit --omit=dev` på main: GHSA-27r3-jxmh-p828 borta (kvar: två moderata i react-router, stängs i v0.8.2). Railway listar de ersatta deployerna som möjliga att redeploya trots status `REMOVED`; revert-PR är ändå den dokumenterade vägen.
+
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-25` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.1.
 
 ### Säkerhet
