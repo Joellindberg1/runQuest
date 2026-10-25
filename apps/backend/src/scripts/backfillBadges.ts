@@ -5,7 +5,8 @@
  * skillnaden via SAMMA skrivväg som evaluateBadges (applyBadgeDiff i badgeService) — men alltid med
  * markSeen: nya och uppgraderade rader får seen_tier = tier, så ingen popup-flod uppstår. Skriptet skriver
  * ALDRIG activity_log-rader (ingen news för historiska badges, ADR 009 beslut 5) och rör inga andra tabeller
- * än user_badges (+ users.displayed_badge_series när en återkallad serie städas ur showcasen).
+ * än user_badges (+ users.displayed_badge_series: en återkallad serie städas ur showcasen och nya serier fyller lediga
+ * platser, samma som evaluateBadges; en serie som redan har en rad fylls aldrig i, så en användares eget val står kvar).
  *
  * Körs:  npm run backfill:badges --workspace=@runquest/backend -- [--apply] [--silent] [--series=a,b] [--group=<id>]
  *   (default)   DRY-RUN: matris användare × serie (tiernamn), tierfördelning per serie, hur nära nästa nivå

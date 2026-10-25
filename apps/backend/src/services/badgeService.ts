@@ -16,6 +16,11 @@
 // Självläkning: users.displayed_badge_series stäms av mot serierna som FINNS i user_badges efter varje
 // utvärdering (inte bara mot den här körningens raderingar), så en serie som blev kvar i showcasen efter
 // ett tidigare fel städas vid nästa körning.
+//
+// Fyllning (ägarbeslut 2026-10-23): i samma avstämning och EN update fyller serierna som den här körningen
+// FAKTISKT lade till (written.inserts, första nivån i en ny serie) de lediga platserna (fillShowcase). Bara en
+// insert är kandidat: en serie som redan har en rad (uppgraderad, nedgraderad eller borttagen ur visningen av
+// användaren) läggs aldrig tillbaka, så ingen separat markering av "borttagen" behövs.
 import { getSupabaseClient } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { readUserGroupId } from './userGroupId.js';
@@ -24,6 +29,7 @@ import {
   badgeNewsChanges,
   computeBadgeTiers,
   diffBadgeTiers,
+  fillShowcase,
   type BadgeDiff,
   type BadgeRun,
   type ExistingBadgeRow,
@@ -53,7 +59,7 @@ export interface EvaluateBadgesResult {
   /**
    * Det som FAKTISKT skrevs till user_badges (en post per lyckad skrivning). news (RUN-123) bygger på
    * detta: en lyckad uppgradering ska ge news även om en annan skrivning föll. `showcaseRemovals` är
-   * serierna vars rader raderades. Rensningen av displayed_badge_series ingår inte (ingen news).
+   * serierna vars rader raderades. Rensningen och fyllningen av displayed_badge_series ingår inte (ingen news).
    */
   written: BadgeDiff;
   /** false om någon skrivning eller showcase-läsning/-rensning föll; det som ändå skrevs står i `written`. */
@@ -229,11 +235,16 @@ function seriesAfterWrite(existing: readonly ExistingBadgeRow[], written: BadgeD
 }
 
 /**
- * Läser users.displayed_badge_series och skriver tillbaka den filtrerad mot serierna som finns, med EN
- * update — bara om något ändras. Läsningen sker EFTER badge-skrivningarna för att minimera tiden mellan
- * läsning och skrivning mot en samtidig ändring av showcasen. Ger false om läsningen eller skrivningen föll.
+ * Läser users.displayed_badge_series och skriver tillbaka den filtrerad mot serierna som finns och fylld med de
+ * nya serierna (`added`, bara lyckade inserts) i de lediga platserna, med EN update — bara om något ändras.
+ * Läsningen sker EFTER badge-skrivningarna för att minimera tiden mellan läsning och skrivning mot en samtidig
+ * ändring av showcasen. Ger false om läsningen eller skrivningen föll.
  */
-async function reconcileShowcase(userId: string, present: ReadonlySet<string>): Promise<boolean> {
+async function reconcileShowcase(
+  userId: string,
+  present: ReadonlySet<string>,
+  added: BadgeDiff['inserts']
+): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('users').select('displayed_badge_series').eq('id', userId).single();
@@ -242,8 +253,8 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
       return false;
     }
     const current: string[] = Array.isArray(data.displayed_badge_series) ? data.displayed_badge_series : [];
-    const next = current.filter((series) => present.has(series));
-    if (next.length === current.length) return true;
+    const next = fillShowcase(current.filter((series) => present.has(series)), added);
+    if (next.length === current.length && next.every((series, index) => series === current[index])) return true;
     const { error: updateError } = await supabase
       .from('users')
       .update({ displayed_badge_series: next })
@@ -260,8 +271,9 @@ async function reconcileShowcase(userId: string, present: ReadonlySet<string>): 
 }
 
 /**
- * Skriver en färdig diff och städar showcasen mot det som finns efteråt. Den delade skrivvägen: evaluateBadges
- * och backfill:badges (RUN-124) går båda hit, så backfillen skriver exakt som den löpande utvärderingen.
+ * Skriver en färdig diff, städar showcasen mot det som finns efteråt och fyller lediga platser med nya serier.
+ * Den delade skrivvägen: evaluateBadges och backfill:badges (RUN-124) går båda hit, så backfillen skriver exakt
+ * som den löpande utvärderingen (även med --silent) och fyllningen skriver aldrig någon news.
  * Kastar inte på skrivfel (de syns i `complete` och i loggen).
  */
 export async function applyBadgeDiff(
@@ -270,7 +282,7 @@ export async function applyBadgeDiff(
   diff: BadgeDiff
 ): Promise<EvaluateBadgesResult> {
   const result = await writeDiff(userId, diff);
-  const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written));
+  const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written), result.written.inserts);
   return { written: result.written, complete: result.complete && showcaseOk };
 }
 

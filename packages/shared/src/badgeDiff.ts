@@ -2,7 +2,7 @@
 // Ren funktion: ingen I/O, indata muteras aldrig, tiden injiceras. evaluateBadges (RUN-118) skriver
 // posterna rakt av och lägger själv till user_id; här finns bara det som varierar per serie.
 
-import { MAX_TIER, type BadgeTierResult } from './badges.js';
+import { BADGE_SERIES, MAX_SHOWCASE, MAX_TIER, type BadgeTierResult } from './badges.js';
 
 /** En befintlig rad i user_badges (utan user_id och updated_at, som diffen inte behöver läsa). */
 export interface ExistingBadgeRow {
@@ -156,4 +156,39 @@ export function diffBadgeTiers(
   }
 
   return diff;
+}
+
+/** Det fyllningen behöver veta om en ny serie: vilken, och när (insertens earned_at). BadgeInsert uppfyller det. */
+export interface NewBadgeSeries {
+  series: string;
+  /** ISO-sträng. */
+  earned_at: string;
+}
+
+/**
+ * Visningen (users.displayed_badge_series) efter att nya serier fyllt de lediga platserna (ägarbeslut 2026-10-23).
+ * Bara en NY serie (diffens inserts, första nivån) kommer hit; uppgraderingar, nedgraderingar och serier som redan
+ * har en rad är aldrig kandidater. Därför behövs ingen markering av "borttagen av användaren": en serie som
+ * användaren tar bort har redan en rad och är aldrig mer en insert, så den läggs aldrig tillbaka (ADR 009, addendum RUN-377).
+ *
+ * Ordning: nyast först (earned_at fallande); samtidiga, som alla inserts i en utvärdering, i BADGE_SERIES-ordning.
+ * Det som får plats läggs sist i den befintliga ordningen. En full visning, okända serier och serier som redan
+ * visas ger ingen ändring. Ren funktion: indata muteras aldrig, ger alltid en ny array.
+ */
+export function fillShowcase(displayed: readonly string[], fresh: readonly NewBadgeSeries[]): string[] {
+  const next = [...displayed];
+  const order = new Map<string, number>(BADGE_SERIES.map((s, index) => [s.key as string, index]));
+  const candidates = fresh
+    .filter((entry, index) => order.has(entry.series) && fresh.findIndex((e) => e.series === entry.series) === index)
+    .sort((a, b) => Date.parse(b.earned_at) - Date.parse(a.earned_at) || order.get(a.series)! - order.get(b.series)!);
+
+  // De nyaste får platserna och läggs i samma ordning (den nyaste först).
+  const free = Math.max(0, MAX_SHOWCASE - next.length);
+  const chosen: NewBadgeSeries[] = [];
+  for (const entry of candidates) {
+    if (chosen.length === free) break;
+    if (!next.includes(entry.series)) chosen.push(entry);
+  }
+  next.push(...chosen.map((entry) => entry.series));
+  return next;
 }
