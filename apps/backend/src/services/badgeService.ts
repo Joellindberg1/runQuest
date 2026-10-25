@@ -148,10 +148,11 @@ export async function readExistingBadges(userId: string): Promise<ExistingBadgeR
  * Skriver diffen. Varje skrivning är oberoende: en som faller stoppar inte de andra. Ger det som
  * faktiskt skrevs (en lyckad upgrade/downgrade per post, inserts och deletes som grupp) och om allt lyckades.
  */
-async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadgesResult> {
+async function writeDiff(userId: string, diff: BadgeDiff): Promise<WriteDiffResult> {
   const supabase = getSupabaseClient();
   const written: BadgeDiff = { inserts: [], upgrades: [], downgrades: [], deletes: [], showcaseRemovals: [] };
   let complete = true;
+  let ensured: BadgeDiff['inserts'] = [];
 
   const attempt = async (label: string, write: () => PromiseLike<{ error: unknown }>): Promise<boolean> => {
     try {
@@ -166,15 +167,26 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadge
   };
 
   if (diff.inserts.length > 0) {
-    const ok = await attempt('insert badges', () =>
-      supabase
+    // select('series') gör att svaret bara bär raderna som faktiskt sattes in (ON CONFLICT DO NOTHING RETURNING). En
+    // dubblett som en samtidig utvärdering hann före ignoreras och räknas inte som skriven: då fyller vi inte visningen
+    // och skriver ingen news för den. Raden finns i alla fall efteråt, så den hör till `ensured`.
+    let inserted: Array<{ series: string }> = [];
+    const ok = await attempt('insert badges', async () => {
+      const { data, error } = await supabase
         .from(USER_BADGES_TABLE)
         .upsert(
           diff.inserts.map((i) => ({ user_id: userId, ...i })),
           { onConflict: 'user_id,series', ignoreDuplicates: true },
-        ),
-    );
-    if (ok) written.inserts.push(...diff.inserts);
+        )
+        .select('series');
+      inserted = (data ?? []) as Array<{ series: string }>;
+      return { error };
+    });
+    if (ok) {
+      const insertedSeries = new Set(inserted.map((row) => row.series));
+      written.inserts.push(...diff.inserts.filter((i) => insertedSeries.has(i.series)));
+      ensured = diff.inserts;
+    }
   }
 
   for (const u of diff.upgrades) {
@@ -220,16 +232,25 @@ async function writeDiff(userId: string, diff: BadgeDiff): Promise<EvaluateBadge
     }
   }
 
-  return { written, complete };
+  return { written, complete, ensured };
+}
+
+/** writeDiff: det som skrevs, om allt lyckades, och inserts vars rad finns efteråt (även de som en samtidig körning hann före). */
+interface WriteDiffResult extends EvaluateBadgesResult {
+  ensured: BadgeDiff['inserts'];
 }
 
 /**
- * Serierna som finns i user_badges efter skrivningen: tidigare rader + lyckade inserts − lyckade deletes.
- * Upgrade/downgrade ändrar aldrig att en rad finns (tier >= 1).
+ * Serierna som finns i user_badges efter skrivningen: tidigare rader + inserts vars rad finns (`ensured`, även
+ * ignorerade dubbletter) − lyckade deletes. Upgrade/downgrade ändrar aldrig att en rad finns (tier >= 1).
  */
-function seriesAfterWrite(existing: readonly ExistingBadgeRow[], written: BadgeDiff): Set<string> {
+function seriesAfterWrite(
+  existing: readonly ExistingBadgeRow[],
+  ensured: BadgeDiff['inserts'],
+  written: BadgeDiff
+): Set<string> {
   const present = new Set(existing.map((row) => row.series));
-  for (const insert of written.inserts) present.add(insert.series);
+  for (const insert of ensured) present.add(insert.series);
   for (const del of written.deletes) present.delete(del.series);
   return present;
 }
@@ -282,7 +303,11 @@ export async function applyBadgeDiff(
   diff: BadgeDiff
 ): Promise<EvaluateBadgesResult> {
   const result = await writeDiff(userId, diff);
-  const showcaseOk = await reconcileShowcase(userId, seriesAfterWrite(existing, result.written), result.written.inserts);
+  const showcaseOk = await reconcileShowcase(
+    userId,
+    seriesAfterWrite(existing, result.ensured, result.written),
+    result.written.inserts
+  );
   return { written: result.written, complete: result.complete && showcaseOk };
 }
 

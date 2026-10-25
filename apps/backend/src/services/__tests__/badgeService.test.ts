@@ -633,6 +633,86 @@ describe('evaluateBadges — nya serier fyller lediga platser i visningen', () =
     expect(db.queries.filter((q) => q.table === 'activity_log')).toEqual([]);
   });
 
+  // Raden dyker upp mellan vår läsning (tom) och vår skrivning: en samtidig utvärdering hann före.
+  const withCompetingInsert = (tables: Record<string, Row[]>, series: string): FakeDbOptions => ({
+    failWhen: (q) => {
+      if (q.table === 'user_badges' && q.mutation === 'upsert' && tables.user_badges.length === 0) {
+        tables.user_badges = [stored(series)];
+      }
+      return null;
+    },
+  });
+
+  it('en insert som upserten ignorerade som dubblett (en samtidig utvärdering hann före) fyller inte visningen och räknas inte som skriven', async () => {
+    const tables: Record<string, Row[]> = {
+      runs: [run({ id: 'r1', distance: 5 })],
+      users: [{ id: USER, longest_streak: 0, displayed_badge_series: [] }],
+      user_badges: [],
+    };
+    const db = createFakeDb(tables, withCompetingInsert(tables, 'milestoner'));
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    const result = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(result?.written.inserts).toEqual([]);
+    expect(result?.complete).toBe(true);
+    expect(await showcaseOf(db)).toEqual([]);
+    expect(usersWrite(db)).toHaveLength(0);
+  });
+
+  it('den förlorande utvärderingen städar inte bort serien som den vinnande redan fyllt i visningen', async () => {
+    const tables: Record<string, Row[]> = {
+      runs: [run({ id: 'r1', distance: 5 })],
+      users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner'] }],
+      user_badges: [],
+    };
+    const db = createFakeDb(tables, withCompetingInsert(tables, 'milestoner'));
+    vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
+
+    await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(await showcaseOf(db)).toEqual(['milestoner']);
+    expect(usersWrite(db)).toHaveLength(0);
+  });
+
+  it('en serie som tappats helt (raden raderas, städas ur visningen) och intjänas igen fylls i som ny', async () => {
+    const db = setup({
+      runs: [],
+      users: [{ id: USER, longest_streak: 0, displayed_badge_series: ['milestoner'] }],
+      user_badges: [stored('milestoner')],
+    });
+
+    await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+    expect(await badgesOf(db)).toEqual([]);
+    expect(await showcaseOf(db)).toEqual([]);
+
+    await db.client.from('runs').insert(run({ id: 'r1', distance: 5 }));
+    const again = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(again?.written.inserts.map((i) => i.series)).toEqual(['milestoner']);
+    expect(await showcaseOf(db)).toEqual(['milestoner']);
+  });
+
+  it('faller showcase-skrivningen efter en lyckad insert fylls serien inte i vid nästa utvärdering (raden finns redan)', async () => {
+    let failShowcaseUpdate = true;
+    const db = setup(
+      { runs: [run({ id: 'r1', distance: 5 })] },
+      { failWhen: (q) => (failShowcaseUpdate && q.table === 'users' && q.mutation === 'update' ? { message: 'boom' } : null) },
+    );
+
+    const first = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+    expect(first?.complete).toBe(false);
+    expect((await badgesOf(db)).map((b) => b.series)).toEqual(['milestoner']);
+    expect(await showcaseOf(db)).toEqual([]);
+
+    failShowcaseUpdate = false;
+    const second = await evaluateBadges(USER, { longestStreak: 0, now: NOW });
+
+    expect(second?.written.inserts).toEqual([]);
+    expect(second?.complete).toBe(true);
+    expect(await showcaseOf(db)).toEqual([]);
+  });
+
   it('fyllningen rör bara anroparens egen rad', async () => {
     const db = setup({
       runs: oneRun(),
