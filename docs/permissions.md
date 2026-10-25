@@ -194,8 +194,8 @@ blockerande, alla steg i dem:
   `tsc -b`, E2E suite (typecheck and listing; sviten körs inte), `eslint . --max-warnings 0`,
   Stylelint (`lint:css`), tester.
 
-Jobbet Lighthouse (prestandabudget för `/` och `/legal`) är icke-blockerande: `LIGHTHOUSE_BLOCKING: 'false'`
-ger `continue-on-error` på mätstegen, och jobbet är inte en required check. Omslaget står i
+Jobbet Lighthouse (prestandabudget för `/` och `/legal`) är blockerande sedan RUN-368: `LIGHTHOUSE_BLOCKING: 'true'`
+stänger av `continue-on-error` på mätstegen, så ett budgetbrott fäller jobbet. Jobbet är ännu inte en required check (villkoret står i `docs/release.md`). Omslaget står i
 `docs/release.md` ("Lighthouse-budget").
 
 `.github/workflows/e2e-staging.yml` (Playwright mot staging, manuellt och nattligt 03:20 UTC) blockerar
