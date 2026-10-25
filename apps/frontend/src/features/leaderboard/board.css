@@ -28,7 +28,8 @@
   font-size: var(--rq-fs-body);
 }
 .rq-board-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.rq-board-namebtn { padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+/* Ett namn med ett långt ord utan brytpunkt bryts mitt i ordet i stället för att ge mittkolumnen (1fr = minmax(auto, 1fr)) ett min-content som spränger raden; `anywhere` räknar brytpunkterna in i min-content, så raden krymper med. Samma val som namnet på löparkortet och profilen. */
+.rq-board-namebtn { padding: 0; border: 0; background: none; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
 .rq-board-namebtn:hover { color: var(--rq-gold-text); }
 .rq-board-delta { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-name); color: var(--rq-text-4); }
 .rq-board-delta[data-dir="up"] { color: var(--rq-up); }
