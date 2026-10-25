@@ -24,7 +24,7 @@ const WEBSITE_ID = 'f69b618e-a134-4cd9-af69-d4479c418de8';
 const NO_SCRIPT_WAIT_MS = 600;
 const umamiScript = () => document.head.querySelector<HTMLScriptElement>('script[data-website-id]');
 
-const Router = ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={['/?utm_source=x']}>{children}</MemoryRouter>;
+const Router = ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={['/?utm_source=x']} useTransitions={false}>{children}</MemoryRouter>;
 
 beforeEach(() => {
   setViewportWidth(390);

@@ -211,6 +211,7 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
   Avvikelse från designen, medveten: `offset-path` placerar redan prickens mitt på banan (offset-anchor = rutans mitt), så designens marginal räknar av radien en
   gång för mycket och prickarna hamnar 2-14 px vid sidan om banlinjen vid 192 px (mätt i fyra faser av varvet). Designfilen har samma fel och är orörd. Bevis:
   `tests/loader-runners.spec.ts` (e2e). Blir fel om designen en dag byter till ett ankare som inte är rutans mitt (`offset-anchor`).
+- Utloggningen (`AvatarMenu.logOutToLanding`) förutsätter att `navigate()` och `logout()` renderas i SAMMA batch: sker adressbytet i en övergång ritas användaren borta först med den skyddade adressen kvar, och `RequireAuth` skickar till `/login?next=` i stället för till Landing. Därför har webbläsarroutern `useTransitions={false}` (`AppBrowserRouter`, ADR 006 addendum 2026-10-25), lint förbjuder en direkt `BrowserRouter`, och testernas `renderWithApp` gör samma val. Gäller även den lean landningen (`hydrateLanding`), vars egen in-/utloggning inte har något eget skydd utöver routern. Blir fel om någon byter tillbaka till standardvärdet eller om utloggningen flyttas till en asynkron väg (`App.logout.test.tsx`, `AppBrowserRouter.test.tsx`, `login.spec.ts` fäller).
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).

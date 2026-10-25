@@ -38,7 +38,15 @@ const STREAK_CONSTANTS = {
   message: "Multiplikatortrappan kommer ur config-endpointen (/api/config/xp), inte ur en konstant.",
 };
 
-const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON, SENTRY_STAYS_LAZY];
+// Webbläsarroutern (ADR 006, addendum 2026-10-25): react-router 7 lägger adressbyten i React.startTransition om inget annat sägs, och utloggningen (AvatarMenu)
+// förutsätter att navigate() och logout() renderas i samma batch. AppBrowserRouter sätter useTransitions={false}; en direkt BrowserRouter tappar det.
+const APP_BROWSER_ROUTER = {
+  regex: "^react-router(-dom)?$",
+  importNames: ["BrowserRouter"],
+  message: "Använd AppBrowserRouter (app-shell/AppBrowserRouter.tsx): den sätter useTransitions={false}, och utloggningen förutsätter att adressbytet och användaren renderas i samma batch (ADR 006, addendum 2026-10-25).",
+};
+
+const GLOBAL_IMPORT_PATTERNS = [LAZY_ONLY, CHANGELOG_JSON, SENTRY_STAYS_LAZY, APP_BROWSER_ROUTER];
 
 const importRestrictions = (...extraPatterns) => ["error", { patterns: [...GLOBAL_IMPORT_PATTERNS, ...extraPatterns] }];
 
@@ -309,8 +317,13 @@ export default tseslint.config(
   // Gränser för all produktionskod: lazy-sidorna och changelog.json (changelogData.ts får läsa JSON-filen).
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts", "src/shared/observability/sentryClient.ts"],
+    ignores: [...NOT_PRODUCTION, "src/features/changelog/changelogData.ts", "src/shared/observability/sentryClient.ts", "src/app-shell/AppBrowserRouter.tsx"],
     rules: { "no-restricted-imports": importRestrictions() },
+  },
+  // Den enda filen som får importera BrowserRouter; övriga gränser gäller den som förut.
+  {
+    files: ["src/app-shell/AppBrowserRouter.tsx"],
+    rules: { "no-restricted-imports": ["error", { patterns: GLOBAL_IMPORT_PATTERNS.filter((pattern) => pattern !== APP_BROWSER_ROUTER) }] },
   },
   {
     files: ["src/features/changelog/changelogData.ts"],
