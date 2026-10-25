@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import { hydrateRoot, type Root } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { AppBrowserRouter } from '@/app-shell/AppBrowserRouter';
 import { log } from '@/shared/utils/logger';
 import { LandingApp } from './LandingApp';
 
@@ -27,5 +27,5 @@ interface HydrateOptions {
  * gör att React behåller serverns HTML tills chunken är laddad.
  */
 export function hydrateLanding(container: HTMLElement, { onRecoverableError = logRecoverable }: HydrateOptions = {}): Root {
-  return hydrateRoot(container, <LandingApp Router={BrowserRouter} StagingBanner={getStagingBanner()} />, { onRecoverableError });
+  return hydrateRoot(container, <LandingApp Router={AppBrowserRouter} StagingBanner={getStagingBanner()} />, { onRecoverableError });
 }
