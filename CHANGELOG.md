@@ -1,5 +1,22 @@
 # Changelog
 
+## Buggfixar 2026-10-25 (buggrelease utan versionsnummer)
+
+Buggrelease mellan versionerna, från `integration/bugfix-2026-10-25` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.1.
+
+### Säkerhet
+- body-parser 2.3.0 → 2.4.0 (och qs 6.16.0 → 6.16.1) i lockfilen: GHSA-27r3-jxmh-p828 (high, DoS via avslutande bytes efter en komprimerad kropp) är borta ur `npm audit`. Bevisat med audit före och efter; felet syns inte i HTTP-svaren, så det finns ingen röd reproduktion, bara en beteendevakt för komprimerade JSON-kroppar (`compressed-json-body.test.ts`). Ett differentialprov över alla rutter som tar kropp gav samma svar före och efter (RUN-385).
+
+### Gränssnitt
+- Leaderboardens rader (All-time, Week, Streaks): ett namn med ett mycket långt ord bryts inom raden i stället för att få sidan att scrolla i sidled på 320 px. Podiet är medvetet oförändrat (RUN-384).
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna.
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus en vanlig POST (t.ex. väntelistan) och att backenden kör Node 20.
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras: redeploya föregående main-commit i Railway (frontend och backend), sedan en revert-PR på `main`.
+
 ## Buggfixar 2026-10-24 (buggrelease utan versionsnummer)
 
 **Live 2026-10-24** via PR #57, main `9c346bc1` (rollbackreferens: 69506fed). Prod-katalogen lästes före deploy: 23 titlar, ingen med `lowestPaceStdDev`. Röken efter deploy grön (hälsa, säkerhetshuvuden, CSP med den nya popup-hashen och utan den gamla, 0 `console.` i popupen, 401 på skyddade rutter, `.map` 404). Tyst titelomräkning (`reprocess:titles`, 6 av 6 användare): inga innehavare bytta och 0 nyhetsrader; badgeomräkningens dry-run hade inget att skriva.
