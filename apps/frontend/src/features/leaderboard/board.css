@@ -55,7 +55,9 @@
 @media (max-width: 359px) { .rq-board .rq-badge-minis { gap: var(--rq-sp-4); } }
 .rq-board-podium .rq-badge-minis { margin-left: auto; margin-right: var(--rq-board-minis-inset); }
 .rq-board [data-minis="true"] { min-width: 0; }
-.rq-board [data-minis="true"] .rq-board-namebtn { min-width: 0; }
+/* Namnet krymper aldrig under sitt längsta ord och badgesen ritas aldrig över det: rymmer raden inte namn och badgegrupp bredvid varandra bryts gruppen till en egen rad
+   under namnet (flex-wrap; --rq-sp-4 mellan raderna). Gruppen står kvar till höger (auto-marginalen), så kortet ser likadant ut med och utan radbrytning. */
+.rq-board-podium__nameline[data-minis="true"] { flex-wrap: wrap; row-gap: var(--rq-sp-4); }
 .rq-board-podium__nameline.rq-board-podium__nameline--room { min-height: var(--rq-badge-h-sm); }
 .rq-board [data-minis="true"] .rq-board-delta { flex-shrink: 0; }
 .rq-board-cell-ribbons { display: flex; justify-content: flex-end; margin-top: var(--rq-sp-4); }
