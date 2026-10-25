@@ -15,7 +15,7 @@ Buggrelease mellan versionerna, från `integration/bugfix-2026-10-25` (processen
 2. Efter deploy: rök enligt `docs/release.md` steg 4, plus en vanlig POST (t.ex. väntelistan) och att backenden kör Node 20.
 
 ### Rollback
-Ingen migration, ingen miljövariabel och inget kontrakt ändras: redeploya föregående main-commit i Railway (frontend och backend), sedan en revert-PR på `main`.
+Ingen migration, ingen miljövariabel och inget kontrakt ändras. Den säkra vägen är en revert-PR på `main` (gröna required checks och ombyggnad, alltså minuter, inte sekunder); rollbackreferensen är f17360b7. Redeploy av den deployen i Railway fungerar bara om den finns kvar, eftersom Railway markerar ersatta deployer `REMOVED`.
 
 ## Buggfixar 2026-10-24 (buggrelease utan versionsnummer)
 
