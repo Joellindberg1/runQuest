@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { AppBrowserRouter } from '@/app-shell/AppBrowserRouter';
 import { AppProviders } from '@/providers/AppProviders';
 import { useAuth } from '@/providers/authContext';
 import { useAppInit } from '@/shared/hooks/useAppInit';
@@ -45,10 +45,10 @@ const AppContent = () => {
 const App = () => {
   return (
     <AppProviders>
-      <BrowserRouter>
+      <AppBrowserRouter>
         {import.meta.env.VITE_APP_ENV === 'staging' && <StagingBanner />}
         <AppContent />
-      </BrowserRouter>
+      </AppBrowserRouter>
     </AppProviders>
   );
 };

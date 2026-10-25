@@ -3,7 +3,7 @@ import { AppProviders } from '@/providers/AppProviders';
 import { LandingRoutes } from './LandingRoutes';
 
 interface LandingAppProps {
-  /** BrowserRouter i webbläsaren, StaticRouter vid bygget: det enda som skiljer serverns träd från klientens. */
+  /** AppBrowserRouter i webbläsaren, StaticRouter vid bygget: det enda som skiljer serverns träd från klientens. */
   Router: ComponentType<{ children: ReactNode }>;
   /** Stagingbannern, bara i en stagingbyggd frontend. Klienten skickar en lazy-komponent och bygget en vanlig; Suspense-gränsen är densamma. */
   StagingBanner?: ComponentType | null;
