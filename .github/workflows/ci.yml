@@ -196,9 +196,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # Icke-blockerande första veckan (RUN-259): budgetbrott syns som orange steg och i artefakten men fäller inte PR:en.
-      # Slå om till 'true' för att göra budgeten blockerande (och lägg jobbet bland required checks). Se docs/release.md.
-      LIGHTHOUSE_BLOCKING: 'false'
+      # Blockerande sedan RUN-368: run.sh värmer upp med en kasserad körning per sida, och risken att medianen fäller budgeten utan att något blivit sämre
+      # är räknad till under 1 % per jobb. Ett budgetbrott fäller steget och därmed jobbet. 'false' märker steget orange utan att fälla PR:en
+      # (kräver ägarens ja, eftersom det lättar kontrollen). Att jobbet är en required check i branch protection är en egen inställning. Se docs/release.md.
+      LIGHTHOUSE_BLOCKING: 'true'
 
     steps:
       - uses: actions/checkout@v4
