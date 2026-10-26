@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { logger } from './utils/logger.js';
 import { installSentryErrorHandler } from './observability/sentry.js';
 import { jsonErrorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { defaultEmptyBody } from './middleware/requestBody.js';
 import { sentryRouteNaming } from './observability/tracing.js';
 
 import adminRoutes from './routes/admin.js';
@@ -75,6 +76,8 @@ export function createApp(): express.Express {
   app.use(STRAVA_WEBHOOK_PATH, createStravaWebhookRouter({ onEventStored: wakeStravaWebhookWorker }));
 
   app.use(express.json());
+  // Direkt efter JSON-parsern: en förfrågan utan kropp eller med en innehållstyp den inte läser får en tom kropp i stället för undefined (se middleware/requestBody.ts).
+  app.use(defaultEmptyBody);
 
   // Health check
   app.get('/health', (_req, res) => {
