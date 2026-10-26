@@ -1,5 +1,6 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { RQIcon, type RQIconName } from './icons';
+import { revealDelta } from './tabReveal';
 import { panelId, tabId } from './viewTabIds';
 
 /** Ikonstorleken i flikraden (designen: 13 px i statflikarna). */
@@ -34,6 +35,14 @@ interface ViewTabsProps<T extends string> {
  */
 export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPrefix, variant = 'filter', className }: ViewTabsProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
+
+  // En flikrad som scrollar i sidled (smal skärm, se profile.css) för den valda fliken helt i bild. Rymmer raden alla flikar finns inget att flytta, och bara raden flyttas, aldrig sidan.
+  useEffect(() => {
+    const list = listRef.current;
+    const selectedTab = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!list || !selectedTab || list.scrollWidth <= list.clientWidth) return;
+    list.scrollLeft += revealDelta(list.getBoundingClientRect(), selectedTab.getBoundingClientRect());
+  }, [value]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
