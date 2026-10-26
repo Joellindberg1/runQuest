@@ -987,6 +987,14 @@
   }
 }
 
+/* Smal desktop (1024–1279 px): sidofältet tar 250 px och kvar blir ~710 px, men rest-tabellens sju kolumner (bredderna ovan, byggda för 1440) behöver ~870 px och gav sidled
+   scroll. Här delar namn och nivåframsteg på det som blir över (fr) och sifferkolumnerna smalnar av; från 1280 px gäller kolumnerna ovan oförändrade. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --rq-board-rest-cols: 36px minmax(0, 1.4fr) minmax(0, 1fr) 72px 76px 64px 92px;
+  }
+}
+
 
 /* ═════════════════════════════════════════════════════════════════════════════
    3. TOKENS — LJUST BRONS (sekundärt, förberett — INGEN referensbild finns)
