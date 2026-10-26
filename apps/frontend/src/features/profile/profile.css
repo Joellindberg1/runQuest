@@ -100,11 +100,13 @@
 
 /* ── Statflikar och rader ─────────────────────────────────────────────────── */
 .rq-card.rq-profile-statcard { padding: 0; }
-/* De fyra flikarna har sin naturliga bredd och fördelar överskottet lika (flex: 1 0 auto). Rymms de inte (under ca 340 px, med ikoner och versaler) scrollar flikraden i sidled i sitt eget kort, som
-   chip-raderna och pillerna, i stället för att sticka ut ur kortet och göra hela sidan bredare (flik 4 på 320 px låg 32 px utanför fönstret). */
+/* Fyra lika breda flikar (flex: 1, som förut). Rymms de inte (under ca 340 px, med ikoner och versaler; en flik krymper aldrig under sin text) scrollar flikraden i sidled i sitt eget kort, som
+   chip-raderna och pillerna, i stället för att sticka ut ur kortet och göra hela sidan bredare (flik 4 på 320 px låg 32 px utanför fönstret). overflow-x: auto gör också overflow-y till auto och
+   klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset, som chip-raderna). */
 .rq-profile-tabs { display: flex; overflow-x: auto; scrollbar-width: thin; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
-.rq-profile-tabs > .rq-tab { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
+.rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
 .rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
+.rq-profile-tabs > .rq-tab:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
 .rq-profile-rows { margin: 0; }
 .rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }

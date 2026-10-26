@@ -80,12 +80,14 @@ test.describe('the stat tab row at every width', () => {
       await expect(tablist).toBeVisible();
       await waitForStylesApplied(page);
 
+      // Fokusringen visas bara för tangentbordsfokus (:focus-visible), så flikarna nås med piltangenterna: Streak, Fun facts, Consistency och, runt, Distance.
       await page.getByRole('tab', { name: STAT_TABS[0] }).click();
-      for (const name of STAT_TABS) {
+      for (const name of [...STAT_TABS.slice(1), STAT_TABS[0]!]) {
         const tab = page.getByRole('tab', { name });
-        if ((await tab.getAttribute('aria-selected')) !== 'true') await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('ArrowRight');
         await expect(tab).toBeFocused();
-        // Ringen ritas från flikens kant, förskjuten med outline-offset (negativt = inåt) och outline-width utåt: dess yttre rektangel ska ligga inom radens synliga rektangel (efter att raden scrollat fliken i bild).
+        // Ringen ritas från flikens kant, förskjuten med outline-offset (negativt = inåt) och outline-width utåt. En rad som klipper (overflow annat än visible) får inte ha ringen utanför sin rektangel
+        // (efter att raden scrollat fliken i bild).
         await expect
           .poll(
             async () =>
@@ -93,18 +95,17 @@ test.describe('the stat tab row at every width', () => {
                 const style = getComputedStyle(element);
                 const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
                 const box = element.getBoundingClientRect();
-                const row = element.parentElement!.getBoundingClientRect();
-                return {
-                  drawn: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0,
-                  top: box.top - reach >= row.top - 1,
-                  bottom: box.bottom + reach <= row.bottom + 1,
-                  left: box.left - reach >= row.left - 1,
-                  right: box.right + reach <= row.right + 1,
-                };
+                const rowElement = element.parentElement!;
+                const row = rowElement.getBoundingClientRect();
+                const rowStyle = getComputedStyle(rowElement);
+                const clips = rowStyle.overflowX !== 'visible' || rowStyle.overflowY !== 'visible';
+                const inside =
+                  box.top - reach >= row.top - 1 && box.bottom + reach <= row.bottom + 1 && box.left - reach >= row.left - 1 && box.right + reach <= row.right + 1;
+                return { drawn: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0, clipped: clips && !inside };
               }),
-            { message: `the focus ring of the "${name}" tab is inside the tab row` },
+            { message: `the focus ring of the "${name}" tab is not clipped` },
           )
-          .toEqual({ drawn: true, top: true, bottom: true, left: true, right: true });
+          .toEqual({ drawn: true, clipped: false });
       }
     });
   }
