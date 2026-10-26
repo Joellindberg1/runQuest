@@ -61,3 +61,76 @@ test.describe('the profile on a phone', () => {
     });
   }
 });
+
+// Flikraden på alla bredder (också datorbredd, där den inte scrollar). overflow-x: auto gör overflow-y till auto, så en fokusring som ritas utanför flikens kant klipps av raden; och flikarna ska fortfarande
+// dela raden lika (flex: 1) som förut.
+const ROW_WIDTHS = [
+  { width: 320, height: PHONE_HEIGHT },
+  { width: 375, height: PHONE_HEIGHT },
+  { width: 1440, height: 900 },
+];
+
+test.describe('the stat tab row at every width', () => {
+  for (const { width, height } of ROW_WIDTHS) {
+    test(`the focus ring of a stat tab is not clipped by the tab row at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto('/profile');
+      await dismissOverlays(page);
+      const tablist = page.getByRole('tablist', { name: 'Your stats' });
+      await expect(tablist).toBeVisible();
+      await waitForStylesApplied(page);
+
+      await page.getByRole('tab', { name: STAT_TABS[0] }).click();
+      for (const name of STAT_TABS) {
+        const tab = page.getByRole('tab', { name });
+        if ((await tab.getAttribute('aria-selected')) !== 'true') await page.keyboard.press('ArrowRight');
+        await expect(tab).toBeFocused();
+        // Ringen ritas från flikens kant, förskjuten med outline-offset (negativt = inåt) och outline-width utåt: dess yttre rektangel ska ligga inom radens synliga rektangel (efter att raden scrollat fliken i bild).
+        await expect
+          .poll(
+            async () =>
+              tab.evaluate((element) => {
+                const style = getComputedStyle(element);
+                const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+                const box = element.getBoundingClientRect();
+                const row = element.parentElement!.getBoundingClientRect();
+                return {
+                  drawn: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0,
+                  top: box.top - reach >= row.top - 1,
+                  bottom: box.bottom + reach <= row.bottom + 1,
+                  left: box.left - reach >= row.left - 1,
+                  right: box.right + reach <= row.right + 1,
+                };
+              }),
+            { message: `the focus ring of the "${name}" tab is inside the tab row` },
+          )
+          .toEqual({ drawn: true, top: true, bottom: true, left: true, right: true });
+      }
+    });
+  }
+
+  for (const { width, height } of ROW_WIDTHS.filter((size) => size.width >= 375)) {
+    test(`the four stat tabs share the tab row evenly at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto('/profile');
+      await dismissOverlays(page);
+      await expect(page.getByRole('tablist', { name: 'Your stats' })).toBeVisible();
+      await waitForStylesApplied(page);
+      // Flikarna delar raden som `flex: 1` (lika andel av det som blir över, aldrig smalare än sin text): de ritade bredderna jämförs med samma flikar med `flex: 1` satt direkt på dem. På datorbredd, där alla
+      // ryms, blir de dessutom lika breda. En annan flex-regel (till exempel `1 0 auto`, som lägger överskottet på texten) ger andra bredder.
+      const measured = await page.getByRole('tab').evaluateAll(async (tabs) => {
+        const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        const widthsOf = () => tabs.map((tab) => tab.getBoundingClientRect().width);
+        const drawn = widthsOf();
+        tabs.forEach((tab) => (tab as HTMLElement).style.setProperty('flex', '1'));
+        await nextFrame();
+        const reference = widthsOf();
+        tabs.forEach((tab) => (tab as HTMLElement).style.removeProperty('flex'));
+        return { drawn, reference };
+      });
+      expect(measured.drawn).toHaveLength(STAT_TABS.length);
+      measured.drawn.forEach((value, index) => expect(Math.abs(value - measured.reference[index]!), `the "${STAT_TABS[index]}" tab keeps its width`).toBeLessThanOrEqual(TOLERANCE_PX));
+      if (width >= 1024) expect(Math.max(...measured.drawn) - Math.min(...measured.drawn), 'all four tabs are equally wide').toBeLessThanOrEqual(TOLERANCE_PX);
+    });
+  }
+});
