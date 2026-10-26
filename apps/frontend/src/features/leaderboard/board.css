@@ -28,9 +28,10 @@
   font-size: var(--rq-fs-body);
 }
 .rq-board-avatar img { width: 100%; height: 100%; object-fit: cover; }
-/* Ett namn med ett långt ord utan brytpunkt bryts mitt i ordet i raderna (rest-raderna, Week och Streaks): mittkolumnen är `1fr` (= minmax(auto, 1fr)), så ordet gav den ett min-content som sprängde raden. `anywhere` räknar brytpunkterna in i min-content, så raden krymper med. Podiet är undantaget: dess namnkolumn är bara ~92-95 px, och regeln skulle bryta vanliga namn mitt i ordet där de förut bröts vid mellanslag. */
+/* Ett namn med ett långt ord utan brytpunkt bryts mitt i ordet i raderna (rest-raderna, Week och Streaks): mittkolumnen är `1fr` (= minmax(auto, 1fr)), så ordet gav den ett min-content som sprängde raden. `anywhere` räknar brytpunkterna in i min-content, så raden krymper med. Podiet får inte `anywhere`: dess namnkolumn är bara ~92-95 px, och regeln skulle bryta vanliga namn mitt i ordet där de förut bröts vid mellanslag. Där räcker `break-word` med `min-width: 0`: namnet krymper under sitt längsta ord bara när ordet inte ryms i kortet (annars ligger orden som förut), och då bryts just det ordet. */
 .rq-board-namebtn { padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
 .rq-board-row .rq-board-namebtn { overflow-wrap: anywhere; }
+.rq-board-podium .rq-board-namebtn { min-width: 0; overflow-wrap: break-word; }
 .rq-board-namebtn:hover { color: var(--rq-gold-text); }
 .rq-board-delta { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-name); color: var(--rq-text-4); }
 .rq-board-delta[data-dir="up"] { color: var(--rq-up); }
@@ -57,7 +58,7 @@
 @media (max-width: 359px) { .rq-board .rq-badge-minis { gap: var(--rq-sp-4); } }
 .rq-board-podium .rq-badge-minis { margin-left: auto; margin-right: var(--rq-board-minis-inset); }
 .rq-board [data-minis="true"] { min-width: 0; }
-/* Namnet krymper aldrig under sitt längsta ord och badgesen ritas aldrig över det: rymmer raden inte namn och badgegrupp bredvid varandra bryts gruppen till en egen rad
+/* Namnet krymper aldrig under sitt längsta ord (utom ett ord som är bredare än kortet, se `.rq-board-podium .rq-board-namebtn`) och badgesen ritas aldrig över det: rymmer raden inte namn och badgegrupp bredvid varandra bryts gruppen till en egen rad
    under namnet (flex-wrap; --rq-sp-4 mellan raderna). Gruppen står kvar till höger (auto-marginalen), så kortet ser likadant ut med och utan radbrytning. */
 .rq-board-podium__nameline[data-minis="true"] { flex-wrap: wrap; row-gap: var(--rq-sp-4); }
 .rq-board-podium__nameline.rq-board-podium__nameline--room { min-height: var(--rq-badge-h-sm); }
@@ -84,6 +85,12 @@
 .rq-board-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--rq-gap-hair); }
 .rq-board-stats + .rq-board-stats { margin-bottom: var(--rq-sp-10); }
 .rq-board-stat { background: var(--rq-cell); padding: var(--rq-sp-6) var(--rq-sp-8); }
+/* Smal desktop (1024–1279 px): kortet är ~216–274 px och statrutans tre celler bara 58–75 px, så "longest" (14 px, --rq-ls-label) löpte ur sin cell in i nästa ("LONGEST RUNS" blev ett ord) och
+   "km total" bröts på två rader. Etiketten tar mobilens storlek och tätare tecken, cellen smalare sidopadding; från 1280 px gäller de vanliga måtten. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .rq-board-stat { padding-inline: var(--rq-sp-4); }
+  .rq-board-stat .rq-label { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); }
+}
 .rq-board-stat__value { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-board-stat__value[data-tone="rank"] { color: var(--rq-rank-solid); }
 .rq-board-stat__value[data-tone="up"] { color: var(--rq-up); }
@@ -113,8 +120,10 @@
 .rq-board-sub { display: flex; align-items: center; gap: var(--rq-sp-6); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 /* Mobilens rest-rader: sub-raden rymmer en mini (Council 10) — ALLA rader, med och utan minis, så de inte hoppar när badge-queryn landar. */
 .rq-board-sub.rq-board-sub--list { min-height: var(--rq-badge-h-sm); }
-/* Desktoptabellens sub-rad bär minis efter "Lvl N · X km" (glapp --rq-sp-8) och rymmer en mini på ALLA rader av samma skäl. */
-.rq-board-sub.rq-board-sub--table { gap: var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+/* Desktoptabellens sub-rad bär minis efter "Lvl N · X km" (glapp --rq-sp-8) och rymmer en mini på ALLA rader av samma skäl. Rymmer namnkolumnen inte båda (smal desktop, 1024–1279 px) bryts minis
+   till en egen rad under texten i stället för att ligga över nästa kolumn; texten bryts aldrig. */
+.rq-board-sub.rq-board-sub--table { flex-wrap: wrap; gap: var(--rq-sp-4) var(--rq-sp-8); min-height: var(--rq-badge-h-sm); }
+.rq-board-sub--table > span { white-space: nowrap; }
 .rq-track.rq-board-track--thin { height: var(--rq-board-bar-h-thin); margin: var(--rq-sp-4) 0; }
 .rq-board-titleline--row { margin: 0 0 var(--rq-sp-6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--rq-gold-rgb) / .8); }
 .rq-board-num { font-weight: 600; font-size: var(--rq-fs-stat-value); color: var(--rq-text-2); text-align: right; }
