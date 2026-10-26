@@ -556,3 +556,133 @@ Startkatalogen:
 
 ### Notering 2026-10-20 (RUN-357, Lead): tävlingstabellens namn
 `GET /api/events` och `/history` skickade för anroparens egen rad `userName: 'Du'` (ett lokaliserat namn från servern). Sedan RUN-357 skickas det riktiga namnet och `isMe: true` markerar raden; klienten visar "You". Fältet `userName` finns kvar, bara värdet för en rad har bytts. Ingen utgiven bundle har läst strängen `'Du'` (alla läser `isMe`, kontrollerat i taggarna v0.5.0–v0.8.0 och före v0.5.0), så bytet bryter ingen klient trots att det inte är strikt additivt enligt A2. Kontraktet: `packages/shared/src/contracts/events.ts`.
+
+## Addendum 2026-10-26 (v0.8.3, epics RUN-378 och RUN-391): positionshistorik per vecka och tid/tempo per runda
+
+Status: utkast av Arkitekten 2026-10-26 för Lead. Underlaget är Design Councils dom och ägarbesluten 2026-10-26 (positionsgrafen visar total-XP-placeringen vid varje veckas slut, räknad i efterhand, utan ny tabell; pågående vecka är live och ska matcha Standings; Best/Lowest på avslutade veckor). Beslut A1–A8 och B1–B10 gäller oförändrade. Tabellen i B får rad 11 (punkt 1 nedan), och B3 och B9 får ett additivt fält (punkt 2). Ingen ADR ersätts. Ingen ny tabell, ingen migration, ingen regeländring i spelet, ingen ny extern tjänst, ingen kostnad.
+
+### Kontext
+Verifierat i koden 2026-10-26 (main 319d7187, v0.8.2). Ingen rundata läst, bara kod och migrationer.
+
+- **Standings är `users.total_xp` sorterad med `compareXpStandings`** (xp fallande, namn skiftlägesokänsligt, id; `shared/rankPasses.ts`). Samma komparator används av `GET /auth/users-with-runs` (`routes/auth.ts`), frontendens `rankedUsers`, `rank_passed`-detektionen och `buildRankDelta`. Ordningen är total: ingen delar plats.
+- **`total_xp` = Σ `runs.xp_gained` + `users.event_xp`** (`calculateUserTotals`, ADR 005; `increment_event_xp` höjer båda).
+- **`GET /api/leaderboard/rank-delta` räknar redan bakåt.** `buildRankDelta` tar `previous_xp = total_xp − Σ XP krediterad med datum ≥ asOf` (`buildXpLedger`: `runs.xp_gained` på `runs.date`, plus event-XP daterad `qualified_at` för participation och `settled_at ?? ends_at` för competition), klampar till 0 (`diverged` loggas) och rankar medlemmar skapade före `asOf` med samma komparator. Bakåträkningen är vald för att den aldrig kan avvika från Standings i dag: nuläget ÄR `total_xp`.
+- **`buildXpLedger` saknar tidszon** (`xpLedger.ts:57`, `stockholmDay`), vilket redan står på RUN-21:s arbetslista i `utils/groupTimeZone.ts`. Resten av `leaderboard.ts` går via `groupTimeZone`.
+- **PostgREST kapar svar vid 1000 rader.** `leaderboard.ts` läser redan hela historiken sidvis (`fetchGroupBestWeekKm`, `range()`, unik tie-breaker `date, id`).
+- **`calendar.ts` har `mondayOf`, `addDays`, `zoneDay`, `zoneMidnightIso` och `isoWeekNumber`** men inget ISO-år. Runt årsskiftet hör en vecka till ett annat ISO-år än sin måndags kalenderår (2026 har 53 veckor: måndagen 2026-12-28 är vecka 53, måndagen 2027-01-04 är vecka 1).
+- **`runs.moving_time`** (integer, sekunder, nullbar) sätts bara av Strava-importen (`extractExtendedFields`). `GET /api/runs/group-history` läser `select('*')` och mappar bort fältet; `GET /api/auth/users-with-runs` har en explicit kolumnlista utan det. `RunRow.moving_time?` finns redan i `contracts/runs.ts`; `GroupRunHistoryItem` saknar det.
+- **Integritetstexten** (`shared/legal/dataPolicy.ts`, `DATA_POLICY_VERSION = '2026-10-22'`) säger att packet ser dina rundor och listar moving time som lagrad Strava-data, men beskriver rundan som datum, distans, löpband och XP. Att tiden visas per runda för packet är inte sagt uttryckligen.
+
+### Beslut
+
+**1. Ny endpoint `GET /api/leaderboard/positions[?weeks=N]` (B11, ny rad i tabellen i B)**
+
+Placering i total-XP-ordningen vid slutet av varje vecka, plus live-placeringen för den pågående veckan. Allt härleds vid läsning; inget lagras.
+
+*Parametrar.* `weeks` är ett heltal 1–`POSITION_WEEKS_MAX` (26), standard `POSITION_WEEKS_DEFAULT` (8, designens W27–W34). Annat värde, upprepad parameter eller icke-heltal ger 400 (`invalid_request`, text `weeks must be an integer between 1 and 26`). Den pågående veckan ingår alltid och räknas in i `weeks`.
+
+*Kontrakt* (`packages/shared/src/contracts/leaderboard.ts`, typer och två konstanter; svarsform `{success,data}` enligt A1 och kuvertet i Addendum 2026-10-20, snake_case enligt A3):
+```ts
+export const POSITION_WEEKS_DEFAULT = 8;
+export const POSITION_WEEKS_MAX = 26;
+
+export interface PositionWeek {
+  start: string;            // måndag, YYYY-MM-DD i gruppens tidszon
+  end: string;              // söndag
+  iso_week: number;         // 1–53, isoWeekNumber(start)
+  iso_year: number;         // ISO-veckans år, isoWeekYear(start); skiljer sig från start-året runt årsskiftet
+  is_current_week: boolean; // sant för sista elementet, falskt för alla andra
+}
+
+export interface PositionRunner {
+  user_id: string;
+  name: string;
+  profile_picture: string | null;   // slutpunkten i grafen är profilbilden (ägarbeslut E1); klienten har initialer som reserv
+  member_since: string | null;      // dagen kontot skapades i gruppens tidszon (users.created_at); null = okänt
+  /** Parallell med `weeks`: positions[i] hör till weeks[i]. 1-baserad; null = ingen placering (före inträdet). Sista elementet är live-placeringen = Standings. */
+  positions: Array<number | null>;
+}
+
+export interface PositionHistoryResponse {
+  as_of: string;                    // gruppens "idag" (YYYY-MM-DD)
+  weeks: PositionWeek[];            // äldst först; sista = pågående vecka
+  runners: PositionRunner[];        // sorterad på live-placeringen stigande = Standings ordning
+}
+export type PositionHistoryApiResponse = ApiSuccess<PositionHistoryResponse>;
+```
+Avvikelser från Leads förslag, avsiktliga och billiga att vända: (a) `label` ("W34") och `initials` skickas inte. Etiketten är mänsklig text, som hör till klienten (Addendum 2026-10-20, punkt 1), och `getInitials` finns redan i frontend; en andra implementation på servern vore två sanningar. API:t bär `iso_week` och `iso_year`, så etiketten, "vecka 27" för skärmläsare och årsskiftet är klientens formatering ur en källa. (b) `member_since` är tillagd så att klienten kan avgöra texten för ny löpare utan att gissa ur var första `null` slutar.
+
+*Beräkning* (ren funktion `buildPositionHistory` i `packages/shared/src/positionHistory.ts`, enhetstestad; handlern läser och anropar).
+- Veckorna: `currentStart = mondayOf(zoneDay(now, tz))`, vecka k (0 äldst) börjar `addDays(currentStart, −7·(N−1−k))`. Gränserna är kalenderdagar (`YYYY-MM-DD`), så sommartid kan inte flytta en gräns (söndagen 2026-10-25 är 25 timmar lång). `tz = groupTimeZone(tokenGroupId(req))`.
+- Avslutad vecka k har slutgräns `b_k` = måndagen efter (`addDays(start_k, 7)`). `xp(u,k) = max(0, total_xp(u) − Σ ledger-poster för u med date ≥ b_k)`. Det är exakt `previous_xp` i `buildRankDelta` med `asOf = b_k`, vilket är avsiktligt: bakåträkning ur `total_xp` gör att alla XP som liggaren inte ser (äldre än fönstret, eller av annat slag) ligger kvar som en konstant och inte snedvrider ordningen, och att live-veckan är `total_xp` rakt av.
+- Pågående vecka: `xp = total_xp`, alla medlemmar. Identisk mängd, XP och komparator som Boards sortering, alltså matchar den Standings per konstruktion (inte per kopierad logik).
+- Placering = `1 + antal närvarande medlemmar som ligger före enligt compareXpStandings`. **Samma komparator som Standings, ingen egen**: xp fallande, namn, id. Ingen delar rad, och lika XP (vanligt för medlemmar med 0 XP) ger en alfabetisk, deterministisk ordning som inte hoppar mellan anrop.
+- Närvaro: medlem u är närvarande vid slutet av vecka k om `entry(u) < b_k` där `entry(u)` är `zoneDay(users.created_at, tz)`; saknat `created_at` räknas som närvarande alltid. Ej närvarande ger `null` och deltar inte i ordningen. Veckan då kontot skapades får alltså sin första placering när den veckan slutar. Samma regel som `previous_rank` i `rank-delta` ("skapad före `asOf`").
+- **Invariant (testas):** `positions` för den sista avslutade veckan är lika med `previous_rank` från `rank-delta` för varje medlem, `null` mot `null` inräknat. Grafen och pilarna på Standings kan därför inte säga emot varandra.
+- Förledande veckor där ingen är närvarande beskärs bort (en grupp som är yngre än N veckor ger färre veckor än begärt). `weeks.length` kan alltså vara < N; den pågående veckan finns alltid kvar.
+- **Källa för inträdet.** `users.created_at`, som `/week` och `/rank-delta`. `group_members.starts_on` läses inte: den är `null` för alla nuvarande medlemmar (ADR 012 beslut 2.3), XP är globalt per användare i v0.8.x (ADR 012 beslut 7, alltså syns en medlem i Standings från dag ett oavsett `starts_on`), och att läsa den skulle få grafen att skilja sig från `rank-delta`. `group_members.joined_at` är fel källa: backfillen satte den till migrationstidpunkten för alla. Revisit-trigger nedan.
+- `buildXpLedger` får ett valfritt tredje argument `timeZone` (standard `STOCKHOLM_TZ`); den nya routen skickar gruppens zon. `rank-delta` skickar den också (beteendeneutralt i dag, tar bort en blandning av gruppens zon och Stockholm som beskrivs i `groupTimeZone.ts`); raden `shared/xpLedger.ts:57` tas bort ur RUN-21:s lista där. `isoWeekYear(day)` läggs i `calendar.ts` (ISO-årets år = året för veckans torsdag), enhetstestad runt 2020-12-31 (vecka 53), 2021-01-03, 2024-12-30, 2026-12-28, 2027-01-01 och 2027-01-04.
+- Bakåträkningen och `previous_xp` i `buildRankDelta` ska vara EN implementation (en hjälpfunktion i `xpLedger.ts` som båda anropar), inte en kopia; invarianten ovan är testet som håller dem ihop.
+
+*Läsningar, en per tabell, ingen N+1.* Parallellt: (1) `users` (`id, name, profile_picture, total_xp, created_at`) för gruppen; (2) `runs` (`id, user_id, date, xp_gained, users!inner(group_id)`, `date ≥ b_0`, `eq('users.group_id', groupId)`), sidvis med `range()` och unik ordning `date, id`; (3) `event_entries` (`id, user_id, event_id, xp_awarded, qualified_at, events!inner(type, ends_at, settled_at, group_id)`, `xp_awarded > 0`, `events.ends_at ≥ zoneMidnightIso(addDays(b_0, −14))`, `eq('events.group_id', groupId)`), sidvis med ordning `id`. `b_0` är den äldsta avslutade veckans slutgräns. Med `weeks=1` finns ingen avslutad vecka och (2) och (3) hoppas över. Sidläsningen återanvänder mönstret i `fetchGroupBestWeekKm` (extrahera hjälpfunktionen i stället för att kopiera loopen). Event-fönstret har samma 14-dagars-svans och samma kvarstående risk som `rank-delta` (Addendum 2026-10-05 punkt 3): en avräkning som står stilla mer än 14 dagar efter `ends_at` och sedan avräknas efter `b_0` faller utanför, och `previous_xp` överskattas för den veckan.
+
+*Gruppavgränsning.* `groupIdOrRespondEmpty` (A6, fail-closed): token utan `group_id` ger 200 med `{ as_of, weeks: [], runners: [] }` och utan databasanrop. Gruppfiltret sätts alltid (inget villkorligt filter; `ci-guards` regel 6 gäller). Svaret innehåller bara `id`, `name` och `profile_picture` per medlem, samma exponering som `/week`; aldrig e-post.
+
+*Prestanda, bedömd mot dagens datamängder (uppskattning ur koden; ingen rundata läst).* Prod är en grupp med sex medlemmar. Vid standardvärdet 8 läses 7 veckors rundor: runt hundra rader typiskt, några hundra i värsta fall, alltså en sida. Vid taket (26 veckor, 12 medlemmar) är värsta fallet i storleksordningen 2 000 rader (tre sidor à 1000) och typiskt hälften; event-raderna är färre. Kolumnerna är fyra små fält, räkningen är O(rader × veckor), och svaret är ett par kB. Ingen cache införs: svaret beror på `total_xp`, som ändras vid varje runda, och en cache måste då invalideras. Frontend hämtar bara när Position-fliken öppnas (`staleTime` 60 s, query-nyckel under `['leaderboard', 'positions', weeks]` så att den invalideras med övriga `['leaderboard']`-frågor efter en loggad runda). Revisit-trigger nedan.
+
+*Förbehåll: retroaktivt omräknad XP.* Historiken är "som datan ser ut nu", inte en frusen bild. Den ändras bakåt när en runda redigeras eller raderas, när en Strava-runda tas bort eller kopplas från (dessa omräknar XP, streaks och titlar enligt integritetstexten), när `reprocess` körs efter en regeländring och när en medlem lämnar gruppen (hen försvinner ur de gamla veckorna och de andras placeringar flyttar upp). En placering som en användare minns från i söndags kan alltså vara annorlunda i dag. Det är en direkt följd av ägarbeslutet "utan ny tabell". Förklaringsraden "Read every Sunday midnight" lovar ingenting om oföränderlighet och behöver inte ändras; ett frysande söndagsjobb är alternativet nedan.
+
+*En löpare och inga avslutade veckor.* API:t är inte presentationsregler: med en medlem returneras ett giltigt svar (`runners` har ett element, `positions` är `1` eller `null`). Klienten döljer Position-fliken på Leaderboard och profil när gruppen har färre än två medlemmar, utifrån gruppstorleken som redan finns i `users-with-runs` (ingen extra hämtning bara för att dölja fliken). Med två eller fler medlemmar men ingen avslutad vecka (`weeks.length === 1`) visar klienten förklarande text. Nytt-löpare-texten ("First week in the group...") väljs av klienten när alla `positions` utom det sista är `null`; `member_since` finns för att texten ska kunna säga rätt sak.
+
+*Klienten.* Hook `usePositionHistory(weeks)` i `features/leaderboard/hooks`. Profilen och Leaderboard använder samma hook och samma cache; profilen plockar sin egen rad (`runners.find`). Best/Lowest räknas i en ren vymodell i frontend på avslutade veckor (alla utom sista elementet), Now är sista elementet. Diagrammet är handritad SVG, inget diagrambibliotek (se alternativ), laddas lazy och ingår aldrig i landningens importgraf: den befintliga importgrafsvakten för lean ingången (ADR 006 Addendum 2026-10-19, S4 punkt 4) utökas med komponenterna.
+
+**2. Tid och tempo per runda**
+
+- **Kontrakt.** `GroupRunHistoryItem` får `moving_time: number | null` (sekunder; `null` för manuella rundor och rundor utan tid). `GET /api/runs/group-history` mappar `run.moving_time ?? null` (kolumnen läses redan med `select('*')`; ingen ny query). `GET /api/auth/users-with-runs` lägger `moving_time` i `runs(...)`-selecten; `RunRow.moving_time` finns redan och kommentaren i `contracts/runs.ts` ("skickas ingen route ännu") rättas. Båda är additiva fält (A2). Ingen migration, ingen skrivväg ändras, och `POST/PUT`-svaren får inte fältet (manuella rundor har aldrig tid).
+- **Tempo räknas på ett ställe: `packages/shared/src/pace.ts`** (ren, enhetstestad, ingen klocka, ingen I/O):
+  - `paceSecPerKm(movingTimeSeconds, distanceKm): number | null` = `Math.round(tid / distans)` (heltals-sekunder per km). `null` om tiden eller distansen saknas, inte är ändlig, eller är ≤ 0. Aldrig `NaN` eller `Infinity`.
+  - `summariseRunTime(runs): RunTimeSummary` med `{ total_seconds, distance_km, pace_sec_per_km: number | null, runs_with_time, runs_total }`. Bara rundor med giltig tid och distans > 0 räknas in i både tid och distans (annars blir tempot för högt när rundor utan tid ligger med i nämnaren); tempot är `Math.round(total_seconds / distance_km)` på de ej avrundade summorna, inte ett snitt av rundornas avrundade tempon. Ingen runda med tid: `total_seconds: 0`, `pace_sec_per_km: null`, och klienten visar "—". Det ger Run historys "based on N of M runs" (`runs_with_time` av `runs_total`).
+  - Ingen klient har en egen division: Group history (webb och mobil), Run history och Overview använder funktionerna, aldrig en egen formel. En enkel vakt (testad källsökning efter `moving_time` utanför vymodeller) är valfri.
+- **Formatering bor i frontends enda formatmodul, `apps/frontend/src/shared/utils/format.ts`** (ingen Intl, samma regel som övriga funktioner där): `formatDuration(seconds)` ger `m:ss` under en timme och `h:mm:ss` från en timme (timmarna obegränsade, för summor över många rundor); `formatPace(secPerKm)` ger `m:ss`; avrundningen sker före uppdelningen så att 359,6 s blir `6:00`, inte `5:60`. Skärmläsartexten ("Time 52:10, pace 5:13 per kilometre") byggs av en funktion bredvid. Hanteringen av `null` (tankstreck med dold text "no time recorded") ligger i vymodellerna, inte i formatfunktionerna, som bara tar giltiga tal.
+- **Omfång.** Summan i Run history gäller de rundor som kortet visar för tillfället (antagande, se öppna frågor); radens egen etikett är "Time".
+- **Nyttolast.** `users-with-runs` skickar redan hela historiken; fältet lägger ≈ 20 byte per runda (`"moving_time":3120,` eller `null`), alltså storleksordningen 15 kB okomprimerat för en grupp med tusen rundor. Backend komprimerar inte (Addendum 2026-10-20, risk 2). Marginellt, och det kända tunga arvet (revisit-trigger i B3) ändras inte här.
+
+### Alternativ som övervägts
+- **Frysta veckoplaceringar: en tabell `position_snapshots` skriven av ett söndagsjobb.** Ger en oföränderlig historia och en billigare läsning, men kräver en migration, ett schemalagt jobb som kan missa en vecka, och en backfill som ändå måste räkna bakåt ur rundorna. Avvisat av ägarbeslutet (utan ny tabell) och av YAGNI med sex medlemmar; det är den uppenbara vägen om förbehållet ovan visar sig störa.
+- **Räkna framåt: kumulera liggaren från noll.** Avvisat: liggaren täcker bara fönstret och inte allt som ligger i `total_xp`, så live-veckan kunde avvika från Standings. Bakåt ur `total_xp` ger likhet med Standings per konstruktion.
+- **Räkna i klienten ur `users-with-runs`.** Avvisat av samma skäl som i det ursprungliga beslutet (veckogränser och sommartid i klienten) och för att eventens XP inte finns där.
+- **Lägga `weeks` på `rank-delta`.** Avvisat: annan form (en rad per vecka per medlem), annan kostnad, och `rank-delta` används av Board-raderna varje gång. Ett eget endpoint håller Boards anrop litet; funktionerna delas i shared.
+- **Per-användar-endpoint (`/positions/:userId`).** Avvisat: placeringen är relativ och kräver alla medlemmar ändå; ett svar för gruppen är ett par kB och delas av Leaderboard och profil.
+- **Läsa `group_members.starts_on` eller `joined_at` som inträde.** Se punkt 1. Revisit när XP blir per (användare, grupp).
+- **Tempo som serverfält (`pace_sec_per_km` i varje rad).** Avvisat: härledd data i kontraktet som kan bli inaktuell mot `distance`, och ett argument för nästa klient att lita på servern i stället för att använda den delade funktionen; funktionen ger samma resultat överallt.
+- **Diagrambibliotek (recharts, visx, d3).** Avvisat: kostar bundle, ger sämre kontroll över textalternativ och fokus, och grafens form (en linje per löpare, profilbild som slutpunkt) är ritning i SVG, inte statistikfunktioner. Build-vs-buy: noll kostnad och inget nytt beroende att bygga.
+
+### Konsekvenser
+- **Kostnad, tjänster, data.** Ingen kostnad, ingen ny extern tjänst, ingen ny tabell eller kolumn, inga migrationer. **Flagga (användardata, hård gräns):** tiden per runda (`moving_time` från Strava) blir synlig för alla i gruppen, per runda, i Group history. Fältet lagras redan, och packet ser redan datum, distans och tidsbaserade titelvärden (snabbaste 5 km) och Speedster-badgen, men inte tiden per runda. Integritetstexten ("What is stored", "Who sees what" och Strava-avsnittet) bör uttryckligen säga det och `DATA_POLICY_VERSION` höjas i samma release (snapshotvakten i `dataPolicy.test.ts` fäller annars). Ägaren bör också bekräfta att Stravas API-villkor tillåter att en medlems Strava-härledda tid visas för övriga medlemmar i samma grupp (se öppna frågor). Positionshistoriken visar inget som Standings inte redan visar.
+- **Positivt.** Grafen kan inte avvika från Standings; en enda källa för tempo; endpointen återanvänder `rank-delta`-logiken och bevisar likheten med ett test; yngre grupper får en kortare graf utan särfall i klienten.
+- **Negativt/risker.** (1) Historiken är retroaktivt omräkningsbar (se förbehållet). (2) Upp till tre sekventiella sidläsningar för rundor vid taket; ok för 12 medlemmar, mät vid fler. (3) Event-fönstrets 14-dagarssvans (ärvd). (4) `users.created_at` är en grov inträdesdag för en medlem som skapades långt före gruppen; i dag har ingen sådan medlem, och `starts_on` tas in när XP blir per grupp. (5) Ett kontrakt i `shared` som två klienter (webb, kommande PWA) läser: fältnamn och konstanter ändras bara additivt.
+- **Tester (ADR 001).** Shared: `buildPositionHistory` (lika XP ger namn/id-ordning och aldrig delad rad; medlem som kom in mitt i perioden är `null` före och rankad efter; yngre grupp beskärs; en medlem; ingen avslutad vecka; liggaren större än `total_xp` klampar till 0 och rapporteras; sista avslutade vecka är lika med `rank-delta.previous_rank` för varje medlem, `null` inräknat; sommartidsvecka 2026-10-19..25; vecka 53 och årsskifte med `iso_week`/`iso_year`; måndag morgon då den pågående veckan nästan är tom); `isoWeekYear`; `buildXpLedger` med annan tidszon; `paceSecPerKm` (null, 0, negativ, NaN, Infinity, avrundning, löpband) och `summariseRunTime` (blandade rundor, ingen runda med tid, nämnaren utan tidslösa rundor). Backend, route-test med mockad DB: 401 utan token; token utan grupp ger tom form utan DB-anrop; annan grupps rundor syns aldrig; `weeks` 0, 27, `abc`, `2.5`, upprepad ger 400; standard 8; fler än 1000 rundor ger flera sidor och rätt svar; antalet frågor är konstant oavsett antal medlemmar; svaret saknar e-post; wiring-testet oförändrat (prefixet `/api/leaderboard` finns). `group-history` och `users-with-runs` bär `moving_time` (siffra och `null`). Frontend: formatfunktionerna, vymodellerna för Best/Lowest/Now och Total time/Pace ("based on N of M runs", "—", aldrig NaN), importgrafsvakten för lean ingången.
+- **Arkitekturdiagram.** Ingen ändring: ett nytt endpoint i den befintliga routern `/api/leaderboard` och fält i befintliga svar; diagrammet listar inte enskilda endpoints.
+- **STATE.md-ändringar att föreslå (Lead skriver).** (1) ADR-index, raden för 007: "addendum 2026-10-26: `GET /api/leaderboard/positions` (placeringshistorik härledd bakåt ur total_xp, samma komparator som Standings), `moving_time` i group-history och users-with-runs, tempo i `shared/pace.ts`". (2) Konventioner: "Tempo och tid per runda räknas bara i `shared/pace.ts`, formateras i `frontend/shared/utils/format.ts`"; "Placeringshistoriken lagras inte; den räknas bakåt ur `total_xp` och ändras om XP räknas om". (3) Kända risker: retroaktiv historik. (4) Integritetstexten: tiden per runda synlig för packet. (5) Röktest: "Position-fliken: sista avslutade veckan stämmer med pilarna på Standings".
+
+### Revisit-triggers
+- Historiken stör användarna (placeringar som ändras efteråt), eller ägaren vill ha ett "hall of fame" för veckor: ett frysande söndagsjobb och `position_snapshots` (egen ADR, migration).
+- XP blir per (användare, grupp) (RUN-95, säsonger): inträdet byter från `users.created_at` till `group_members.starts_on`, i `rank-delta` och `positions` samtidigt (en delad funktion), och rangen följer Standings nya XP-bas.
+- Gruppen växer förbi ~20 medlemmar eller svaret passerar några hundra millisekunder: cache per (grupp, vecka) för avslutade veckor, eller en materialiserad vy.
+- En andra konsument (PWA) behöver `initials` eller veckoetiketter ur API:t: lägg dem additivt, men bara om funktionen flyttas till `shared`.
+- Manuella rundor får tidsfält: `moving_time` får då ett annat ursprung än Strava och integritetstexten ändras.
+
+### Antaganden (att verifiera)
+1. Standardvärde 8 och tak 26 veckor räcker för båda ytorna (designen visar 8). Taket styrs av radantalet vid läsning, inte av designen.
+2. Summan i Run history gäller de rundor som kortet visar just nu, inte hela historiken.
+3. Ett kontos skapandedag är en tillräcklig proxy för inträde i den enda grupp som finns.
+4. Inget Strava-villkor hindrar att en medlems tid och tempo visas för gruppmedlemmar (jag kunde inte kontrollera de aktuella villkoren och har inte läst något Strava-innehåll).
+
+### Öppna frågor (till Lead)
+1. **Texten "Position appears after your first full week".** Med regeln ovan (invarianten mot `rank-delta`) får en löpare som kommer in på en onsdag en placering när den veckan slutar, alltså efter en delvecka. Antingen ändras texten till "after your first week" (min rekommendation), eller klienten döljer första punkten via `member_since` så att texten stämmer. Designern avgör.
+2. **Tiden per runda och Strava/integritet.** Ägaren bör godkänna att tid och tempo blir synliga för packet, och att integritetstexten ändras och versionen höjs. Se konsekvenser.
+3. **Run historys summa:** de visade raderna eller alla rundor? Jag har antagit de visade.
+4. **`rank-delta` får tidszonsargumentet** (beteendeneutralt i dag). Säg till om du hellre låter bli att röra den routen i 0.8.3.
+
+### Vad som inte byggs
+Ingen tabell, migration eller schemalagt jobb för positionshistorik. Ingen cache. Inga ändringar i `/week`, `/rank-delta` eller Boards ordning (utöver den delade hjälpfunktionen och tidszonsargumentet). Inget `label`, `initials` eller färgfält i API:t. Inget diagrambibliotek. Ingen graf för andra mått än total XP. Inget tempo som serverfält, ingen lagrad härledd data. Ingen tid för manuella rundor och inget fält i loggformuläret. Ingen backfill av `moving_time`. Ingen paginering av positionssvaret. Inga nyheter eller notiser om placeringar.
