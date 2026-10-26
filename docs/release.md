@@ -152,8 +152,8 @@ går att visa med prod-data.
 ### 3. PR, grön CI och merge (= deploy)
 
 1. Öppna PR mot `main`. CI körs på PR: jobben Backend, Shared och Frontend ska vara gröna (branch protection kräver
-   dem; ett admin-undantag finns, se `STATE.md`). Jobbet Lighthouse körs också men fäller inte PR:en förrän det slagits om
-   till blockerande (se Lighthouse-budget nedan); titta på dess sammanfattning före merge.
+   dem; ett admin-undantag finns, se `STATE.md`). Jobbet Lighthouse är blockerande sedan RUN-368 (ett budgetbrott fäller
+   jobbet; om det är en required check i branch protection, se Lighthouse-budget nedan); titta på dess sammanfattning före merge.
 2. Merge. **Merge till `main` är deployen:** Railway bygger och deployar båda tjänsterna (runQuest-frontend och
    runQuest-backend) vid push, oberoende av CI. Byggena går med Railpack och Node-versionen styrs av `.nvmrc`.
    Frontend serveras av Caddy med repo-rotens `Caddyfile`. Det är därför CI ska vara grön *före* merge.
@@ -169,7 +169,8 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   `landing.html` saknas i `dist` eller om `/` inte ger `landing-title` via Caddy (annars hade `/` fallit tillbaka på `index.html` och mätningen gällt
   laddningsvyn). Serverat av samma Caddy och Caddyfile som
   `scripts/verify-static-serving.sh` (samma Caddy-version, hämtad med kontrollsumma). Lighthouse mobil (mobilemulering, simulerad
-  långsam 4G och 4x CPU-bromsning), 3 körningar per sida, **medianen** prövas. Mätningen går bara mot `127.0.0.1`: ingen prod, ingen
+  långsam 4G och 4x CPU-bromsning), först en uppvärmning (en körning av varje sida som kasseras, se *Uppvärmningen* nedan) och sedan 3 körningar per sida;
+  **medianen** av de tre prövas. Mätningen går bara mot `127.0.0.1`: ingen prod, ingen
   Railway, ingen extern rapporttjänst (inte `temporary-public-storage`). Bygget saknar `VITE_API_URL` och pekar då på
   `localhost:3001`; jobbet mäter därför två lägen efter varandra och sidan ska klara båda: *API ger fel* (inget lyssnar, sifferraden
   döljs) och *falskt API* (`scripts/lighthouse/mock-api.mjs` svarar med tre tal). Samma budget gäller i båda.
@@ -198,19 +199,22 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   | CSS (överförd storlek) | högst 50 kB | **högst 30 kB** | 23 338 B | 23 338 B | 6 662 B (22,2 %) |
   | Totalvikt | högst 500 kB | **högst 355 kB** | 304 866 / 305 135 B | 305 135 B | 49 865 B (14,0 %) |
 
+  **Marginalen efter react-router v7 (RUN-366, v0.8.2):** routerns chunk växte från 53,3 till 59,7 kB gzip, och landningen
+  förhämtar den. Lokal mätning (integrationskritiken 2026-10-25, Edge headless) gav JS 141,7 kB för `/` mot taket 150 kB
+  (marginal ca 5,5 %), mot 135,0 kB före v7; på CI väntas ca 134 kB (127,6 + ca 6,4), alltså ca 10 % marginal i stället för
+  15 % enligt tabellen ovan. Nästa funktion på landningen har mindre utrymme. Chunken bär oanvända `HydratedRouter` och
+  `RouterProvider`; att trimma bundlen är en möjlig senare story. Budgeten lättas inte utan ägarens ok.
+
   Hur taken räknades (ADR 006, punkt 10): LCP-taket blev målet 2 500 ms eftersom medianen (1 960 ms) ligger under 2 250 ms; prestanda
   `min(0,90; median − 0,03)`; JS uppmätt × 1,15 uppåt till 5 kB; TBT 150 ms eftersom medianen är under 100 ms; CLS 0,02 eftersom medianen är
   under 0,01; FCP uppmätt × 1,15 uppåt till 50 ms, räknat på den högsta jobbmedianen (1 655 ms, FCP hoppar i steg om ca 150 ms mellan 1 505
   och 1 655 ms), inte på medianen av alla körningar, som annars hade gett för liten marginal. CSS och totalvikt följer samma regel som JS
   (× 1,15 uppåt till 5 kB): ADR:n nämner dem inte, men 50 kB för en sida på 23 kB hade låtit stilmallarna fördubblas obemärkt.
 
-  Anmärkningar: (1) *Sämsta körning* räknar den ensamma körningen. Avvikarna är ett **kallstartsmönster**: i CI efter RUN-343 hade 2 av 12
-  körningar av `/` avvikande TBT och prestanda, båda i läget API ger fel och båda den *första* körningen av `/` i jobbet (kall Chrome och
-  kall Caddy): TBT 489 ms och prestanda 0,86 (jobb 39495701891) respektive 839 ms och 0,78 (after2). I de åtta jobb i läget API ger fel som
-  mättes (sex före och två efter RUN-343) har första körningen TBT över 150 ms i fyra jobb och prestanda under 0,90 i fem (värst 1 748 ms och
-  0,63). Läget falskt API, som körs efteråt, har 0 avvikare på 24 körningar. lhci prövar medianen av tre, så en enda avvikare fäller inget,
-  men två i samma jobb gör det. Kritikerns uppskattning: ca 6–8 % risk per CI-jobb att medianen av tre fäller TBT 150 ms eller prestanda 0,90
-  (intervall ca 1–20 %); med `numberOfRuns: 5` eller en uppvärmningskörning ca 1–2 %, se omslaget till blockerande nedan. Den sämsta
+  Anmärkningar: (1) *Sämsta körning* räknar den ensamma körningen. Avvikarna är ett **kallstartsmönster**, inte slumpbrus: det är den *första* körningen av `/` i jobbet, i läget API ger fel (kall Chrome och filcache), som avviker. Över alla 34 CI-jobb
+  2026-10-19 till 2026-10-24 (RUN-368, siffrorna under *Uppvärmningen*) låg den över budgeten (TBT 150 ms eller prestanda 0,90) i 24 jobb (16 av 20 efter RUN-343), värst TBT 3 291 ms
+  och prestanda 0,63, medan körning 2 och 3 gjorde det i 1 fall av 68 och läget falskt API (Chrome redan varm) i 0 av 102. lhci prövar medianen av tre, så en enda avvikare fäller
+  inget, men två i samma jobb gör det. Kalibreringens uppskattning (ca 6–8 % risk per jobb) ersattes av den räknade risken under *Uppvärmningen*: ca 2,4 % per jobb före, ca 0,13 % efter. Den sämsta
   *jobbmedianen* (en jobbmedian är medianen av ett jobbs tre körningar) är det taken prövas mot, och marginalerna
   mot den är minst de ovan. (2) Tillgänglighet och SEO är 1 och best practices 0,96 respektive 1; ADR:n lämnar dem oförändrade.
   (3) Uppspelning: CI-körningarnas rapporter kördes mot den nya `lighthouserc.json` med lhci:s egen `assert`. De fyra jobb och lägen efter
@@ -244,17 +248,46 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
   tak, körs i frontend-jobbet): ett lättat värde i `lighthouserc.json` fäller det testet, och testet får bara ändras vid skärpning.
   En PR som lättar en rad ska ange ägarens ja i beskrivningen. En ny funktion
   som kostar vikt eller tid löses genom att optimera (kodsplittring, bildmått, lat laddning), inte genom att höja taket.
-- **Icke-blockerande första veckan.** `LIGHTHOUSE_BLOCKING: 'false'` överst i jobbet gör att ett budgetbrott märker steget orange (och
-  syns i loggen, sammanfattningen och artefakten) utan att fälla PR:en. Raden som föll skrivs också som en `::warning::`-anteckning
-  (i blockerande läge `::error::`), så att den syns på PR:ens sida med sida, rad, uppmätt värde och gräns. Anteckningarna kommer ur
-  lhci:s `assertion-results.json` (`scripts/lighthouse/summarize.mjs --failures`). **Slå om till blockerande:** tidigast sju dygn efter att
-  jobbet första gången körts på `main` och efter att Lead jämfört veckans siffror med taken (en ren `main` ska ligga under taken med
-  marginal), ändra värdet till `'true'` i en liten PR och lägg `Lighthouse — prestandabudget` bland required checks i branch
-  protection. Därefter fäller ett budgetbrott PR:en. **Tillbaka till icke-blockerande** är samma rad (kräver ägarens ja, eftersom det
-  lättar kontrollen). **Uppvärmning eller fem körningar måste in först:** utan det fäller kallstartsavvikarna (anmärkning 1 under
-  budgettabellen) ca 6–8 % av jobben (intervall ca 1–20 %, kritikerns uppskattning) på TBT 150 ms eller prestanda 0,90 utan att något har
-  blivit sämre. Med `numberOfRuns: 5` eller en uppvärmningskörning (en kasserad första körning) sjunker risken till ca 1–2 %. Det ändrar
-  `numberOfRuns` eller `run.sh` och det fästa testet, och är ett eget steg före omslaget (uppföljning hos Lead), inte en del av S7.
+- **Uppvärmningen (RUN-368).** `run.sh` kör före mätningen en `lhci collect --numberOfRuns=1` (en körning av varje sida, i båda lägena), rensar rapporterna och mäter sedan de 3 räknade
+  körningarna per sida. Uppvärmningen ingår varken i medianen, i sammanfattningstabellen eller i artefakten. Ger den fel skrivs det som en `::warning::`-anteckning (GitHub-annotering) och mätningen fortsätter (de räknade körningarna
+  avgör). `numberOfRuns` är fortfarande 3; vakten i `scripts/lighthouse-ci.test.mjs` kräver både uppvärmningen och de tre räknade körningarna. Valet mot `numberOfRuns: 5` gjordes på mätdata.
+  - *Källa:* CI:s egna Lighthouse-artefakter (`lighthouse-reports`, hämtade med `gh`, ingen körning startad eller körd om): 34 körningar av jobbet 2026-10-19 till 2026-10-24 (main, PR:ar,
+    release- och integrationsgrenar, två av mätgrenen `measure/run-343-after`), 408 Lighthouse-körningar (34 jobb × 2 lägen × 2 sidor × 3). 14 jobb är före och 20 efter RUN-343 (mergad 2026-10-20 21:27 UTC).
+    *Avvikare* = TBT över 150 ms eller prestanda under 0,90 på `/` (`/legal`: 200 ms och 0,75).
+
+    | Körningar | Antal | Avvikare |
+    |---|---|---|
+    | `/`, API ger fel, körning 1 | 34 | 24 (71 %); efter RUN-343 16 av 20 (80 %), före 8 av 14 (57 %) |
+    | `/`, API ger fel, körning 2 och 3 | 68 | 1 (1,5 %; TBT 161 ms, före RUN-343) |
+    | `/`, falskt API, körning 1–3 | 102 | 0 |
+    | `/legal`, båda lägena, körning 1–3 | 204 | 0 |
+
+    Orsaken är alltså den allra första körningen i jobbet: läget falskt API körs efteråt (Chrome varm, men en nystartad Caddy) och har en ren första körning i 34 av 34 jobb. Jobbmedianen
+    fällde budgeten i 0 av 34 jobb (en avvikare räcker inte).
+  - *Risk per jobb* att medianen fäller TBT 150 ms eller prestanda 0,90 på `/`. Modell: körning 1 avviker med sannolikheten p1 (16/20 = 0,80), varje varm körning med q; medianen av n körningar
+    fäller när minst (n+1)/2 avviker. 3 körningar utan uppvärmning: R = p1·(1 − (1 − q)²) + (1 − p1)·q². Med uppvärmning är alla tre varma: R = 3q²(1 − q) + q³. 5 körningar utan uppvärmning:
+    R = p1·P(minst 2 av 4) + (1 − p1)·P(minst 3 av 4). Jobbrisk = 1 − (1 − R_fel)(1 − R_falskt API), där läget falskt API räknas med samma q.
+
+    | Antagande om q (varm körning av `/`) | 3 körningar (förut) | Uppvärmning + 3 (valt) | 5 körningar |
+    |---|---|---|---|
+    | A: 1/68 = 1,5 % (körning 2 och 3, läget API ger fel) | 2,40 % | **0,13 %** | 0,11 % |
+    | B: 1/170 = 0,6 % (alla varma körningar av `/`, båda lägena) | 0,95 % | 0,02 % | 0,02 % |
+    | C: 7,9 % (övre 95-procentsgräns för 1 av 68, bygger på en enda händelse) | 13,9 % | 3,5 % | 3,2 % |
+
+    Brytpunkten för 1 % per jobb är q ≈ 4,1 % med uppvärmning + 3 och q ≈ 4,5 % med 5 körningar: de är likvärdiga i risk.
+  - *Valet: uppvärmning.* (1) Den tar bort orsaken, en avvikande kall första körning i 80 % av jobben, i stället för att späda ut den: 5 körningar behåller en avvikande körning i nästan varje jobb och
+    lämnar fyra att lita på. (2) Risken är densamma (0,13 % mot 0,11 % i A) för färre körningar: 16 i stället för 20 per jobb, ca 4 körningar à ca 11 s mindre. (3) 5 körningar vore något bättre
+    bara i scenario C, som vilar på en enda observation.
+  - *Efter-data* finns inte i CI än. Antagandet är att första räknade körningen efter den kasserade beter sig som en varm körning (q), vilket läget falskt API stödjer. Lokalt (Windows,
+    Playwrights headless-skal, lhci 0.15.1) provades bara att kedjan fungerar: `--numberOfRuns=1` åsidosätter konfigen, tabellen visar 3 körningar per sida och budgeten hålls; det är inte
+    mätdata om kallstarten. **Kontroll på release-PR:ens CI:** första räknade körningen av `/` i `lighthouse-reports/error/` ska ligga inom budgeten (före ändringen låg den inom budgeten i bara 10 av 34 jobb).
+- **Blockerande läge (RUN-368).** `LIGHTHOUSE_BLOCKING: 'true'` överst i jobbet gör att ett budgetbrott fäller steget och därmed jobbet (`continue-on-error` är av); raden som föll skrivs som en
+  `::error::`-anteckning (`::warning::` i icke-blockerande läge) så att den syns på PR:ens sida med sida, rad, uppmätt värde och gräns. Anteckningarna kommer ur lhci:s
+  `assertion-results.json` (`scripts/lighthouse/summarize.mjs --failures`). Villkoret att risken per jobb är under 1 % är uppfyllt (0,13 %, scenario A). **Det som återstår:** (1) lägga
+  `Lighthouse — prestandabudget` bland required checks i branch protection (en repoinställning som inte ändrades i RUN-368), men **inte förrän minst 5 PR-jobb efter ändringen har visat 0 kalla
+  avvikare**, alltså första räknade körningen av `/` i läget API ger fel inom budgeten (TBT 150 ms, prestanda 0,90) i alla fem; (2) att Lead kontrollerar efter-datan enligt ovan på release-PR:ens CI;
+  (3) den gamla regeln att slå om tidigast sju dygn efter att jobbet första gången körts på `main` (2026-10-19) går ut 2026-10-26. **Tillbaka till icke-blockerande** är samma rad (kräver
+  ägarens ja, eftersom det lättar kontrollen); ett rött jobb på en kall körning (en avvikare i första räknade körningen) ändras inte tyst, varken med `'false'`, fler körningar eller en lättad budget: ta det med ägaren, mät om och beskriv utfallet här.
 - **Köra lokalt:** `npm ci` i `scripts/lighthouse`, bygg frontend, och kör sedan `bash scripts/lighthouse/run.sh` från repo-roten
   (`STATS_MODE=error|mock`, `DIST_DIR`, `CADDY_BIN`, `CHROME_PATH`, `API_PORT`, se skriptets huvud). Är port 3001 upptagen: bygg
   frontend med `VITE_API_URL=http://localhost:<port>/api` och kör med `API_PORT=<port>`. Rapporterna hamnar i `lighthouse-reports/`.

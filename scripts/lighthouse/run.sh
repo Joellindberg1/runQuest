@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lighthouse CI för de publika sidorna (RUN-259): serverar det byggda apps/frontend/dist med samma Caddy och Caddyfile som
-# scripts/verify-static-serving.sh, mäter den förrenderade / (landing.html) och /legal (index.html med laddningsvyn; mobilprofil, 3 körningar) och prövar budgeten i lighthouserc.json.
+# scripts/verify-static-serving.sh, mäter den förrenderade / (landing.html) och /legal (index.html med laddningsvyn; mobilprofil, 3 körningar efter en uppvärmning) och prövar budgeten i lighthouserc.json.
 # Inget når internet: allt går mot 127.0.0.1, ingen Railway, ingen prod, ingen extern lagring.
 # Körs från repo-roten efter frontend-bygget. Budgeten och hur den ändras: docs/release.md ("Lighthouse-budget").
 #
@@ -90,6 +90,11 @@ if [[ "$STATS_MODE" == "mock" ]]; then
 fi
 
 echo "Lighthouse mot $DIST (STATS_MODE=$STATS_MODE, Caddy på 127.0.0.1:$PORT)"
+# Uppvärmning (RUN-368): en körning av varje sida som inte räknas. Den första körningen av / i jobbet är kall (Chrome och filcachen) och gav i CI
+# oftast TBT och prestanda långt över budgeten (docs/release.md, anmärkning 1), medan nästa körning var normal; en kasserad första körning tar bort den.
+# Rapporterna rensas så att varken medianen, sammanfattningen eller artefakten innehåller den. Ger uppvärmningen fel räknas den ändå inte: de räknade körningarna avgör, och felet skrivs som en ::warning::-anteckning så att det syns i körningen.
+"$LHCI" collect --config "$HERE/lighthouserc.json" --numberOfRuns=1 || echo "::warning title=Lighthouse warm-up::Uppvärmningen gav fel (räknas inte); fortsätter med mätningen."
+rm -rf "$OUT_DIR"
 "$LHCI" collect --config "$HERE/lighthouserc.json"
 node "$HERE/summarize.mjs" "$OUT_DIR"
 

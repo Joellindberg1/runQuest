@@ -50,11 +50,16 @@
    Gruppen är ett element som aldrig krymper. Podiets regler hakar i data-minis / .rq-badge-minis, så ett kort utan visade badges får exakt
    samma layout som förut. Mellanrummet delta → första mini (>= 8 px, Council 11) är nameline-glappet (--rq-sp-8); auto-marginalen kan bara öka det.
    Podiet: minis högerställda på namnraden, med --rq-board-minis-inset luft så de går fria från spöksiffran. Rest-raderna: minis på sub-raden,
-   vimplarna i en annan cell (högerkolumnen / Last run) — aldrig i samma behållare (Council 8, F12.4). */
-.rq-board .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; align-self: center; gap: var(--rq-sp-4); }
+   vimplarna i en annan cell (högerkolumnen / Last run) — aldrig i samma behållare (Council 8, F12.4).
+   Mellan minis ligger --rq-sp-8, samma steg som badge-rutnäten på Badges-sidan och i profilens sammanfattning; --rq-sp-4 lät glöden (upp till 13 px) flyta ihop.
+   Under 360 px rymmer mobilens rest-rad (mittkolumnen ca 135 px vid 320) inte "N km" och tre minis med det steget på en rad, och raden skulle växa; där ligger --rq-sp-4 kvar. */
+.rq-board .rq-badge-minis { display: inline-flex; flex-shrink: 0; align-items: center; align-self: center; gap: var(--rq-sp-8); }
+@media (max-width: 359px) { .rq-board .rq-badge-minis { gap: var(--rq-sp-4); } }
 .rq-board-podium .rq-badge-minis { margin-left: auto; margin-right: var(--rq-board-minis-inset); }
 .rq-board [data-minis="true"] { min-width: 0; }
-.rq-board [data-minis="true"] .rq-board-namebtn { min-width: 0; }
+/* Namnet krymper aldrig under sitt längsta ord och badgesen ritas aldrig över det: rymmer raden inte namn och badgegrupp bredvid varandra bryts gruppen till en egen rad
+   under namnet (flex-wrap; --rq-sp-4 mellan raderna). Gruppen står kvar till höger (auto-marginalen), så kortet ser likadant ut med och utan radbrytning. */
+.rq-board-podium__nameline[data-minis="true"] { flex-wrap: wrap; row-gap: var(--rq-sp-4); }
 .rq-board-podium__nameline.rq-board-podium__nameline--room { min-height: var(--rq-badge-h-sm); }
 .rq-board [data-minis="true"] .rq-board-delta { flex-shrink: 0; }
 .rq-board-cell-ribbons { display: flex; justify-content: flex-end; margin-top: var(--rq-sp-4); }

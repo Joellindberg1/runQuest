@@ -4,7 +4,7 @@ Landningens egen ingång (ADR 006, addendum 2026-10-19). `landing.html` + `landi
 
 ## Delar
 
-- `LandingApp` — hela trädet: `AppProviders`, en router som skickas in (`BrowserRouter` i webbläsaren, `ServerRouter` vid bygget) och `LandingRoutes`. Stagingbannern (bara i ett stagingbygge) ligger **utanför** providers.
+- `LandingApp` — hela trädet: `AppProviders`, en router som skickas in (`AppBrowserRouter` i webbläsaren, `ServerRouter` vid bygget) och `LandingRoutes`. Stagingbannern (bara i ett stagingbygge) ligger **utanför** providers.
 - `LandingRoutes` — `/` och `/login` (samma element på samma plats: landningen ommonteras inte när dialogen öppnas), `/landing` och `/landing.html` (filadresserna som Caddys `try_files` löser till `landing.html`: samma element med `canonicalizeAddress`, som skriver om adressen till `/` med `replace`), `/legal` (lazy, egen Suspense-gräns) och `*` = överlämning till fullappen.
 - `LandingIndex` — `pages/Index` för den lean ingången: utloggad = landningen (+ lazy inloggningsdialog på `/login`), inloggad = `AppHandoff`. Förhämtar dialogen på pekare/fokus/beröring mot Sign in (fångat på dokumentet; landningsfeaturen får inte känna till `features/auth`).
 - `AppHandoff` / `UnknownAddressHandoff` — renderar appens laddningsvy (`app-shell/RoutePending`) i samma rendering som det gamla försvinner och laddar sedan om sidan på målet (`leaveForApp` = `location.replace`). `signedInTarget` ger målet: som fullappens `Index`, men aldrig `/` (annars laddar sidan om sig själv i en loop).

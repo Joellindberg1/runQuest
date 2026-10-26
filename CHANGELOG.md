@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.8.2 — Uppföljningar efter v0.8.1 (2026-10-26)
+
+Underhållsversion (patch) från `integration/v0.8.2`, epic RUN-380. Tyst: posten i `changelog.json` (Feature & Version) har ingen `announce`, alltså ingen popup och ingen Pack News-rad (ägarregel 2026-10-23). Innehåller också buggreleaserna 2026-10-24 och 2026-10-25, som redan är live. RUN-372 (titeltrappan) flyttad till säsongerna i v0.9.0 (ägarbeslut 2026-10-25).
+
+### Badges och leaderboard
+- Mer luft mellan badges i leaderboardens rader, och på podiet överlappar badgegruppen inte längre namnet: bryter den till en egen rad växer kortet (RUN-373). Ägaren valde 2026-10-25 att släppa det så, med podiets trappsteg som kan rubbas och en liten layoutförskjutning när badgefrågan landar (`docs/open-assumptions.md`).
+- Nya badgeserier fyller lediga platser i visningen automatiskt, de nyaste först; en serie som användaren tagit bort läggs inte tillbaka, och backfillen med `--silent` följer samma väg utan nyhetsrader (RUN-377, `fillShowcase` i shared). Gäller nya badges från deployen; ingen migration och ingen omräkning av befintliga visningar.
+
+### Säkerhet och beroenden
+- react-router-dom 6 → 7.18.4: GHSA-wrjc-x8rr-h8h6 och GHSA-337j-9hxr-rhxg borta ur `npm audit --omit=dev`. `StaticRouter` importeras från roten, och appens router körs utan v7:s övergångar (`AppBrowserRouter` med `useTransitions={false}`, Leads beslut i ADR 006) så att utloggning och omdirigeringar beter sig som förut; lint förbjuder `BrowserRouter` utanför `AppBrowserRouter`, och testernas router har samma inställning (RUN-366). Routerns chunk växte 53,3 → 59,7 kB gzip, så JS-marginalen för `/` är nu 5,5 % lokalt (141,7 av 150 kB) och väntas bli ca 10 % i CI (ca 134 kB); release-PR:ens Lighthouse-körning ger det verkliga värdet (`docs/release.md`). Paketen cookie och set-cookie-parser som v7 drar in finns inte i klientbundlen.
+
+### Tester och CI
+- Lighthouse värmer upp med en kasserad körning per sida och är blockerande (`LIGHTHOUSE_BLOCKING`), men ännu inte required check (villkoret i `docs/release.md`) (RUN-368).
+- Avstämningen tål överlappande tickar med äkta node-cron 4 (RUN-369); klartextrader är inerta i synk, webhook och avstämning (RUN-370); e2e-innehållstest för `/legal` (RUN-371).
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna.
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus inloggning och utloggning, en direktladdad djup länk, `?next=`-omdirigeringen och `npm audit --omit=dev` på main utan de två react-router-sårbarheterna.
+3. Tagg `v0.8.2`, stagingtjänsterna till nästa versionsgren, docs-PR "live". Ingen `announce:release`.
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras. Den säkra vägen är en revert-PR på `main` (minuter, inte sekunder) till main före release-PR:en; Redeploy av den deployen i Railway fungerar om den finns kvar. En rollback återinför de två moderata react-router-sårbarheterna, men inte body-parser-sårbarheten (den är live sedan 2026-10-25).
+
 ## Buggfixar 2026-10-25 (buggrelease utan versionsnummer)
 
 **Live 2026-10-25** via PR #59, main `02552e4f` (rollbackreferens: f17360b7). CI på Node 20.20.2, Lighthouse inom budget (`/` JS 135,0 kB, totalt 323 kB). Prod-backenden byggd med Node 20.20.2. Röken efter deploy grön: `/health` före och efter med obruten uptime, väntelistans POST okomprimerad och gzip (400 `consent_required`, inget skrivet), gzip med avslutande skräpbytes (snabbt 400 `invalid_request`), 401 på skyddad rutt, säkerhetshuvuden och skarp CSP, `/board` direktladdad, RUN-384-regeln i serverad CSS, `.map` 404. `npm audit --omit=dev` på main: GHSA-27r3-jxmh-p828 borta (kvar: två moderata i react-router, stängs i v0.8.2). Railway listar de ersatta deployerna som möjliga att redeploya trots status `REMOVED`; revert-PR är ändå den dokumenterade vägen.

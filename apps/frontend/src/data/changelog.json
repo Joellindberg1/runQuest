@@ -89,6 +89,26 @@
   ],
   "releases": [
     {
+      "version": "0.8.2",
+      "type": "patch",
+      "date": "26 October 2026",
+      "title": "More room for badges",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "Badges on the leaderboard have more space between them, and on the podium they no longer cover the name."
+        },
+        {
+          "type": "improvement",
+          "description": "New badges fill the free spots in your showcase automatically. A badge you remove from the showcase stays removed."
+        },
+        {
+          "type": "improvement",
+          "description": "Security updates behind the scenes."
+        }
+      ]
+    },
+    {
       "version": "0.8.1",
       "type": "patch",
       "date": "23 October 2026",

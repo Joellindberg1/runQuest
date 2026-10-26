@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -34,7 +34,7 @@ function AddressProbe() {
 const at = (address: string) =>
   function Router({ children }: { children: ReactNode }) {
     return (
-      <MemoryRouter initialEntries={[address]}>
+      <MemoryRouter initialEntries={[address]} useTransitions={false}>
         {children}
         <AddressProbe />
       </MemoryRouter>
@@ -62,6 +62,11 @@ async function signIn(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('Password'), 'hemligt');
   await user.click(screen.getByRole('button', { name: 'Sign In' }));
 }
+
+// Inloggningsdialogen är en lat chunk (loginDialog.ts). Den första importen i filen är kall och kan ta längre än findBy-sekunden när sviten körs parallellt eller i annan ordning: värm den här, som de andra rutt-testerna (test/warmLazy.ts).
+beforeAll(async () => {
+  await import('./LoginDialogChunk');
+});
 
 beforeEach(() => {
   setViewportWidth(390);

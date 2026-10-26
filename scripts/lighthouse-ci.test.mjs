@@ -134,6 +134,7 @@ describe('lighthouserc budget', () => {
   const urlOf = (pathname) => rc.ci.collect.url.find((u) => new URL(u).pathname === pathname);
   const rowsFor = (pathname) => assertMatrix.filter((entry) => new RegExp(entry.matchingUrlPattern).test(urlOf(pathname)));
 
+  // Tre räknade körningar per sida; uppvärmningen (run.sh, se "warms up ..." nedan) ligger utanför numberOfRuns och räknas inte. Medianen av ett udda antal är en verklig körning.
   it('measures the landing and /legal, three runs each', () => {
     assert.equal(rc.ci.collect.numberOfRuns, 3);
     assert.deepEqual(rc.ci.collect.url.map((u) => new URL(u).pathname), ['/', '/legal']);
@@ -304,8 +305,10 @@ describe('run.sh guards', () => {
   });
 });
 
-// En Caddy som bara finns till för att skriptet ska nå sidhämtningarna: den svarar på /health och låter / eller /legal fela, så felmeddelandet kan provas utan riktig Caddy eller lhci.
-describe('run.sh when a served page cannot be fetched', () => {
+// En Caddy och en lhci som bara finns till för att skriptet ska nå sidhämtningarna och mätstegen: Caddy svarar på /health och låter / eller /legal fela
+// (felmeddelandet kan provas utan riktig Caddy), och lhci skriver falska rapporter och loggar sina anrop i calls.log (ordningen mellan uppvärmning och
+// mätning kan provas utan Chrome).
+describe('run.sh against a fake Caddy and a fake lhci', () => {
   const repoRoot = join(here, '..');
   const posix = (path) => path.replaceAll('\\', '/');
   let work;
@@ -323,7 +326,50 @@ describe('run.sh when a served page cannot be fetched', () => {
     // run.sh hittar lhci och sina grannar via sin egen katalog, så en kopia i work/lighthouse får en låtsas-lhci utan att repots node_modules behövs.
     mkdirSync(join(work, 'lighthouse', 'node_modules', '.bin'), { recursive: true });
     copyFileSync(join(repoRoot, 'scripts', 'lighthouse', 'run.sh'), join(work, 'lighthouse', 'run.sh'));
-    writeFileSync(join(work, 'lighthouse', 'node_modules', '.bin', 'lhci'), '#!/usr/bin/env bash\nexit 0\n');
+    copyFileSync(join(repoRoot, 'scripts', 'lighthouse', 'lighthouserc.json'), join(work, 'lighthouse', 'lighthouserc.json'));
+    copyFileSync(join(repoRoot, 'scripts', 'lighthouse', 'summarize.mjs'), join(work, 'lighthouse', 'summarize.mjs'));
+    // Den första insamlingen är den kalla: dess körningar har en TBT som skulle fälla budgeten om de räknades. Äkta lhci tömmer katalogen vid varje collect; den falska gör inte det,
+    // så ett skript som lämnar uppvärmningens rapporter kvar syns i assert-raden.
+    writeFileSync(
+      join(work, 'lighthouse', 'fake-lhci.mjs'),
+      [
+        "import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';",
+        'const [command, ...args] = process.argv.slice(2);',
+        'const option = (name) => {',
+        "  const i = args.findIndex((a) => a === '--' + name || a.startsWith('--' + name + '='));",
+        '  if (i < 0) return undefined;',
+        "  return args[i].includes('=') ? args[i].split('=')[1] : args[i + 1];",
+        '};',
+        "const config = JSON.parse(readFileSync(option('config'), 'utf8')).ci.collect;",
+        "const calls = existsSync('calls.log') ? readFileSync('calls.log', 'utf8').split('\\n').filter(Boolean) : [];",
+        "if (command === 'collect') {",
+        "  const cold = !calls.some((c) => c.startsWith('collect'));",
+        "  const runs = Number(option('numberOfRuns') ?? config.numberOfRuns);",
+        '  if (cold && process.env.FAKE_WARMUP_FAILS) {',
+        "    appendFileSync('calls.log', 'collect runs=' + runs + ' failed\\n');",
+        '    process.exit(1);',
+        '  }',
+        "  mkdirSync('.lighthouseci', { recursive: true });",
+        '  config.url.forEach((url, u) => {',
+        '    for (let r = 0; r < runs; r++) {',
+        "      const audits = { 'total-blocking-time': { numericValue: cold ? 5000 : 20 } };",
+        "      const categories = Object.fromEntries(['performance', 'accessibility', 'best-practices', 'seo'].map((c) => [c, { score: 1 }]));",
+        "      writeFileSync('.lighthouseci/lhr-' + calls.length + '-' + u + '-' + r + '.json', JSON.stringify({ finalDisplayedUrl: url, categories, audits }));",
+        '    }',
+        '  });',
+        "  appendFileSync('calls.log', 'collect runs=' + runs + ' urls=' + config.url.length + '\\n');",
+        "} else if (command === 'assert') {",
+        "  const lhrs = readdirSync('.lighthouseci').filter((f) => f.startsWith('lhr-')).map((f) => JSON.parse(readFileSync('.lighthouseci/' + f, 'utf8')));",
+        "  const maxTbt = Math.max(...lhrs.map((l) => l.audits['total-blocking-time'].numericValue));",
+        "  appendFileSync('calls.log', 'assert lhr=' + lhrs.length + ' maxTbt=' + maxTbt + '\\n');",
+        '}',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(
+      join(work, 'lighthouse', 'node_modules', '.bin', 'lhci'),
+      `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "${posix(join(work, 'lighthouse', 'fake-lhci.mjs'))}" "$@"\n`,
+    );
     chmodSync(join(work, 'lighthouse', 'node_modules', '.bin', 'lhci'), 0o755);
     copyFileSync(join(repoRoot, 'Caddyfile'), join(work, 'Caddyfile'));
     writeFileSync(
@@ -346,7 +392,7 @@ createServer((req, res) => {
   });
   after(() => rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
 
-  const run = (failingPage) =>
+  const run = (failingPage, extraEnv = {}) =>
     spawnSync('bash', ['lighthouse/run.sh'], {
       cwd: work,
       encoding: 'utf8',
@@ -357,6 +403,7 @@ createServer((req, res) => {
         DIST_DIR: posix(dist),
         CADDY_BIN: posix(join(work, 'fake-caddy')),
         FAKE_FAILING_PAGE: failingPage,
+        ...extraEnv,
         API_PORT: String(ports.api),
         LHCI_SERVE_PORT: String(ports.serve),
         // Låtsasservern är en nystartad node-process: under last kan den ta många sekunder, och 50 försök räcker då inte.
@@ -374,6 +421,29 @@ createServer((req, res) => {
     const res = run('legal');
     assert.equal(res.status, 1, res.stdout + res.stderr);
     assert.match(res.stdout, /FAIL .*\/legal .*(svarade inte|kunde inte hämtas)/);
+  });
+
+  // Första körningen av / i jobbet är kall (Chrome och filcachen) och ger ibland TBT och prestanda långt över budgeten. En uppvärmning
+  // (en körning av varje sida) tas före mätningen och kasseras, så att ingen kall körning hamnar bland de räknade.
+  it('warms up with one uncounted run of every page before the counted runs', () => {
+    rmSync(join(work, 'calls.log'), { force: true });
+    rmSync(join(work, '.lighthouseci'), { recursive: true, force: true });
+    const res = run('none');
+    assert.equal(res.status, 0, res.stdout + res.stderr);
+    assert.deepEqual(readFileSync(join(work, 'calls.log'), 'utf8').trim().split('\n'), ['collect runs=1 urls=2', 'collect runs=3 urls=2', 'assert lhr=6 maxTbt=20']);
+    assert.match(res.stdout, /\| \/ \| 3 \|/);
+    assert.match(res.stdout, /\| \/legal \| 3 \|/);
+  });
+
+  // Uppvärmningen är bara en bieffekt: ger den fel avgör de räknade körningarna, och felet göms inte.
+  it('measures anyway when the warm-up run itself errors, and says so', () => {
+    rmSync(join(work, 'calls.log'), { force: true });
+    rmSync(join(work, '.lighthouseci'), { recursive: true, force: true });
+    const res = run('none', { FAKE_WARMUP_FAILS: '1' });
+    assert.equal(res.status, 0, res.stdout + res.stderr);
+    assert.deepEqual(readFileSync(join(work, 'calls.log'), 'utf8').trim().split('\n'), ['collect runs=1 failed', 'collect runs=3 urls=2', 'assert lhr=6 maxTbt=20']);
+    // Som en GitHub-annotering på en egen rad, så att den syns på körningens sida och inte göms i loggen.
+    assert.match(res.stdout, /^::warning title=Lighthouse warm-up::Uppvärmningen gav fel/m);
   });
 });
 

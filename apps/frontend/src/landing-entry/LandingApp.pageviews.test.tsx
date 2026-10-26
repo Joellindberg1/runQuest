@@ -34,7 +34,7 @@ const AFTER_SETTLING_MS = PAGEVIEW_SETTLE_MS * 3;
 
 const at = (address: string) =>
   function Router({ children }: { children: ReactNode }) {
-    return <MemoryRouter initialEntries={[address]}>{children}</MemoryRouter>;
+    return <MemoryRouter initialEntries={[address]} useTransitions={false}>{children}</MemoryRouter>;
   };
 
 const mount = (address: string) => render(<LandingApp Router={at(address)} />);

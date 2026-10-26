@@ -64,7 +64,7 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                   <span className="rq-board-lvl">Lvl {row.level}</span>
                   <DeltaMark delta={row.delta} />
                 </div>
-                {/* Namnraden rymmer en mini på alla kort, så kortet inte växer när badge-queryn landar. */}
+                {/* Namnraden rymmer en mini på alla kort. Bryter badgegruppen till en egen rad (RUN-373) växer kortet ändå när badge-queryn landar; se docs/open-assumptions.md. */}
                 <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
                   <RunnerName name={row.name} onOpen={open} />
                   <BadgeMinis showcase={row.showcase} />

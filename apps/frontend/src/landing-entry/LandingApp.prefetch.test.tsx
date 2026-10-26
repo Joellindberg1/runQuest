@@ -24,7 +24,7 @@ import { LandingApp } from './LandingApp';
 import { prefetchLoginDialog } from './loginDialog';
 
 function Router({ children }: { children: ReactNode }) {
-  return <MemoryRouter initialEntries={['/']}>{children}</MemoryRouter>;
+  return <MemoryRouter initialEntries={['/']} useTransitions={false}>{children}</MemoryRouter>;
 }
 
 beforeEach(() => {

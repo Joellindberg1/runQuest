@@ -10,7 +10,7 @@ A running app where you and your friends compete, track progress and import runs
 
 | Part | Technology |
 |------|------------|
-| Frontend | React 18, TypeScript, Vite, Tailwind 3 with its own token set (`--rq-*`), Radix primitives, TanStack Query, react-router v6 |
+| Frontend | React 18, TypeScript, Vite, Tailwind 3 with its own token set (`--rq-*`), Radix primitives, TanStack Query, react-router v7 |
 | Backend | Node.js 20 (`.nvmrc`), Express 5, TypeScript, node-cron |
 | Database | Supabase (PostgreSQL). Only the backend talks to the database (service key); the frontend has no Supabase client |
 | Auth | Own backend JWT + Strava OAuth2 |
@@ -142,7 +142,7 @@ CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR to `ma
   7. `eslint . --max-warnings 0`;
   8. stylelint (`npm run lint:css`);
   9. tests.
-- **Lighthouse — performance budget:** the only job that does not block. It builds the frontend and measures `/` and `/legal` on mobile against 127.0.0.1, once with a failing API and once with a mock API, and uploads the reports as an artefact. It becomes blocking by setting `LIGHTHOUSE_BLOCKING` to `true` in `ci.yml` (`docs/release.md`).
+- **Lighthouse — performance budget:** builds the frontend and measures `/` and `/legal` on mobile against 127.0.0.1, once with a failing API and once with a mock API (one discarded warm-up run per page, then three counted runs, judged on the median), and uploads the reports as an artefact. A budget breach fails the job because `LIGHTHOUSE_BLOCKING` is `true` in `ci.yml`; whether it is a required check is a branch protection setting (`docs/release.md`).
 
 A separate workflow, `.github/workflows/e2e-staging.yml`, runs the Playwright smoke suite against staging, by hand and nightly. It never runs on PRs and never against prod. The test strategy is in `docs/adr/001-teststrategi.md`.
 
