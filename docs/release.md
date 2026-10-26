@@ -201,7 +201,7 @@ push till `main`. Ägarbeslut 2026-10-13: Lighthouse ska in i CI.
 
   **Marginalen efter react-router v7 (RUN-366, v0.8.2):** routerns chunk växte från 53,3 till 59,7 kB gzip, och landningen
   förhämtar den. Lokal mätning (integrationskritiken 2026-10-25, Edge headless) gav JS 141,7 kB för `/` mot taket 150 kB
-  (marginal ca 5,5 %), mot 135,0 kB före v7; på CI väntas ca 134 kB (127,6 + ca 6,4), alltså ca 10 % marginal i stället för
+  (marginal ca 5,5 %), mot 135,0 kB före v7; CI på release-PR #61 gav samma 141,7 kB, alltså 5,5 % marginal i stället för
   15 % enligt tabellen ovan. Nästa funktion på landningen har mindre utrymme. Chunken bär oanvända `HydratedRouter` och
   `RouterProvider`; att trimma bundlen är en möjlig senare story. Budgeten lättas inte utan ägarens ok.
 
