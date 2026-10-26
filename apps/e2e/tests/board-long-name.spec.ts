@@ -163,3 +163,56 @@ test.describe('the podium with ordinary names', () => {
     });
   }
 });
+
+// Namn har ingen längdgräns: ett ord på 45 tecken på plats 3 ska inte ligga utanför kortet eller göra sidan bredare, med och utan badge-minis (som bryter till en egen rad när de inte ryms).
+const VERY_LONG_WORD = 'Pneumonoultramicroscopicsilicovolcanoconiosis';
+const PODIUM_LONG_NAME = `Ann ${VERY_LONG_WORD}`;
+const PODIUM_LONG_GROUP = [
+  runner('long-1', 'Bo Ek', 3000),
+  runner('long-2', 'Cy Lund', 2800),
+  runner('long-3', PODIUM_LONG_NAME, 2600),
+  runner('long-4', NORMAL_NAME, 2400),
+];
+
+test.describe('the podium with a very long word in a name', () => {
+  for (const { width, height } of [{ width: 320, height: PHONE_HEIGHT }, { width: 375, height: PHONE_HEIGHT }, { width: 1280, height: 900 }]) {
+    for (const withBadges of [false, true]) {
+      test(`the name stays inside its card and the page does not scroll sideways on a ${width} px screen ${withBadges ? 'with' : 'without'} badges`, async ({ page }) => {
+        await answerWith(page, '/auth/users-with-runs', PODIUM_LONG_GROUP);
+        const showcase = withBadges ? [{ series: 'milestoner', tier: 1 }, { series: 'milestoner', tier: 2 }, { series: 'milestoner', tier: 3 }] : [];
+        await answerWith(
+          page,
+          '/badges/group',
+          { members: PODIUM_LONG_GROUP.map((member) => ({ user_id: member.id, showcase })), holders: {} },
+          { meta: { member_count: PODIUM_LONG_GROUP.length } },
+        );
+        await page.setViewportSize({ width, height });
+        await page.goto('/board');
+        await dismissOverlays(page);
+        await expect(page.getByRole('button', { name: PODIUM_LONG_NAME, exact: true })).toBeVisible();
+        await waitForStylesApplied(page);
+
+        const measured = await page.evaluate((longName) => {
+          const card = document.querySelector('[data-testid="podium-3"]')!;
+          const name = Array.from(card.querySelectorAll('.rq-board-namebtn')).find((button) => button.textContent === longName)!;
+          const range = document.createRange();
+          range.selectNodeContents(name);
+          const text = range.getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          const minis = card.querySelector('.rq-badge-minis')?.getBoundingClientRect();
+          return {
+            textLeft: text.left - box.left,
+            textRight: box.right - text.right,
+            minisInside: minis ? minis.left >= box.left - 1 && minis.right <= box.right + 1 : true,
+            pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        }, PODIUM_LONG_NAME);
+
+        expect(measured.textLeft, 'the name starts inside the card').toBeGreaterThanOrEqual(-TOLERANCE_PX);
+        expect(measured.textRight, 'the name ends inside the card').toBeGreaterThanOrEqual(-TOLERANCE_PX);
+        expect(measured.minisInside, 'the badges stay inside the card').toBe(true);
+        expect(measured.pageOverflow, 'the page does not scroll sideways').toBeLessThanOrEqual(TOLERANCE_PX);
+      });
+    }
+  }
+});

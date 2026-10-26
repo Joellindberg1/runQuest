@@ -1,5 +1,25 @@
 # Changelog
 
+## Buggfixar 2026-10-26 (buggrelease utan versionsnummer)
+
+Buggrelease mellan versionerna, från `integration/bugfix-2026-10-26` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
+
+### API
+- En POST eller PUT utan kropp, eller med en innehållstyp som JSON-parsern inte läser (t.ex. `text/plain`), gav 500 `internal_error` och ett serverfel i Sentry på 13 rutter (bl.a. `POST /api/runs`, `PUT /api/runs/:id`, `POST /api/auth/login`, `POST /api/challenges/send`, `POST /api/strava/callback`). Middlewaren `defaultEmptyBody` direkt efter `express.json()` ger nu en tom kropp, så rutterna svarar 400 `invalid_request` via sin egen validering och inget når Sentry. Parsade kroppar, webhooken, väntelistan och profilbilden (egna parsers) är orörda; ett differentialprov över 47 rutter och 42 kroppsvarianter visar inga andra skillnader än 500 → 400 (RUN-390).
+
+### Gränssnitt
+- Profilen scrollar inte längre i sidled på 320 px: statflikarnas rad scrollar inom kortet och den valda fliken förs i bild (även vid direktlänk), flikarna är lika breda som förut när de ryms, och fokusringen ritas inåt så att den inte klipps (RUN-387).
+- Board scrollar inte längre i sidled på smal desktop (126 px på 1024 px, 50 px på 1100 px): rest-tabellen har egna kolumner för 1024–1279 px, badges bryts till egen rad när namnkolumnen inte rymmer dem, och podiets statruta är läsbar ("LONGEST" och "RUNS" sitter inte ihop). Från 1280 px är allt oförändrat (RUN-388).
+- Ett mycket långt ord i ett podienamn ligger inom kortet i stället för att ge sidled scroll (`overflow-wrap: break-word` + `min-width: 0`); vanliga namn ryms som förut (RUN-389).
+- Kända följder (`docs/open-assumptions.md`, "Board: smal desktop och långa namn"): på 1024–1100 px växer en rest-rad ca 23 px när badges landar sent, och efternamn från ca 12–14 tecken bryts mitt i ordet i rest-raderna och podiet på 1024 px.
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna.
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus en POST utan kropp mot en skyddad rutt (401 utan token) och mot väntelistan (400, inget skrivet), och `/board` och `/profile` på 320 och 1024 px utan sidled scroll.
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras. Den säkra vägen är en revert-PR på `main` (minuter, inte sekunder); rollbackreferensen är main före release-PR:en. Redeploy av den deployen i Railway fungerar om den finns kvar.
+
 ## v0.8.2 — Uppföljningar efter v0.8.1 (2026-10-26)
 
 **Live 2026-10-26** via release-PR #61, main `ddaf4aaf` (tagg `v0.8.2`). CI grön på Node 20.20.2; Lighthouse inom budget (`/` JS 141,7 av 150 kB, LCP 2 107 ms, prestanda 0,98). Backenden live ca 11:35 UTC; frontendbygget föll tre gånger på Railways störning i EU West ("Slow build snapshot uploads", byggdemonen svarade inte) och gick igenom på fjärde försöket när störningen var i Monitoring, under tiden körde den gamla frontenden mot den nya backenden (inget kontrakt ändrat). Röken efter deploy grön: hälsa med obruten uptime, väntelistans POST (400, inget skrivet) även gzip och gzip med skräpbytes, 401 på skyddad rutt, skarp CSP och säkerhetshuvuden, `/board` direktladdad, `.map` 404; i headless webbläsare utloggad `/board` och `/runner/x` till `/login?next=`, `?next=//evil.example/x`, `/\evil.example` och `https://evil.example/x` stannar på www.runquest.dev, inga konsol- eller sidfel utöver röktestets egen blockering av Umami, inga icke-GET-anrop, bundlen bär 0.8.2-posten och routern 7.18.4. `npm audit --omit=dev` på main: 0. Backendloggen utan badge-skrivfel, Sentry utan ärenden, 0 % 5xx. Ägaren provade inloggning och utloggning i prod 2026-10-26: fungerar (utloggningen landar inte på `/login?next=`).
