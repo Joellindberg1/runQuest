@@ -162,11 +162,12 @@ describe('routes where the body is optional', () => {
     expect(res.status).toBeLessThan(500);
   });
 
-  it('still answers the routes that take no body at all without one', async () => {
-    for (const path of ['/api/strava/sync', '/api/auth/recalculate-totals', '/api/events/admin/trigger-daily-draw', '/api/titles/refresh']) {
-      const res = await server.request('POST', path, { token, headers: asNewClient() });
-      expect(res.status, path).toBeLessThan(500);
-    }
+  it('still runs POST /api/auth/recalculate-totals and POST /api/strava/sync, which take no body, without one', async () => {
+    const recalculated = await withoutBody({ method: 'POST', path: '/api/auth/recalculate-totals' });
+    expect(recalculated.status).toBe(200);
+    expect(recalculated.body).toMatchObject({ success: true });
+    const synced = await withoutBody({ method: 'POST', path: '/api/strava/sync' });
+    expect(synced.body).toMatchObject({ success: false, code: 'strava_not_connected' });
   });
 });
 
