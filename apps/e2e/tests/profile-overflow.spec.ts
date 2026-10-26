@@ -42,10 +42,16 @@ test.describe('the profile on a phone', () => {
           const tab = page.getByRole('tab', { name });
           if ((await tab.getAttribute('aria-selected')) !== 'true') await page.keyboard.press('ArrowRight');
           await expect(tab).toHaveAttribute('aria-selected', 'true');
-          const row = await rectOf(tablist);
-          const box = await rectOf(tab);
-          expect(box.left, `the "${name}" tab starts inside the tab row`).toBeGreaterThanOrEqual(row.left - TOLERANCE_PX);
-          expect(box.right, `the "${name}" tab ends inside the tab row`).toBeLessThanOrEqual(row.right + TOLERANCE_PX);
+          await expect
+            .poll(
+              async () => {
+                const row = await rectOf(tablist);
+                const box = await rectOf(tab);
+                return { startsInside: box.left >= row.left - TOLERANCE_PX, endsInside: box.right <= row.right + TOLERANCE_PX };
+              },
+              { message: `the "${name}" tab is inside the tab row` },
+            )
+            .toEqual({ startsInside: true, endsInside: true });
         }
 
         const row = await rectOf(tablist);

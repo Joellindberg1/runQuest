@@ -100,8 +100,10 @@
 
 /* ── Statflikar och rader ─────────────────────────────────────────────────── */
 .rq-card.rq-profile-statcard { padding: 0; }
-.rq-profile-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
-.rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
+/* De fyra flikarna har sin naturliga bredd och fördelar överskottet lika (flex: 1 0 auto). Rymms de inte (under ca 340 px, med ikoner och versaler) scrollar flikraden i sidled i sitt eget kort, som
+   chip-raderna och pillerna, i stället för att sticka ut ur kortet och göra hela sidan bredare (flik 4 på 320 px låg 32 px utanför fönstret). */
+.rq-profile-tabs { display: flex; overflow-x: auto; scrollbar-width: thin; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-profile-tabs > .rq-tab { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
 .rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
 .rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
 .rq-profile-rows { margin: 0; }
