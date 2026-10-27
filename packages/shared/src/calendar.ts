@@ -61,8 +61,22 @@ export function mondayOf(day: string): string {
 
 /** ISO-veckonummer (mån–sön, vecka 1 = veckan med årets första torsdag) för en kalenderdag. RangeError för ogiltigt datum. */
 export function isoWeekNumber(day: string): number {
-  const thursday = addDays(mondayOf(day), 3);
+  const thursday = isoThursday(day);
   return Math.floor(daysBetween(`${thursday.slice(0, 4)}-01-01`, thursday) / 7) + 1;
+}
+
+/**
+ * ISO-veckans år: året för veckans torsdag. Skiljer sig från kalenderdagens eget år runt årsskiftet (2027-01-01 hör till vecka 53
+ * av 2026, 2024-12-30 till vecka 1 av 2025), så `isoWeekNumber` ska alltid paras ihop med den här och aldrig med `day.slice(0, 4)`.
+ * RangeError för ogiltigt datum.
+ */
+export function isoWeekYear(day: string): number {
+  return Number(isoThursday(day).slice(0, 4));
+}
+
+/** Torsdagen i dagens ISO-vecka; den avgör både veckonummer och ISO-år. */
+function isoThursday(day: string): string {
+  return addDays(mondayOf(day), 3);
 }
 
 // ─── Tidszon: väggklocka <-> ögonblick ───────────────────────────────────────────────────────────

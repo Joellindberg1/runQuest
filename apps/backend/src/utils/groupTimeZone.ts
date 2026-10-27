@@ -7,7 +7,8 @@
 // (eller bli ett medvetet globalt undantag) innan en grupp i en annan zon får rätt dygn där. En ny grupp i en annan zon blir inte rätt av att källan byts.
 //
 // GÅR VIA RESOLVERN (gruppens zon): boostens fönster när en duell avgörs (challengeService.settleChallenge), eventgränserna (eventService.checkEventQualification
-// och settleCompetitionEvents, routes/events.ts, rankNews, leaderboard rank-delta och /week), "idag" och framtidskontrollen i routes/runs.ts (validateRunInput),
+// och settleCompetitionEvents, routes/events.ts, rankNews, leaderboard rank-delta och /week, inklusive XP-liggarens datering av event-XP via
+// buildXpLedger(..., timeZone)), "idag" och framtidskontrollen i routes/runs.ts (validateRunInput),
 // titleNews, utmaningens aktuella dag i getProgressForChallenge, gruppens första dag i joinGroup.
 //
 // GÅR INTE VIA RESOLVERN (Stockholm, att åtgärda i RUN-21):
@@ -15,9 +16,8 @@
 //   - routes/challenges.ts:378  groupNextMidnight(new Date()) vid accept (zonparametern finns men får inte gruppens zon).
 //   - scheduler/challengeScheduler.ts:54  groupNextMidnight(new Date()) vid legendary-autostart (samma).
 //   - shared/challengeWindow.ts  challengeWindow(...).determineAt: 03:00 via stockholmWallClockToInstant, utan zon.
-//   Streak och XP-liggare
+//   Streak
 //   - services/streakService.ts:57  currentStreak(days, stockholmDay(new Date())).
-//   - shared/xpLedger.ts:57  event-XP:ns datum, stockholmDay(new Date(at)) (buildXpLedger saknar zon, så rank-delta och rank_passed blandar gruppens zon och Stockholm).
 //   Aktivitetsloggen
 //   - shared/activity.ts  streakBrokenOccurredAt (streak_broken kl 00:00 Stockholm dag last_run_date + 2, stockholmMidnightIso) och dedupe-nyckelns dag för
 //     rank_passed (stockholmDay(new Date(occurredAt)), rad ~506).

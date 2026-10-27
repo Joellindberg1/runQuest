@@ -2,7 +2,7 @@
 // Liggaren härleds ur befintliga tabeller (runs.xp_gained + event_entries.xp_awarded);
 // ingen ny lagring. Återanvänds av ADR 008:s backfill.
 import type { RankDeltaUser as RankDeltaResultUser } from './contracts/leaderboard.js';
-import { stockholmDay } from './calendar.js';
+import { STOCKHOLM_TZ, zoneDay } from './calendar.js';
 import { compareXpStandings } from './rankPasses.js';
 
 export interface LedgerRun {
@@ -31,7 +31,7 @@ export interface XpLedgerEntry {
   user_id: string;
   source: 'run' | 'event';
   ref_id: string;
-  /** Stockholm-kalenderdag då XP:n krediterades. */
+  /** Kalenderdag (i gruppens zon, standard Stockholm) då XP:n krediterades. */
   date: string;
   xp: number;
 }
@@ -39,9 +39,14 @@ export interface XpLedgerEntry {
 /**
  * Bygger XP-liggaren. Datering av event-XP: participation → qualified_at;
  * competition → settled_at ?? ends_at (XP betalas ut vid avräkningen, inte vid anmälan).
- * Poster utan utbetald XP (null/0) hoppas över.
+ * Poster utan utbetald XP (null/0) hoppas över. `timeZone` är gruppens zon (standard Stockholm): event-XP:ns tidpunkt blir
+ * kalenderdagen där. Rundornas datum är redan kalenderdagar och berörs inte.
  */
-export function buildXpLedger(runs: LedgerRun[], eventEntries: LedgerEventEntry[]): XpLedgerEntry[] {
+export function buildXpLedger(
+  runs: LedgerRun[],
+  eventEntries: LedgerEventEntry[],
+  timeZone: string = STOCKHOLM_TZ,
+): XpLedgerEntry[] {
   const ledger: XpLedgerEntry[] = [];
 
   for (const r of runs) {
@@ -54,7 +59,7 @@ export function buildXpLedger(runs: LedgerRun[], eventEntries: LedgerEventEntry[
     if (xp <= 0) continue;
     const at = e.event_type === 'competition' ? (e.settled_at ?? e.ends_at) : e.qualified_at;
     if (!at) continue;
-    ledger.push({ user_id: e.user_id, source: 'event', ref_id: e.entry_id, date: stockholmDay(new Date(at)), xp });
+    ledger.push({ user_id: e.user_id, source: 'event', ref_id: e.entry_id, date: zoneDay(new Date(at), timeZone), xp });
   }
 
   return ledger;
@@ -69,6 +74,32 @@ export interface RankDeltaInput {
 }
 
 /**
+ * EN bakåträkning av XP: varje användares XP strax före `asOf` = total_xp − XP krediterad med datum ≥ asOf. Nuläget ÄR total_xp, så
+ * resultatet kan aldrig avvika från Standings i dag, och XP som liggaren inte ser (äldre än fönstret) ligger kvar som en konstant.
+ * Värdet klampas till 0; användare vars liggare överstiger total_xp rapporteras i `diverged`. Poster för okända användare ignoreras.
+ * Används av `buildRankDelta` (rank-delta, rank_passed) och av positionshistoriken, så ingen av dem har en egen kopia.
+ */
+export function xpBeforeDate(
+  users: ReadonlyArray<{ id: string; total_xp: number }>,
+  ledger: XpLedgerEntry[],
+  asOf: string,
+): { previousXp: Map<string, number>; diverged: string[] } {
+  const creditedSince = new Map<string, number>();
+  for (const e of ledger) {
+    if (e.date >= asOf) creditedSince.set(e.user_id, (creditedSince.get(e.user_id) ?? 0) + e.xp);
+  }
+
+  const previousXp = new Map<string, number>();
+  const diverged: string[] = [];
+  for (const u of users) {
+    const raw = u.total_xp - (creditedSince.get(u.id) ?? 0);
+    if (raw < 0) diverged.push(u.id);
+    previousXp.set(u.id, Math.max(0, raw));
+  }
+  return { previousXp, diverged };
+}
+
+/**
  * Rank nu (total_xp) mot rank vid veckostart (`asOf`, en måndag).
  * previous_xp = total_xp − XP krediterad med datum ≥ asOf. Rank = (xp desc, name asc).
  * Användare skapade på/efter asOf får previous_rank/rank_delta null och tävlar inte i förra rankingen.
@@ -79,17 +110,10 @@ export function buildRankDelta(
   ledger: XpLedgerEntry[],
   asOf: string,
 ): { users: RankDeltaResultUser[]; diverged: string[] } {
-  const creditedSince = new Map<string, number>();
-  for (const e of ledger) {
-    if (e.date >= asOf) creditedSince.set(e.user_id, (creditedSince.get(e.user_id) ?? 0) + e.xp);
-  }
-
-  const diverged: string[] = [];
-  const rows = users.map((u) => {
-    const raw = u.total_xp - (creditedSince.get(u.id) ?? 0);
-    if (raw < 0) diverged.push(u.id);
-    return { id: u.id, name: u.name, xp: u.total_xp, previous_xp: Math.max(0, raw), created_date: u.created_date };
-  });
+  const { previousXp, diverged } = xpBeforeDate(users, ledger, asOf);
+  const rows = users.map((u) => (
+    { id: u.id, name: u.name, xp: u.total_xp, previous_xp: previousXp.get(u.id) as number, created_date: u.created_date }
+  ));
 
   // Samma komparator som rank_passed-detektionen (rankPasses.ts), så att tabellen och detektionen inte kan glida isär.
   const byXp = (key: 'xp' | 'previous_xp') => (a: typeof rows[number], b: typeof rows[number]) =>
