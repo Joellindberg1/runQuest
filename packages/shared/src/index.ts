@@ -27,3 +27,4 @@ export * from './analytics.js';
 export * from './onboardingSlugs.js';
 export * from './titleMetrics.js';
 export * from './runElevation.js';
+export * from './pace.js';
