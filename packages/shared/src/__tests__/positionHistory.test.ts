@@ -115,14 +115,15 @@ describe('buildPositionHistory', () => {
   });
 
   it('ledger larger than total_xp clamps to 0 and reports divergence', () => {
-    // Annas liggare (40 den 20 oktober) är större än hennes total_xp (10).
-    const users = [member('a', 'Anna', 10), member('b', 'Bertil', 5)];
+    // Annas liggare (40 den 20 oktober) är större än hennes total_xp (10); Bertil har 0.
+    const users = [member('a', 'Anna', 10), member('b', 'Bertil', 0)];
     const ledger = buildXpLedger([run('r1', 'a', '2026-10-20', 40)], []);
     const { response, diverged } = buildPositionHistory(users, ledger, NOW, 8);
 
-    // Veckor som slutar före den 20:e: Annas XP klampas till 0 och Bertil (5) leder. Efter: 10 mot 5.
-    expect(positionsOf(response, 'a')).toEqual([2, 2, 2, 2, 2, 2, 1, 1]);
-    expect(positionsOf(response, 'b')).toEqual([1, 1, 1, 1, 1, 1, 2, 2]);
+    // Veckor som slutar före den 20:e: Annas XP klampas till 0 och delar 0 med Bertil, så namnordningen ger henne plats 1.
+    // Oklampat (−30) hade hon legat efter Bertil.
+    expect(positionsOf(response, 'a')).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+    expect(positionsOf(response, 'b')).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
     expect(diverged).toEqual(['a']);
   });
 
@@ -230,6 +231,15 @@ describe('buildPositionHistory', () => {
       ['2027-01-04', 1, 2027],
     ]);
     expect(response.weeks[6]!.end).toBe('2027-01-03');
+  });
+
+  it('a week that starts in December but belongs to the next ISO year carries that iso_year', () => {
+    // Onsdagen 2025-12-31: veckan som börjar måndagen 2025-12-29 är vecka 1 av 2026.
+    const { response } = buildPositionHistory([member('a', 'Anna', 1)], [], new Date('2025-12-31T10:00:00Z'), 2);
+    expect(response.weeks).toEqual([
+      { start: '2025-12-22', end: '2025-12-28', iso_week: 52, iso_year: 2025, is_current_week: false },
+      { start: '2025-12-29', end: '2026-01-04', iso_week: 1, iso_year: 2026, is_current_week: true },
+    ]);
   });
 
   it('Monday morning with an almost empty current week ranks from total_xp', () => {
