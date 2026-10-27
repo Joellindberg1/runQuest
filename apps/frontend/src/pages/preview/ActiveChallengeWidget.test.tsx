@@ -93,15 +93,30 @@ describe('ActiveChallengeWidget opponent', () => {
     const onClick = vi.fn();
     render(<ActiveChallengeWidget challenge={challenge({})} progress={[]} currentUserId="u1" onClick={onClick} />);
 
-    await user.click(screen.getByRole('button', { name: 'Open challenge' }));
+    await user.click(screen.getByRole('button', { name: 'Open challenge against Erik' }));
 
     expect(onClick).toHaveBeenCalledOnce();
     expect(openRunner).not.toHaveBeenCalled();
   });
 
+  it('describes the card button with the card content, so a screen reader keeps the score and the dates', () => {
+    render(
+      <ActiveChallengeWidget
+        challenge={challenge({ end_date: '2026-11-10' })}
+        progress={[{ user_id: 'u1', value: 12 }, { user_id: 'u2', value: 8 }]}
+        currentUserId="u1"
+        onClick={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByRole('button', { name: 'Open challenge against Erik' });
+
+    expect(card).toHaveAccessibleDescription(/You vs Erik.*12\.0 km.*8\.0 km/);
+  });
+
   it('has no card button when the card is not clickable', () => {
     renderWidget(challenge({}));
 
-    expect(screen.queryByRole('button', { name: 'Open challenge' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open challenge against Erik' })).toBeNull();
   });
 });

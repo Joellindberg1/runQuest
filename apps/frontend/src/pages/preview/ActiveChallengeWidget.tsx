@@ -46,6 +46,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   onClick,
 }) => {
   const openProfile = useOpenRunner();
+  const contentId = React.useId();
   const opponent = challenge.challenger_id === currentUserId
     ? { id: challenge.opponent_id,   name: challenge.opponent_name }
     : { id: challenge.challenger_id, name: challenge.challenger_name };
@@ -59,17 +60,19 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
     <div
       className={`relative w-full px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors' : ''}`}
     >
-      {/* Kortets egen knapp ligger som ett lager över kortet: motståndarens namn är en knapp och får inte ligga inuti en annan. */}
+      {/* Kortets egen knapp ligger som ett lager över kortet: motståndarens namn är en knapp och får inte ligga inuti en annan.
+          Ringen ritas inåt (--rq-focus-inset) eftersom kortet har overflow-hidden, som klipper en yttre ring. */}
       {onClick && (
         <button
           type="button"
-          aria-label="Open challenge"
+          aria-label={`Open challenge against ${opponent.name}`}
+          aria-describedby={contentId}
           onClick={onClick}
-          className="absolute inset-0 w-full rounded-lg cursor-pointer"
+          className="absolute inset-0 w-full rounded-lg cursor-pointer focus-visible:[outline-offset:var(--rq-focus-inset)]"
         />
       )}
       {/* 3-col grid — dimmed when pending */}
-      <div className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
+      <div id={contentId} className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
         {/* Row 1 */}
         <div className="flex items-center justify-center">
           <Swords className="w-4 h-4 text-primary" />
