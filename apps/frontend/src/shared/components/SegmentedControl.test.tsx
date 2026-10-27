@@ -34,6 +34,7 @@ describe('SegmentedControl', () => {
     render(<Harness onChange={onChange} />);
 
     expect(screen.getByRole('group', { name: 'Overview' })).toBeInTheDocument();
+    screen.getAllByRole('button').forEach((button) => expect(button).toHaveClass('rq-filter'));
     expect(screen.getByRole('button', { name: 'Activity' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Distance' })).toHaveAttribute('aria-pressed', 'false');
 

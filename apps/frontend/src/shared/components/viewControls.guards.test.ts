@@ -4,7 +4,7 @@ import postcss, { type AtRule, type Declaration, type Rule } from 'postcss';
 import { describe, expect, it } from 'vitest';
 
 // Träffytan och fokusringen går inte att mäta i jsdom (ingen layout), så reglerna som gör dem sanna vaktas här; måtten i en riktig
-// webbläsare är mätta i Chromium (se rapporten för RUN-412). Stylelint vaktar att filen bara använder tokens.
+// webbläsare prövas av e2e-specen profile-overflow (flikhöjd 44 px på 375 px). Stylelint vaktar att filen bara använder tokens.
 const read = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 const controlsCss = postcss.parse(read('./view-controls.css'));
 const themeCss = postcss.parse(read('../../index.css'));
@@ -36,6 +36,7 @@ function tokenValues(name: string): { mobile: string[]; desktop: string[] } {
 
 const BUTTONS = ['.rq-segmented > .rq-filter', '[role="tablist"] > .rq-filter', '[role="tablist"] > .rq-tab'];
 const FOCUSED = ['.rq-segmented > .rq-filter:focus-visible', '[role="tablist"] > .rq-filter:focus-visible'];
+const FOCUSED_UNDERLINE_TAB = ['[role="tablist"] > .rq-tab:focus-visible'];
 const FOCUSED_SELECTED = ['.rq-segmented > .rq-filter[aria-pressed="true"]:focus-visible', '[role="tablist"] > .rq-filter[aria-selected="true"]:focus-visible'];
 
 describe('flikrad och segmenterad kontroll — träffyta och fokusring', () => {
@@ -49,5 +50,6 @@ describe('flikrad och segmenterad kontroll — träffyta och fokusring', () => {
     expect(valueOf(FOCUSED_SELECTED, 'outline-color')).toBe('var(--rq-text-1)');
     // Guld som linje räcker inte mot ljus yta (brons 2,8:1): ringen tar guldfärgen avsedd för text, som är ≥ 3:1 i båda temana.
     expect(valueOf(FOCUSED, 'outline-color')).toBe('var(--rq-gold-text)');
+    expect(valueOf(FOCUSED_UNDERLINE_TAB, 'outline-color')).toBe('var(--rq-gold-text)');
   });
 });
