@@ -44,7 +44,7 @@ export function RestList({ rows, onOpen }: RestProps) {
           <span role="cell" className="rq-board-ranknum">{row.rank}</span>
           <div role="cell">
             <div className="rq-board-nameline">
-              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
               <DeltaMark delta={row.delta} />
             </div>
             <TitleLine row={row} />
@@ -103,7 +103,7 @@ export function RestTable({ rows, onOpen }: RestProps) {
           <div role="cell" className="rq-board-nameline rq-board-nameline--desktop">
             <DeltaMark delta={row.delta} />
             <div>
-              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
               {/* Minis på sub-raden efter "Lvl N · X km"; vimplarna bor i Last run-cellen. Raden rymmer en mini på alla rader (Council 10). */}
               <div className="rq-board-sub rq-board-sub--table">
                 <span>Lvl {row.level} · {row.kmTotal} km</span>
