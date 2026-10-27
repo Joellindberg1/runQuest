@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, buildMyTitles, buildRunRow, buildRunRows, buildUpdate, buildXpParts,
+  COMPACT_TITLE_COUNT, HISTORY_PREVIEW_COUNT, buildMyTitles, buildRunRow, buildRunRows, buildRunTime, buildRunTimeSummary, buildUpdate, buildXpParts,
   STRAVA_DELETE_HINT, deleteNotice, editFormFor, isDirty, isStravaRun, showAllLabel, sortRuns, updateNotice, validateEdit, validatePicture,
 } from './profileModel';
 import { run } from './profile.fixture';
@@ -35,6 +35,76 @@ describe('rundhistorik', () => {
     expect(showAllLabel(HISTORY_PREVIEW_COUNT)).toBeNull();
     expect(showAllLabel(133)).toBe('Show all 133 runs');
     expect(showAllLabel(1200)).toBe('Show all 1 200 runs');
+  });
+});
+
+describe('tid och tempo per rad', () => {
+  it('en runda med tid: tid, tempo och skärmläsartext ur samma funktioner som alla vyer', () => {
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 10, moving_time: 3130 }))).toEqual({
+      timed: true, time: '52:10', pace: '5:13 /km', label: 'Time 52:10, pace 5:13 per kilometre',
+    });
+  });
+
+  it('tider från en timme läses med ord, den synliga texten är h:mm:ss', () => {
+    const cell = buildRunTime(run({ date: '2026-08-21', distance: 12, moving_time: 4180 }));
+    expect(cell.time).toBe('1:09:40');
+    expect(cell.label).toBe('Time 1 hour 9 minutes 40 seconds, pace 5:48 per kilometre');
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 20, moving_time: 7200 })).label).toBe('Time 2 hours, pace 6:00 per kilometre');
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 12, moving_time: 3605 })).label).toBe('Time 1 hour 5 seconds, pace 5:00 per kilometre');
+  });
+
+  it.each([
+    ['saknas', undefined],
+    ['null', null],
+    ['0', 0],
+    ['NaN', Number.NaN],
+    ['negativ', -30],
+  ])('moving_time %s ger tankstreck och "no time recorded", aldrig NaN eller 0:00', (_name, movingTime) => {
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 10, moving_time: movingTime }))).toEqual({
+      timed: false, time: '—', pace: '—', label: 'no time recorded',
+    });
+  });
+
+  it('distans 0 eller ett tempo som avrundas till 0 ger tankstreck', () => {
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 0, moving_time: 3000 })).timed).toBe(false);
+    expect(buildRunTime(run({ date: '2026-08-21', distance: 10, moving_time: 4 })).timed).toBe(false);
+  });
+
+  it('raden bär cellen', () => {
+    expect(buildRunRow(run({ date: '2026-08-21', distance: 10, moving_time: 3130 })).timing.time).toBe('52:10');
+  });
+});
+
+describe('summan över de visade rundorna', () => {
+  const timed = (distance: number, movingTime: number) => run({ date: '2026-08-21', id: `${distance}-${movingTime}`, distance, moving_time: movingTime });
+
+  it('total tid och tempo = summan över rundor med tid (tempot ur de ej avrundade summorna)', () => {
+    const summary = buildRunTimeSummary([timed(10, 3130), timed(7.5, 2407), timed(10, 3210)]);
+    expect(summary).toMatchObject({ timed: true, time: '2:25:47', pace: '5:18 /km', basis: null });
+  });
+
+  it('en runda utan tid räknas inte, varken i tiden eller i distansen, och "based on N of M" visas', () => {
+    const withGap = buildRunTimeSummary([timed(10, 3130), run({ date: '2026-07-31', distance: 6, moving_time: null })]);
+    expect(withGap).toMatchObject({ time: '52:10', pace: '5:13 /km', basis: 'based on 1 of 2 runs' });
+  });
+
+  it('över en timme: h:mm:ss synligt, ord för skärmläsare', () => {
+    const summary = buildRunTimeSummary([timed(10, 3130), timed(7.5, 2407), timed(10, 3210)]);
+    expect(summary.label).toBe('Total time 2 hours 25 minutes 47 seconds, pace 5:18 per kilometre');
+  });
+
+  it('under en timme läses summan som i raderna', () => {
+    expect(buildRunTimeSummary([timed(10, 3130)]).label).toBe('Total time 52:10, pace 5:13 per kilometre');
+  });
+
+  it.each([
+    ['en tom lista', []],
+    ['bara rundor utan tid', [run({ date: '2026-08-21', moving_time: undefined }), run({ date: '2026-08-20', moving_time: null }), run({ date: '2026-08-19', moving_time: 0 }), run({ date: '2026-08-18', moving_time: Number.NaN })]],
+    ['ett tempo som avrundas till 0', [timed(10, 4)]],
+  ])('%s ger tankstreck för båda värdena', (_name, runs) => {
+    const summary = buildRunTimeSummary(runs);
+    expect(summary).toMatchObject({ timed: false, time: '—', pace: '—', label: 'Total time: no time recorded' });
+    expect(`${summary.time} ${summary.pace} ${summary.label}`).not.toMatch(/NaN|Infinity|0:00|-\d/);
   });
 });
 

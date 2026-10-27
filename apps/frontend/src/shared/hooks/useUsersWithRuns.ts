@@ -43,6 +43,8 @@ export function mapApiUser(u: User): User {
       is_treadmill: r.is_treadmill ?? null,
       // Ursprung (manual/strava): Profile spärrar Delete för Strava-rundor. Saknas på äldre rader → null = manuell.
       source: r.source ?? null,
+      // Sekunder (heltal) för Run history; null för löpband och manuella rundor. Ingen parseFloat: det är redan ett tal.
+      moving_time: r.moving_time ?? null,
       start_time: r.start_time ?? null,
       created_at: r.created_at ?? null,
     })) ?? [],

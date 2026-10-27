@@ -171,6 +171,15 @@
 .rq-profile-run__earned { text-align: right; }
 .rq-profile-run__xp { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 .rq-profile-run__mult { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+/* Tid och tempo: en rad under datum/XP, över hela radens bredd, bakom en streckad avdelare. Summan längst ner har samma form med tätare färg. */
+.rq-profile-run__time, .rq-profile-history__sum { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--rq-sp-14); row-gap: var(--rq-sp-2); }
+.rq-profile-run__time { grid-column: 1 / -1; margin-top: calc(var(--rq-sp-2) * -1); padding-top: var(--rq-sp-6); border-top: var(--rq-hair) dashed var(--rq-line-2); }
+.rq-profile-history__sum { padding: var(--rq-sp-10) var(--rq-pad-card); background: var(--rq-row-soft); border-top: var(--rq-hair) dashed var(--rq-line-2); }
+.rq-profile-run__pair { display: inline-flex; align-items: baseline; gap: var(--rq-sp-6); }
+.rq-profile-run__tlabel { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-run__tvalue { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
+.rq-profile-history__sum .rq-profile-run__tvalue { color: var(--rq-text-2); }
+.rq-profile-history__basis { margin-left: auto; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
 
 /* ── Redigera / radera: bottensheet (mobil) / dialog (desktop) via --rq-profile-sheet-* ─────────────────── */
 .rq-profile-sheet {
