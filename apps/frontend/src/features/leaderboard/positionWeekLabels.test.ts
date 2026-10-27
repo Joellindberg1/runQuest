@@ -34,6 +34,19 @@ describe('positionWeekLabels', () => {
     expect(one.range).toBe('week 34');
   });
 
+  it('a period longer than eight weeks gets every label and the real end of the range', () => {
+    const within = positionWeekLabels(weeksOf(2026, 1, 26));
+    expect(within.labels).toHaveLength(26);
+    expect(within.labels[25]).toEqual({ visual: 'W26', spoken: 'week 26' });
+    expect(within.range).toBe('week 1–26');
+
+    const across = positionWeekLabels([...weeksOf(2026, 35, 53), ...weeksOf(2027, 1, 7)]);
+    expect(across.labels).toHaveLength(26);
+    expect(across.labels[8].spoken).toBe('week 43, 2026');
+    expect(across.labels[25]).toEqual({ visual: 'W7', spoken: 'week 7, 2027' });
+    expect(across.range).toBe('week 35, 2026 – week 7, 2027');
+  });
+
   it('an empty period gives no labels and no range, and never invents weeks', () => {
     expect(positionWeekLabels([])).toEqual({ labels: [], range: '' });
   });
