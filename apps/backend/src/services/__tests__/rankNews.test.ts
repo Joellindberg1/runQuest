@@ -18,6 +18,7 @@ vi.mock('@runquest/shared', async (importOriginal) => {
 
 import { activityKeys, detectRankPasses } from '@runquest/shared';
 import { getSupabaseClient } from '../../config/database.js';
+import { setGroupTimeZoneSource } from '../../utils/groupTimeZone.js';
 import { logger } from '../../utils/logger.js';
 import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { recordRankPassesForChallenge, recordRankPassesForXp } from '../rankNews.js';
@@ -54,7 +55,7 @@ beforeEach(() => {
   vi.spyOn(logger, 'warn').mockImplementation(() => {});
   vi.spyOn(logger, 'error').mockImplementation(() => {});
 });
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); setGroupTimeZoneSource(); });
 
 describe('recordRankPassesForXp', () => {
   it('en runda som tar W förbi M (som låg före vid dygnsskiftet) skriver exakt en rank_passed med rätt aktör, mål och rangerna efter', async () => {
@@ -398,6 +399,33 @@ describe('recordRankPassesForXp — dygnsskiftets ställning ur samma liggare so
     use(lastWeek);
     await recordRankPassesForXp('u-w', G, 100);
     expect(rankRows(lastWeek)).toHaveLength(0);
+  });
+
+  it("event-XP near midnight is dated in the group's zone, and a Stockholm group is unchanged by the zone argument", async () => {
+    // Kvalificerad 23:30Z igår: 01:30 idag i Stockholm (krediterad idag) men 19:30 igår i New York (krediterad före dygnsskiftet).
+    const lateEvent = (): Record<string, Row[]> => world(
+      [user('u-w', 'Anna', 130), user('u-m', 'Bertil', 120)],
+      [],
+      {
+        event_entries: [{
+          id: 'e1', user_id: 'u-w', event_id: 'ev-e1', xp_awarded: 30, qualified_at: '2026-10-14T23:30:00.000Z',
+          events: { type: 'participation', ends_at: '2026-10-15T20:00:00.000Z', settled_at: null, group_id: G },
+        }],
+      },
+    );
+    const passesIn = async (zone: string | undefined) => {
+      setGroupTimeZoneSource(zone ? (groupId) => (groupId === G ? zone : undefined) : undefined);
+      const t = lateEvent();
+      use(t);
+      await recordRankPassesForXp('u-w', G, 100);
+      return rankRows(t).map((r) => [r.actor_user_id, r.target_user_id, r.dedupe_key]);
+    };
+
+    const byDefault = await passesIn(undefined);
+    expect(byDefault).toEqual([['u-w', 'u-m', `rank_passed:xp:u-w:u-m:${TODAY}`]]);
+    expect(await passesIn('Europe/Stockholm')).toEqual(byDefault);
+    // Samma rådata i New York: XP:n hör till gårdagen, så W låg redan på 130 vid dygnsskiftet och passerar ingen.
+    expect(await passesIn('America/New_York')).toEqual([]);
   });
 
   it('samma ögonblick för dagen och för occurred_at: nyckeln stämmer med detektionens även över Stockholms midnatt', async () => {
