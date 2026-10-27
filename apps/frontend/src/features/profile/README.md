@@ -21,7 +21,10 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
   - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
   - `TitlesPanel` — "MY TITLES": mobil "5 held · 3 runner-up" + tre titlar + "Show all 8", desktop "Holding · 5" / "Runner-up · 3" med innehavare och avstånd
-  - `RunHistory` — fyra rader + "Show all N runs"; `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
+  - `RunHistory` — fyra rader + "Show all N runs"; varje rad har "Time" och "Pace" och under listan står "Total time"/"Pace" för de rundor som visas just nu (räknas om vid "Show all").
+    Vymodellen (`buildRunTime`, `buildRunTimeSummary` i `profileModel`) använder bara `summariseRunTime`/`paceSecPerKm` (shared) och `runTimeFormat`; saknad, null, 0, NaN eller negativ tid ger "—" med dold text
+    "no time recorded", och "based on N of M runs" visas bara när N < M. Skärmläsaren får en mening per rad/summa (från en timme med ord: "1 hour 9 minutes 40 seconds"), de synliga fälten är `aria-hidden`.
+    `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
 - **profileModel.ts** — hjälte/celler/titlar (via runnerModel), rundrader, redigeringsregler, bekräftelsetexter, XP-uppräkning, bildvalidering
 - **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS`
 - **heatmapModel.ts** — Consistency-rutnätet och dess tre siffror
