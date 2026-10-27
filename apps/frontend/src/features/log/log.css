@@ -105,7 +105,9 @@
 .rq-log-run__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rq-log-run__id { min-width: 0; }
 /* Namnknappen: typografin kommer ur .rq-name — här bara knappåterställningen */
-.rq-log-run__name { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+/* Desktop: namnet på en rad med ellips (mobil bryter som förut). Fokusringen ligger innanför knappen, så overflow: hidden inte klipper den. */
+.rq-log-run__name { display: block; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: var(--rq-log-name-white-space); }
+.rq-log-run__name:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-log-run__name:hover { color: var(--rq-text-1); }
 .rq-log-run__date { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
 .rq-log-run__tags { margin: var(--rq-sp-6) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--rq-sp-8); }
@@ -119,6 +121,11 @@
 .rq-log-run__weather { display: inline-flex; align-items: center; gap: var(--rq-sp-4); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-log-run__source { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-log-run__source[data-strava="true"] { color: var(--rq-strava); }
+/* Tid och tempo: två fält ovanpå varandra, högerställda, värdet över etiketten. Mobil ritar inte kolumnen (--rq-log-time-display: none); den raden byggs för sig. */
+.rq-log-run__timepace { grid-area: time; display: var(--rq-log-time-display); flex-direction: column; align-items: flex-end; justify-content: center; gap: var(--rq-sp-12); min-width: 0; }
+.rq-log-run__stat { margin: 0; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: var(--rq-sp-2); white-space: nowrap; }
+.rq-log-run__stat-value { font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-log-time-fs); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
+.rq-log-run__stat-label { font-family: var(--rq-font-mono); font-size: var(--rq-log-cell-label-fs); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-log-run__totals { grid-area: totals; margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-log-totals-gap); }
 .rq-log-run__km { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); white-space: nowrap; }
 .rq-log-run__xp { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }

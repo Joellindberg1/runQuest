@@ -15,7 +15,7 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   - `StravaBanner` — mobilens Strava-rad
 - **logModel.ts** — formulärtillstånd, validering (backendens regler), `buildSubmission`, `streakOutlook` (streakdagen en ny runda får), bekräftelsetext
 - **xpPreviewModel.ts** — `buildXpPreview`: uppställning via `calculateCompleteRunXP` (shared) + effekterna streak/nivå/Frodo/ranking
-- **historyModel.ts** — `buildHistoryRow` (kort: initialer, underlag, väder, källa, fem celler), sidstorlek
+- **historyModel.ts** — `buildHistoryRow` (kort: initialer, underlag, väder, källa, tid och tempo, fem celler), `buildHistoryRows` (dedupar på run-id), sidstorlek
 - **stravaModel.ts** — banderollens text ur `/strava/status` (`last_import_at`: Last import, ingen nästa synk)
 - **logFormat.ts** — "1 June 2025" och WMO-väderkod → etikett (tal, km, multiplikator, månadsnamn och "32 min ago" ligger i `shared/utils/format`)
 - **hooks/** — `useLogForm` (formulärets tillstånd, överlever flikbyte), `useCreateRun` (mutation + invalideringar), `useLogQueries` (`useGroupHistory`; Strava-hookarna bor i `shared/hooks/useStravaQueries`)
@@ -51,6 +51,13 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **Group history** läser `GET /runs/group-history?limit=10&offset=…` (`useInfiniteQuery`, `meta.has_more` styr "Show more"; nästa sida börjar vid summan
   av det som hämtats). `staleTime: 0` — en runda som ändrats/raderats i Profile ska inte stå kvar. Fel på första sidan = felkort med Retry; fel på nästa sida
   lämnar raderna kvar och visar ett felkort under dem. Min egen runda har guldkant (samma "jag"-markering som Events/Duels). Namn och avatar öppnar Runner card.
+- **Tid och tempo i Group history** (ADR 007 addendum 2026-10-26, punkt 2) kommer ur `summariseRunTime` (shared) och formatfunktionerna i `shared/utils/format`
+  (`formatDuration`, `formatPace`, `timePaceLabel`); vymodellen har ingen egen division eller m:ss. En runda utan användbar tid (`moving_time` saknas,
+  är null, 0 eller NaN, distansen är 0 eller tempot avrundas till 0) får `time`/`pace`/`timePaceLabel` = `null`, och kortet visar "—" med dold text "no time recorded"
+  i båda fälten (kolumnen kollapsar aldrig). Med tid läser skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är `aria-hidden`. Kolumnen ritas
+  från 1024 px (mobilen har `--rq-log-time-display: none`; mobilraden är en egen vy på samma vymodell). 1024–1279 px lägger cellerna under rad ett, och namnet
+  får ellips från 1024 px.
+- **Sidorna dedupas på run-id** (`buildHistoryRows`): offsetsidor glider när en runda läggs till mellan två hämtningar, och samma runda kan då komma på två sidor.
 - **Väder utan emojis** (regel 10): sol- och snöikon ur ikonsetet där de finns, annars temperatur + etikett ("14 °C · Rain").
 - **Strava-raden (bara mobil)** läser `shared/hooks/useStravaQueries` (`useStravaStatus`) — EN definition med
   gemensam retry; statusen delas med skalet (`pages/LogShellSeam.test.tsx`). Raden visar "Last import 3 h ago" (`last_import_at`), ingen nästa synk. Ej kopplad / utgången → raden pekar på Settings. Ett fel döljer raden (sidoinformation, inget felkort).
