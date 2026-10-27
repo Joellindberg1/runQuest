@@ -18,6 +18,8 @@ export interface RecordedQuery {
   filters: Array<{ op: string; column: string; value: unknown }>;
   range: [number, number] | null;
   limit: number | null;
+  /** Sorteringen i den ordning `.order()` anropades (för tester som kräver en unik, stabil sidordning). */
+  order: Array<{ column: string; ascending: boolean }>;
   /** Typ av skrivning om queryn är en mutation (för failWhen). */
   mutation?: 'update' | 'insert' | 'delete' | 'upsert';
 }
@@ -145,7 +147,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
   const nextNumericId = (table: string) => (numericCounters[table] = (numericCounters[table] ?? 0) + 1);
 
   function from(table: string) {
-    const q: RecordedQuery = { table, select: null, filters: [], range: null, limit: null };
+    const q: RecordedQuery = { table, select: null, filters: [], range: null, limit: null, order: [] };
     queries.push(q);
     let orderBy: Array<{ column: string; ascending: boolean }> = [];
     let wantCount = false;
@@ -178,6 +180,7 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
       or(expr: string) { q.filters.push({ op: 'or', column: '', value: expr }); return builder; },
       order(column: string, opts?: { ascending?: boolean }) {
         orderBy.push({ column, ascending: opts?.ascending ?? true });
+        q.order.push({ column, ascending: opts?.ascending ?? true });
         return builder;
       },
       update(values: Row) { mutation = { kind: 'update', values }; q.mutation = 'update'; return builder; },
