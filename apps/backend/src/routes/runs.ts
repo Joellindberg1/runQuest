@@ -247,6 +247,7 @@ router.get('/group-history', authenticateJWT, async (req, res): Promise<void> =>
       user_profile_picture: run.users.profile_picture || undefined,
       start_time: run.start_time ?? null,
       created_at: run.created_at ?? null,
+      moving_time: run.moving_time ?? null,
     })) || [];
 
     okWithLegacy<GroupRunHistoryResponse>(res, { runs }, { runs }, buildPageMeta(total, limit, offset));
