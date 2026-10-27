@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import type { ChallengeTier } from '@runquest/shared';
 import { RQIcon } from '@/shared/components/icons';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import type { BoostView, DuelsView, IncomingCard, LiveCard, RecordCell, SentCard, StandingRow, TierGroup } from '../duelsModel';
 import type { TierRule } from '../rulesModel';
-import type { SendBlocker } from '../sendModel';
+import type { SendBlocker, SendPreselection } from '../sendModel';
 import '../duels.css';
 import { HistoryList, type HistoryListProps } from './HistoryList';
 import { IncomingOffer, SentOffer } from './OfferCards';
@@ -41,7 +40,7 @@ export interface DuelsLayoutProps {
   /** Varför jag inte kan skicka — styr om Send är guldknappen (bara när det går att skicka). */
   blocker: SendBlocker | null;
   inLiveDuel: boolean;
-  onOpenSend: (tier?: ChallengeTier) => void;
+  onOpenSend: (preselection?: SendPreselection) => void;
   live: LiveCard[];
   incoming: IncomingCard[];
   sent: SentCard | null;

@@ -187,54 +187,67 @@ export function buildSent(sent: Challenge | null, names: Record<string, string>)
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-export interface TokenCombo {
-  key: string;
+/** Ett kort per token: tokenets eget mått, längd och insats. Identiska tokens är separata kort. */
+export interface TokenCard {
+  /** Tokenets id — det som skickas, och nyckeln för förvalet. */
+  tokenKey: string;
   tier: ChallengeTier;
   metric: ChallengeMetric;
+  /** "Most km" */
   metricLabel: string;
   durationDays: number;
+  /** "7 days" */
   durationLabel: string;
-  count: number;
-  /** Ett token ur gruppen — det som skickas. */
-  tokenId: string;
+  /** "Runs for 7 days" */
+  lengthText: string;
   stake: Stake;
 }
 
+/** Alltid en grupp per nivå. `empty` = inga tokens; en tom nivå går inte att välja (`selectable: false`). */
 export interface TierGroup {
   tier: ChallengeTier;
   label: string;
   count: number;
-  stake: Stake;
-  combos: TokenCombo[];
+  empty: boolean;
+  selectable: boolean;
+  cards: TokenCard[];
+  /** Det första kortets insats (nivåraden i Your tokens); null för en tom nivå. */
+  stake: Stake | null;
 }
 
 const METRIC_ORDER: readonly ChallengeMetric[] = ['km', 'runs', 'total_xp'];
 
+const toCard = (token: MyChallengesData['tokens'][number]): TokenCard => ({
+  tokenKey: token.id,
+  tier: token.tier,
+  metric: token.metric,
+  metricLabel: metricLabel(token.metric),
+  durationDays: token.duration_days,
+  durationLabel: durationLongText(token.duration_days),
+  lengthText: `Runs for ${durationLongText(token.duration_days)}`,
+  stake: stakeOf(token),
+});
+
 /**
- * Osända tokens per nivå (minor → legendary, designens ordning). Ett token fixerar mått och längd, så tokens med samma
- * nivå/mått/längd slås ihop till en rad med antal; send-sheeten väljer bland raderna.
+ * Osända tokens per nivå (minor → major → legendary, alltid alla tre). Ett token fixerar mått, längd och insats, så varje
+ * token blir ett eget kort — inga sammanslagningar med antal. Korten ordnas på mått, sedan längd (stabilt: lika tokens
+ * behåller sin inbördes ordning).
  */
 export function buildTokenGroups(tokens: MyChallengesData['tokens']): TierGroup[] {
-  return TIERS.flatMap((tier): TierGroup[] => {
-    const own = tokens.filter((token) => token.tier === tier);
-    if (own.length === 0) return [];
-
-    const combos = new Map<string, TokenCombo>();
-    for (const token of own) {
-      const key = `${tier}|${token.metric}|${token.duration_days}`;
-      const existing = combos.get(key);
-      if (existing) existing.count += 1;
-      else {
-        combos.set(key, {
-          key, tier, metric: token.metric, metricLabel: metricLabel(token.metric), durationDays: token.duration_days,
-          durationLabel: durationLongText(token.duration_days), count: 1, tokenId: token.id, stake: stakeOf(token),
-        });
-      }
-    }
-    const sorted = [...combos.values()].sort(
-      (a, b) => METRIC_ORDER.indexOf(a.metric) - METRIC_ORDER.indexOf(b.metric) || a.durationDays - b.durationDays,
-    );
-    return [{ tier, label: tierLabel(tier), count: own.length, stake: sorted[0].stake, combos: sorted }];
+  return TIERS.map((tier): TierGroup => {
+    const cards = tokens
+      .filter((token) => token.tier === tier)
+      .map(toCard)
+      .sort((a, b) => METRIC_ORDER.indexOf(a.metric) - METRIC_ORDER.indexOf(b.metric) || a.durationDays - b.durationDays);
+    return {
+      tier,
+      label: tierLabel(tier),
+      count: cards.length,
+      empty: cards.length === 0,
+      selectable: cards.length > 0,
+      cards,
+      stake: cards[0]?.stake ?? null,
+    };
   });
 }
 

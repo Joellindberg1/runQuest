@@ -13,8 +13,8 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
     `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
-- **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper, standings, historikrader, boosts, rekord, rubrikrad
-- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering
+- **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper (alltid tre nivåer med `count`/`empty`/`selectable`, ett kort per token — identiska tokens slås inte ihop), standings, historikrader, boosts, rekord, rubrikrad
+- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`)
 - **rulesModel.ts** — insatser per nivå (verkliga data först, seed som reserv) och "How it works"
 - **hooks/** — `useDuelsQueries` (`useMyChallenges`, `useGroupStats`, `useLiveProgress`, `useGroupHistory`, `useOpponentRecords`),
   `useChallengeActions` (send/accept/decline/withdraw som mutationer som kastar vid fel)
@@ -27,6 +27,9 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   Därför har send-sheeten steg "1 · Spend a token" och "2 · Pick an opponent", inte designens fria val av mått/längd, och "The bet" visar mått och längd som fakta.
   Insatserna kommer ur data (token/utmaning/historikrad), aldrig ur konstanter; `DEFAULT_STAKES` (migration 006) används bara för en nivå utan något exempel.
   Legendary har straff i databasen (−0.25×/14 d) — designens "no penalty" gäller inte; delta 0 läses "No penalty".
+- **Förval i send-flödet** är komponenttillstånd i `DuelsScreen` (`SendPreselection | null`), aldrig adress: Send på ett tokenkort → nivå och kort, en nivåchip → bara nivån,
+  Challenge från popupen → bara motståndaren (`?opponent=`). Ett ensamt kort på nivån är förvalt. Sheeten monteras per öppning och `closeSend` nollställer förvalet,
+  så förra valet följer aldrig med.
 - **Backend avvisar `/send` om jag har en aktiv ELLER väntande utmaning (som utmanare eller motståndare).** `sendBlocker` speglar det: live-duell, skickad,
   inkommande, inga tokens. En motståndare som är upptagen som *mottagare* av en väntande utmaning syns inte i group-stats — då svarar servern 400
   och sheeten visar meddelandet inline.

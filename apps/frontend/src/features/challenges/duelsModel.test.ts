@@ -112,24 +112,63 @@ describe('buildTokenGroups', () => {
     token({ id: 't5', tier: 'minor', metric: 'km', duration_days: 5 }),
   ];
 
-  it('nivåerna i designens ordning, bara de som finns', () => {
+  it('token groups always list all three tiers', () => {
     const groups = buildTokenGroups(tokens);
-    expect(groups.map((group) => [group.tier, group.count])).toEqual([['minor', 4], ['major', 1]]);
-    expect(tokenTotal(groups)).toBe(5);
-    expect(buildTokenGroups([])).toEqual([]);
-  });
-
-  it('tokens med samma nivå, mått och längd slås ihop; raderna ordnas på mått, sedan längd', () => {
-    const [minor] = buildTokenGroups(tokens);
-    expect(minor.combos.map((combo) => [combo.metric, combo.durationDays, combo.count])).toEqual([
-      ['km', 5, 1], ['km', 7, 2], ['runs', 5, 1],
+    expect(groups.map((group) => [group.tier, group.count, group.empty])).toEqual([
+      ['minor', 4, false], ['major', 1, false], ['legendary', 0, true],
     ]);
-    expect(minor.combos[1]).toMatchObject({ tokenId: 't3', metricLabel: 'Most km', durationLabel: '7 days', key: 'minor|km|7' });
+    expect(tokenTotal(groups)).toBe(5);
+    expect(buildTokenGroups([]).map((group) => [group.tier, group.count, group.empty])).toEqual([
+      ['minor', 0, true], ['major', 0, true], ['legendary', 0, true],
+    ]);
   });
 
-  it('insatsen kommer ur token-raden', () => {
+  it('a tier without tokens cannot be selected', () => {
+    const [minor, , legendary] = buildTokenGroups(tokens);
+    expect([minor.selectable, legendary.selectable]).toEqual([true, false]);
+    expect(legendary.cards).toEqual([]);
+  });
+
+  it('identical tokens are separate cards', () => {
     const [minor] = buildTokenGroups(tokens);
-    expect(minor.stake.summary).toBe('+0.15× win · −0.07× loss');
+    const same = minor.cards.filter((card) => card.metric === 'km' && card.durationDays === 7);
+    expect(same.map((card) => card.tokenKey)).toEqual(['t3', 't4']);
+    expect(minor.cards).toHaveLength(4);
+    expect(same[0].stake).toEqual(same[1].stake);
+  });
+
+  it("cards are ordered by metric, then length, and read the token's own metric, length and stake", () => {
+    const [minor] = buildTokenGroups(tokens);
+    expect(minor.cards.map((card) => [card.tokenKey, card.metric, card.durationDays])).toEqual([
+      ['t5', 'km', 5], ['t3', 'km', 7], ['t4', 'km', 7], ['t2', 'runs', 5],
+    ]);
+    expect(minor.cards[1]).toMatchObject({
+      tokenKey: 't3', tier: 'minor', metricLabel: 'Most km', durationLabel: '7 days', lengthText: 'Runs for 7 days',
+    });
+    expect(minor.cards[1].stake).toMatchObject({ winFor: '+0.15× for 5 days', loseFor: '−0.07× for 5 days' });
+    expect(minor.stake?.summary).toBe('+0.15× win · −0.07× loss');
+  });
+
+  it('legendary token shows its own penalty', () => {
+    const [, , legendary] = buildTokenGroups([
+      token({ id: 'l1', tier: 'legendary', metric: 'total_xp', duration_days: 30, winner_delta: 0.5, winner_duration: 14, loser_delta: -0.25, loser_duration: 14 }),
+    ]);
+    expect(legendary.cards[0]).toMatchObject({ lengthText: 'Runs for 30 days' });
+    expect(legendary.cards[0].stake).toMatchObject({ winFor: '+0.5× for 14 days', loseFor: '−0.25× for 14 days', loseTone: 'down' });
+  });
+
+  it('legendary token without penalty shows No penalty', () => {
+    const [, , legendary] = buildTokenGroups([
+      token({ id: 'l1', tier: 'legendary', loser_delta: 0, loser_duration: 0 }),
+    ]);
+    expect(legendary.cards[0].stake).toMatchObject({ loseFor: 'No penalty', loseTone: 'muted' });
+  });
+
+  it('a boost counted in runs reads "for 3 runs"', () => {
+    const [minor] = buildTokenGroups([
+      token({ id: 'm1', winner_delta: 0.2, winner_duration: 3, winner_type: 'multiplier_runs', loser_delta: -0.1, loser_duration: 1, loser_type: 'multiplier_runs' }),
+    ]);
+    expect(minor.cards[0].stake).toMatchObject({ winFor: '+0.2× for 3 runs', loseFor: '−0.1× for 1 run' });
   });
 });
 
