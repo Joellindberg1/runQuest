@@ -193,8 +193,9 @@ describe('dataPolicy', () => {
 
   it('says the moving time and pace of each run are visible to the members of the pack, in the data and strava sections', () => {
     const data = getDataPolicySection('data');
-    expectParagraph(data, /^Runs:/, /moving time/i, /pace/i, /members of your pack/i);
-    expectParagraph(data, /^Who sees what:/, /members of your pack/i, /moving time/i, /pace/i);
+    // Tiden kommer bara från Strava-importen (manuella rundor saknar den): texten ska säga det och inte lova "alla rundor".
+    expectParagraph(data, /^Runs:/, /imported from Strava, the moving time and the pace/i, /members of your pack/i);
+    expectParagraph(data, /^Who sees what:/, /members of your pack/i, /imported from Strava they can also see its moving time and pace/i);
     expectParagraph(getDataPolicySection('strava'), /^Who sees your runs:/, /members of your pack/i, /moving time/i, /pace/i, /not public/i);
   });
 
