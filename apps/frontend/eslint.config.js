@@ -345,9 +345,9 @@ export default tseslint.config(
     },
   },
 
-  // Formatmodulen är hydreringssäker (Landing förrenderas och importerar den): inga Intl- eller toLocale*-anrop.
+  // Formatmodulen är hydreringssäker (Landing förrenderas och importerar den): inga Intl- eller toLocale*-anrop. Samma regel för runTimeFormat.ts (tid och tempo).
   {
-    files: ["src/shared/utils/format.ts"],
+    files: ["src/shared/utils/format.ts", "src/shared/utils/runTimeFormat.ts"],
     rules: { "no-restricted-syntax": ["error", NO_INTL_FORMATTING] },
   },
 
