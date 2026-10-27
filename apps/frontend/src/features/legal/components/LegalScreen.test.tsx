@@ -67,6 +67,20 @@ describe('LegalScreen — innehåll ur den delade källan', () => {
     expect(screen.getByText(`Version ${getDataPolicy().version}`)).toBeInTheDocument();
   });
 
+  it('legal page shows that time and pace are visible to the pack', () => {
+    renderLegal();
+    const privacy = screen.getByRole('region', { name: 'Privacy' });
+    const paragraphsIn = (title: string) =>
+      [...within(privacy).getByRole('article', { name: title }).querySelectorAll('p')].map((paragraph) => paragraph.textContent ?? '');
+    const visibleToPack = (paragraphs: string[], lead: RegExp) =>
+      paragraphs.some((text) => lead.test(text) && /moving time/i.test(text) && /pace/i.test(text) && /members of your pack/i.test(text));
+
+    expect(visibleToPack(paragraphsIn('What is stored'), /^Runs:/)).toBe(true);
+    expect(visibleToPack(paragraphsIn('What is stored'), /^Who sees what:/)).toBe(true);
+    expect(visibleToPack(paragraphsIn('Strava'), /^Who sees your runs:/)).toBe(true);
+    expect(screen.getByText('Version 2026-10-27')).toBeInTheDocument();
+  });
+
   it('renders every privacy section as an h3 with its own anchor id, one paragraph per source paragraph', () => {
     renderLegal();
     const privacy = screen.getByRole('region', { name: 'Privacy' });
