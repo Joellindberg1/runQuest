@@ -41,6 +41,8 @@ export function callRows(api: typeof backendApi): CallRow[] {
       okBody: envelope, okResult: { success: true, data: DATA }, fallback: 'Failed to fetch week leaderboard' },
     { name: 'getRankDelta', call: () => api.getRankDelta(), path: '/leaderboard/rank-delta', method: 'GET', headers: AUTH_JSON,
       okBody: envelope, okResult: { success: true, data: DATA }, fallback: 'Failed to fetch rank changes' },
+    { name: 'getPositionHistory', call: () => api.getPositionHistory(8), path: '/leaderboard/positions?weeks=8', method: 'GET', headers: AUTH_JSON,
+      okBody: envelope, okResult: { success: true, data: DATA }, fallback: 'Failed to fetch position history' },
     { name: 'getAdminWaitlist', call: () => api.getAdminWaitlist(), path: '/admin/waitlist', method: 'GET', headers: AUTH_JSON,
       okBody: envelope, okResult: { success: true, data: DATA }, fallback: 'Failed to load the waitlist' },
     { name: 'getXpConfig', call: () => api.getXpConfig(), path: '/config/xp', method: 'GET', headers: AUTH_JSON,

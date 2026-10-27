@@ -12,7 +12,8 @@ Mobil (<1024 px) och desktop (≥1024) är två varianter av samma data; exakt e
   - `StreaksView` — status, multiplikator, nedräkning, trappan (`/api/config/xp`)
   - `BoardParts` — avatar, delta-pil, namn-knapp, challenge-vimplar (`ChallengeRibbons`), `cssVars`
 - **Vymodeller (rena, testade):** `seasonModel`, `weekModel`, `streakModel`, `boardFormat`
-- **hooks/** `useBoardQueries` (week, rank-delta); `shared/hooks/useXpConfig`, `useViewParam`
+- **hooks/** `useBoardQueries` (week, rank-delta); `usePositionHistory(weeks, enabled)` (`['leaderboard','positions',weeks]`, delas av Leaderboard och profilen, antalet veckor i svaret styr: anta aldrig 8); `shared/hooks/useXpConfig`, `useViewParam`
+- **Veckoetiketter:** `positionWeekLabels` är enda stället som gör `W27` / `week 27` / intervalltext ur `iso_week` + `iso_year` (år i skärmläsartexten över ISO-årsskiftet)
 - `board.css` — enda stilfilen; bara tokens utanför mått-blocket i toppen.
 
 ## Regler värda att komma ihåg

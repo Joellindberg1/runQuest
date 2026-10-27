@@ -15,7 +15,7 @@ import type {
   // grupper
   JoinGroupRequest, JoinGroupResponse, MyGroupResponse,
   // topplistor, konfiguration och landning
-  PublicStatsApiResponse, PublicStatsData, RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse,
+  PositionHistoryResponse, PublicStatsApiResponse, PublicStatsData, RankDeltaResponse, WeekLeaderboardResponse, XpConfigResponse,
   // events, nyheter och inställningar
   EventsHistoryResponse, EventsResponse, NewsMeta, NewsQuery, NewsReadRequest, NewsReadResponse, NewsResponse,
   NewsSeenRequest, NewsSeenResponse, OffsetPageMeta, SettingsMeta, SettingsResponse, UpdateSettingsRequest,
@@ -303,6 +303,11 @@ class BackendApiService {
   /** GET /leaderboard/rank-delta — rank mot veckostart (ADR 007 B2). */
   async getRankDelta(): Promise<ApiResult<RankDeltaResponse>> {
     return this.request<RankDeltaResponse>('GET', '/leaderboard/rank-delta', undefined, { failure: 'Failed to fetch rank changes' });
+  }
+
+  /** GET /leaderboard/positions?weeks=N — placering i total-XP-ordningen vid slutet av varje vecka (ADR 007 B11). `weeks` är 1–26 inklusive den pågående. */
+  async getPositionHistory(weeks: number): Promise<ApiResult<PositionHistoryResponse>> {
+    return this.request<PositionHistoryResponse>('GET', `/leaderboard/positions?weeks=${weeks}`, undefined, { failure: 'Failed to fetch position history' });
   }
 
   /**
