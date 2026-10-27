@@ -112,7 +112,7 @@ export function buildRankDelta(
 ): { users: RankDeltaResultUser[]; diverged: string[] } {
   const { previousXp, diverged } = xpBeforeDate(users, ledger, asOf);
   const rows = users.map((u) => (
-    { id: u.id, name: u.name, xp: u.total_xp, previous_xp: previousXp.get(u.id) as number, created_date: u.created_date }
+    { id: u.id, name: u.name, xp: u.total_xp, previous_xp: previousXp.get(u.id) ?? 0, created_date: u.created_date }
   ));
 
   // Samma komparator som rank_passed-detektionen (rankPasses.ts), så att tabellen och detektionen inte kan glida isär.
