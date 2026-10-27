@@ -4,11 +4,14 @@
  * Formatering (m:ss) bor i frontendens format.ts, inte här.
  */
 
-/** Den minsta runda som funktionerna behöver. `moving_time` är sekunder, `null` för löpband och manuella rundor. */
-export interface TimedRun {
-  moving_time: number | null | undefined;
-  distance_km: number;
-}
+import type { RunRow } from './contracts/runs.js';
+
+/**
+ * Den minsta runda som funktionerna behöver, härledd från kontraktet så att `RunRow[]`, `GroupRunHistoryItem[]` och
+ * frontendens `Run[]` kan skickas in utan omvandling. `moving_time` är sekunder och saknas eller är `null` för löpband
+ * och manuella rundor; `distance` är kilometer.
+ */
+export type TimedRun = Pick<RunRow, 'moving_time' | 'distance'>;
 
 export interface RunTimeSummary {
   total_seconds: number;
@@ -41,9 +44,9 @@ export function summariseRunTime(runs: readonly TimedRun[]): RunTimeSummary {
   let distanceKm = 0;
   let runsWithTime = 0;
   for (const run of runs) {
-    if (!isPositiveFinite(run.moving_time) || !isPositiveFinite(run.distance_km)) continue;
+    if (!isPositiveFinite(run.moving_time) || !isPositiveFinite(run.distance)) continue;
     totalSeconds += run.moving_time;
-    distanceKm += run.distance_km;
+    distanceKm += run.distance;
     runsWithTime += 1;
   }
   return {
