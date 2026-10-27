@@ -61,14 +61,15 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
       className={`relative w-full px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors' : ''}`}
     >
       {/* Kortets egen knapp ligger som ett lager över kortet: motståndarens namn är en knapp och får inte ligga inuti en annan.
-          Ringen ritas inåt (--rq-focus-inset) eftersom kortet har overflow-hidden, som klipper en yttre ring. */}
+          Ringen ritas inåt (--rq-focus-inset) eftersom kortet har overflow-hidden, som klipper en yttre ring, och i --rq-gold-text eftersom
+          temats ring har bara 2,1:1 mot kortet i ljust tema (som flikarna). */}
       {onClick && (
         <button
           type="button"
           aria-label={`Open challenge against ${opponent.name}`}
           aria-describedby={contentId}
           onClick={onClick}
-          className="absolute inset-0 w-full rounded-lg cursor-pointer focus-visible:[outline-offset:var(--rq-focus-inset)]"
+          className="absolute inset-0 w-full rounded-lg cursor-pointer focus-visible:[outline-offset:var(--rq-focus-inset)] focus-visible:[outline-color:var(--rq-gold-text)]"
         />
       )}
       {/* 3-col grid — dimmed when pending */}
