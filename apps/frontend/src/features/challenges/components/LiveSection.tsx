@@ -13,7 +13,14 @@ interface SideBoxProps {
 function SideBox({ side, align, onOpenRunner }: SideBoxProps) {
   return (
     <div className="rq-duels-side" data-tone={side.tone} data-align={align}>
-      <button type="button" className="rq-duels-side__name" title={side.name} onClick={() => onOpenRunner(side.userId)}>
+      <button
+        type="button"
+        className="rq-duels-side__name"
+        title={side.name}
+        aria-label={side.name}
+        data-runner-id={side.userId}
+        onClick={() => onOpenRunner(side.userId)}
+      >
         {side.shortName}
       </button>
       <p className="rq-duels-side__score">

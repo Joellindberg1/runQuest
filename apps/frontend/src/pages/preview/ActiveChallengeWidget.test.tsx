@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Challenge } from '@runquest/types';
 import { ActiveChallengeWidget } from './ActiveChallengeWidget';
+import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
 
-vi.mock('@/shared/hooks/useOpenRunner', () => ({ useOpenRunner: () => vi.fn() }));
+const openRunner = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/hooks/useOpenRunner', () => ({ useOpenRunner: () => openRunner }));
 
 // 23:30 UTC den 31 okt är redan 00:30 den 1 nov i Stockholm.
 beforeEach(() => {
@@ -45,5 +48,60 @@ describe('ActiveChallengeWidget datum', () => {
   it('en utmaning vars startdag redan börjat är inte väntande', () => {
     renderWidget(challenge({ start_date: '2026-11-01', end_date: '2026-11-10' }));
     expect(screen.queryByText(/Starts in/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ActiveChallengeWidget opponent', () => {
+  beforeEach(() => openRunner.mockClear());
+
+  it('is a button named after the opponent that carries the runner id', () => {
+    renderWidget(challenge({}));
+
+    expect(screen.getByRole('button', { name: 'Erik' })).toHaveAttribute('data-runner-id', 'u2');
+  });
+
+  it('is the challenger when I am the opponent', () => {
+    render(<ActiveChallengeWidget challenge={challenge({})} progress={[]} currentUserId="u2" />);
+
+    expect(screen.getByRole('button', { name: 'Anna' })).toHaveAttribute('data-runner-id', 'u1');
+  });
+
+  describe.each(OPEN_KEYS)('with $label', ({ keys }) => {
+    it('Tab reaches the opponent and the key opens the runner without triggering the card', async () => {
+      const user = userEvent.setup();
+      const onClick = vi.fn();
+      render(<ActiveChallengeWidget challenge={challenge({})} progress={[]} currentUserId="u1" onClick={onClick} />);
+
+      await tabTo(user, screen.getByRole('button', { name: 'Erik' }));
+      await user.keyboard(keys);
+
+      expect(openRunner).toHaveBeenCalledExactlyOnceWith('u2');
+      expect(onClick).not.toHaveBeenCalled();
+    });
+  });
+
+  it('never nests the opponent button inside another button when the card is clickable', () => {
+    render(<ActiveChallengeWidget challenge={challenge({})} progress={[]} currentUserId="u1" onClick={vi.fn()} />);
+
+    const opponent = screen.getByRole('button', { name: 'Erik' });
+
+    expect(opponent.parentElement?.closest('button')).toBeNull();
+  });
+
+  it('keeps the whole card clickable through its own button', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(<ActiveChallengeWidget challenge={challenge({})} progress={[]} currentUserId="u1" onClick={onClick} />);
+
+    await user.click(screen.getByRole('button', { name: 'Open challenge' }));
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(openRunner).not.toHaveBeenCalled();
+  });
+
+  it('has no card button when the card is not clickable', () => {
+    renderWidget(challenge({}));
+
+    expect(screen.queryByRole('button', { name: 'Open challenge' })).toBeNull();
   });
 });

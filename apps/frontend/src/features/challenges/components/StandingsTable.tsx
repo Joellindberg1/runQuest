@@ -44,6 +44,7 @@ export function StandingsTable({ rows, showTitle, onOpenRunner }: StandingsTable
               <button
                 type="button"
                 className="rq-duels-standing__name"
+                data-runner-id={row.userId}
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenRunner(row.userId);

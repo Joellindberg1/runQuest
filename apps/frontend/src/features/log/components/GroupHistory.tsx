@@ -33,7 +33,7 @@ function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId
           {row.pictureUrl ? <img src={row.pictureUrl} alt="" /> : row.initials}
         </button>
         <div className="rq-log-run__id">
-          <button type="button" className="rq-name rq-log-run__name" onClick={open}>
+          <button type="button" className="rq-name rq-log-run__name" data-runner-id={row.userId} onClick={open}>
             {row.name}
           </button>
           <p className="rq-log-run__date">{row.date}</p>

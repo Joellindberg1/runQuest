@@ -15,7 +15,7 @@ interface SideProps {
 /** En sida av matchen: namn (min = guldprick) och poäng + resultat. Högersidan speglas så att poängen alltid ligger mot "vs". */
 function MatchSide({ side, align, onOpenRunner }: SideProps) {
   const name = (
-    <button type="button" className="rq-duels-match__name" data-emphasis={side.emphasis} data-mine={side.mine} onClick={() => onOpenRunner(side.userId)}>
+    <button type="button" className="rq-duels-match__name" data-emphasis={side.emphasis} data-mine={side.mine} data-runner-id={side.userId} onClick={() => onOpenRunner(side.userId)}>
       {side.name}
     </button>
   );

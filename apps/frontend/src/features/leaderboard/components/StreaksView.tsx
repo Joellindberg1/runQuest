@@ -65,7 +65,7 @@ function StreakRowsMobile({ rows, top, onOpen }: RowsProps) {
         >
           <div role="cell">
             <div className="rq-board-streak__top">
-              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
               <StatusLabel status={row.status} />
             </div>
             <div className="rq-board-streak__nums">
@@ -100,7 +100,7 @@ function StreakRowsDesktop({ rows, top, onOpen }: RowsProps) {
           onClick={() => onOpen(row.id)}
         >
           <div role="cell">
-            <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+            <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
             <div className="rq-board-lastrun">Best {row.best} d</div>
           </div>
           <div role="cell" className="rq-board-streak__nums">

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
@@ -7,6 +8,7 @@ import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token }
 import type { MyChallengesData } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turen startar driver.js efter en timer; ankar-vakten nedan kollar DOM:en i stället.
@@ -137,7 +139,7 @@ describe('Duels — rubrik och Live (mobil)', () => {
   it('namnet öppnar Runner card', async () => {
     renderDuels();
     await screen.findByText('2 live · 5 tokens');
-    fireEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: 'Nicklas' }));
+    fireEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: 'Nicklas von Elling' }));
     expect(location()).toBe('/runner/u-nick');
   });
 
@@ -754,5 +756,61 @@ describe('Duels — Match history: mobil och desktop läser metan olika', () => 
     const row = (await screen.findByRole('list', { name: 'Matches' })).querySelector('li') as HTMLElement;
     expect(within(row).getByText('Major · Most runs')).toBeInTheDocument();
     expect(within(row).getByText('5 d · +0.25× / 10 d')).toBeInTheDocument();
+  });
+});
+
+describe('Duels — runner rows are real buttons', () => {
+  const pageOf = (items: ReturnType<typeof historyItem>[]) => ({
+    success: true, data: { items }, meta: { total: 0, limit: 20, offset: 0, has_more: false },
+  });
+  const NICK_VS_KARL = historyItem({
+    id: 'h2', outcome: 'opponent_wins', winner_id: KARL,
+    challenger: { id: NICK, name: NAMES[NICK], profile_picture: null, level: 23 },
+    opponent: { id: KARL, name: NAMES[KARL], profile_picture: null, level: 24 },
+  });
+
+  const ROWS = [
+    { view: 'Live duel', entry: '/duels', name: 'Nicklas von Elling', id: 'u-nick', prepare: () => {} },
+    { view: 'Waiting on you', entry: '/duels', name: 'Nicklas von Elling', id: 'u-nick', prepare: () => setup({ my: { received_challenges: [FROM_NICK], group_active: [] } }) },
+    { view: 'Sent challenge', entry: '/duels', name: 'Daniel Lindblad Lüthje', id: 'u-dan', prepare: () => setup({ my: { sent_challenge: TO_DAN, group_active: [] } }) },
+    { view: 'Standings', entry: '/duels?view=standings', name: 'Adam Einstein', id: 'u-adam', prepare: () => {} },
+    { view: 'History', entry: '/duels?view=history', name: 'Karl Persson', id: 'u-karl', prepare: () => { handlers.getChallengeGroupHistory = () => pageOf([NICK_VS_KARL]); } },
+  ];
+
+  // Live-korten byter sida när framdriften landar; rubrikens räknare visas först då data finns, så knappen hämtas efter den.
+  const runnerButton = async (name: string) => {
+    await screen.findByText(/^\d+ live · \d+ tokens$/);
+    return screen.findByRole('button', { name });
+  };
+
+  it.each(ROWS)('$view: the runner button is named after the runner and carries the runner id', async ({ entry, name, id, prepare }) => {
+    prepare();
+    renderDuels(entry);
+
+    const button = await runnerButton(name);
+
+    expect(button).toHaveAttribute('data-runner-id', id);
+  });
+
+  it('a live duel shows the first name but is named after the full name', async () => {
+    renderDuels();
+
+    const button = await runnerButton('Karl Persson');
+
+    expect(button).toHaveTextContent(/^Karl$/);
+  });
+
+  describe.each(OPEN_KEYS)('with $label', ({ keys }) => {
+    it.each(ROWS)('$view: Tab reaches the runner and the key opens the runner card', async ({ entry, name, id, prepare }) => {
+      const user = userEvent.setup();
+      prepare();
+      renderDuels(entry);
+      const button = await runnerButton(name);
+
+      await tabTo(user, button);
+      await user.keyboard(keys);
+
+      await waitFor(() => expect(location()).toBe(`/runner/${id}`));
+    });
   });
 });
