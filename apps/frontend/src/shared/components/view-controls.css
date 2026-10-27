@@ -1,0 +1,24 @@
+/* Delade kontroller: flikraden (ViewTabs) och den segmenterade kontrollen (SegmentedControl).
+   Utseendet är receptet .rq-filter i temafilen (vilande hårlinje, vald guld 14 %/50 %); här bor bara det som är gemensamt för
+   kontrollerna: träffytan på mobil, den inåtriktade fokusringen och raden de ligger i. Ingen egen färg, kant eller vald-regel. */
+
+.rq-segmented { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
+
+/* Knapparna i en kontrollrad: samma grund som sidornas egna flikrader (typsnitt, genomskinlig bakgrund när inte vald) och träffyta ur temafilen
+   (mobil 44 px, desktop 0: chipen är redan hög nog med muspekare). */
+.rq-segmented > .rq-filter,
+[role="tablist"] > .rq-filter,
+[role="tablist"] > .rq-tab {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: var(--rq-control-hit);
+  font-family: var(--rq-font-ui);
+}
+.rq-segmented > .rq-filter:not([aria-pressed="true"]),
+[role="tablist"] > .rq-filter:not([aria-selected="true"]) { background: none; }
+
+/* Fokusringen ritas innanför knappen: en rad som scrollar i sidled eller ligger i en popover klipper en yttre ring (som profilens flikar, se profile.css).
+   Ringen har guldets textfärg (≥ 3:1 mot ytan i båda temana; temats ringfärg, bronsguld i ljust, är 2,8:1). På den valda knappen byter den till
+   textfärgen, så den inte flyter ihop med guldramen. */
+.rq-segmented > .rq-filter:focus-visible,
+[role="tablist"] > .rq-filter:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
+.rq-segmented > .rq-filter[aria-pressed="true"]:focus-visible,
+[role="tablist"] > .rq-filter[aria-selected="true"]:focus-visible { outline-color: var(--rq-text-1); }

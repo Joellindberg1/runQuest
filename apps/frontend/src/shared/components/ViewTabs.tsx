@@ -2,6 +2,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { RQIcon, type RQIconName } from './icons';
 import { revealDelta } from './tabReveal';
 import { panelId, tabId } from './viewTabIds';
+import './view-controls.css';
 
 /** Ikonstorleken i flikraden (designen: 13 px i statflikarna). */
 const ICON_SIZE = 13;
@@ -29,9 +30,18 @@ interface ViewTabsProps<T extends string> {
   className?: string;
 }
 
+/** Vilken flik en tangent pekar på (pilarna loopar runt, Home/End går till ändarna), eller null för tangenter flikraden inte äger. */
+function targetIndex(key: string, current: number, count: number): number | null {
+  if (key === 'ArrowRight') return (current + 1) % count;
+  if (key === 'ArrowLeft') return (current - 1 + count) % count;
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  return null;
+}
+
 /**
  * Delvyernas flikrad över `?view=` (ADR 006 beslut 3). Vald flik = guld 14 %/50 % (regel 4,
- * `.rq-filter`). Piltangenter flyttar markeringen, som en riktig tablist.
+ * `.rq-filter`). Piltangenter flyttar markeringen, som en riktig tablist; Home och End går till första och sista fliken.
  */
 export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPrefix, variant = 'filter', className }: ViewTabsProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -45,11 +55,10 @@ export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPre
   }, [value]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-    if (step === 0) return;
+    const nextIndex = targetIndex(event.key, tabs.findIndex((tab) => tab.key === value), tabs.length);
+    if (nextIndex === null) return;
     event.preventDefault();
-    const index = tabs.findIndex((tab) => tab.key === value);
-    const next = tabs[(index + step + tabs.length) % tabs.length];
+    const next = tabs[nextIndex];
     onChange(next.key);
     listRef.current?.querySelector<HTMLElement>(`#${tabId(idPrefix, next.key)}`)?.focus();
   };
