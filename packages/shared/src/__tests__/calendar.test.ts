@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, groupNextMidnight, isoWeekNumber, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
+  MS_DAY, MS_HOUR, MS_MINUTE, addDays, dayOfWeek, daysBetween, groupNextMidnight, isoWeekNumber, isoWeekYear, mondayOf, stockholmClock, stockholmDay, stockholmMidnightIso, stockholmWallClockToInstant,
   wallClockMinutes, wallClockMsAt, wallClockToInstantMs, zoneOffsetMs,
 } from '../calendar.js';
 
@@ -146,6 +146,45 @@ describe('isoWeekNumber — mån–sön, vecka 1 är veckan med årets första t
 
   it('ogiltigt datum ger RangeError (som addDays och mondayOf), inte en tyst felaktig vecka', () => {
     expect(() => isoWeekNumber('inte-ett-datum')).toThrow(RangeError);
+  });
+});
+
+describe('isoWeekYear — året för veckans torsdag', () => {
+  it.each([
+    ['2020-12-31', 2020], // vecka 53
+    ['2021-01-03', 2020], // söndag i vecka 53
+    ['2024-12-30', 2025], // måndag i vecka 1 av 2025
+    ['2026-12-28', 2026], // vecka 53
+    ['2027-01-01', 2026], // fredag i vecka 53
+    ['2027-01-04', 2027], // måndag i vecka 1 av 2027
+  ])('%s hör till ISO-året %i', (day, year) => {
+    expect(isoWeekYear(day)).toBe(year);
+  });
+
+  it('ogiltigt datum ger RangeError (som isoWeekNumber), inte ett tyst felaktigt år', () => {
+    expect(() => isoWeekYear('inte-ett-datum')).toThrow(RangeError);
+  });
+
+  it('isoWeekYear and isoWeekNumber agree with a reference for every day', () => {
+    // Referens: den klassiska torsdagsmetoden på Date, utan att dela kod med calendar.ts.
+    const reference = (at: Date): { year: number; week: number } => {
+      const thursday = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+      thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
+      const yearStart = Date.UTC(thursday.getUTCFullYear(), 0, 1);
+      return { year: thursday.getUTCFullYear(), week: Math.ceil(((thursday.getTime() - yearStart) / MS_DAY + 1) / 7) };
+    };
+
+    const cursor = new Date(Date.UTC(2019, 11, 1));
+    const last = Date.UTC(2028, 0, 31);
+    let checked = 0;
+    while (cursor.getTime() <= last) {
+      const day = cursor.toISOString().slice(0, 10);
+      const expected = reference(cursor);
+      expect({ day, year: isoWeekYear(day), week: isoWeekNumber(day) }).toEqual({ day, year: expected.year, week: expected.week });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      checked += 1;
+    }
+    expect(checked).toBe(2_984); // 2019-12-01 … 2028-01-31, så att loopen inte tyst blir tom
   });
 });
 

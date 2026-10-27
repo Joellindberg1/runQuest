@@ -192,7 +192,7 @@ router.get('/rank-delta', authenticateJWT, async (req, res): Promise<void> => {
       ends_at: e.events.ends_at,
     }));
 
-    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries);
+    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries, timeZone);
     const members = (usersResult.data ?? []).map((u: any) => ({
       id: u.id,
       name: u.name,

@@ -108,7 +108,7 @@ export async function recordRankPassesForXp(
       settled_at: e.events.settled_at,
       ends_at: e.events.ends_at,
     }));
-    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries);
+    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries, timeZone);
     const { users: standings, diverged } = buildRankDelta(members, ledger, today);
 
     // Divergerar liggaren från total_xp går dygnsskiftets ställning inte att lita på (previous_xp är klampad till 0).
