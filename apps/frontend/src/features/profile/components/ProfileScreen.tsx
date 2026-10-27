@@ -14,8 +14,10 @@ import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
 import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
+import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useRunnerTitles } from '@/features/runner/hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../profileModel';
+import { DEFAULT_STAT_VIEW, STAT_VIEWS } from '../statsModel';
 import '../profile.css';
 import { JourneyCard } from './JourneyCard';
 import { ProfileHero } from './ProfileHero';
@@ -39,6 +41,8 @@ export function ProfileScreen() {
   const me = usersQuery.data?.find((candidate) => candidate.id === user?.id);
   const titlesQuery = useRunnerTitles(user?.id ?? '');
   const boardQuery = useTitleLeaderboard();
+  // Statflikarna ligger över `?view=` (ADR 006 beslut 3): adressen bor här, panelen är kontrollerad.
+  const [statView, setStatView] = useViewParam(STAT_VIEWS, DEFAULT_STAT_VIEW);
 
   // Badges är ett tillägg: egna queries, och ett badgefel stannar i sammanfattningen (resten av profilen berörs inte). Gruppens holders ger held-by;
   // felar den utelämnas raden (data är då undefined) utan platshållare.
@@ -81,7 +85,7 @@ export function ProfileScreen() {
         <div className="rq-profile__main">
           <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={isDesktop ? badges.showcase : undefined} />
           <JourneyCard totalKm={me.total_km} isDesktop={isDesktop} />
-          <StatsPanel user={me} now={now} isDesktop={isDesktop} />
+          <StatsPanel user={me} now={now} isDesktop={isDesktop} view={statView} onChange={setStatView} label="Your stats" dataTour="profile-stats" />
           {isDesktop && summary}
         </div>
         <div className="rq-profile__side">
