@@ -1,6 +1,5 @@
-import type { ChallengeTier } from '@runquest/shared';
 import type { BoostView, RecordCell, TierGroup } from '../duelsModel';
-import type { SendBlocker } from '../sendModel';
+import type { SendBlocker, SendPreselection } from '../sendModel';
 import { TierRibbon } from './TierRibbon';
 
 interface TokensPanelProps {
@@ -8,14 +7,16 @@ interface TokensPanelProps {
   blocker: SendBlocker | null;
   /** Desktop: förklaringsraden under rubriken. */
   showIntro: boolean;
-  onSend: (tier: ChallengeTier) => void;
+  onSend: (preselection: SendPreselection) => void;
 }
 
 /**
- * "Your tokens": osända tokens per nivå (vimpel med antal, insats, Send). Send på en nivå öppnar send-sheeten med nivån
- * förvald. Går det inte att skicka just nu är knapparna låsta och orsaken står under listan.
+ * "Your tokens": osända tokens per nivå (vimpel med antal, insats, Send). Nivåer utan tokens listas inte (kortvyn kommer
+ * med den nya designen). Send på en nivå öppnar send-sheeten med nivån förvald. Går det inte att skicka just nu är
+ * knapparna låsta och orsaken står under listan.
  */
-export function TokensPanel({ groups, blocker, showIntro, onSend }: TokensPanelProps) {
+export function TokensPanel({ groups: allGroups, blocker, showIntro, onSend }: TokensPanelProps) {
+  const groups = allGroups.filter((group) => !group.empty);
   return (
     <section className="rq-card rq-duels-tokens" data-tour="duels-tokens" aria-labelledby="duels-tokens-heading">
       <h2 id="duels-tokens-heading" className="rq-title">Your tokens</h2>
@@ -29,14 +30,14 @@ export function TokensPanel({ groups, blocker, showIntro, onSend }: TokensPanelP
               <TierRibbon tier={group.tier} count={group.count} />
               <div className="rq-duels-token__text">
                 <span className="rq-duels-token__tier">{group.label}</span>
-                <span className="rq-duels-token__stake">{group.stake.summary}</span>
+                <span className="rq-duels-token__stake">{group.stake?.summary}</span>
               </div>
               <button
                 type="button"
                 className="rq-duels-token__send"
                 disabled={blocker !== null}
                 aria-label={`Send a ${group.label.toLowerCase()} challenge`}
-                onClick={() => onSend(group.tier)}
+                onClick={() => onSend({ tier: group.tier, tokenKey: null })}
               >
                 Send
               </button>

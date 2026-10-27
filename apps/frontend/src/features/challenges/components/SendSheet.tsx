@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat, type ChallengeTier } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
 import { tierLabel } from '../duelsFormat';
-import type { TierGroup, TokenCombo } from '../duelsModel';
+import type { TierGroup, TokenCard } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
-import { buildOpponents, resolveOpponentParam, type OpponentOption, type SendBlocker } from '../sendModel';
+import { buildOpponents, resolveOpponentParam, startingChoice, type OpponentOption, type SendBlocker, type SendPreselection } from '../sendModel';
 import { TierRibbon } from './TierRibbon';
 
 const ICON_HEAD = 21;
@@ -19,25 +19,26 @@ interface SendSheetProps {
   members: ChallengeGroupStat[];
   users: User[] | undefined;
   meId: string;
-  /** Nivån som tryckts på i tokens-panelen. */
-  initialTier: ChallengeTier | null;
+  /** Nivå och kort som tryckts på i tokens-panelen; null = inget förval. */
+  preselection: SendPreselection | null;
   /** `?opponent=`: förvald motståndare om personen går att utmana. */
   initialOpponent: string | null;
   onClose: () => void;
   /** Kastar vid fel; sheeten visar då meddelandet och stannar kvar. */
-  onSend: (tokenId: string, opponentId: string) => Promise<void>;
+  onSend: (tokenKey: string, opponentId: string) => Promise<void>;
 }
 
-function TokenOption({ combo, selected, onSelect }: { combo: TokenCombo; selected: boolean; onSelect: () => void }) {
+function TokenOption({ card, selected, onSelect }: { card: TokenCard; selected: boolean; onSelect: () => void }) {
   return (
-    <button type="button" className="rq-duels-option rq-duels-option--token" data-tier={combo.tier} aria-pressed={selected} onClick={onSelect}>
-      <TierRibbon tier={combo.tier} count={combo.count} />
+    <button type="button" className="rq-duels-option rq-duels-option--token" data-tier={card.tier} aria-pressed={selected} onClick={onSelect}>
+      <TierRibbon tier={card.tier} />
       <span className="rq-duels-option__text">
-        <span className="rq-duels-option__tier">{tierLabel(combo.tier)}</span>
-        <span className="rq-duels-option__what">{`${combo.metricLabel} · ${combo.durationLabel}`}</span>
+        <span className="rq-duels-option__tier">{tierLabel(card.tier)}</span>
+        <span className="rq-duels-option__what">{card.metricLabel}</span>
+        <span className="rq-duels-option__what">{card.lengthText}</span>
         <span className="rq-duels-option__stake">
-          <span data-tone="up">{combo.stake.win}</span>
-          <span data-tone={combo.stake.loseTone}>{combo.stake.lose}</span>
+          <span data-tone="up">{card.stake.winFor}</span>
+          <span data-tone={card.stake.loseTone}>{card.stake.loseFor}</span>
         </span>
       </span>
     </button>
@@ -65,17 +66,15 @@ function OpponentRow({ option, selected, onSelect }: { option: OpponentOption; s
 
 /**
  * Skicka utmaning: bottensheet på mobil, centrerad dialog på desktop (samma markup, olika mått via tokens).
- * Steg 1 väljer token — ett token fixerar nivå, mått och längd (spelreglerna ändras inte i redesignen, ägarbeslut 1,
- * så designens fria val av mått/längd ersätts av tokenets). Steg 2 väljer motståndare. "The bet" sammanfattar.
- * Monteras bara medan den är öppen, så valen nollställs varje gång.
+ * Steg 1 väljer token — ett kort per token, och ett token fixerar nivå, mått, längd och insats (spelreglerna ändras inte
+ * i redesignen, ägarbeslut 1). Steg 2 väljer motståndare. "The bet" sammanfattar. Förvalet kommer ur `startingChoice`
+ * (förvald nivå/kort, annars det ensamma kortet, aldrig förra valet). Monteras bara medan den är öppen, så valen nollställs varje gång.
  */
-export function SendSheet({ groups, blocker, members, users, meId, initialTier, initialOpponent, onClose, onSend }: SendSheetProps) {
-  const combos = useMemo(() => groups.flatMap((group) => group.combos), [groups]);
+export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, onClose, onSend }: SendSheetProps) {
+  const cards = useMemo(() => groups.flatMap((group) => group.cards), [groups]);
   const baseOptions = useMemo(() => buildOpponents({ members, users, meId, headToHead: {} }), [members, users, meId]);
 
-  const [comboKey, setComboKey] = useState<string | null>(
-    () => (groups.find((group) => group.tier === initialTier) ?? groups[0])?.combos[0]?.key ?? null,
-  );
+  const [tokenKey, setTokenKey] = useState<string | null>(() => startingChoice(groups, preselection)?.tokenKey ?? null);
   const [opponentId, setOpponentId] = useState<string | null>(() => resolveOpponentParam(initialOpponent, baseOptions));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,20 +85,20 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
   );
   const options = useMemo(() => buildOpponents({ members, users, meId, headToHead: records }), [members, users, meId, records]);
 
-  const combo = combos.find((candidate) => candidate.key === comboKey) ?? combos[0];
+  const card = cards.find((candidate) => candidate.tokenKey === tokenKey) ?? null;
   const opponent = options.find((option) => option.userId === opponentId && !option.disabled) ?? null;
-  const ready = !!combo && !!opponent && !sending;
+  const ready = !!card && !!opponent && !sending;
 
-  const summary = combo
-    ? `${combo.metricLabel}${opponent ? ` vs ${firstName(opponent.name)}` : ''} · ${combo.durationLabel}`
-    : '';
+  const summary = card
+    ? `${card.metricLabel}${opponent ? ` vs ${firstName(opponent.name)}` : ''} · ${card.durationLabel}`
+    : 'Pick a challenge';
 
   const submit = async () => {
-    if (!combo || !opponent) return;
+    if (!card || !opponent) return;
     setError(null);
     setSending(true);
     try {
-      await onSend(combo.tokenId, opponent.userId);
+      await onSend(card.tokenKey, opponent.userId);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Could not send the challenge');
       setSending(false);
@@ -121,7 +120,7 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
           </header>
 
           <div className="rq-duels-sheet__body">
-            {blocker || !combo ? (
+            {blocker || cards.length === 0 ? (
               <>
                 <p role="status" className="rq-duels-sheet__blocked">{blocker?.message ?? 'You have no tokens to send. You earn them by levelling up.'}</p>
                 <Dialog.Close className="rq-btn rq-btn--ghost">Close</Dialog.Close>
@@ -131,8 +130,8 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
                 <section aria-labelledby="duels-send-token">
                   <h3 id="duels-send-token" className="rq-duels-step">1 · Spend a token</h3>
                   <div className="rq-duels-token-options" role="group" aria-labelledby="duels-send-token">
-                    {combos.map((candidate) => (
-                      <TokenOption key={candidate.key} combo={candidate} selected={candidate.key === combo.key} onSelect={() => setComboKey(candidate.key)} />
+                    {cards.map((candidate) => (
+                      <TokenOption key={candidate.tokenKey} card={candidate} selected={candidate.tokenKey === card?.tokenKey} onSelect={() => setTokenKey(candidate.tokenKey)} />
                     ))}
                   </div>
                 </section>
@@ -152,15 +151,15 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
                   <dl className="rq-duels-bet__stakes">
                     <div data-tone="up">
                       <dt>If you win</dt>
-                      <dd>{combo.stake.win}</dd>
+                      <dd>{card?.stake.winFor ?? '—'}</dd>
                     </div>
-                    <div data-tone={combo.stake.loseTone}>
+                    <div data-tone={card?.stake.loseTone ?? 'muted'}>
                       <dt>If you lose</dt>
-                      <dd>{combo.stake.lose}</dd>
+                      <dd>{card?.stake.loseFor ?? '—'}</dd>
                     </div>
                     <div data-tone="muted">
                       <dt>Starts</dt>
-                      <dd>{combo.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
+                      <dd>{card?.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
                     </div>
                   </dl>
                 </section>
@@ -170,7 +169,7 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
               </>
             )}
           </div>
-          {blocker || !combo ? null : (
+          {blocker || cards.length === 0 ? null : (
             <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
               <button type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}

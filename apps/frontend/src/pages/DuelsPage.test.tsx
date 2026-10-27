@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
@@ -448,15 +449,16 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
   it('?send=1 öppnar sheeten med token- och motståndarval; utan förval är inget vald motståndare', async () => {
     renderDuels('/duels?send=1');
     await screen.findByRole('dialog', { name: 'Send a challenge' });
-    // Ett token per nivå/mått/längd, första raden förvald
+    // Ett kort per token (två lika tokens är två kort); utan förval är inget kort valt, eftersom minor har flera
     const tokenGroup = within(sheet()).getByRole('group', { name: '1 · Spend a token' });
     expect(within(tokenGroup).getAllByRole('button').map((button) => button.textContent)).toEqual([
-      '2Minor' + 'Most km · 7 days' + '+0.15× / 5 d' + '−0.07× / 5 d',
-      '1Minor' + 'Most runs · 5 days' + '+0.15× / 5 d' + '−0.07× / 5 d',
-      '1Major' + 'Most km · 10 days' + '+0.25× / 10 d' + '−0.12× / 10 d',
-      '1Legendary' + 'Most XP · 21 days' + '+0.5× / 14 d' + '−0.25× / 14 d',
+      'Minor' + 'Most km' + 'Runs for 7 days' + '+0.15× for 5 days' + '−0.07× for 5 days',
+      'Minor' + 'Most km' + 'Runs for 7 days' + '+0.15× for 5 days' + '−0.07× for 5 days',
+      'Minor' + 'Most runs' + 'Runs for 5 days' + '+0.15× for 5 days' + '−0.07× for 5 days',
+      'Major' + 'Most km' + 'Runs for 10 days' + '+0.25× for 10 days' + '−0.12× for 10 days',
+      'Legendary' + 'Most XP' + 'Runs for 21 days' + '+0.5× for 14 days' + '−0.25× for 14 days',
     ]);
-    expect(within(tokenGroup).getAllByRole('button')[0]).toHaveAttribute('aria-pressed', 'true');
+    expect(within(tokenGroup).queryAllByRole('button', { pressed: true })).toEqual([]);
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
   });
 
@@ -474,7 +476,11 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     renderDuels(`/duels?send=1&opponent=${DAN}`);
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(option('Daniel Lindblad')).toHaveAttribute('aria-pressed', 'true');
-    expect(within(sheet()).getByText('Most km vs Daniel · 7 days')).toBeInTheDocument();
+    // Minor har flera kort, så inget är förvalt: skicka går först när ett kort är valt.
+    expect(within(sheet()).getByText('Pick a challenge')).toBeInTheDocument();
+    expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
+    fireEvent.click(within(sheet()).getByRole('button', { name: /Minor.*Most runs/ }));
+    expect(within(sheet()).getByText('Most runs vs Daniel · 5 days')).toBeInTheDocument();
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeEnabled();
   });
 
@@ -483,7 +489,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
       const view = renderDuels(`/duels?send=1&opponent=${bad}`);
       await screen.findByRole('dialog', { name: 'Send a challenge' });
       expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
-      expect(within(sheet()).queryAllByRole('button', { pressed: true })).toHaveLength(1); // bara tokenet
+      expect(within(sheet()).queryAllByRole('button', { pressed: true })).toHaveLength(0); // varken kort eller motståndare
       view.unmount();
     }
   });
@@ -514,6 +520,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     await screen.findByRole('dialog', { name: 'Send a challenge' });
 
     fireEvent.click(within(sheet()).getByRole('button', { name: /Major/ }));
+    expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(option('Adam Einstein'));
     expect(within(sheet()).getByText('Most km vs Adam · 10 days')).toBeInTheDocument();
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
@@ -529,6 +536,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     handlers.sendChallenge = () => ({ success: false, error: 'Opponent already has an active or pending challenge' });
     renderDuels(`/duels?send=1&opponent=${ADAM}`);
     await screen.findByRole('dialog', { name: 'Send a challenge' });
+    fireEvent.click(within(sheet()).getByRole('button', { name: /Major/ }));
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
     await waitFor(() => expect(within(sheet()).getByRole('alert')).toHaveTextContent('Opponent already has an active or pending challenge'));
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeEnabled();
@@ -541,6 +549,14 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(location()).toBe('/duels?send=1');
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('Send på en nivå med flera kort väljer nivån men inget kort', async () => {
+    renderDuels();
+    await screen.findByText('2 live · 5 tokens');
+    fireEvent.click(screen.getByRole('button', { name: 'Send a minor challenge' }));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(within(sheet()).queryAllByRole('button', { pressed: true })).toEqual([]);
   });
 
   it('✕ stänger och tar bort send/opponent ur adressen men behåller ?view=', async () => {
@@ -626,8 +642,32 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'deep link' }));
     await screen.findByRole('dialog', { name: 'Send a challenge' });
-    expect(within(sheet()).getByRole('button', { name: /Minor.*Most km/ })).toHaveAttribute('aria-pressed', 'true');
     expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(sheet()).queryAllByRole('button', { pressed: true })).toEqual([]);
+  });
+
+  it('reopening the send flow never carries the previous choice', async () => {
+    const user = userEvent.setup();
+    setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });
+    renderDuels();
+    await screen.findByText('0 live · 5 tokens');
+
+    // Första öppningen: nivån major har ett ensamt kort, som är förvalt. Välj något annat och en motståndare.
+    await user.click(screen.getByRole('button', { name: 'Send a major challenge' }));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(sheet()).getByRole('button', { name: /Minor.*Most runs/ }));
+    await user.click(option('Karl Persson'));
+    expect(within(sheet()).getByRole('button', { name: /Minor.*Most runs/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(option('Karl Persson')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(sheet()).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // Andra öppningen från rubrikens Send: varken förra kortet, förra nivån eller förra motståndaren följer med.
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    expect(within(sheet()).queryAllByRole('button', { pressed: true })).toEqual([]);
+    expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
   });
 
   it('desktop: samma sheet som en centrerad dialog med Cancel', async () => {

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import type { ChallengeTier } from '@runquest/shared';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
@@ -21,7 +20,7 @@ import {
 import { useChallengeActions } from '../hooks/useChallengeActions';
 import { useGroupHistory, useGroupStats, useLiveProgress, useMyChallenges } from '../hooks/useDuelsQueries';
 import { buildTierRules, observedStakes, sampleFromHistory, type StakeSample } from '../rulesModel';
-import { sendBlocker } from '../sendModel';
+import { sendBlocker, type SendPreselection } from '../sendModel';
 import { DuelsLayout, type Notice } from './DuelsLayout';
 import { SendSheet } from './SendSheet';
 
@@ -43,7 +42,7 @@ export function DuelsScreen() {
   const [params, setParams] = useSearchParams();
   const [view, setView] = useViewParam(DUELS_VIEWS, DEFAULT_DUELS_VIEW);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [tierHint, setTierHint] = useState<ChallengeTier | null>(null);
+  const [preselection, setPreselection] = useState<SendPreselection | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
 
   const meId = user?.id ?? '';
@@ -110,8 +109,8 @@ export function DuelsScreen() {
 
   const sendOpen = params.get(SEND_PARAM) === '1';
   // Öppna med en ny historikpost (back stänger sheeten); stäng med replace så back inte öppnar den igen.
-  const openSend = (tier?: ChallengeTier) => {
-    setTierHint(tier ?? null);
+  const openSend = (next?: SendPreselection) => {
+    setPreselection(next ?? null);
     setNotice(null);
     setParams(
       (previous) => {
@@ -123,7 +122,7 @@ export function DuelsScreen() {
     );
   };
   const closeSend = () => {
-    setTierHint(null);
+    setPreselection(null);
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -145,8 +144,8 @@ export function DuelsScreen() {
     }
   };
 
-  const sendChallenge = async (tokenId: string, opponentId: string) => {
-    await actions.send.mutateAsync({ tokenId, opponentId });
+  const sendChallenge = async (tokenKey: string, opponentId: string) => {
+    await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
     const opponent = names[opponentId];
     setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts at midnight after they accept.` });
     closeSend();
@@ -206,7 +205,7 @@ export function DuelsScreen() {
           members={stats}
           users={usersQuery.data}
           meId={meId}
-          initialTier={tierHint}
+          preselection={preselection}
           initialOpponent={params.get(OPPONENT_PARAM)}
           onClose={closeSend}
           onSend={sendChallenge}

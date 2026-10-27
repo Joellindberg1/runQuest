@@ -1,8 +1,8 @@
 import type { User } from '@runquest/types';
-import type { ChallengeGroupStat, HeadToHeadRecord } from '@runquest/shared';
+import type { ChallengeGroupStat, ChallengeTier, HeadToHeadRecord } from '@runquest/shared';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { firstName } from '@/shared/utils/format';
-import type { ResultTone, SentCard } from './duelsModel';
+import type { ResultTone, SentCard, TierGroup } from './duelsModel';
 
 // Send-sheetens logik: varför man inte kan skicka, motståndarvalen och head-to-head-tipsen. Ren logik.
 
@@ -100,6 +100,32 @@ export function buildOpponents(input: {
     (a, b) => Number(a.option.disabled) - Number(b.option.disabled) || a.rank - b.rank || a.option.name.localeCompare(b.option.name),
   );
   return entries.map((entry) => entry.option);
+}
+
+// ─── Förval av nivå och token ─────────────────────────────────────────────────
+
+/**
+ * Vad send-flödet förväljer när det öppnas (ADR 006, addendum 2026-10-26, punkt 5): Send på ett tokenkort → nivå och kort;
+ * en nivåchip → bara nivån (`tokenKey: null`). null = inget (rubrikens Send, Challenge från popupen, djuplänk). Motståndaren
+ * förväljs aldrig här utan via `?opponent=`. Förvalet är komponenttillstånd och nollställs när flödet stängs.
+ */
+export interface SendPreselection {
+  tier: ChallengeTier;
+  tokenKey: string | null;
+}
+
+/**
+ * Där send-flödet börjar: förvald nivå om den har tokens, annars första nivån som har det. Kortet är det förvalda om det
+ * finns kvar på nivån, annars det ensamma kortet på nivån, annars inget — aldrig förra valet. null utan några tokens.
+ */
+export function startingChoice(groups: readonly TierGroup[], preselection: SendPreselection | null): SendPreselection | null {
+  const preferred = groups.find((group) => group.tier === preselection?.tier && group.selectable);
+  const group = preferred ?? groups.find((candidate) => candidate.selectable);
+  if (!group) return null;
+
+  const chosen = preferred && group.cards.find((card) => card.tokenKey === preselection?.tokenKey);
+  const lone = group.cards.length === 1 ? group.cards[0] : undefined;
+  return { tier: group.tier, tokenKey: (chosen ?? lone)?.tokenKey ?? null };
 }
 
 /** `?opponent=` gäller bara om personen går att utmana: i gruppen, inte jag själv, inte upptagen. */

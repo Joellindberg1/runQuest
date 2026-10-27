@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@runquest/types';
-import { buildSent } from './duelsModel';
-import { buildOpponents, h2hHint, resolveOpponentParam, sendBlocker } from './sendModel';
-import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat } from './duels.fixture';
+import { buildSent, buildTokenGroups } from './duelsModel';
+import { buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice } from './sendModel';
+import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat, token } from './duels.fixture';
 
 const sent = buildSent(challenge({ id: 's1', challenger_id: ME, opponent_id: KARL }), NAMES);
 
@@ -103,5 +103,36 @@ describe('resolveOpponentParam', () => {
     expect(resolveOpponentParam('u-someone-else', options)).toBeNull();
     expect(resolveOpponentParam(ADAM, options)).toBeNull();
     expect(resolveOpponentParam(null, options)).toBeNull();
+  });
+});
+
+describe('startingChoice', () => {
+  const groups = buildTokenGroups([
+    token({ id: 'a', tier: 'minor', metric: 'km' }),
+    token({ id: 'b', tier: 'minor', metric: 'km' }),
+    token({ id: 'm', tier: 'major', metric: 'runs' }),
+  ]);
+
+  it('Send on a token card preselects its tier and that card', () => {
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: 'b' })).toEqual({ tier: 'minor', tokenKey: 'b' });
+  });
+
+  it('a tier chip preselects the tier only, unless the tier has a lone card', () => {
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: null })).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(groups, { tier: 'major', tokenKey: null })).toEqual({ tier: 'major', tokenKey: 'm' });
+  });
+
+  it('no preselection starts at the first tier that has tokens, never at a chosen card', () => {
+    expect(startingChoice(groups, null)).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(buildTokenGroups([token({ id: 'm', tier: 'major' })]), null)).toEqual({ tier: 'major', tokenKey: 'm' });
+  });
+
+  it('a preselection that is no longer valid falls back instead of selecting a card that is gone', () => {
+    expect(startingChoice(groups, { tier: 'legendary', tokenKey: null })).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: 'gone' })).toEqual({ tier: 'minor', tokenKey: null });
+  });
+
+  it('without any tokens there is nothing to start at', () => {
+    expect(startingChoice(buildTokenGroups([]), null)).toBeNull();
   });
 });
