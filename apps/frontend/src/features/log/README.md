@@ -51,8 +51,8 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
 - **Group history** läser `GET /runs/group-history?limit=10&offset=…` (`useInfiniteQuery`, `meta.has_more` styr "Show more"; nästa sida börjar vid summan
   av det som hämtats). `staleTime: 0` — en runda som ändrats/raderats i Profile ska inte stå kvar. Fel på första sidan = felkort med Retry; fel på nästa sida
   lämnar raderna kvar och visar ett felkort under dem. Min egen runda har guldkant (samma "jag"-markering som Events/Duels). Namn och avatar öppnar Runner card.
-- **Tid och tempo i Group history** (ADR 007 addendum 2026-10-26, punkt 2) kommer ur `summariseRunTime` (shared) och formatfunktionerna i `shared/utils/format`
-  (`formatDuration`, `formatPace`, `timePaceLabel`); vymodellen har ingen egen division eller m:ss. En runda utan användbar tid (`moving_time` saknas,
+- **Tid och tempo i Group history** (ADR 007 addendum 2026-10-26, punkt 2) kommer ur `summariseRunTime` (shared) och formatfunktionerna i `shared/utils/runTimeFormat`
+  (`formatDuration`, `formatPace`, `timePaceLabel`; en egen modul, inte `format.ts`, som delas med landningen och då drog ny JS till `/`); vymodellen har ingen egen division eller m:ss. En runda utan användbar tid (`moving_time` saknas,
   är null, 0 eller NaN, distansen är 0 eller tempot avrundas till 0) får `time`/`pace`/`timePaceLabel` = `null`, och kortet visar "—" med dold text "no time recorded"
   i båda fälten (kolumnen kollapsar aldrig). Med tid läser skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är `aria-hidden`. Kolumnen ritas
   från 1024 px (mobilen har `--rq-log-time-display: none`; mobilraden är en egen vy på samma vymodell). 1024–1279 px lägger cellerna under rad ett, och namnet

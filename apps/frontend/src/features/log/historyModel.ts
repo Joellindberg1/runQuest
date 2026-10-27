@@ -1,7 +1,8 @@
 import { summariseRunTime, type GroupRunHistoryItem } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import { getInitials } from '@/shared/utils/formatters';
-import { formatDuration, formatInt, formatKm, formatMultiplier, formatPace, timePaceLabel } from '@/shared/utils/format';
+import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { formatDuration, formatPace, timePaceLabel } from '@/shared/utils/runTimeFormat';
 import { describeWeather } from './logFormat';
 import type { Tone } from './xpPreviewModel';
 
