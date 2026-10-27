@@ -109,6 +109,7 @@ describe('GET /api/runs/group-history', () => {
       user_profile_picture: undefined,
       start_time: '2026-09-20T06:30:00Z',
       created_at: '2026-09-20T07:45:00Z',
+      moving_time: null,
     });
   });
 

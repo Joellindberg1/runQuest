@@ -5,7 +5,8 @@ import type { DualEnvelope, OffsetPageMeta } from './common.js';
 
 /**
  * En rad ur `runs` som servern skickar (users-with-runs, POST- och PUT-svaren). Vilka kolumner som följer med beror på route: PUT-svaret läser
- * inte `is_treadmill`, och de utökade Strava-fälten (från `moving_time`) skickas ingen route ännu, men raden bär dem när de väljs.
+ * inte `is_treadmill`, och POST/PUT-svaren har ingen `moving_time`. `moving_time` skickas av users-with-runs (och, som GroupRunHistoryItem.moving_time, av
+ * group-history); de övriga utökade Strava-fälten (från `total_elevation_gain`) skickas ingen route ännu, men raden bär dem när de väljs.
  * Delas av backend och klient; `Run` i @runquest/types är samma typ.
  */
 export interface RunRow {
@@ -69,6 +70,8 @@ export interface GroupRunHistoryItem {
   start_time: string | null;
   /** ISO-8601 UTC; radens skapandetid. */
   created_at: string | null;
+  /** Rörlig tid i hela sekunder, satt av Strava-importen. null = manuell runda eller runda utan tid. */
+  moving_time: number | null;
 }
 
 /** Svar från GET /api/runs/group-history: `{ success, runs, data: { runs }, meta }`. Utan grupp: 200 med tom lista. */
