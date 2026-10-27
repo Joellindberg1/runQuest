@@ -11,7 +11,7 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
   - `RunnerCard` — ramen + all datakoppling; renderar de fem korten och Challenge-knappen
   - `HeroCard` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn + badge-minis (`BadgeMinis`)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop)
   - `JourneyCard` — Frodo: enkel stapel (mobil) eller zoombar väg med waypoints (desktop); matematiken i `features/profile/frodoModel`
-  - `StatsPanel` — `ViewTabs variant="underline"` över `?view=` (`distance` · `streak` · `fun`, default distance)
+  - `StatsPanel` — `ViewTabs variant="underline"`, kontrollerad: `RunnerCard` äger `?view=` (`distance` · `streak` · `fun`, default distance; listan i `statViews.ts`)
   - `BadgePanel` (`features/badges/components`) — den kompakta BADGES-panelen (44 px-emblem med popover, RUN-152); data och placering ägs av `RunnerCard`
   - `TitlesPanel` — "TITLES HELD · N held" + Runner-up (position 2–3, "held by X", avstånd)
   - `HeadToHeadPanel` — rekordet (you won · drawn · you lost) + senaste mötena; bor i `.rq-runner__lower` bredvid BADGES

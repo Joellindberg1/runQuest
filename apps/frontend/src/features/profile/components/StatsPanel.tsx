@@ -4,9 +4,8 @@ import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
-import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
-import { DEFAULT_STAT_VIEW, STAT_VIEWS, buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
+import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
 import { Heatmap } from './Heatmap';
 import { PanelLoading } from './ProfileParts';
 
@@ -53,17 +52,23 @@ interface StatsPanelProps {
   user: User;
   now: Date;
   isDesktop: boolean;
+  /** Vald flik. Värden äger tillståndet (profilen: `?view=`, popupen: lokalt tillstånd); panelen läser aldrig adressen. */
+  view: StatView;
+  onChange: (view: StatView) => void;
+  /** Regionens och flikradens namn: "Your stats" på profilen, "Runner stats" när en annan löpares panel visas. */
+  label: string;
+  /** Ankaret för sidoturen (`data-tour`); utelämnas där ingen tur pekar på panelen. */
+  dataTour?: string;
 }
 
-/** Statflikarna över `?view=` (ADR 006): distance (default) · streak · fun · consistency. */
-export function StatsPanel({ user, now, isDesktop }: StatsPanelProps) {
-  const [view, setView] = useViewParam(STAT_VIEWS, DEFAULT_STAT_VIEW);
+/** Statflikarna Distance · Streak · Fun facts · Consistency, kontrollerade av värden (ADR 006 addendum 2026-10-26, punkt 3). */
+export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTour }: StatsPanelProps) {
   const distanceRows = useMemo(() => buildDistanceRows(user, now), [user, now]);
   const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
 
   return (
-    <section className="rq-card rq-profile-statcard" aria-label="Your stats" data-tour="profile-stats">
-      <ViewTabs label="Your stats" tabs={STAT_TABS} value={view} onChange={setView} idPrefix={ID_PREFIX} variant="underline" className="rq-profile-tabs" />
+    <section className="rq-card rq-profile-statcard" aria-label={label} data-tour={dataTour}>
+      <ViewTabs label={label} tabs={STAT_TABS} value={view} onChange={onChange} idPrefix={ID_PREFIX} variant="underline" className="rq-profile-tabs" />
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, view)} className="rq-profile-panel">
         {view === 'distance' && <Rows rows={distanceRows} label="Distance" />}
         {view === 'streak' && <StreakRows user={user} now={now} />}

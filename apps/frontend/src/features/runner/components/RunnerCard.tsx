@@ -5,8 +5,10 @@ import { buildRunnerBadges } from '@/features/badges/badgeModel';
 import { BadgePanel } from '@/features/badges/components/BadgePanel';
 import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { useAuth } from '@/providers/authContext';
+import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useHeadToHead, useRunnerTitles } from '../hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../runnerModel';
+import { DEFAULT_STAT_VIEW, STAT_VIEWS } from '../statViews';
 import { ChallengeButton } from './ChallengeButton';
 import { HeadToHeadPanel } from './HeadToHeadPanel';
 import { HeroCard } from './HeroCard';
@@ -41,6 +43,8 @@ export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps)
   const headToHead = useHeadToHead(user.id);
   const userBadges = useUserBadges(user.id);
   const groupBadges = useGroupBadges(!!me);
+  // Statflikarna ligger över `?view=` (ADR 006 beslut 3): adressen bor här, panelen är kontrollerad.
+  const [statView, setStatView] = useViewParam(STAT_VIEWS, DEFAULT_STAT_VIEW);
 
   const hero = useMemo(() => buildHero(user, allUsers), [user, allUsers]);
   const heldTitles = titlesQuery.data ? titlesQuery.data.filter((title) => title.is_current_holder).length : null;
@@ -75,7 +79,7 @@ export function RunnerCard({ user, allUsers, variant, onBack }: RunnerCardProps)
         <HeroCard hero={hero} cells={cells} showcase={badges.showcase} />
         <JourneyCard totalKm={user.total_km} />
         <div className="rq-runner__split">
-          <StatsPanel user={user} now={now} />
+          <StatsPanel user={user} now={now} view={statView} onChange={setStatView} />
           <div className="rq-runner__side">
             <TitlesPanel user={user} />
           </div>
