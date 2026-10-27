@@ -185,6 +185,28 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(explicit.body).toEqual(byDefault.body);
   });
 
+  it("rank-delta dates the ledger in the group's zone", async () => {
+    // Samma event-XP (söndag 23:30Z) är måndag 01:30 i Stockholm men söndag 19:30 i New York.
+    const tablesWithLateSundayEvent = () => ({
+      users: [user('u-anna', 'Anna', G1, 400), user('u-bertil', 'Bertil', G1, 350)],
+      runs: [],
+      event_entries: [
+        entryRow('e1', 'u-anna', G1, 100, { type: 'participation', qualified_at: '2026-09-27T23:30:00Z', ends_at: '2026-10-02T21:59:59Z' }),
+      ],
+    });
+    const annaIn = async (zone: string | undefined) => {
+      setGroupTimeZoneSource(zone ? (groupId) => (groupId === G1 ? zone : undefined) : undefined);
+      useDb(tablesWithLateSundayEvent());
+      const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+      return res.body.data.users.find((u: any) => u.user_id === 'u-anna');
+    };
+
+    // Stockholm: krediterad från veckostart, så den räknas bort och Anna låg bakom Bertil.
+    expect(await annaIn('Europe/Stockholm')).toMatchObject({ previous_xp: 300, previous_rank: 2, rank: 1, rank_delta: 1 });
+    // New York: krediterad före veckostart, så den räknas inte bort.
+    expect(await annaIn('America/New_York')).toMatchObject({ previous_xp: 400, previous_rank: 1, rank: 1, rank_delta: 0 });
+  });
+
   it('500 med {error} vid databasfel', async () => {
     useDb(tables(), { errors: { event_entries: { message: 'boom internal' } } });
     const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });

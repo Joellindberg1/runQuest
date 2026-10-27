@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildXpLedger,
   buildRankDelta,
+  xpBeforeDate,
   type LedgerRun,
   type LedgerEventEntry,
   type RankDeltaInput,
@@ -41,6 +42,20 @@ describe('buildXpLedger', () => {
     expect(e.date).toBe('2026-01-05');
     const [summer] = buildXpLedger([], [entry({ qualified_at: '2026-07-05T21:30:00Z' })]); // 23:30 sthlm, kvar på söndagen
     expect(summer.date).toBe('2026-07-05');
+  });
+
+  it("buildXpLedger dates event XP by the given zone's calendar day", () => {
+    // 22:30Z: kl 00:30 nästa dag i Stockholm (UTC+2 på sommartid) men 18:30 samma dag i New York (UTC-4).
+    const entries = [entry({ qualified_at: '2026-10-01T22:30:00Z' })];
+    expect(buildXpLedger([], entries)[0]?.date).toBe('2026-10-02');
+    expect(buildXpLedger([], entries, 'Europe/Stockholm')[0]?.date).toBe('2026-10-02');
+    expect(buildXpLedger([], entries, 'America/New_York')[0]?.date).toBe('2026-10-01');
+    expect(buildXpLedger([], entries, 'Asia/Tokyo')[0]?.date).toBe('2026-10-02');
+  });
+
+  it('zonen styr bara event-XP: rundornas datum är redan kalenderdagar', () => {
+    const runs: LedgerRun[] = [{ id: 'r1', user_id: 'a', date: '2026-10-01', xp_gained: 40 }];
+    expect(buildXpLedger(runs, [], 'Pacific/Auckland')[0]?.date).toBe('2026-10-01');
   });
 
   it('hoppar över poster utan utbetald XP (null, 0) och participation utan qualified_at', () => {
@@ -125,5 +140,43 @@ describe('buildRankDelta', () => {
     const { users: out } = buildRankDelta([user('a', 'Anna', 100)], ledger, AS_OF);
     expect(out).toHaveLength(1);
     expect(out[0].previous_xp).toBe(100);
+  });
+});
+
+describe('xpBeforeDate', () => {
+  const AS_OF = '2026-09-28';
+  const ledgerOf = (rows: Array<[string, string, number]>) =>
+    rows.map(([user_id, date, xp], i) => ({ user_id, source: 'run' as const, ref_id: `r${i}`, date, xp }));
+
+  it('drar bort XP daterad från och med asOf, men inte dagen före', () => {
+    const ledger = ledgerOf([['a', '2026-09-27', 30], ['a', '2026-09-28', 40], ['a', '2026-10-02', 5]]);
+    const { previousXp, diverged } = xpBeforeDate([{ id: 'a', total_xp: 500 }], ledger, AS_OF);
+    expect(previousXp.get('a')).toBe(455);
+    expect(diverged).toEqual([]);
+  });
+
+  it('klampar till 0 och rapporterar användaren när liggaren överstiger total_xp', () => {
+    const { previousXp, diverged } = xpBeforeDate([{ id: 'a', total_xp: 30 }], ledgerOf([['a', '2026-09-29', 40]]), AS_OF);
+    expect(previousXp.get('a')).toBe(0);
+    expect(diverged).toEqual(['a']);
+  });
+
+  it('ger varje användare ett värde (total_xp utan liggarposter) och ignorerar poster för okända användare', () => {
+    const { previousXp } = xpBeforeDate([{ id: 'a', total_xp: 100 }], ledgerOf([['ghost', '2026-10-01', 40]]), AS_OF);
+    expect([...previousXp.entries()]).toEqual([['a', 100]]);
+  });
+
+  it('buildRankDelta uses the same back-calculation: previous_xp equals xpBeforeDate for every user', () => {
+    const users: RankDeltaInput[] = [
+      { id: 'a', name: 'Anna', total_xp: 500, created_date: '2026-01-01' },
+      { id: 'b', name: 'Bertil', total_xp: 20, created_date: '2026-01-01' },
+      { id: 'c', name: 'Cecilia', total_xp: 90, created_date: '2026-09-29' },
+    ];
+    const ledger = ledgerOf([['a', '2026-09-28', 40], ['b', '2026-09-30', 60], ['c', '2026-10-01', 90]]);
+    const expected = xpBeforeDate(users, ledger, AS_OF);
+    const { users: out, diverged } = buildRankDelta(users, ledger, AS_OF);
+
+    expect(Object.fromEntries(out.map((u) => [u.user_id, u.previous_xp]))).toEqual(Object.fromEntries(expected.previousXp));
+    expect(diverged).toEqual(expected.diverged);
   });
 });
