@@ -1,6 +1,6 @@
 import { MS_DAY, MS_HOUR, MS_MINUTE } from '@runquest/shared';
 
-// Frontendens enda formatmodul: tal, km, multiplikator, månadsnamn, "tid sedan", nedräkning och förnamn.
+// Frontendens enda formatmodul: tal, km, multiplikator, månadsnamn, "tid sedan", nedräkning, löptid, tempo och förnamn.
 // Engelskt UI med svenskt tusentalsmellanrum ("1 240"). Modulen använder aldrig Intl eller toLocale*: förrenderade
 // Landing hydreras mot samma text i webbläsaren, och Intl ger olika svar på byggdatorn och hos användaren
 // (lint förbjuder det här och på Landing). Månadsnamnen är egna, Intl:s förkortningar skiljer mellan ICU-versioner ("Sept").
@@ -133,6 +133,29 @@ export function formatCountdown(ms: number, style: CountdownStyle): string {
       if (left < MS_DAY) return `${Math.floor(left / MS_HOUR)}h`;
       return `${Math.floor(left / MS_DAY)} d`;
   }
+}
+
+/**
+ * Löptid som "52:10" under en timme och "1:09:40" från en timme (timmarna obegränsade: "111:06:40"). Sekunderna avrundas först,
+ * sedan delas de upp, så 3599.6 blir "1:00:00" och aldrig "59:60". Tar bara giltiga tal; saknad tid (null) hanteras i vymodellen.
+ */
+export function formatDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = pad2(total % 60);
+  return hours === 0 ? `${minutes}:${rest}` : `${hours}:${pad2(minutes)}:${rest}`;
+}
+
+/** Tempo som "5:13" (sekunder per km, avrundat före uppdelningen: 359.6 blir "6:00", aldrig "5:60"). */
+export function formatPace(secPerKm: number): string {
+  const total = Math.round(secPerKm);
+  return `${Math.floor(total / 60)}:${pad2(total % 60)}`;
+}
+
+/** Skärmläsartexten för en tid- och tempocell: "Time 52:10, pace 5:13 per kilometre". */
+export function timePaceLabel(seconds: number, paceSecPerKm: number): string {
+  return `Time ${formatDuration(seconds)}, pace ${formatPace(paceSecPerKm)} per kilometre`;
 }
 
 /** Förnamnet ("Karl" ur "Karl Persson"). Ett tomt namn ger tomt. */
