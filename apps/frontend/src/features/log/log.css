@@ -105,8 +105,12 @@
 .rq-log-run__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rq-log-run__id { min-width: 0; }
 /* Namnknappen: typografin kommer ur .rq-name — här bara knappåterställningen */
-/* Desktop: namnet på en rad med ellips (mobil bryter som förut). Fokusringen ligger innanför knappen, så overflow: hidden inte klipper den. */
-.rq-log-run__name { display: block; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: var(--rq-log-name-white-space); }
+/* Namnet: mobil bryter som förut, 1024–1279 en rad med ellips, från 1280 högst två rader (line-clamp) med ellips. Fokusringen ligger innanför knappen, så overflow: hidden inte klipper den. */
+.rq-log-run__name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--rq-log-name-lines);
+  max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: var(--rq-log-name-white-space); overflow-wrap: var(--rq-log-name-overflow-wrap);
+}
 .rq-log-run__name:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-log-run__name:hover { color: var(--rq-text-1); }
 .rq-log-run__date { margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); color: var(--rq-text-4); }
