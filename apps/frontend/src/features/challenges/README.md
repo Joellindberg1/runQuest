@@ -11,7 +11,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `DuelsScreen` — all datakoppling, handlingar, send-sheetens URL-tillstånd, tour. Ritar `DuelsLayout`.
   - `DuelsLayout` — ren presentation av färdiga vymodeller (rubrik, flikar, aktiv vy, sidokolumn). Preview-sidan återanvänder den.
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
-    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren)
+    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
 - **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper (alltid tre nivåer med `count`/`empty`/`selectable`, ett kort per token — identiska tokens slås inte ihop), standings, historikrader, boosts, rekord, rubrikrad
 - **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`)
@@ -67,3 +67,4 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   samma specificitet förlorar därför — använd sammansatta selektorer (`.rq-card.rq-duels-standings`, `.rq-hairgrid > .rq-duels-…`).
 - Vimpeln (`TierRibbon`, svalstjärt, RUN-147) ritas ur samma geometri som Boards challenge-vimpel (`shared/components/challengeMark`: path, text-x/y, viewBox) men har egen stil; den återanvänder `--rq-board-ribbon-*`-måtten. Ingen kod i `apps/frontend/src` får innehålla den gamla sköldens path (vakt i `shared/components/challengeMark.test.ts`).
 - Tour `tour_duels_v2` (ankare `duels-tokens`, `duels-send`, `duels-tabs`) startar först när sidan är ritad.
+- Nivåchipset (`TierChip`) är ett filterval (`aria-pressed`) i en `.rq-segmented`-rad och ärver därför träffytan (44 px på mobil) och den inåtriktade fokusringen ur `shared/components/view-controls.css`; det är en egen komponent i stället för ett `SegmentedControl`-alternativ eftersom det bär nivåns färg och kan vara tomt: en tom nivå är `aria-disabled` (aldrig `disabled`: den ska gå att fokusera och förklara sig, "No Major tokens right now" i en `role="status"`) och räknas aldrig som vald. Chipet bär ingen insats; insatsen står på korten. Valt chip tar nivåns tint/kant/text (`--rq-tier-*`).

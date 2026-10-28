@@ -443,6 +443,7 @@
   --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
   --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
   --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
+  --rq-duels-token-stake-fs: 12px;                                    /* tokenkortets insatsrad: 12 px på mobil och desktop (panelen är 320 px bred på båda och raden ska rymmas på en rad) */
   /* Send-sheet: bottensheet (mobil) → centrerad dialog (desktop) */
   --rq-duels-sheet-w: min(100%, var(--rq-shell-narrow-max));
   --rq-duels-sheet-top: auto;
