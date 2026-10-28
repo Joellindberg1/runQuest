@@ -118,7 +118,7 @@ describe('StatsPanel — the Position tab', () => {
     getPositionHistory.mockReturnValue(new Promise(() => {}));
     renderPanel('position');
 
-    expect(await screen.findByText('Loading position')).toBeInTheDocument();
+    await screen.findByText('Loading position');
     expect(screen.queryByRole('img', { name: /^Position in the group/ })).toBeNull();
   });
 

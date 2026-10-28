@@ -1,9 +1,10 @@
 import { Suspense, lazy, useMemo, useRef, type SyntheticEvent } from 'react';
-import { zoneDay } from '@runquest/shared';
+import { POSITION_WEEKS_DEFAULT, zoneDay } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
+import { usePositionHistory } from '@/features/leaderboard/hooks/usePositionHistory';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
 import { useTabRowFade } from '../hooks/useTabRowFade';
 import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
@@ -80,6 +81,8 @@ export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTo
   const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
   const tabRowRef = useRef<HTMLDivElement>(null);
   const fade = useTabRowFade(tabRowRef, view);
+  // Positionssvaret begärs här, så att det hämtas samtidigt med panelens chunk och inte efter den. Panelen läser samma fråga ur cachen (en begäran), och på övriga flikar är den avstängd.
+  usePositionHistory(POSITION_WEEKS_DEFAULT, view === 'position');
 
   // Pekare över fliken eller tangentbordsfokus på den: chunken hämtas redan nu, så den är på plats när fliken väljs. Händelserna bubblar från flikknappen (ViewTabs har ingen egen krok per flik).
   const onHeadingForPosition = (event: SyntheticEvent) => {

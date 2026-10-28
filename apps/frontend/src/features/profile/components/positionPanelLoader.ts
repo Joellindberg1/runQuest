@@ -1,5 +1,9 @@
 /**
  * Hämtar Position-panelens chunk. Panelen (hook, vymodell, texter) är en egen chunk så att den inte väger i profilens ingångsbunt, och laddaren bor här, i en egen liten modul, så att den som vill
- * förladda chunken (flikens pekare och fokus) inte behöver importera panelen statiskt. Importen är cachad av webbläsaren: ett andra anrop är gratis.
+ * förladda chunken (flikens pekare och fokus) inte behöver importera panelen statiskt. Grafens chunk startar samtidigt, annars hämtas den först när panelen ritats (ett varv till på nätet).
+ * Importen är cachad av webbläsaren: ett andra anrop är gratis.
  */
-export const loadPositionPanel = () => import('./PositionPanel').then(({ PositionPanel }) => ({ default: PositionPanel }));
+export const loadPositionPanel = () => {
+  void import('./PositionChart');
+  return import('./PositionPanel').then(({ PositionPanel }) => ({ default: PositionPanel }));
+};
