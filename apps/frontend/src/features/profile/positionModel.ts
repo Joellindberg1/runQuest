@@ -10,6 +10,7 @@ export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows wh
 const CURRENT_WEEK_NOTE = 'this week so far';
 const NOT_IN_GROUP_TEXT = 'not in the group yet';
 const NOT_IN_GROUP_DASH = '—';
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Den som dras: kolumn = veckoindex (0 = äldsta), position = 1-baserad placering. */
 export interface PositionPoint {
@@ -99,7 +100,7 @@ export interface PositionGraphModel {
   summary: string;
   /** Raderna bakom "Show as table". */
   table: PositionTableRow[];
-  /** Tabellens caption: "Position per week, W27 to W34. W34 is this week so far." */
+  /** Tabellens caption med talade etiketter: "Position per week, week 27 to week 34. Week 34 is this week so far." */
   tableCaption: string;
   /** "— = not in the group yet" när tabellen har tankstreck, annars null. */
   tableFootnote: string | null;
@@ -198,7 +199,7 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
     week: labels[column].visual,
     spoken: labels[column].spoken,
     position,
-    text: position === null ? NOT_IN_GROUP_DASH :`#${position}`,
+    text: position === null ? NOT_IN_GROUP_DASH : `#${position}`,
     spokenText: position === null ? NOT_IN_GROUP_TEXT : `#${position}`,
     current: column === liveColumn,
     note: column === liveColumn ? CURRENT_WEEK_NOTE : null,
@@ -214,8 +215,8 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
     stats,
     summary,
     table,
-    tableCaption: `Position per week, ${labels[0].visual} to ${labels[liveColumn].visual}. ${labels[liveColumn].visual} is ${CURRENT_WEEK_NOTE}.`,
+    tableCaption: `Position per week, ${labels[0].spoken} to ${labels[liveColumn].spoken}. ${capitalise(labels[liveColumn].spoken)} is ${CURRENT_WEEK_NOTE}.`,
     tableFootnote: hasDashes ? `${NOT_IN_GROUP_DASH} = ${NOT_IN_GROUP_TEXT}` : null,
-    legend:`${labels[liveColumn].visual} · ${CURRENT_WEEK_NOTE}`,
+    legend: `${labels[liveColumn].visual} · ${CURRENT_WEEK_NOTE}`,
   };
 }

@@ -257,12 +257,23 @@ describe('text alternative', () => {
 
   it('gives the table a caption and, only when it has dashes, a footnote that explains them', () => {
     const joined = ready(history([null, 3, 1, 2], 6, weeksOf(4, 27)));
-    expect(joined.tableCaption).toBe('Position per week, W27 to W30. W30 is this week so far.');
+    expect(joined.tableCaption).toBe('Position per week, week 27 to week 30. Week 30 is this week so far.');
     expect(joined.tableFootnote).toBe('— = not in the group yet');
 
     const always = ready(history([3, 1, 2], 6, weeksOf(3, 27)));
-    expect(always.tableCaption).toBe('Position per week, W27 to W29. W29 is this week so far.');
+    expect(always.tableCaption).toBe('Position per week, week 27 to week 29. Week 29 is this week so far.');
     expect(always.tableFootnote).toBeNull();
+  });
+
+  it('the table caption reads weeks as "week 52, 2026" across the year boundary', () => {
+    const weeks: PositionWeek[] = [
+      { start: '2026-12-21', end: '2026-12-27', iso_week: 52, iso_year: 2026, is_current_week: false },
+      { start: '2026-12-28', end: '2027-01-03', iso_week: 53, iso_year: 2026, is_current_week: false },
+      { start: '2027-01-04', end: '2027-01-10', iso_week: 1, iso_year: 2027, is_current_week: true },
+    ];
+    expect(ready(history([2, 1, 3], 6, weeks)).tableCaption).toBe(
+      'Position per week, week 52, 2026 to week 1, 2027. Week 1, 2027 is this week so far.',
+    );
   });
 
   it('names the week in progress in the legend', () => {
