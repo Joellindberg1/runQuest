@@ -1,6 +1,6 @@
 import type { PositionHistoryResponse } from '@runquest/shared';
 import { positionWeekLabels } from '@/features/leaderboard/positionWeekLabels';
-import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from '@/features/leaderboard/positionTexts';
+import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from '@/features/leaderboard/positionTexts';
 
 // Vymodellen för profilens positionsgraf (ADR 007 addendum 2026-10-26, punkt 1): axel, Best/Lowest/Now, lägen och texter.
 // Ren: ingen React, ingen klocka (tiden kommer från svaret), inga färger. Komponenten ritar bara det här. Antalet veckor styrs av
@@ -8,7 +8,6 @@ import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, currentWeekSentence, placem
 // positionTexts (delade med leaderboardens modell) och modellen räknar ingen egen kalender.
 
 export const NEW_RUNNER_MESSAGE = 'First week in the group. Position appears after your first week';
-export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows where you stood at the end of each week.';
 
 /** Den som dras: kolumn = veckoindex (0 = äldsta), position = 1-baserad placering. */
 export interface PositionPoint {

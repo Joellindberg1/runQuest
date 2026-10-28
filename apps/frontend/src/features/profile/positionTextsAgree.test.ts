@@ -74,6 +74,8 @@ describe.each(CASES)('the profile and the leaderboard model, $name', ({ data, sp
 
     expect(profile.tableCaption).toContain(sentence);
     expect(board.ariaLabel).toContain(sentence);
+    expect(table.caption).toContain(sentence);
+    expect(table.caption).not.toContain('The last column');
     expect(profile.table.at(-1)?.note).toBe(CURRENT_WEEK_PHRASE);
     expect(table.columns.at(-1)?.header).toBe(CURRENT_WEEK_PHRASE);
     expect(profile.legend.endsWith(CURRENT_WEEK_PHRASE)).toBe(true);

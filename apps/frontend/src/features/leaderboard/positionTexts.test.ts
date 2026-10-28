@@ -4,6 +4,7 @@ import {
   NOT_IN_GROUP_DASH,
   NOT_IN_GROUP_FOOTNOTE,
   NOT_IN_GROUP_SPOKEN,
+  NO_FINISHED_WEEK_MESSAGE,
   currentWeekSentence,
   placementText,
   spokenPlacementText,
@@ -16,6 +17,10 @@ describe('positionTexts', () => {
     expect(NOT_IN_GROUP_DASH).toBe('—');
     expect(NOT_IN_GROUP_SPOKEN).toBe('not in the group yet');
     expect(NOT_IN_GROUP_FOOTNOTE).toBe('— = not in the group yet');
+  });
+
+  it('owns the message for a group with no finished week yet, for the profile and the leaderboard', () => {
+    expect(NO_FINISHED_WEEK_MESSAGE).toBe('No finished week yet. Position shows where you stood at the end of each week.');
   });
 
   it('writes a placement as #N and a week without one as the dash', () => {

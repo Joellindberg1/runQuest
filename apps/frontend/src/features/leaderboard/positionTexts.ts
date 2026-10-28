@@ -7,6 +7,9 @@ import { crossesIsoYear, positionWeekLabels, type LabelledWeek } from './positio
 /** Den pågående veckan, överallt där den nämns. */
 export const CURRENT_WEEK_PHRASE = 'this week so far';
 
+/** Gruppen har bara den pågående veckan: ingen linje att dra än. Profilens och leaderboardens vy säger samma sak. */
+export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows where you stood at the end of each week.';
+
 /** Tecknet för en vecka före inträdet i gruppen. */
 export const NOT_IN_GROUP_DASH = '—';
 /** Det skärmläsaren får i stället för tankstrecket. */

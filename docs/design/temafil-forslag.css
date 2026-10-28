@@ -338,6 +338,36 @@
   --rq-board-week-cols: 24px 1fr 62px;
   --rq-board-streak-cols: 1fr;
 
+  /* ── 1.20b Positionsgrafen på Board (Position-fliken: graf för alla löpare) ─
+     Färgerna är alias till befintliga färger (din linje = guld, övriga ETT neutralt alias, ingen löparpalett) och måtten är ur den godkända skissen S1.
+     Ny text är alltid minst 11 px och minst 4,5:1; linjer och prickar minst 3:1 mot kortet. Rörelse: ingen (linjen ritas en gång).
+     Konsument: features/leaderboard/positionBoard.css. */
+  --rq-board-position-line:      var(--rq-text-4);       /* alla andra löpares linje: neutral, tunn */
+  --rq-board-position-line-me:   var(--rq-gold);         /* din linje */
+  --rq-board-position-line-on:   var(--rq-text-2);       /* vald löpares linje (inte du) */
+  --rq-board-position-dot:       var(--rq-text-3);       /* veckopricken och ringen runt bilden */
+  --rq-board-position-label:     var(--rq-text-3);       /* namn, axeltal, veckoetiketter, legend */
+  --rq-board-position-grid:      var(--rq-line-2);       /* rutnätsrader */
+  --rq-board-position-core:      var(--rq-panel-solid);  /* kärnan i den ihåliga pricken och bakom bilden (täcker linjen) */
+  --rq-board-position-dim:       .25;                    /* övriga löpare när en är vald */
+  --rq-board-position-line-w:    1.25px;                 /* andra löpare */
+  --rq-board-position-line-w-on: 2.5px;                  /* vald löpare */
+  --rq-board-position-line-w-me: 3px;                    /* din linje */
+  --rq-board-position-line-w-me-on: 4px;                 /* din linje när du är vald */
+  --rq-board-position-dash-w:    1.5px;                  /* etappen till den pågående veckan */
+  --rq-board-position-dash:      3 4;
+  --rq-board-position-dot-size:  5px;                    /* veckoprick (din: 7) */
+  --rq-board-position-dot-size-me: 7px;
+  --rq-board-position-hollow:    11px;                   /* den pågående veckans ihåliga punkt, och legendens */
+  --rq-board-position-endpoint:  24px;                   /* bild eller initialer vid sista avslutade veckan (desktop 26) */
+  --rq-board-position-initials-fs: 11px;                 /* initialer när bilden saknas (aldrig under 10) */
+  --rq-board-position-axis-w:     22px;                  /* axeltalen ("12" i 11 px mono plus luft) */
+  --rq-board-position-pad-x:      8px;                   /* luft före första veckan, så pricken aldrig klipps */
+  --rq-board-position-name-gap:   11px;                  /* från den pågående veckans punkt till namnet */
+  --rq-board-position-name-max:   104px;                 /* ett långt förnamn bryts i stället för att trycka undan grafen (desktop 128) */
+  --rq-board-position-name-fs:    12px;                  /* namnet vid linjeslutet (desktop 13) */
+  --rq-board-position-toggle-h:   44px;                  /* "Show as table": träffyta (desktop 36) */
+
   /* ── 1.21 Runner card-mått (inkrement 3) ───────────────────────────────────
      Mått ur App-/Web-prototypens runner-skärm som saknade token. Endast mått —
      ingen färg, ingen typskala. Mobil = standard; desktop (overlayn) skriver över
@@ -832,6 +862,10 @@
     --rq-board-minis-inset: 46px;
     --rq-board-week-cols: 38px 190px 1fr 128px 92px;
     --rq-board-streak-cols: 190px 96px 1fr 150px;
+    --rq-board-position-endpoint: 26px;
+    --rq-board-position-name-max: 128px;
+    --rq-board-position-name-fs: 13px;
+    --rq-board-position-toggle-h: 36px;
     --rq-runner-ring: 96px;
     --rq-runner-ring-inset: 8px;
     --rq-runner-hero-gap: 20px;
@@ -1131,6 +1165,7 @@
   --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .55);
   --rq-profile-position-dot-on-fill: var(--rq-text-1);   /* #26231f på brons: 4,9:1 */
   --rq-profile-position-label: var(--rq-text-4);               /* ≥ 4,5:1 mot vitt kort */
+  --rq-board-position-label: var(--rq-text-4);                 /* namn, axeltal, veckoetiketter, legend: text-3 (.60) ger bara 4,2:1 mot vitt kort, text-4 (.65) ger 4,7:1 */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
