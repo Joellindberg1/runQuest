@@ -131,8 +131,8 @@
 .rq-log-run__stat-value { font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-log-time-fs); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-log-run__stat-label { font-family: var(--rq-font-mono); font-size: var(--rq-log-cell-label-fs); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-log-run__totals { grid-area: totals; margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-log-totals-gap); }
-/* Mobilens rad ovanför km: en rad, utan etiketter, ≥ 11 px och --rq-text-3 (ljusare än --rq-text-4, som är AA-golvet). nowrap och flex: none: högergruppen krymper aldrig, namnet tar det som blir över. */
-.rq-log-run__timeline { margin: 0; flex: none; font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); color: var(--rq-text-3); white-space: nowrap; }
+/* Mobilens rad ovanför km: en rad, utan etiketter, ≥ 11 px och --rq-text-4 (AA-golvet i båda teman; --rq-text-3 är svagare än text-4 i det ljusa temat, 4.22:1). nowrap och flex: none: högergruppen krymper aldrig, namnet tar det som blir över. */
+.rq-log-run__timeline { margin: 0; flex: none; font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); color: var(--rq-text-4); white-space: nowrap; }
 .rq-log-run__km { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); white-space: nowrap; }
 .rq-log-run__xp { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }
 .rq-log-run__cells { grid-area: cells; margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(5, minmax(0, 1fr)); }

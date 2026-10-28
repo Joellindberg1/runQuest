@@ -160,6 +160,7 @@ test.describe('the group history on the log page', () => {
       expect(measured.outsideCard, 'nothing visible sticks out of its card').toEqual([]);
       expect(measured.nameOverlapsTotals, 'no name reaches into the distance and XP group').toBe(0);
       expect(Math.max(...measured.nameLines), 'every name takes at most two lines').toBeLessThanOrEqual(2);
+      expect(measured.nameWiderThanColumn, 'a long word breaks inside the name instead of being cut off at the side').toBe(0);
       expect(measured.totalsCut, 'the distance and XP group is never squeezed').toBe(0);
       // Utan tid finns ingen rad och inget tankstreck; med tid finns raden på exakt de korten.
       const timedIds = RUNS.map((r) => r.moving_time !== null && r.moving_time > 0 && r.distance > 0);

@@ -22,6 +22,9 @@ export function formatPace(secPerKm: number): string {
   return `${Math.floor(total / 60)}:${pad2(total % 60)}`;
 }
 
+/** Skärmläsartexten för en runda utan användbar tid: en mening, samma i Group history och profilen (de synliga tankstrecken är dolda för skärmläsaren). */
+export const NO_TIME_RECORDED = 'no time recorded';
+
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_MINUTE = 60;
 

@@ -28,39 +28,29 @@ interface GroupHistoryProps {
 
 const NO_VALUE = '—';
 
-/** Ett fält i tid/tempo-kolumnen: etiketten först i DOM (läses före värdet), värdet ritas ovanför den (column-reverse). */
-function TimePaceStat({ label, value, unit, spoken }: { label: string; value: string | null; unit?: string; spoken: boolean }) {
+/** Ett fält i tid/tempo-kolumnen: etiketten först i DOM, värdet ritas ovanför den (column-reverse). Hela fältet är dolt för skärmläsaren (kolumnens mening läses i stället). */
+function TimePaceStat({ label, value, unit }: { label: string; value: string | null; unit?: string }) {
   return (
-    <p className="rq-log-run__stat" aria-hidden={spoken ? true : undefined}>
+    <p className="rq-log-run__stat" aria-hidden="true">
       <span className="rq-log-run__stat-label">{label}</span>
-      {value === null ? (
-        <>
-          <span className="rq-log-run__stat-value" aria-hidden="true">
-            {NO_VALUE}
-          </span>
-          <span className="sr-only">no time recorded</span>
-        </>
-      ) : (
-        <span className="rq-log-run__stat-value">
-          {value}
-          {unit}
-        </span>
-      )}
+      <span className="rq-log-run__stat-value">
+        {value === null ? NO_VALUE : value}
+        {value !== null && unit}
+      </span>
     </p>
   );
 }
 
 /**
- * Tid och tempo på datorbredd (från 1024 px). Kolumnen finns på varje kort: utan användbar tid står "—" i båda fälten med dold text. Med tid läser
- * skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är dolda för den, så ingenting läses två gånger.
+ * Tid och tempo på datorbredd (från 1024 px). Kolumnen finns på varje kort: utan användbar tid står "—" i båda fälten. Skärmläsaren får EN mening per kort
+ * (`timePaceLabel`: tid och tempo, eller "no time recorded", som i profilen) och de synliga fälten är dolda för den, så ingenting läses två gånger.
  */
 function TimePace({ row }: { row: HistoryRow }) {
-  const spoken = row.timePaceLabel !== null;
   return (
     <div className="rq-log-run__timepace">
-      {row.timePaceLabel !== null && <span className="sr-only">{row.timePaceLabel}</span>}
-      <TimePaceStat label="Time" value={row.time} spoken={spoken} />
-      <TimePaceStat label="Pace" value={row.pace} unit=" /km" spoken={spoken} />
+      <span className="sr-only">{row.timePaceLabel}</span>
+      <TimePaceStat label="Time" value={row.time} />
+      <TimePaceStat label="Pace" value={row.pace} unit=" /km" />
     </div>
   );
 }
@@ -72,7 +62,7 @@ function TimePace({ row }: { row: HistoryRow }) {
 function TimeLine({ row }: { row: HistoryRow }) {
   if (row.time === null || row.pace === null) return null;
   return (
-    <p className="rq-log-run__timeline" role="img" aria-label={row.timePaceLabel ?? undefined}>
+    <p className="rq-log-run__timeline" role="img" aria-label={row.timePaceLabel}>
       {row.time} · {row.pace} /km
     </p>
   );

@@ -2,7 +2,7 @@ import { summariseRunTime, type GroupRunHistoryItem } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import { getInitials } from '@/shared/utils/formatters';
 import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
-import { formatDuration, formatPace, timePaceLabel } from '@/shared/utils/runTimeFormat';
+import { NO_TIME_RECORDED, formatDuration, formatPace, timePaceLabel } from '@/shared/utils/runTimeFormat';
 import { describeWeather } from './logFormat';
 import type { Tone } from './xpPreviewModel';
 
@@ -33,12 +33,12 @@ export interface HistoryRow {
   weather: { icon: RQIconName | null; temperature: string; label: string | null } | null;
   source: { label: string; strava: boolean };
   km: string;
-  /** Löptid ("52:10", "1:09:40"). null = ingen användbar tid (manuell runda, utan moving_time, distans 0): kortet visar "—" med dold text "no time recorded". */
+  /** Löptid ("52:10", "1:09:40"). null = ingen användbar tid (manuell runda, utan moving_time, distans 0): webbkolumnen visar "—", mobilen ingen rad alls. */
   time: string | null;
   /** Tempo per km ("5:13"), null i samma lägen som `time`. Enheten (" /km") sätter kortet. */
   pace: string | null;
-  /** Skärmläsartexten för tid och tempo ("Time 52:10, pace 5:13 per kilometre"), null när `time` och `pace` är det. */
-  timePaceLabel: string | null;
+  /** Skärmläsartexten för tid och tempo ("Time 52:10, pace 5:13 per kilometre"), eller "no time recorded" när `time` och `pace` är null. Samma text som profilen ger för samma runda. */
+  timePaceLabel: string;
   xp: string;
   cells: HistoryCell[];
   /** Min egen runda: guldkant (samma markering som "jag" i Events/Duels). */
@@ -63,7 +63,7 @@ function weatherOf(item: GroupRunHistoryItem): HistoryRow['weather'] {
 }
 
 type TimePace = Pick<HistoryRow, 'time' | 'pace' | 'timePaceLabel'>;
-const NO_TIME: TimePace = { time: null, pace: null, timePaceLabel: null };
+const NO_TIME: TimePace = { time: null, pace: null, timePaceLabel: NO_TIME_RECORDED };
 
 /**
  * Tid och tempo för en runda. Tempot och "har rundan en användbar tid" avgörs av shared (`summariseRunTime`: tid och distans måste båda vara

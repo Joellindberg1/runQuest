@@ -425,7 +425,7 @@ describe('Log — Group history', () => {
     expect(first!.getByText('52:10').closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
-  it('en runda utan tid visar tankstreck med dold text i båda fälten, och kolumnen finns kvar', async () => {
+  it('en runda utan tid visar tankstreck i båda fälten med en enda dold mening per kort, och kolumnen finns kvar', async () => {
     setup({
       history: [
         historyItem({ id: 'a', moving_time: 3130, distance: 10 }),
@@ -438,7 +438,7 @@ describe('Log — Group history', () => {
     const cards = [...container.querySelectorAll('.rq-log-run')].map((card) => within(card as HTMLElement));
     for (const card of cards.slice(1)) {
       expect(card.getAllByText('—')).toHaveLength(2);
-      expect(card.getAllByText('no time recorded')).toHaveLength(2);
+      expect(card.getAllByText('no time recorded')).toHaveLength(1);
       expect(card.queryByText(/NaN|0:00/)).toBeNull();
     }
     // Alla rader har fältens etiketter, så kolumnen bär samma innehåll oavsett om rundan har tid.

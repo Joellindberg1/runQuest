@@ -2,7 +2,7 @@ import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
-import { formatDuration, formatPace, spokenDuration } from '@/shared/utils/runTimeFormat';
+import { NO_TIME_RECORDED, formatDuration, formatPace, spokenDuration } from '@/shared/utils/runTimeFormat';
 import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, paceSecPerKm, summariseRunTime, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
@@ -76,7 +76,7 @@ const NO_TIME = '—';
 /** Ett tempo som kan visas: ett ändligt tal över noll (`paceSecPerKm` kan ge 0 när tiden är mycket kort mot distansen). */
 const usablePace = (pace: number | null): pace is number => pace !== null && Number.isFinite(pace) && pace > 0;
 
-const missingTime: RunTimeCell = { timed: false, time: NO_TIME, pace: NO_TIME, label: 'no time recorded' };
+const missingTime: RunTimeCell = { timed: false, time: NO_TIME, pace: NO_TIME, label: NO_TIME_RECORDED };
 
 /** Grenar före formateringen: saknad, null, 0, NaN eller negativ tid, eller ett tempo som inte går att visa, ger tankstreck. */
 export function buildRunTime(run: Pick<Run, 'moving_time' | 'distance'>): RunTimeCell {
