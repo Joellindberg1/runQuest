@@ -2,13 +2,43 @@ import { useMemo, useRef, useState } from 'react';
 import type { Run } from '@runquest/types';
 import { paths } from '@/paths';
 import { EmptyState } from '@/shared/components/EmptyState';
-import { HISTORY_PREVIEW_COUNT, buildRunRows, isStravaRun, showAllLabel } from '../profileModel';
+import { HISTORY_PREVIEW_COUNT, buildRunRows, buildRunTimeSummary, isStravaRun, showAllLabel, type RunTimeCell } from '../profileModel';
 import { EditRunSheet } from './EditRunSheet';
 
 interface RunHistoryProps {
   runs: Run[];
   /** Stockholm-dagen (redigeringsrutans datumgräns). */
   today: string;
+}
+
+interface TimeAndPaceProps {
+  cell: RunTimeCell;
+  timeLabel: 'Time' | 'Total time';
+  className: string;
+  /** Namn på gruppen (summan); raderna ligger redan i en lista och behöver inget. */
+  group?: string;
+  basis?: string | null;
+}
+
+/**
+ * Tid och tempo på en rad, och samma form för summan. Skärmläsaren får EN mening (`cell.label`: "Time 52:10, pace 5:13 per kilometre" eller
+ * "no time recorded"); de synliga fälten är dolda för den så att "1:09:40" aldrig läses som ett klockslag och tankstrecket aldrig läses som "dash".
+ */
+function TimeAndPace({ cell, timeLabel, className, group, basis }: TimeAndPaceProps) {
+  return (
+    <div className={className} role={group ? 'group' : undefined} aria-label={group}>
+      <span className="sr-only">{cell.label}</span>
+      <span className="rq-profile-run__pair" aria-hidden="true">
+        <span className="rq-profile-run__tlabel">{timeLabel}</span>
+        <span className="rq-profile-run__tvalue">{cell.time}</span>
+      </span>
+      <span className="rq-profile-run__pair" aria-hidden="true">
+        <span className="rq-profile-run__tlabel">Pace</span>
+        <span className="rq-profile-run__tvalue">{cell.pace}</span>
+      </span>
+      {basis && <span className="rq-profile-history__basis">{basis}</span>}
+    </div>
+  );
 }
 
 /**
@@ -24,6 +54,8 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
   const rows = useMemo(() => buildRunRows(runs), [runs]);
   const visible = expanded ? rows : rows.slice(0, HISTORY_PREVIEW_COUNT);
   const toggleLabel = showAllLabel(rows.length);
+  // Summan gäller de rundor kortet visar just nu: fyra tills "Show all N runs", sedan alla.
+  const summary = buildRunTimeSummary(visible.map((row) => row.run));
 
   return (
     <section className="rq-card rq-profile-history" aria-label="Run history" data-tour="profile-history">
@@ -53,9 +85,11 @@ export function RunHistory({ runs, today }: RunHistoryProps) {
                   {/* Strava-rundor går inte att redigera (RUN-139): arket är skrivskyddat, så knappen heter View. */}
                   {isStravaRun(row.run) ? 'View' : 'Edit'}
                 </button>
+                <TimeAndPace cell={row.timing} timeLabel="Time" className="rq-profile-run__time" />
               </li>
             ))}
           </ul>
+          <TimeAndPace cell={summary} timeLabel="Total time" className="rq-profile-history__sum" group="Time of the runs shown" basis={summary.basis} />
           {toggleLabel && (
             <div className="rq-profile-history__foot">
               <button type="button" className="rq-btn rq-btn--ghost rq-btn--compact rq-profile-more" aria-expanded={expanded} onClick={() => setExpanded((open) => !open)}>

@@ -2,7 +2,8 @@ import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
-import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
+import { formatDuration, formatPace } from '@/shared/utils/runTimeFormat';
+import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, paceSecPerKm, summariseRunTime, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
 // (en definition i runnerModel — samma siffror på båda korten); resten är profilens egen. Ren logik, ingen DOM.
@@ -54,7 +55,76 @@ export interface RunRow {
   meta: string;
   xp: string;
   multiplier: string;
+  /** Tid och tempo för raden (etiketten "Time"); "—" när rundan saknar användbar tid. */
+  timing: RunTimeCell;
   run: Run;
+}
+
+/** Tid och tempo som visas: `time`/`pace` är den synliga texten, `label` är EN mening för skärmläsare (de synliga fälten döljs för den). */
+export interface RunTimeCell {
+  /** Falskt när tid eller tempo saknas; då är `time` och `pace` tankstreck och `label` "no time recorded". */
+  timed: boolean;
+  /** "52:10" under en timme, "1:09:40" från en timme, annars "—". */
+  time: string;
+  /** "5:13 /km", annars "—". */
+  pace: string;
+  label: string;
+}
+
+const NO_TIME = '—';
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
+
+const plural = (count: number, unit: string): string => `${count} ${unit}${count === 1 ? '' : 's'}`;
+
+/**
+ * Tiden för skärmläsare. Under en timme räcker "52:10" (läses som minuter och sekunder); från en timme läses "1:09:40" som ett klockslag, så
+ * då skrivs det med ord ("1 hour 9 minutes 40 seconds", enheter som är noll utelämnas).
+ */
+function spokenDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  if (total < SECONDS_PER_HOUR) return formatDuration(total);
+  const hours = Math.floor(total / SECONDS_PER_HOUR);
+  const minutes = Math.floor((total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  const rest = total % SECONDS_PER_MINUTE;
+  return [plural(hours, 'hour'), minutes > 0 ? plural(minutes, 'minute') : '', rest > 0 ? plural(rest, 'second') : ''].filter(Boolean).join(' ');
+}
+
+/** Ett tempo som kan visas: ett ändligt tal över noll (`paceSecPerKm` kan ge 0 när tiden är mycket kort mot distansen). */
+const usablePace = (pace: number | null): pace is number => pace !== null && Number.isFinite(pace) && pace > 0;
+
+const missingTime: RunTimeCell = { timed: false, time: NO_TIME, pace: NO_TIME, label: 'no time recorded' };
+
+/** Grenar före formateringen: saknad, null, 0, NaN eller negativ tid, eller ett tempo som inte går att visa, ger tankstreck. */
+export function buildRunTime(run: Pick<Run, 'moving_time' | 'distance'>): RunTimeCell {
+  const pace = paceSecPerKm(run.moving_time, run.distance);
+  if (!usablePace(pace) || run.moving_time == null) return missingTime;
+  return {
+    timed: true,
+    time: formatDuration(run.moving_time),
+    pace: `${formatPace(pace)} /km`,
+    label: `Time ${spokenDuration(run.moving_time)}, pace ${formatPace(pace)} per kilometre`,
+  };
+}
+
+/** Summan under rundlistan, för de rundor som visas just nu. */
+export interface RunTimeSummaryView extends RunTimeCell {
+  /** "based on 3 of 4 runs" — bara när någon visad runda saknar tid. */
+  basis: string | null;
+}
+
+export function buildRunTimeSummary(runs: readonly Run[]): RunTimeSummaryView {
+  const summary = summariseRunTime(runs);
+  const { pace_sec_per_km: pace, total_seconds: seconds, runs_with_time: timed, runs_total: total } = summary;
+  const basis = timed < total ? `based on ${timed} of ${total} runs` : null;
+  if (timed === 0 || !usablePace(pace) || !(seconds > 0)) return { ...missingTime, label: `Total time: ${missingTime.label}`, basis };
+  return {
+    timed: true,
+    time: formatDuration(seconds),
+    pace: `${formatPace(pace)} /km`,
+    label: `Total time ${spokenDuration(seconds)}, pace ${formatPace(pace)} per kilometre`,
+    basis,
+  };
 }
 
 const dayOf = (run: Pick<Run, 'date'>): string => run.date.slice(0, 10);
@@ -73,6 +143,7 @@ export function buildRunRow(run: Run): RunRow {
     meta: parts.join(' · '),
     xp: `+${formatInt(run.xp_gained)} XP`,
     multiplier: formatMultiplier(run.multiplier),
+    timing: buildRunTime(run),
     run,
   };
 }
