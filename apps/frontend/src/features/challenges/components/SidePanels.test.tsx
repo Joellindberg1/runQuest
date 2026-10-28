@@ -118,19 +118,47 @@ describe('Your tokens', () => {
   it('Send on a card hands that tier and that token on to the send flow', async () => {
     const user = userEvent.setup();
     const { panel, onSend } = renderPanel();
-    await user.click(within(panel).getByRole('button', { name: 'Send Most runs, 5 days' }));
+    await user.click(within(panel).getByRole('button', { name: 'Send a minor challenge: Most runs, 5 days' }));
     expect(onSend).toHaveBeenLastCalledWith({ tier: 'minor', tokenKey: 't-minor-runs' });
 
     await user.click(within(panel).getByRole('button', { name: 'Major ×1' }));
-    await user.click(within(panel).getByRole('button', { name: 'Send Most km, 10 days' }));
+    await user.click(within(panel).getByRole('button', { name: 'Send a major challenge: Most km, 10 days' }));
     expect(onSend).toHaveBeenLastCalledWith({ tier: 'major', tokenKey: 't-major' });
+  });
+
+  it('the Send button names the tier, the metric and the length', () => {
+    const { panel } = renderPanel();
+    const sends = within(panel).getAllByRole('button', { name: /^Send/ });
+    expect(sends.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Send a minor challenge: Most km, 7 days',
+      'Send a minor challenge: Most runs, 5 days',
+      'Send a minor challenge: Most XP, 3 days',
+    ]);
+    expect(sends.map((button) => button.textContent)).toEqual(['Send', 'Send', 'Send']);
+  });
+
+  it('two identical tokens give two cards and two Send buttons, and the second sends its own id', async () => {
+    const user = userEvent.setup();
+    const twins = [
+      token({ id: 'twin-1', tier: 'minor', metric: 'km', duration_days: 7 }),
+      token({ id: 'twin-2', tier: 'minor', metric: 'km', duration_days: 7 }),
+    ];
+    const { panel, onSend } = renderPanel(twins);
+    expect(cards(panel)).toHaveLength(2);
+    const buttons = within(panel).getAllByRole('button', { name: 'Send a minor challenge: Most km, 7 days' });
+    expect(buttons).toHaveLength(2);
+
+    await user.click(buttons[1]);
+    expect(onSend).toHaveBeenLastCalledWith({ tier: 'minor', tokenKey: 'twin-2' });
+    await user.click(buttons[0]);
+    expect(onSend).toHaveBeenLastCalledWith({ tier: 'minor', tokenKey: 'twin-1' });
   });
 
   it('while sending is blocked the Send buttons are locked and the reason stands under the list', async () => {
     const user = userEvent.setup();
     const blocker: SendBlocker = { reason: 'live', message: 'You are in a live duel. You can send another one once it is settled.' };
     const { panel, onSend } = renderPanel(ONLY_LEGENDARY, { blocker });
-    const send = within(panel).getByRole('button', { name: 'Send Most XP, 21 days' });
+    const send = within(panel).getByRole('button', { name: 'Send a legendary challenge: Most XP, 21 days' });
     expect(send).toBeDisabled();
     await user.click(send);
     expect(onSend).not.toHaveBeenCalled();
