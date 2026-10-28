@@ -204,10 +204,11 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     renderCard(DESKTOP, auth, 'popup');
     // Dialogen portas till body, utanför renderingens container.
     const dialog = await screen.findByRole('dialog');
-    await screen.findByRole('region', { name: 'Head to head' });
+    await screen.findByText('Head to head: 2–0–1 to you');
 
-    // Overview är startfliken: hjälten, statflikarna och head to head. Inget av de andra flikarnas innehåll ritas.
-    expect(regionOrder(dialog)).toEqual(['Runner', 'Runner stats', 'Head to head']);
+    // Overview är startfliken: hjälten (med head to head i bannern) och statflikarna. Inget av de andra flikarnas innehåll ritas.
+    expect(regionOrder(dialog)).toEqual(['Runner', 'Runner stats']);
+    expect(screen.queryByRole('region', { name: 'Head to head' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Badges' })).toBeNull();
     expect(dialog.querySelector('.rq-runner__lower')).toBeNull();
 

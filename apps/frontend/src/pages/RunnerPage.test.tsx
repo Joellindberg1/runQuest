@@ -463,7 +463,9 @@ describe('the profile popup (background location)', () => {
     expect(within(dialog).queryByText('Runner profile')).toBeNull();
     expect(within(dialog).getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
     expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
-    expect(await within(dialog).findByRole('region', { name: 'Head to head' })).toBeInTheDocument();
+    // Head to head sits in the banner, read as one sentence, and not as a panel of its own.
+    expect(await within(dialog).findByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: 'Head to head' })).toBeNull();
     // The other tabs' panels are not drawn until their tab is selected.
     expect(within(dialog).queryByRole('region', { name: "Frodo's journey" })).toBeNull();
     expect(within(dialog).queryByRole('region', { name: 'Titles' })).toBeNull();
@@ -501,7 +503,7 @@ describe('the profile popup (background location)', () => {
     const user = userEvent.setup();
     const dialog = await openPopup();
     await waitFor(() => expect(popupTitle(dialog)).toHaveFocus());
-    await within(dialog).findByRole('region', { name: 'Head to head' });
+    await within(dialog).findByText('Head to head: 2–0–1 to you');
 
     // Tabbarna räknas ur dialogen (den fokuserade rubriken har tabindex -1 och är ingen av dem), efter att panelen ritats. Ett dolt element (`hidden` eller `display: none` i en förfader)
     // är aldrig ett tabbstopp och räknas därför inte: det som tabbas är det som syns. Ett varv plus två tryck räcker för att bevisa fällan: den som går runt
@@ -693,7 +695,8 @@ describe('the profile popup (background location)', () => {
       await user.click(tab(dialog, 'The Journey'));
       expect(within(dialog).getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
       expect(within(dialog).queryByRole('tablist', { name: 'Runner stats' })).toBeNull();
-      expect(within(dialog).queryByRole('region', { name: 'Head to head' })).toBeNull();
+      // Head to head lives in the banner, so it stays on every tab.
+      expect(within(dialog).getByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
 
       await user.click(tab(dialog, 'Titles held'));
       expect(await within(dialog).findByRole('region', { name: 'Titles' })).toBeInTheDocument();
@@ -705,7 +708,7 @@ describe('the profile popup (background location)', () => {
 
       await user.click(tab(dialog, 'Overview'));
       expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
-      expect(await within(dialog).findByRole('region', { name: 'Head to head' })).toBeInTheDocument();
+      expect(within(dialog).getAllByText('Head to head: 2–0–1 to you')).toHaveLength(1);
     });
 
     it('move with the arrow keys, Home and End, and have a single tab stop', async () => {
@@ -771,6 +774,21 @@ describe('the profile popup (background location)', () => {
       expect(location()).toBe('/runner/u-karl');
       expect(screen.getByRole('dialog')).toBe(dialog);
     });
+  });
+
+  it('a popup for the own profile is never drawn: the address goes to /profile, without Challenge or Head to head', async () => {
+    renderWithApp(<AppRoutes />, {
+      entry: [
+        '/board',
+        { pathname: `/runner/${ME.id}`, state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
+      ],
+      width: DESKTOP,
+    });
+
+    await waitFor(() => expect(location()).toBe('/profile'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Challenge' })).toBeNull();
+    expect(screen.queryByText(/Head to head/)).toBeNull();
   });
 
   it('Challenge in the popup closes it and lands on /duels with the opponent preselected', async () => {
