@@ -63,7 +63,7 @@ describe.each(CASES)('the profile and the leaderboard model, $name', ({ data, sp
     expect(profile.tableCaption.startsWith(`Position per week, ${spoken}.`)).toBe(true);
     expect(table.caption.startsWith(`Position per week, ${spoken}.`)).toBe(true);
     expect(board.ariaLabel.startsWith(`Position over time, ${spoken}.`)).toBe(true);
-    // Skärmläsaren får aldrig den visuella formen med tankstreck ("week 27–34").
+    // Skärmläsaren får aldrig den visuella formen med bindestreck ("week 27-34").
     expect(`${profile.summary} ${profile.tableCaption} ${board.ariaLabel} ${table.caption}`).not.toContain(board.range);
   });
 
@@ -74,6 +74,8 @@ describe.each(CASES)('the profile and the leaderboard model, $name', ({ data, sp
 
     expect(profile.tableCaption).toContain(sentence);
     expect(board.ariaLabel).toContain(sentence);
+    expect(table.caption).toContain(sentence);
+    expect(table.caption).not.toContain('The last column');
     expect(profile.table.at(-1)?.note).toBe(CURRENT_WEEK_PHRASE);
     expect(table.columns.at(-1)?.header).toBe(CURRENT_WEEK_PHRASE);
     expect(profile.legend.endsWith(CURRENT_WEEK_PHRASE)).toBe(true);

@@ -10,7 +10,7 @@ export interface PositionWeekLabel {
 export interface PositionWeekLabels {
   /** Parallell med veckorna som skickades in. */
   labels: PositionWeekLabel[];
-  /** Intervalltexten: "week 27–34", "week 50, 2026 – week 4, 2027" över årsskiftet, "week 34" för en vecka, '' utan veckor. */
+  /** Intervalltexten: "week 27-34", "week 50, 2026 - week 4, 2027" över årsskiftet, "week 34" för en vecka, '' utan veckor. */
   range: string;
 }
 
@@ -35,6 +35,6 @@ export function positionWeekLabels(weeks: ReadonlyArray<LabelledWeek>): Position
 
   const labels = weeks.map((week) => ({ visual: `W${week.iso_week}`, spoken: spoken(week) }));
   if (weeks.length === 1) return { labels, range: spoken(first) };
-  const range = crossesYear ? `${spoken(first)} – ${spoken(last)}` : `week ${first.iso_week}–${last.iso_week}`;
+  const range = crossesYear ? `${spoken(first)} - ${spoken(last)}` : `week ${first.iso_week}-${last.iso_week}`;
   return { labels, range };
 }
