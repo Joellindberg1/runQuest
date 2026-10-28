@@ -249,7 +249,6 @@
 .rq-btn.rq-duels-sheet__cancel { display: var(--rq-duels-sheet-cancel-display); }
 .rq-duels-step { margin: 0 0 var(--rq-sp-8); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 
-.rq-duels-token-options { display: grid; grid-template-columns: var(--rq-duels-token-cols); gap: var(--rq-sp-8); }
 .rq-duels-option {
   display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; box-sizing: border-box; padding: var(--rq-sp-10) var(--rq-sp-12); cursor: pointer; text-align: left;
   background: var(--rq-cell); border: var(--rq-hair) solid var(--rq-line-3); color: inherit; font-family: var(--rq-font-ui);
@@ -262,12 +261,23 @@
 .rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up); }
 .rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down); }
 
-.rq-duels-option--token[aria-pressed="true"] { background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border-color: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge)); }
-.rq-duels-option__tier { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-duels-tier-fg); }
-.rq-duels-option__what { font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
-.rq-duels-option__stake { display: flex; flex-wrap: wrap; gap: var(--rq-sp-4) var(--rq-sp-12); font-size: var(--rq-fs-label); color: var(--rq-text-3); }
-.rq-duels-option__stake [data-tone="up"] { color: var(--rq-up); }
-.rq-duels-option__stake [data-tone="down"] { color: var(--rq-down); }
+/* Steg 1: nivåchipsen är samma TierChip som i Your tokens (.rq-duels-chips ovan). Statusregionen tar ingen plats förrän den har en text. */
+.rq-duels-sheet__status:not(:empty) { margin-top: var(--rq-sp-8); }
+
+/* Steg 2: tokenkorten är TokenCard (tonad bakgrund och kant ur nivån) i en radiogrupp. Ett valt kort har nivåns tint och kant; ett vilande är neutralt, så valet syns
+   också utan färg (bocken och "Selected"). Kortet får samma inre luft som motståndarraderna och "The bet" (--rq-sp-10/12), och är minst --rq-control-hit högt
+   (44 px på mobil). Fokusringen ritas inåt som på flikarna (sheetens kropp scrollar och klipper en yttre ring). "Selected" ligger absolut uppe till höger så att
+   insatsraden behåller hela kortets bredd (på 320 px ryms den annars inte bredvid), och därför ändras inte kortets höjd när valet byter. */
+.rq-duels-choice { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-duels-choice__card { position: relative; cursor: pointer; }
+.rq-duels-choice__card:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-duels-choice__card .rq-duels-token { box-sizing: border-box; min-height: var(--rq-control-hit); padding: var(--rq-sp-10) var(--rq-sp-12); gap: var(--rq-sp-10); }
+.rq-duels-choice__card[aria-checked="false"] .rq-duels-token { background: var(--rq-cell); border-color: var(--rq-line-3); }
+.rq-duels-choice__card[aria-checked="false"]:hover .rq-duels-token { background: var(--rq-row-hover); }
+.rq-duels-choice__selected {
+  position: absolute; top: var(--rq-sp-10); right: var(--rq-sp-12); display: flex; align-items: center; gap: var(--rq-sp-4);
+  font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-duels-tier-fg);
+}
 
 .rq-duels-opponents { border: var(--rq-hair) solid var(--rq-line-2); }
 .rq-duels-option--opponent { border: 0; border-left: var(--rq-edge-w) solid transparent; }

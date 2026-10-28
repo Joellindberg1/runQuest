@@ -67,8 +67,8 @@ test.describe('the send-a-challenge sheet', () => {
           return { top: parseFloat(style.paddingTop), left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight), bottom: parseFloat(style.paddingBottom) };
         };
         const bet = root.querySelector('section[aria-labelledby="duels-send-bet"]')!;
-        const tokens = root.querySelector('[role="group"][aria-labelledby="duels-send-token"]')!;
-        const option = tokens.querySelector('button')!;
+        const tokens = root.querySelector('[role="radiogroup"][aria-labelledby="duels-send-token"]')!;
+        const option = tokens.querySelector('.rq-duels-token')!;
         const betBox = bet.getBoundingClientRect();
         const tokensBox = tokens.getBoundingClientRect();
         const label = bet.querySelector('h3')!;
