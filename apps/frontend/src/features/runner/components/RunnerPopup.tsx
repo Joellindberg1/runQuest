@@ -8,7 +8,7 @@ import { useHeadToHead } from '../hooks/useRunnerQueries';
 import { DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
 import { DEFAULT_STAT_VIEW, type StatView } from '../statViews';
 import { ChallengeButton } from './ChallengeButton';
-import { HeroCard } from './HeroCard';
+import { PopupBanner } from './PopupBanner';
 import { PopupSections } from './PopupSections';
 import '../runner.css';
 
@@ -44,7 +44,7 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
 }
 
 /**
- * Löparens kort i dialogens scrollande yta: hjältekortet (bannern) och under det flikarna Overview, The Journey, Titles held och Badges. Flik, Overview-växling och allt annat
+ * Löparens kort i dialogens scrollande yta: bannern (med Head to head i en egen panel uppe till höger) och under den flikarna Overview, The Journey, Titles held och Badges. Flik, Overview-växling och allt annat
  * tillstånd är komponenttillstånd, inte adress (ADR 006 addendum 2026-10-26, beslut 3): de nollställs vid varje öppning eftersom ramen monterar komponenten med `key={user.id}`
  * och popupen avmonteras när den stängs. Popupen skriver aldrig `?view=` och inga sökparametrar. Panelerna är Runner cards befintliga; hämtningen sker en gång här
  * (`useRunnerPanelData`), så att den inte följer med fliken.
@@ -57,7 +57,7 @@ function PopupContent({ user, allUsers }: { user: User; allUsers: User[] }) {
   return (
     <div className="rq-runner rq-rise">
       <div className="rq-runner__body">
-        <HeroCard hero={data.hero} cells={data.cells} showcase={data.showcase} />
+        <PopupBanner hero={data.hero} cells={data.cells} showcase={data.showcase} headToHead={data.headToHead} />
         <PopupSections user={user} data={data} section={section} onSectionChange={setSection} statView={statView} onStatViewChange={setStatView} />
       </div>
     </div>

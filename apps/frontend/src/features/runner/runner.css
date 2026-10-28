@@ -39,6 +39,28 @@
 .rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-runner__split > .rq-runner-h2h { align-self: stretch; }
 
+/* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────
+   Tre kolumner: ring | namn, ställning och statrad | panelen uppe till höger (prototypen: 212 px, sträckt till bannerns höjd). Statraden har lika breda celler hur många de är (fyra: TOTAL XP, TOTAL KM,
+   RUNS, TITLES HELD). Bannerns höjd får aldrig bero på panelens läge: panelens innehåll har samma lägsta höjd (--rq-runner-h2h-body-h) i alla lägen (rekord, laddar, fel, inga dueller) och ryms
+   i vänsterkolumnens höjd (ringen, namnraden och statraden), som därmed bestämmer bannern. Panelen har ingen egen bakgrund: etiketterna i rutorna ligger då på samma lager som statradens
+   (hårlinjegridens och cellens), och kontrasten blir densamma som där (≥ 4,5:1 i båda teman). */
+.rq-runner-hero--popup { display: grid; grid-template-columns: auto minmax(0, 1fr) var(--rq-runner-h2h-w); gap: var(--rq-sp-20); align-items: start; }
+.rq-runner-hero--popup .rq-runner-hero__meta { margin-bottom: var(--rq-sp-12); }
+.rq-runner-hero--popup .rq-runner-cells { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.rq-runner-h2h-banner { align-self: stretch; display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-10) var(--rq-sp-12); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-runner-h2h-banner__head { display: flex; align-items: center; gap: var(--rq-sp-8); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-h2h-banner__body { flex: 1; min-height: var(--rq-runner-h2h-body-h); display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.rq-runner-h2h-banner .rq-runner-record { margin: 0; }
+.rq-runner-h2h-banner .rq-runner-cell { padding: var(--rq-sp-6) var(--rq-sp-4); }
+.rq-runner-h2h-banner .rq-runner-cell__value[data-tone="muted"] { color: var(--rq-text-2); }
+.rq-runner-h2h-banner__body > :not(.rq-runner-record) { margin-block: auto; }
+.rq-runner-h2h-banner .rq-runner-note { padding: var(--rq-sp-6); }
+.rq-runner-h2h-banner .rq-runner-loading { padding: 0; }
+.rq-runner-h2h-banner .rq-error { gap: var(--rq-sp-4); padding: var(--rq-sp-4) var(--rq-sp-8); }
+.rq-runner-h2h-banner .rq-error .rq-btn { padding-block: var(--rq-sp-4); }
+.rq-runner-h2h-banner .rq-error__title { font-family: var(--rq-font-ui); font-size: var(--rq-fs-meta); font-weight: 600; }
+.rq-runner-h2h-banner .rq-error__text { font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
+
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
 .rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
 .rq-runner-head__title { margin: 0; font-weight: 400; }
