@@ -283,6 +283,7 @@
   --rq-focus-field: var(--rq-gold);                         /* border-color vid fokus i inmatning */
   --rq-focus-ring:  2px solid var(--rq-gold);               /* :focus-visible för knappar/flikar */
   --rq-focus-offset: 2px;
+  --rq-control-hit: 44px;                                   /* flikrad + segmenterad kontroll (shared/components/view-controls.css): minsta träffyta på mobil, desktop 0 (chipet är redan högt nog för muspekare) */
 
   /* ── 1.17 Ikoner (runquest-icons.js: 24×24, stroke 1.9, runda ändar, ingen fyllning) */
   --rq-icon-sm: 15px;   /* rader, chips */
@@ -944,6 +945,7 @@
     --rq-news-row-icon-badge-w: 34px;
     --rq-news-badge: 15px;
     --rq-news-filter-hit: 0px;
+    --rq-control-hit: 0px;
     --rq-landing-film-play-box: 92px;
     --rq-landing-film-glyph-w: 30px;
     --rq-landing-film-glyph-h: 34px;

@@ -3,16 +3,14 @@ import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
-import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
 import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow } from '../runnerModel';
+import type { StatView } from '../statViews';
 import { PanelLoading } from './RunnerParts';
 
-// ?view= på Runner card (ADR 006): distance (default) · streak · fun. Consistency-heatmapen hör till egna
-// profilen (inkrement 8) — runner-skärmen i prototypen faller tillbaka på Distance för den.
-const STAT_VIEWS = ['distance', 'streak', 'fun'] as const;
-type StatView = (typeof STAT_VIEWS)[number];
-
+// Mobilens Runner card är den enda som använder runnerModels byggare. Profilens panel (och popupen, som återanvänder den) bygger raderna ur
+// profile/statsModel; Distance och Streak är redan EN definition (statsModel återexporterar dem), men Fun facts finns i två varianter
+// (Double-run days här, Longest gap där). Framtida DRY: en gemensam panel när mobilparitet kommer (ADR 006 addendum 2026-10-26, revisit-triggers).
 const STAT_TABS: readonly ViewTab<StatView>[] = [
   { key: 'distance', label: 'Distance', icon: 'list' },
   { key: 'streak', label: 'Streak', icon: 'flame' },
@@ -51,8 +49,15 @@ function StreakRows({ user, now }: { user: User; now: Date }) {
   return <Rows rows={buildStreakRows(user, now, configQuery.data.streak_multipliers)} label="Streak" />;
 }
 
-export function StatsPanel({ user, now }: { user: User; now: Date }) {
-  const [view, setView] = useViewParam(STAT_VIEWS, 'distance');
+interface StatsPanelProps {
+  user: User;
+  now: Date;
+  /** Vald flik. Värden (RunnerCard) äger `?view=`; panelen läser aldrig adressen. */
+  view: StatView;
+  onChange: (view: StatView) => void;
+}
+
+export function StatsPanel({ user, now, view, onChange }: StatsPanelProps) {
   const distanceRows = useMemo(() => buildDistanceRows(user, now), [user, now]);
   const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
 
@@ -62,7 +67,7 @@ export function StatsPanel({ user, now }: { user: User; now: Date }) {
         label="Runner stats"
         tabs={STAT_TABS}
         value={view}
-        onChange={setView}
+        onChange={onChange}
         idPrefix={ID_PREFIX}
         variant="underline"
         className="rq-runner-tabs"

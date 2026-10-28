@@ -46,6 +46,7 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   onClick,
 }) => {
   const openProfile = useOpenRunner();
+  const contentId = React.useId();
   const opponent = challenge.challenger_id === currentUserId
     ? { id: challenge.opponent_id,   name: challenge.opponent_name }
     : { id: challenge.challenger_id, name: challenge.challenger_name };
@@ -55,15 +56,24 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
   const pending = isPendingStart(challenge.start_date);
   const hours = pending && challenge.start_date ? hoursUntilStart(challenge.start_date) : 0;
 
-  const Tag = onClick ? 'button' : 'div';
-
   return (
-    <Tag
-      onClick={onClick}
-      className={`relative w-full px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors cursor-pointer' : ''}`}
+    <div
+      className={`relative w-full px-3 py-2 rounded-lg bg-sidebar border-2 border-foreground/15 text-left overflow-hidden ${onClick ? 'hover:border-primary/40 transition-colors' : ''}`}
     >
+      {/* Kortets egen knapp ligger som ett lager över kortet: motståndarens namn är en knapp och får inte ligga inuti en annan.
+          Ringen ritas inåt (--rq-focus-inset) eftersom kortet har overflow-hidden, som klipper en yttre ring, och i --rq-gold-text eftersom
+          temats ring har bara 2,1:1 mot kortet i ljust tema (som flikarna). */}
+      {onClick && (
+        <button
+          type="button"
+          aria-label={`Open challenge against ${opponent.name}`}
+          aria-describedby={contentId}
+          onClick={onClick}
+          className="absolute inset-0 w-full rounded-lg cursor-pointer focus-visible:[outline-offset:var(--rq-focus-inset)] focus-visible:[outline-color:var(--rq-gold-text)]"
+        />
+      )}
       {/* 3-col grid — dimmed when pending */}
-      <div className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
+      <div id={contentId} className={`grid grid-cols-[auto_1fr_auto] gap-x-2 ${pending ? 'opacity-40' : ''}`}>
         {/* Row 1 */}
         <div className="flex items-center justify-center">
           <Swords className="w-4 h-4 text-primary" />
@@ -71,10 +81,12 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
         <div className="flex items-center justify-center gap-1.5 text-xs">
           <span className="font-semibold text-foreground">You</span>
           <span className="text-muted-foreground">vs</span>
-          <span
-            className="font-semibold text-foreground cursor-pointer hover:underline"
-            onClick={(e) => { e.stopPropagation(); openProfile(opponent.id); }}
-          >{opponent.name}</span>
+          <button
+            type="button"
+            className="relative font-semibold text-foreground cursor-pointer hover:underline"
+            data-runner-id={opponent.id}
+            onClick={() => openProfile(opponent.id)}
+          >{opponent.name}</button>
         </div>
         {/* Desktop: "Ends:" + date stacked in col 3 */}
         <div className="flex items-center justify-end">
@@ -118,6 +130,6 @@ export const ActiveChallengeWidget: React.FC<ActiveChallengeWidgetProps> = ({
           </span>
         </div>
       )}
-    </Tag>
+    </div>
   );
 };

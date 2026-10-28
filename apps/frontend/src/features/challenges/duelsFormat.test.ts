@@ -51,6 +51,8 @@ describe('insatser', () => {
       lose: '−0.12× / 10 d',
       loseTone: 'down',
       summary: '+0.25× win · −0.12× loss',
+      winFor: '+0.25× for 10 days',
+      loseFor: '−0.12× for 10 days',
     });
   });
 
@@ -59,6 +61,7 @@ describe('insatser', () => {
     expect(stake.lose).toBe('No penalty');
     expect(stake.loseTone).toBe('muted');
     expect(stake.summary).toBe('+0.5× win · no penalty');
+    expect(stake.loseFor).toBe('No penalty');
   });
 });
 

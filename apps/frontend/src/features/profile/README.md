@@ -19,7 +19,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   - **Ingen väljare i profilen (RUN-150/151):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel och sammanfattningen har ingen Edit-knapp. Tur-ankarna är oförändrade.
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
-  - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
+  - `StatsPanel` — `ViewTabs variant="underline"`, kontrollerad (`view`, `onChange`, `label`, `dataTour` från värden): `ProfileScreen` äger `?view=` (`useViewParam`), panelen läser aldrig adressen; `Heatmap` är Consistency-fliken och ritar den löpare den får som prop
   - `TitlesPanel` — "MY TITLES": mobil "5 held · 3 runner-up" + tre titlar + "Show all 8", desktop "Holding · 5" / "Runner-up · 3" med innehavare och avstånd
   - `RunHistory` — fyra rader + "Show all N runs"; `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
 - **profileModel.ts** — hjälte/celler/titlar (via runnerModel), rundrader, redigeringsregler, bekräftelsetexter, XP-uppräkning, bildvalidering

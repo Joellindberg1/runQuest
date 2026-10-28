@@ -36,6 +36,7 @@ export function DeltaMark({ delta }: { delta: DeltaView }) {
 }
 
 interface RunnerNameProps {
+  userId: string;
   name: string;
   onOpen: () => void;
 }
@@ -44,13 +45,13 @@ interface RunnerNameProps {
  * Namnet är den fokuserbara ingången till Runner card; hela kortet/raden är dessutom klickbar för
  * pekare. stopPropagation hindrar att ett klick på namnet navigerar två gånger.
  */
-export function RunnerName({ name, onOpen }: RunnerNameProps) {
+export function RunnerName({ userId, name, onOpen }: RunnerNameProps) {
   const open = (event: MouseEvent) => {
     event.stopPropagation();
     onOpen();
   };
   return (
-    <button type="button" className="rq-name rq-board-namebtn" onClick={open}>
+    <button type="button" className="rq-name rq-board-namebtn" data-runner-id={userId} onClick={open}>
       {name}
     </button>
   );

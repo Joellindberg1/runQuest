@@ -8,6 +8,8 @@ import { useOpenEvents } from '@/features/events/hooks/useEventsQueries';
 import { KARL, ME as ME_ID, historyItem, historyPage } from '@/features/log/log.fixture';
 import { ME, OTHER, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
+import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 
@@ -552,5 +554,36 @@ describe('Log — desktop', () => {
     await screen.findByRole('list', { name: 'Runs in the pack' });
     expect(container.querySelectorAll('.rq-log-run')).toHaveLength(2);
     expect(primaryButtons(container)).toHaveLength(0);
+  });
+});
+
+describe('Log — Group history runner rows are real buttons', () => {
+  const WIDTHS = [
+    { view: 'mobile', width: MOBILE },
+    { view: 'desktop', width: DESKTOP },
+  ];
+
+  it.each(WIDTHS)('on $view the runner button is named after the runner, carries the runner id and is the one focus returns to', async ({ width }) => {
+    setup({ history: [historyItem()] });
+    renderLog('/log?view=group', width);
+
+    const button = await screen.findByRole('button', { name: 'Karl Persson' });
+
+    expect(button).toHaveAttribute('data-runner-id', 'u-karl');
+    expect(findRunnerElement('u-karl')).toBe(button);
+  });
+
+  describe.each(OPEN_KEYS)('with $label', ({ keys }) => {
+    it.each(WIDTHS)('on $view Tab reaches the runner and the key opens the runner card', async ({ width }) => {
+      const user = userEvent.setup();
+      setup({ history: [historyItem()] });
+      renderLog('/log?view=group', width);
+      const button = await screen.findByRole('button', { name: 'Karl Persson' });
+
+      await tabTo(user, button);
+      await user.keyboard(keys);
+
+      await waitFor(() => expect(location()).toBe('/runner/u-karl'));
+    });
   });
 });

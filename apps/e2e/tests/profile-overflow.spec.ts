@@ -5,6 +5,9 @@ import { waitForStylesApplied } from '../support/stylesApplied';
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
 const TOLERANCE_PX = 1;
 
+/** Minsta träffyta för tumme (WCAG 2.5.5 / temats --rq-control-hit på mobil). */
+const MIN_TOUCH_TARGET_PX = 44;
+
 const PHONE_WIDTHS = [320, 360, 375];
 const PHONE_HEIGHT = 740;
 
@@ -27,6 +30,12 @@ test.describe('the profile on a phone', () => {
       test(`the page does not scroll sideways on a ${width} px phone`, async ({ page }) => {
         const root = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
         expect(root.scrollWidth, 'the page is not wider than the window').toBeLessThanOrEqual(root.clientWidth + TOLERANCE_PX);
+      });
+
+      test(`every stat tab is at least 44 px tall on a ${width} px phone`, async ({ page }) => {
+        const heights = await page.getByRole('tab').evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().height));
+        expect(heights).toHaveLength(STAT_TABS.length);
+        heights.forEach((height, index) => expect(height, `the "${STAT_TABS[index]}" tab`).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX));
       });
 
       test(`every stat tab can be reached from the tab row on a ${width} px phone`, async ({ page }) => {
@@ -109,6 +118,27 @@ test.describe('the stat tab row at every width', () => {
       }
     });
   }
+
+  test('the stat tabs keep their natural height on a desktop width (the 44 px touch target is for phones)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/profile');
+    await dismissOverlays(page);
+    await expect(page.getByRole('tablist', { name: 'Your stats' })).toBeVisible();
+    await waitForStylesApplied(page);
+    // Höjden jämförs med samma flikar utan min-height: på datorbredd är den noll, så ingenting ska ha växt.
+    const measured = await page.getByRole('tab').evaluateAll(async (tabs) => {
+      const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const heightsOf = () => tabs.map((tab) => tab.getBoundingClientRect().height);
+      const drawn = heightsOf();
+      tabs.forEach((tab) => (tab as HTMLElement).style.setProperty('min-height', '0'));
+      await nextFrame();
+      const natural = heightsOf();
+      tabs.forEach((tab) => (tab as HTMLElement).style.removeProperty('min-height'));
+      return { drawn, natural };
+    });
+    expect(measured.drawn).toHaveLength(STAT_TABS.length);
+    measured.drawn.forEach((value, index) => expect(Math.abs(value - measured.natural[index]!), `the "${STAT_TABS[index]}" tab keeps its height`).toBeLessThanOrEqual(TOLERANCE_PX));
+  });
 
   for (const { width, height } of ROW_WIDTHS.filter((size) => size.width >= 375)) {
     test(`the four stat tabs share the tab row evenly at ${width} px`, async ({ page }) => {
