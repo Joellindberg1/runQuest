@@ -498,14 +498,32 @@ describe('the profile popup (background location)', () => {
     await waitFor(() => expect(popupTitle(dialog)).toHaveFocus());
     await within(dialog).findByRole('region', { name: 'Head to head' });
 
-    for (let press = 0; press < 40; press += 1) {
+    // Tabbarna räknas ur dialogen (den fokuserade rubriken har tabindex -1 och är ingen av dem). Ett varv plus två tryck räcker för att bevisa fällan: den som går runt
+    // har inte släppt ut fokus, och 40 tryck i jsdom tar så lång tid att sviten under last överskrider tidsgränsen (e2e har 40-varvsbeviset i Chromium).
+    const tabbables = [...dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]')].filter((element) => element.tabIndex >= 0);
+    expect(tabbables.length, 'the dialog has several tab stops').toBeGreaterThan(3);
+    const first = tabbables[0]!;
+    const last = tabbables[tabbables.length - 1]!;
+
+    const forward: Element[] = [];
+    for (let press = 0; press < tabbables.length + 2; press += 1) {
       await user.tab();
+      forward.push(document.activeElement!);
       expect(dialog.contains(document.activeElement), `Tab ${press + 1} stays in the dialog`).toBe(true);
     }
-    for (let press = 0; press < 40; press += 1) {
+    expect(forward[0], 'the first Tab from the heading lands on the first tab stop').toBe(first);
+    expect(forward[tabbables.length - 1], 'the last Tab of the round lands on the last tab stop').toBe(last);
+    expect(forward[tabbables.length], 'Tab from the last tab stop wraps to the first').toBe(first);
+
+    const backward: Element[] = [];
+    for (let press = 0; press < tabbables.length + 2; press += 1) {
       await user.tab({ shift: true });
+      backward.push(document.activeElement!);
       expect(dialog.contains(document.activeElement), `Shift+Tab ${press + 1} stays in the dialog`).toBe(true);
     }
+    const atFirst = backward.indexOf(first);
+    expect(atFirst, 'Shift+Tab reaches the first tab stop').toBeGreaterThanOrEqual(0);
+    expect(backward[atFirst + 1], 'Shift+Tab from the first tab stop wraps to the last').toBe(last);
   });
 
   it('closes with Escape', async () => {
