@@ -51,7 +51,7 @@ const NEW_TOKENS = [
   '--rq-board-position-grid', '--rq-board-position-core', '--rq-board-position-dim',
   '--rq-board-position-line-w', '--rq-board-position-line-w-on', '--rq-board-position-line-w-me', '--rq-board-position-line-w-me-on',
   '--rq-board-position-dot-size', '--rq-board-position-dot-size-me', '--rq-board-position-hollow', '--rq-board-position-endpoint', '--rq-board-position-initials-fs',
-  '--rq-board-position-axis-w', '--rq-board-position-pad-x', '--rq-board-position-name-gap', '--rq-board-position-name-max', '--rq-board-position-name-fs',
+  '--rq-board-position-axis-w', '--rq-board-position-pad-x', '--rq-board-position-name-gap', '--rq-board-position-name-max', '--rq-board-position-name-fs', '--rq-board-position-toggle-h', '--rq-board-position-order-h', '--rq-board-position-order-gap', '--rq-board-position-order-avatar', '--rq-board-position-place-w',
 ];
 
 describe('the tokens of the position chart', () => {
@@ -130,5 +130,44 @@ describe('the stylesheet of the position chart', () => {
       expect({ token, size: size >= 11 }).toEqual({ token, size: true });
     }
   });
+});
 
+describe('the tokens and the stylesheet of Current order', () => {
+  it('make a row at least 44 px on mobile and at least 24 px on desktop, and a picture of 24 px', () => {
+    expect(px(tokenOf(indexCss, '--rq-board-position-order-h', false))).toBeGreaterThanOrEqual(44);
+    expect(px(tokenOf(indexCss, '--rq-board-position-order-h', true))).toBeGreaterThanOrEqual(24);
+    expect(px(tokenOf(indexCss, '--rq-board-position-order-avatar', false))).toBeGreaterThanOrEqual(24);
+  });
+
+  it('give each row a minimum height from the token (a row that wraps grows, it is never clipped) and an inward focus ring', () => {
+    const row = declarationsOf(css, '.rq-board-position-order__row');
+    expect(row['min-height']).toBe('var(--rq-board-position-order-h)');
+    expect(row.height).toBeUndefined();
+    expect(row.overflow).toBeUndefined();
+    const focus = declarationsOf(css, '.rq-board-position-order__row:focus-visible');
+    expect(focus.outline).toBe('var(--rq-focus-ring)');
+    expect(focus['outline-offset']).toBe('var(--rq-focus-inset)');
+  });
+
+  it('show the selected row without colour: a text tag "Shown" in the markup and a border, and the name never ellipsised', () => {
+    expect(declarationsOf(css, '.rq-board-position-order__row[aria-pressed="true"]')['border-color']).toBe('var(--rq-board-position-line-on)');
+    const name = declarationsOf(css, '.rq-board-position-order__name');
+    expect(name['text-overflow']).toBeUndefined();
+    expect(name['overflow-wrap']).toBe('anywhere');
+  });
+
+  it('put the chart and Current order side by side only from 1024 px: one column by default, two columns inside the desktop query', () => {
+    const sheet = postcss.parse(css);
+    const isBoard = (node: postcss.ChildNode): node is Rule => node.type === 'rule' && /\.rq-board-position$/.test(node.selector);
+    const decls = (rules: Rule[]) => rules.flatMap((rule) => rule.nodes.filter((node): node is Declaration => node.type === 'decl'));
+    const byDefault = decls(sheet.nodes.filter(isBoard));
+    const desktop = decls(
+      sheet.nodes
+        .filter((node): node is postcss.AtRule => node.type === 'atrule' && node.name === 'media' && /min-width:\s*1024px/.test(node.params))
+        .flatMap((block) => (block.nodes ?? []).filter(isBoard)),
+    );
+
+    expect(byDefault.map((decl) => decl.prop)).not.toContain('grid-template-columns');
+    expect(desktop.find((decl) => decl.prop === 'grid-template-columns')?.value).toMatch(/var\(--rq-board-side-w\)/);
+  });
 });

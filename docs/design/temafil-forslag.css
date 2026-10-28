@@ -367,6 +367,10 @@
   --rq-board-position-name-max:   104px;                 /* ett långt förnamn bryts i stället för att trycka undan grafen (desktop 128) */
   --rq-board-position-name-fs:    12px;                  /* namnet vid linjeslutet (desktop 13) */
   --rq-board-position-toggle-h:   44px;                  /* "Show as table": träffyta (desktop 36) */
+  --rq-board-position-order-h:    44px;                  /* en rad i "Current order": träffyta på mobil (desktop 40) */
+  --rq-board-position-order-gap:  4px;                   /* mellan raderna (desktop 6) */
+  --rq-board-position-order-avatar: 24px;                /* bilden eller initialerna i raden */
+  --rq-board-position-place-w:    26px;                  /* "#12" i raden */
 
   /* ── 1.21 Runner card-mått (inkrement 3) ───────────────────────────────────
      Mått ur App-/Web-prototypens runner-skärm som saknade token. Endast mått —
@@ -866,6 +870,8 @@
     --rq-board-position-name-max: 128px;
     --rq-board-position-name-fs: 13px;
     --rq-board-position-toggle-h: 36px;
+    --rq-board-position-order-h: 40px;
+    --rq-board-position-order-gap: 6px;
     --rq-runner-ring: 96px;
     --rq-runner-ring-inset: 8px;
     --rq-runner-hero-gap: 20px;

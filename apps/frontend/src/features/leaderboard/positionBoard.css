@@ -123,3 +123,51 @@
 .rq-board-position__table td[data-empty="true"] { color: var(--rq-board-position-label); }
 .rq-board-position__table-sub { display: block; font-family: var(--rq-font-ui); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-name); text-transform: none; line-height: var(--rq-lh-tight); }
 .rq-board-position__footnote { margin: var(--rq-sp-8) 0 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
+
+/* ── Layout: grafen och "Current order" (EN komponent i DOM:en) ───────────────────────────────────────────────────────────────────────────
+   Mobil: ETT kort med grafen överst och legenden under den, åtskilda av en hårlinje. Desktop (≥ 1024 px, skalets brytpunkt): två kort sida vid sida,
+   legenden i sidokolumnen (--rq-board-side-w, samma som Week och Streaks). Samma element i båda lägena; bara CSS flyttar det. */
+.rq-board-position { display: flex; flex-direction: column; gap: var(--rq-sp-16); min-width: 0; }
+.rq-board-position-order { display: flex; flex-direction: column; min-width: 0; padding-top: var(--rq-sp-14); border-top: var(--rq-hair) solid var(--rq-line-2); }
+@media (min-width: 1024px) {
+  .rq-card.rq-board-position {
+    display: grid; grid-template-columns: minmax(0, 1fr) var(--rq-board-side-w); gap: var(--rq-sp-18); align-items: start;
+    padding: 0; border: 0; background: none; box-shadow: none;
+  }
+  .rq-board-position__card, .rq-board-position-order {
+    padding: var(--rq-pad-card); border: var(--rq-hair) solid var(--rq-panel-border); background: var(--rq-card-bg); box-shadow: var(--rq-card-shadow);
+  }
+}
+
+/* ── Current order ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.rq-board-position-order__title {
+  margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; line-height: var(--rq-lh-body); letter-spacing: var(--rq-ls-tab);
+  text-transform: uppercase; color: var(--rq-text-eyebrow);
+}
+.rq-board-position-order__hint { margin: var(--rq-sp-4) 0 var(--rq-sp-12); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
+.rq-board-position-order__list { display: flex; flex-direction: column; gap: var(--rq-board-position-order-gap); margin: 0; padding: 0; list-style: none; }
+
+/* En rad är en knapp: minst 44 px på mobil (en rad som radbryter växer, den klipps aldrig), inåtriktad fokusring (en yttre skulle klippas av kortet). */
+.rq-board-position-order__row {
+  box-sizing: border-box; display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; min-height: var(--rq-board-position-order-h);
+  margin: 0; padding: var(--rq-sp-6) var(--rq-sp-10); border: var(--rq-hair) solid var(--rq-line-3); border-radius: var(--rq-radius); background: var(--rq-row-soft);
+  font-family: var(--rq-font-ui); text-align: left; color: var(--rq-text-2); cursor: pointer;
+}
+.rq-board-position-order__row:hover { background: var(--rq-row-hover); }
+.rq-board-position-order__row:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-board-position-order__row[aria-pressed="true"] { border-color: var(--rq-board-position-line-on); background: var(--rq-fill-2); }
+.rq-board-position-order__row[aria-pressed="true"][data-me="true"] { border-color: var(--rq-board-position-line-me); }
+.rq-board-position-order__row .rq-board-position-avatar { width: var(--rq-board-position-order-avatar); height: var(--rq-board-position-order-avatar); }
+
+.rq-board-position-order__place { flex: 0 0 var(--rq-board-position-place-w); font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label); }
+.rq-board-position-order__who { display: flex; flex: 1; flex-direction: column; gap: var(--rq-sp-2); min-width: 0; }
+.rq-board-position-order__name {
+  min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: var(--rq-fs-body); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-name); text-transform: uppercase;
+}
+.rq-board-position-order__row[data-me="true"] .rq-board-position-order__name { color: var(--rq-gold-text); }
+.rq-board-position-order__joined { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label); }
+.rq-board-position-order__tag, .rq-board-position-order__shown {
+  flex-shrink: 0; padding: var(--rq-sp-2) var(--rq-sp-6); border: var(--rq-hair) solid var(--rq-board-position-line-on);
+  font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-2);
+}
+.rq-board-position-order__tag { border-color: var(--rq-board-position-line-me); color: var(--rq-gold-text); }
