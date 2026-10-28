@@ -124,6 +124,7 @@ export function LogScreen() {
           </div>
         ) : (
           <GroupHistory
+            isDesktop={isDesktop}
             status={historyStatus}
             rows={historyRows}
             hasMore={!!historyQuery.hasNextPage}

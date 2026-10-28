@@ -125,12 +125,14 @@
 .rq-log-run__weather { display: inline-flex; align-items: center; gap: var(--rq-sp-4); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 .rq-log-run__source { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-log-run__source[data-strava="true"] { color: var(--rq-strava); }
-/* Tid och tempo: två fält ovanpå varandra, högerställda, värdet över etiketten. Mobil ritar inte kolumnen (--rq-log-time-display: none); den raden byggs för sig. */
-.rq-log-run__timepace { grid-area: time; display: var(--rq-log-time-display); flex-direction: column; align-items: flex-end; justify-content: center; gap: var(--rq-sp-12); min-width: 0; }
+/* Tid och tempo (kolumnen ritas bara från 1024 px): två fält ovanpå varandra, högerställda, värdet över etiketten. Mobilen har i stället en liten rad ovanför km (.rq-log-run__timeline). */
+.rq-log-run__timepace { grid-area: time; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: var(--rq-sp-12); min-width: 0; }
 .rq-log-run__stat { margin: 0; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: var(--rq-sp-2); white-space: nowrap; }
 .rq-log-run__stat-value { font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-log-time-fs); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-log-run__stat-label { font-family: var(--rq-font-mono); font-size: var(--rq-log-cell-label-fs); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-log-run__totals { grid-area: totals; margin: 0; display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-log-totals-gap); }
+/* Mobilens rad ovanför km: en rad, utan etiketter, ≥ 11 px och --rq-text-4 (AA-golvet i båda teman; --rq-text-3 är svagare än text-4 i det ljusa temat, 4.22:1). nowrap och flex: none: högergruppen krymper aldrig, namnet tar det som blir över. */
+.rq-log-run__timeline { margin: 0; flex: none; font-family: var(--rq-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); color: var(--rq-text-4); white-space: nowrap; }
 .rq-log-run__km { font-family: var(--rq-font-display); font-size: var(--rq-fs-display); line-height: var(--rq-lh-tight); color: var(--rq-text-1); white-space: nowrap; }
 .rq-log-run__xp { font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); white-space: nowrap; }
 .rq-log-run__cells { grid-area: cells; margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(5, minmax(0, 1fr)); }

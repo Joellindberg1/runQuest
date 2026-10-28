@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupRunHistoryItem } from '@runquest/shared';
+import { buildRunTime } from '@/features/profile/profileModel';
 import { buildHistoryRow, buildHistoryRows } from './historyModel';
 import { ME, historyItem } from './log.fixture';
 
@@ -88,7 +89,7 @@ describe('buildHistoryRow — tid och tempo', () => {
     const row = buildHistoryRow(historyItem(over), ME);
     expect(row.time).toBeNull();
     expect(row.pace).toBeNull();
-    expect(row.timePaceLabel).toBeNull();
+    expect(row.timePaceLabel).toBe('no time recorded');
   });
 
   it('kedjan från API-rader till formaterad tid och tempo: med tid, utan tid, distans 0 och tid 0', () => {
@@ -107,6 +108,19 @@ describe('buildHistoryRow — tid och tempo', () => {
       ['no-distance', null, null],
       ['no-time', null, null],
     ]);
+  });
+});
+
+describe('skärmläsartexten för tid och tempo är densamma i Group history och i profilen', () => {
+  // Samma runda genom båda vymodellerna: tid och distans är det enda som avgör texten.
+  it.each([
+    ['under en timme', { moving_time: 3130, distance: 10 }],
+    ['en timme eller mer', { moving_time: 4180, distance: 12.1 }],
+    ['exakt en timme', { moving_time: 3600, distance: 12 }],
+    ['utan tid', { moving_time: null, distance: 8 }],
+  ] as Array<[string, Partial<GroupRunHistoryItem>]>)('%s', (_name, over) => {
+    const item = historyItem(over);
+    expect(buildHistoryRow(item, ME).timePaceLabel).toBe(buildRunTime(item).label);
   });
 });
 

@@ -22,7 +22,28 @@ export function formatPace(secPerKm: number): string {
   return `${Math.floor(total / 60)}:${pad2(total % 60)}`;
 }
 
-/** Skärmläsartexten för en tid- och tempocell: "Time 52:10, pace 5:13 per kilometre". */
+/** Skärmläsartexten för en runda utan användbar tid: en mening, samma i Group history och profilen (de synliga tankstrecken är dolda för skärmläsaren). */
+export const NO_TIME_RECORDED = 'no time recorded';
+
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
+
+const plural = (count: number, unit: string): string => `${count} ${unit}${count === 1 ? '' : 's'}`;
+
+/**
+ * Tiden för skärmläsare. Under en timme räcker "52:10" (läses som minuter och sekunder); från en timme läses "1:09:40" som ett klockslag, så
+ * då skrivs det med ord ("1 hour 9 minutes 40 seconds", enheter som är noll utelämnas). Sekunderna avrundas först, som i `formatDuration`.
+ */
+export function spokenDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  if (total < SECONDS_PER_HOUR) return formatDuration(total);
+  const hours = Math.floor(total / SECONDS_PER_HOUR);
+  const minutes = Math.floor((total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  const rest = total % SECONDS_PER_MINUTE;
+  return [plural(hours, 'hour'), minutes > 0 ? plural(minutes, 'minute') : '', rest > 0 ? plural(rest, 'second') : ''].filter(Boolean).join(' ');
+}
+
+/** Skärmläsartexten för en tid- och tempocell: "Time 52:10, pace 5:13 per kilometre" ("Time 1 hour 9 minutes 40 seconds, …" från en timme). */
 export function timePaceLabel(seconds: number, paceSecPerKm: number): string {
-  return `Time ${formatDuration(seconds)}, pace ${formatPace(paceSecPerKm)} per kilometre`;
+  return `Time ${spokenDuration(seconds)}, pace ${formatPace(paceSecPerKm)} per kilometre`;
 }
