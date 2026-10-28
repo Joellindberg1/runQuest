@@ -11,7 +11,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `DuelsScreen` — all datakoppling, handlingar, send-sheetens URL-tillstånd, tour. Ritar `DuelsLayout`.
   - `DuelsLayout` — ren presentation av färdiga vymodeller (rubrik, flikar, aktiv vy, sidokolumn). Preview-sidan återanvänder den.
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
-    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1), `TokenCard` (ett tokenkort: vimpel utan siffra, mått och längd i versaler på första raden, tokenets egen insats på andra; handlingen sätts in som barn, i Your tokens är det Send)
+    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `TokenChoice` (send-flödets steg 2: tokenkorten som en radiogrupp med roving tabindex, bock och "Selected"), `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1), `TokenCard` (ett tokenkort: vimpel utan siffra, mått och längd i versaler på första raden, tokenets egen insats på andra; handlingen sätts in som barn, i Your tokens är det Send)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
 - **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper (alltid tre nivåer med `count`/`empty`/`selectable`, ett kort per token — identiska tokens slås inte ihop), standings, historikrader, boosts, rekord, rubrikrad
 - **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`)
@@ -23,8 +23,8 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 
 ## Regler värda att komma ihåg
 
-- **Spelreglerna är oförändrade (ägarbeslut 1).** Ett token fixerar nivå, mått (km/runs/total_xp) OCH längd; avsändaren väljer bara token och motståndare.
-  Därför har send-sheeten steg "1 · Spend a token" och "2 · Pick an opponent", inte designens fria val av mått/längd, och "The bet" visar mått och längd som fakta.
+- **Spelreglerna är oförändrade (ägarbeslut 1).** Ett token fixerar nivå, mått (km/runs/total_xp) OCH längd; avsändaren väljer bara nivå, token och motståndare.
+  Därför har send-sheeten steg "1 · Pick a tier" (nivåchips), "2 · Pick a challenge" (ett kort per token) och "3 · Pick an opponent", inte designens fria val av mått/längd, och "The bet" visar mått och längd som fakta.
   Insatserna kommer ur data (token/utmaning/historikrad), aldrig ur konstanter; `DEFAULT_STAKES` (migration 006) används bara för en nivå utan något exempel.
   Legendary har straff i databasen (−0.25×/14 d) — designens "no penalty" gäller inte; delta 0 läses "No penalty".
 - **Förval i send-flödet** är komponenttillstånd i `DuelsScreen` (`SendPreselection | null`), aldrig adress: Send på ett tokenkort → nivå och kort, en nivåchip → bara nivån,

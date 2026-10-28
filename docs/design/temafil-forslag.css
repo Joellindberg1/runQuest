@@ -382,7 +382,6 @@
   --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
   --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
   --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
-  --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
   --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
   --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .38);             /* text på ett tomt nivåchip (×0): dämpad men ≥ 3:1 (ljust: .55) */
   --rq-duels-token-stake-fs: 12px;                                   /* tokenkortets insatsrad: 12 px på mobil och desktop (panelen är 320 px bred på båda och raden ska rymmas på en rad) */
@@ -854,7 +853,6 @@
     --rq-duels-offer-cols: minmax(0, 1fr) auto auto;
     --rq-duels-offer-actions-cols: minmax(0, 1fr);
     --rq-duels-offer-rule-w: 0px;
-    --rq-duels-token-cols: repeat(3, minmax(0, 1fr));
     --rq-duels-avatar: 32px;
     --rq-duels-sheet-w: min(660px, 95vw);
     --rq-duels-sheet-top: 50%;
