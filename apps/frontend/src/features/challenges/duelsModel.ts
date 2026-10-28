@@ -211,8 +211,6 @@ export interface TierGroup {
   empty: boolean;
   selectable: boolean;
   cards: TokenCard[];
-  /** Det första kortets insats (nivåraden i Your tokens); null för en tom nivå. */
-  stake: Stake | null;
 }
 
 const METRIC_ORDER: readonly ChallengeMetric[] = ['km', 'runs', 'total_xp'];
@@ -246,7 +244,6 @@ export function buildTokenGroups(tokens: MyChallengesData['tokens']): TierGroup[
       empty: cards.length === 0,
       selectable: cards.length > 0,
       cards,
-      stake: cards[0]?.stake ?? null,
     };
   });
 }

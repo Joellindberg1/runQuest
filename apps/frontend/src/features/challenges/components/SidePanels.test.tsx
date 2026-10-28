@@ -56,12 +56,26 @@ describe('Your tokens', () => {
 
   it('every card shows its own stake, and a legendary card shows its penalty', async () => {
     const user = userEvent.setup();
-    const { panel } = renderPanel();
-    expect(cardStakes(panel)).toEqual(Array(3).fill('+0.15× for 5 days · −0.07× for 5 days'));
+    // Två tokens på samma nivå med olika insats (dag- och rundboost), och en legendary utan straff: ett kort som läser ett annat korts insats fäller testet.
+    const mixed = [
+      token({ id: 'a', tier: 'minor', metric: 'km', duration_days: 7 }),
+      token({ id: 'b', tier: 'minor', metric: 'runs', duration_days: 5, winner_delta: 0.2, winner_duration: 3, winner_type: 'multiplier_runs', loser_delta: -0.1, loser_duration: 1, loser_type: 'multiplier_runs' }),
+      token({ id: 'c', tier: 'major', metric: 'km', duration_days: 10 }),
+      token({ id: 'd', tier: 'legendary', metric: 'total_xp', duration_days: 30, loser_delta: 0, loser_duration: 0 }),
+    ];
+    const { panel } = renderPanel(mixed);
+    expect(cardStakes(panel)).toEqual(['+0.15× for 5 days · −0.07× for 5 days', '+0.2× for 3 runs · −0.1× for 1 run']);
 
     await user.click(within(panel).getByRole('button', { name: 'Major ×1' }));
     expect(cardStakes(panel)).toEqual(['+0.25× for 10 days · −0.12× for 10 days']);
 
+    await user.click(within(panel).getByRole('button', { name: 'Legendary ×1' }));
+    expect(cardStakes(panel)).toEqual(['+0.5× for 14 days · No penalty']);
+  });
+
+  it('a legendary card shows its penalty when it has one', async () => {
+    const user = userEvent.setup();
+    const { panel } = renderPanel();
     await user.click(within(panel).getByRole('button', { name: 'Legendary ×1' }));
     expect(cardStakes(panel)).toEqual(['+0.5× for 14 days · −0.25× for 14 days']);
   });
