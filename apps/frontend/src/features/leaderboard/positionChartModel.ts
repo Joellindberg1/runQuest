@@ -27,7 +27,7 @@ const FEW_RUNNERS = 6;
 export type PositionChartMode =
   /** Rita grafen. */
   | 'chart'
-  /** Färre än två löpare: ingen flik att visa (ADR 007 B11). */
+  /** Färre än två löpare, eller ett svar utan veckor: ingen flik att visa (ADR 007 B11). */
   | 'hidden'
   /** Två eller fler löpare men bara den pågående veckan: ingen linje att dra än, klienten förklarar. */
   | 'no-finished-week';
@@ -37,7 +37,17 @@ export interface ChartWeek {
   visual: string;
   /** "week 27", med år när perioden korsar ISO-årsskiftet. */
   spoken: string;
+  /** Andel av bredden (0 äldsta veckan, 1 pågående): samma x som punkterna för veckan, för veckoetiketterna. */
+  x: number;
   isCurrent: boolean;
+}
+
+/** En rad i rutnätet. */
+export interface GridRow {
+  /** 1-baserad placering. */
+  position: number;
+  /** Rad i px, där punkterna för placeringen ligger. */
+  y: number;
 }
 
 export interface ChartGeometry {
@@ -144,6 +154,8 @@ export interface PositionChartModel {
   /** "week 27–34", över årsskiftet "week 50, 2026 – week 4, 2027". */
   range: string;
   geometry: ChartGeometry;
+  /** Rutnätet och axeltalen: en rad per placering 1..antal löpare. Tom vid `hidden`. */
+  gridRows: GridRow[];
   /** En per löpare i svarets ordning (= Standings). Tom när det inte finns något att rita. */
   lines: ChartLine[];
   /** Id:n i ritordning: övriga i svarets ordning, sedan den inloggade, sist den valda, så de syns ovanpå. */
@@ -188,6 +200,16 @@ function paintOrderOf(lines: ReadonlyArray<ChartLine>): string[] {
   return [...lines].sort((a, b) => weight(a) - weight(b)).map((line) => line.id);
 }
 
+/** Andel av bredden för en vecka (0 äldst, 1 pågående). EN formel för punkterna och veckoetiketterna, så de aldrig glider isär. */
+function weekX(weekIndex: number, weekCount: number): number {
+  return weekCount <= 1 ? 1 : weekIndex / (weekCount - 1);
+}
+
+/** Rad i px för en placering. EN formel för punkterna, namnen vid linjeslutet och rutnätet. */
+function rowY(position: number, geometry: ChartGeometry): number {
+  return geometry.padding + (position - 1) * geometry.rowHeight;
+}
+
 function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartGeometry): ChartPoint[] {
   const lastIndex = weekCount - 1;
   const initials = getInitials(runner.name);
@@ -197,8 +219,8 @@ function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartG
     const base = {
       weekIndex,
       position,
-      x: lastIndex === 0 ? 1 : weekIndex / lastIndex,
-      y: geometry.padding + (position - 1) * geometry.rowHeight,
+      x: weekX(weekIndex, weekCount),
+      y: rowY(position, geometry),
     };
     if (weekIndex === lastIndex) points.push({ ...base, kind: 'hollow' });
     else if (weekIndex === lastIndex - 1) points.push({ ...base, kind: 'endpoint', pictureUrl: runner.profile_picture, initials });
@@ -217,9 +239,9 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
   const weekCount = data.weeks.length;
   const finishedCount = Math.max(0, weekCount - 1);
   const { labels, range } = positionWeekLabels(data.weeks);
-  const weeks: ChartWeek[] = labels.map((label, i) => ({ ...label, isCurrent: i === weekCount - 1 }));
+  const weeks: ChartWeek[] = labels.map((label, i) => ({ ...label, x: weekX(i, weekCount), isCurrent: i === weekCount - 1 }));
 
-  const mode: PositionChartMode = runners.length < 2 ? 'hidden' : finishedCount === 0 ? 'no-finished-week' : 'chart';
+  const mode: PositionChartMode = runners.length < 2 || weekCount === 0 ? 'hidden' : finishedCount === 0 ? 'no-finished-week' : 'chart';
   const geometry: ChartGeometry = {
     rowHeight: rowSpacing(runners, options.mobile),
     padding: CHART_PADDING,
@@ -241,7 +263,7 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
           selected: runner.user_id === selectedId,
           dimmed: isDimmed(runner.user_id),
           position: live,
-          labelY: live === null ? null : geometry.padding + (live - 1) * geometry.rowHeight,
+          labelY: live === null ? null : rowY(live, geometry),
           points,
           endpoint: points.find((p): p is EndpointPoint => p.kind === 'endpoint') ?? null,
         };
@@ -302,7 +324,9 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
       ? ''
       : `Position over time, ${range}. ${lastWeek.spoken.charAt(0).toUpperCase()}${lastWeek.spoken.slice(1)} is in progress. ${runners.map(standing).join(', ')}.`;
 
-  return { mode, selectedId, weeks, range, geometry, lines, paintOrder: paintOrderOf(lines), order, table, ariaLabel };
+  const gridRows: GridRow[] = mode === 'hidden' ? [] : runners.map((_, k) => ({ position: k + 1, y: rowY(k + 1, geometry) }));
+
+  return { mode, selectedId, weeks, range, geometry, gridRows, lines, paintOrder: paintOrderOf(lines), order, table, ariaLabel };
 }
 
 /**

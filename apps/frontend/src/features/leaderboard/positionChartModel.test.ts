@@ -351,6 +351,19 @@ describe('modes', () => {
     expect(buildPositionChart({ as_of: '2026-10-27', weeks: [], runners: [] }, OPTIONS).mode).toBe('hidden');
   });
 
+  it('a response without any weeks gives hidden even with two or more runners, and never throws', () => {
+    const data: PositionHistoryResponse = { as_of: '2026-10-27', weeks: [], runners: [runner('u-1', 'Ann', []), runner('u-2', 'Bo', [])] };
+    const model = buildPositionChart(data, OPTIONS);
+
+    expect(model.mode).toBe('hidden');
+    expect(model.weeks).toEqual([]);
+    expect(model.lines).toEqual([]);
+    expect(model.order).toEqual([]);
+    expect(model.table).toBeNull();
+    expect(model.gridRows).toEqual([]);
+    expect(model.ariaLabel).toBe('');
+  });
+
   it('two or more runners without a finished week give no-finished-week, and the current order is still there', () => {
     const data = response(1, [runner('u-me', 'Me', [1]), runner('u-karl', 'Karl', [2])]);
     const model = buildPositionChart(data, OPTIONS);
@@ -397,5 +410,46 @@ describe('modes', () => {
     expect(model.lines[1].position).toBeNull();
     expect(model.table!.rows[1].cells.map((cell) => cell.text)).toEqual(['#2', '—']);
     expect(model.ariaLabel).toContain('Bo (no placement)');
+  });
+});
+
+describe('geometry for the components', () => {
+  it('every week carries the same x as the points of that week, so axis labels line up with the dots', () => {
+    for (const count of [2, 4, 8, 26]) {
+      const model = buildPositionChart(pack(3, count), OPTIONS);
+
+      expect(model.weeks.map((week) => week.x)).toEqual(Array.from({ length: count }, (_, i) => i / (count - 1)));
+      for (const line of model.lines) {
+        for (const point of line.points) expect(point.x).toBe(model.weeks[point.weekIndex].x);
+      }
+    }
+  });
+
+  it('week x runs from 0 for the oldest week to 1 for the week in progress', () => {
+    const { weeks } = buildPositionChart(trio(), OPTIONS);
+    expect(weeks[0].x).toBe(0);
+    expect(weeks[weeks.length - 1].x).toBe(1);
+  });
+
+  it('grid rows sit where the points for that placement sit, one row per runner', () => {
+    for (const mobile of [true, false]) {
+      const model = buildPositionChart(pack(12), { meId: 'u-1', mobile });
+      const { padding, rowHeight } = model.geometry;
+
+      expect(model.gridRows).toHaveLength(12);
+      expect(model.gridRows.map((row) => row.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(model.gridRows.map((row) => row.y)).toEqual(Array.from({ length: 12 }, (_, k) => padding + k * rowHeight));
+      for (const line of model.lines) {
+        for (const point of line.points) expect(model.gridRows[point.position - 1].y).toBe(point.y);
+        expect(model.gridRows[(line.position as number) - 1].y).toBe(line.labelY);
+      }
+      expect(model.gridRows[11].y + padding).toBe(model.geometry.height);
+    }
+  });
+
+  it('grid rows are there for no-finished-week too, and none for hidden', () => {
+    const two = response(1, [runner('u-1', 'Ann', [1]), runner('u-2', 'Bo', [2])]);
+    expect(buildPositionChart(two, OPTIONS).gridRows.map((row) => row.position)).toEqual([1, 2]);
+    expect(buildPositionChart(response(3, [runner('u-1', 'Ann', [1, 1, 1])]), OPTIONS).gridRows).toEqual([]);
   });
 });
