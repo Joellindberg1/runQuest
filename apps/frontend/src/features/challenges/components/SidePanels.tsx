@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { ChallengeTier } from '@runquest/shared';
 import type { BoostView, RecordCell, TierGroup } from '../duelsModel';
 import type { SendBlocker, SendPreselection } from '../sendModel';
+import { tierLabel } from '../duelsFormat';
 import { TierChip } from './TierChip';
-import { TierRibbon } from './TierRibbon';
+import { TokenCard } from './TokenCard';
 
 interface TokensPanelProps {
   groups: TierGroup[];
@@ -50,21 +51,18 @@ export function TokensPanel({ groups, blocker, onSend }: TokensPanelProps) {
       ) : (
         <ul className="rq-duels-tokens__list" aria-label={`${shown.label} tokens`}>
           {shown.cards.map((card) => (
-            <li key={card.tokenKey} className="rq-duels-token" data-tier={card.tier}>
-              <TierRibbon tier={card.tier} />
-              <div className="rq-duels-token__text">
-                <span className="rq-duels-token__what">{card.metricLabel} · {card.durationLabel}</span>
-                <span className="rq-duels-token__stake"><span>{card.stake.winFor}</span> · <span>{card.stake.loseFor}</span></span>
-              </div>
-              <button
-                type="button"
-                className="rq-duels-token__send"
-                disabled={blocker !== null}
-                aria-label={`Send ${card.metricLabel}, ${card.durationLabel}`}
-                onClick={() => onSend({ tier: card.tier, tokenKey: card.tokenKey })}
-              >
-                Send
-              </button>
+            <li key={card.tokenKey}>
+              <TokenCard card={card}>
+                <button
+                  type="button"
+                  className="rq-duels-send"
+                  disabled={blocker !== null}
+                  aria-label={`Send a ${tierLabel(card.tier).toLowerCase()} challenge: ${card.metricLabel}, ${card.durationLabel}`}
+                  onClick={() => onSend({ tier: card.tier, tokenKey: card.tokenKey })}
+                >
+                  Send
+                </button>
+              </TokenCard>
             </li>
           ))}
         </ul>

@@ -9,14 +9,17 @@
 .rq-duels [data-tier="minor"], .rq-duels-sheet [data-tier="minor"] {
   --rq-duels-tier: var(--rq-tier-minor); --rq-duels-tier-rgb: var(--rq-tier-minor-rgb);
   --rq-duels-tier-fg: var(--rq-tier-minor-fg); --rq-duels-tier-stroke: var(--rq-tier-minor-stroke);
+  --rq-duels-tier-send: var(--rq-tier-minor-send);
 }
 .rq-duels [data-tier="major"], .rq-duels-sheet [data-tier="major"] {
   --rq-duels-tier: var(--rq-tier-major); --rq-duels-tier-rgb: var(--rq-tier-major-rgb);
   --rq-duels-tier-fg: var(--rq-tier-major-fg); --rq-duels-tier-stroke: var(--rq-tier-major-stroke);
+  --rq-duels-tier-send: var(--rq-tier-major-send);
 }
 .rq-duels [data-tier="legendary"], .rq-duels-sheet [data-tier="legendary"] {
   --rq-duels-tier: var(--rq-tier-legendary); --rq-duels-tier-rgb: var(--rq-tier-legendary-rgb);
   --rq-duels-tier-fg: var(--rq-tier-legendary-fg); --rq-duels-tier-stroke: var(--rq-tier-legendary-stroke);
+  --rq-duels-tier-send: var(--rq-tier-legendary-send);
 }
 
 .rq-duels-ribbon { width: var(--rq-board-ribbon-w); height: var(--rq-board-ribbon-h); flex-shrink: 0; overflow: visible; }
@@ -185,7 +188,7 @@
 .rq-duels-tokens__status:empty { height: 0; margin-top: calc(var(--rq-sp-10) * -1); }
 .rq-duels-tokens__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
 .rq-duels-token {
-  display: flex; align-items: center; gap: var(--rq-sp-8); padding: var(--rq-sp-8);
+  display: flex; align-items: center; gap: var(--rq-sp-6); padding: var(--rq-sp-8);
   background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge));
 }
 .rq-duels-token__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -193,13 +196,16 @@
 .rq-duels-token__stake { font-size: var(--rq-duels-token-stake-fs); color: var(--rq-text-4); }
 /* Vinst och förlust är hela fraser: om raden ändå inte ryms bryter den mellan dem, aldrig mitt i en. */
 .rq-duels-token__stake > span { white-space: nowrap; }
-.rq-duels-token__send {
-  display: inline-flex; align-items: center; min-height: var(--rq-control-hit); padding: var(--rq-sp-4) var(--rq-sp-6); cursor: pointer; background: none;
-  border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-edge-selected)); color: var(--rq-duels-tier-fg);
+/* SEND på ett tokenkort: sekundär knapp i nivåns accent (kant och text), aldrig fylld. Receptet (kantens alfa, textfärgen per nivå och tema) ligger i temafilen, sektion 1.6.
+   Träffytan är --rq-control-hit i båda riktningarna (44 px på mobil, 0 på desktop där muspekaren inte behöver den). Hover gör kanten heltäckande i nivåns färg. */
+.rq-duels-send {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex-shrink: 0;
+  min-width: var(--rq-control-hit); min-height: var(--rq-control-hit); padding: var(--rq-sp-4) var(--rq-sp-6); cursor: pointer; background: none;
+  border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-send-edge)); color: var(--rq-duels-tier-send);
   font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase;
 }
-.rq-duels-token__send:hover:not(:disabled) { border-color: var(--rq-duels-tier); }
-.rq-duels-token__send:disabled { background: var(--rq-fill-1); border-color: var(--rq-line-2); color: var(--rq-text-5); cursor: not-allowed; }
+.rq-duels-send:hover:not(:disabled) { border-color: var(--rq-duels-tier); }
+.rq-duels-send:disabled { background: var(--rq-fill-1); border-color: var(--rq-line-2); color: var(--rq-text-5); cursor: not-allowed; }
 .rq-duels-tokens__why { margin: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
 
 .rq-duels-boosts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-12); }

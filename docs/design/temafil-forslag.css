@@ -119,6 +119,12 @@
   --rq-tier-tint:          .12;
   --rq-tier-edge:          .65;
   --rq-tier-ribbon-tint:   .16;
+  /* SEND på tokenkortet (Your tokens): sekundär knapp i nivåns accent, aldrig fylld. Kant = nivåns rgb med alfa (hover: heltäckande), text = nivåns SEND-färg,
+     som ska hålla >= 4.5:1 mot det tonade kortet i båda teman (mäts i apps/e2e/tests/token-card-send.spec.ts). Konsument: features/challenges/duels.css. */
+  --rq-tier-send-edge:     var(--rq-tier-edge);
+  --rq-tier-minor-send:    var(--rq-tier-minor-fg);
+  --rq-tier-major-send:    var(--rq-tier-major-fg);
+  --rq-tier-legendary-send: var(--rq-tier-legendary-fg);
 
   /* ── 1.7 Textskala (fem steg — snappa .45–.55 till närmaste) ────────────────
      1 display (#fff, ENDAST Bebas-rubriker) · 2 brödtext · 3 sekundär ≥.5
@@ -1117,6 +1123,7 @@
   --rq-tier-legendary-fg: #8a5420;
   --rq-tier-legendary-stroke: rgb(138 84 32 / .85);
   --rq-tier-ribbon-tint:  .14;
+  --rq-tier-major-send:   #b0380a;                    /* Major-SEND: --rq-tier-major-fg (#c2410c) ger bara 4.58:1 mot det tonade kortet; #b0380a ger 5.44:1 */
 
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;

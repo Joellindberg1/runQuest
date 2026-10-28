@@ -234,7 +234,7 @@ export default {
         },
       }),
     },
-    { files: ["src/features/challenges/duels.css"], rules: designRules({ locals: ["rq-duels-tier", "rq-duels-tier-fg", "rq-duels-tier-rgb", "rq-duels-tier-stroke", "rq-edge", "rq-edge-line"], zIndex: ["66"] }) },
+    { files: ["src/features/challenges/duels.css"], rules: designRules({ locals: ["rq-duels-tier", "rq-duels-tier-fg", "rq-duels-tier-rgb", "rq-duels-tier-send", "rq-duels-tier-stroke", "rq-edge", "rq-edge-line"], zIndex: ["66"] }) },
     {
       // Ingen rörelse alls (varken animation eller @keyframes), ingen tonad text i --rq-text-5 (dekornivå, WCAG) och radien är alltid en token.
       files: ["src/features/changelog/changelog.css", "src/features/onboarding/whatsNew.css"],

@@ -538,20 +538,24 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeEnabled();
   });
 
-  it('Send på ett kort i tokens-panelen öppnar sheeten med nivån och kortet förvalda', async () => {
+  it('send on a token card preselects that tier and token', async () => {
     renderDuels();
     await screen.findByText('2 live · 5 tokens');
     fireEvent.click(screen.getByRole('button', { name: 'Major ×1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Send Most km, 10 days' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send a major challenge: Most km, 10 days' }));
     expect(location()).toBe('/duels?send=1');
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
+    // Exactly that card is chosen: the major token is the only pressed card in the sheet.
+    expect(within(sheet()).getAllByRole('button', { pressed: true }).map((button) => button.textContent)).toEqual([
+      'Major' + 'Most km' + 'Runs for 10 days' + '+0.25× for 10 days' + '−0.12× for 10 days',
+    ]);
   });
 
   it('Send på ett av flera kort på nivån förväljer just det kortet', async () => {
     renderDuels();
     await screen.findByText('2 live · 5 tokens');
-    fireEvent.click(screen.getByRole('button', { name: 'Send Most runs, 5 days' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send a minor challenge: Most runs, 5 days' }));
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(within(sheet()).getAllByRole('button', { pressed: true }).map((button) => button.textContent)).toEqual([
       'Minor' + 'Most runs' + 'Runs for 5 days' + '+0.15× for 5 days' + '−0.07× for 5 days',
@@ -634,7 +638,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     );
     await screen.findByText('2 live · 5 tokens');
     fireEvent.click(screen.getByRole('button', { name: 'Major ×1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Send Most km, 10 days' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send a major challenge: Most km, 10 days' }));
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(within(sheet()).getByRole('button', { name: 'Close' }));
@@ -654,7 +658,7 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
 
     // Första öppningen: nivån major har ett ensamt kort, som är förvalt. Välj något annat och en motståndare.
     await user.click(screen.getByRole('button', { name: 'Major ×1' }));
-    await user.click(screen.getByRole('button', { name: 'Send Most km, 10 days' }));
+    await user.click(screen.getByRole('button', { name: 'Send a major challenge: Most km, 10 days' }));
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(within(sheet()).getByRole('button', { name: /Major/ })).toHaveAttribute('aria-pressed', 'true');
     await user.click(within(sheet()).getByRole('button', { name: /Minor.*Most runs/ }));
