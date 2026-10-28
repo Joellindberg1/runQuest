@@ -180,7 +180,7 @@
 .rq-duels-chips > .rq-duels-chip[aria-pressed="true"] {
   background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border-color: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge)); color: var(--rq-duels-tier-fg);
 }
-.rq-duels-chips > .rq-duels-chip[aria-disabled="true"] { border-color: var(--rq-line-3); color: var(--rq-text-5); cursor: not-allowed; }
+.rq-duels-chips > .rq-duels-chip[aria-disabled="true"] { border-color: var(--rq-line-3); color: var(--rq-duels-chip-empty-fg); cursor: not-allowed; }
 /* Statusregionen finns alltid (annonseras bara om den fanns före texten) men tar ingen plats och inget flex-gap när den är tom. */
 .rq-duels-tokens__status:empty { height: 0; margin-top: calc(var(--rq-sp-10) * -1); }
 .rq-duels-tokens__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
@@ -194,7 +194,7 @@
 /* Vinst och förlust är hela fraser: om raden ändå inte ryms bryter den mellan dem, aldrig mitt i en. */
 .rq-duels-token__stake > span { white-space: nowrap; }
 .rq-duels-token__send {
-  display: inline-flex; align-items: center; min-height: var(--rq-control-hit); padding: var(--rq-sp-4) var(--rq-sp-6); cursor: pointer; background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tint-selected));
+  display: inline-flex; align-items: center; min-height: var(--rq-control-hit); padding: var(--rq-sp-4) var(--rq-sp-6); cursor: pointer; background: none;
   border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-edge-selected)); color: var(--rq-duels-tier-fg);
   font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase;
 }
