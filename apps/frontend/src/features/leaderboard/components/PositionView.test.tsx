@@ -152,13 +152,15 @@ describe('PositionView', () => {
       expect(container).toBeEmptyDOMElement();
     });
 
-    it('explains a group with no finished week with the shared message, and still shows Current order', () => {
+    it('explains a group with no finished week with the shared message, and still shows Current order as the plain order, with nothing to pick', () => {
       renderView(responseOf(weeksOf(1, 34), [runnerOf('u-ada', 'Ada Lund', [1]), runnerOf(ME_ID, 'Joel Lindberg', [2])]));
 
       expect(screen.getByText(NO_FINISHED_WEEK_MESSAGE)).toBeInTheDocument();
       expect(screen.queryByRole('img')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Show as/ })).not.toBeInTheDocument();
-      expect(screen.getAllByRole('button')).toHaveLength(2);
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('listitem')).toHaveLength(2);
+      expect(screen.queryByText('Pick a runner to lift their line.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Shown')).not.toBeInTheDocument();
     });
 
     it('draws two runners with one finished week', () => {

@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PositionHistoryResponse } from '@runquest/shared';
 import { buildPositionChart } from '../positionChartModel';
@@ -15,6 +15,43 @@ const renderCard = (data: PositionHistoryResponse = six(), selectedId: string | 
   const model = buildPositionChart(data, { meId: ME_ID, mobile: true, selectedId });
   return { model, ...render(<PositionChartCard model={model} />) };
 };
+
+// jsdom har ingen layout. Tabellens yta lånar ut sina mått, och en ResizeObserver som provet styr säger till när de ändras (kortet byter bredd, tabellen öppnas).
+const layout = { client: 0, scroll: 0 };
+const resizeCallbacks = new Set<() => void>();
+class ControlledResizeObserver {
+  private readonly callback: () => void;
+  constructor(callback: () => void) {
+    this.callback = callback;
+  }
+  observe() {
+    resizeCallbacks.add(this.callback);
+  }
+  unobserve() {}
+  disconnect() {
+    resizeCallbacks.delete(this.callback);
+  }
+}
+const isTableSlot = (element: Element) => element.classList.contains('rq-board-position__table-slot');
+const resizeCard = () => act(() => resizeCallbacks.forEach((callback) => callback()));
+const tableScrolls = (scrolls: boolean) => {
+  layout.client = 300;
+  layout.scroll = scrolls ? 560 : 300;
+};
+
+beforeEach(() => {
+  layout.client = 0;
+  layout.scroll = 0;
+  vi.stubGlobal('ResizeObserver', ControlledResizeObserver);
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) { return isTableSlot(this) ? layout.client : 0; } });
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get(this: HTMLElement) { return isTableSlot(this) ? layout.scroll : 0; } });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resizeCallbacks.clear();
+  Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollWidth');
+});
 
 describe('PositionChartCard', () => {
   describe('text alternative', () => {
@@ -46,7 +83,8 @@ describe('PositionChartCard', () => {
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
     });
 
-    it('puts the table in a focusable, named scroll region, so a long period scrolls inside the card and not the page', async () => {
+    it('puts the table in a focusable, named scroll region when it is wider than the card, so a long period scrolls inside the card and not the page', async () => {
+      tableScrolls(true);
       const user = userEvent.setup();
       const { container } = renderCard();
       await user.click(screen.getByRole('button', { name: 'Show as table' }));
@@ -55,6 +93,47 @@ describe('PositionChartCard', () => {
       expect(slot).toHaveAttribute('tabindex', '0');
       expect(screen.getByRole('region', { name: 'Position per week, weeks 27 to 34. Week 34 is this week so far.' })).toBe(slot);
       expect(slot).toContainElement(screen.getByRole('table'));
+    });
+
+    it('gives the table no tab stop when it fits in the card, but keeps the named region', async () => {
+      tableScrolls(false);
+      const user = userEvent.setup();
+      const { container } = renderCard();
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+
+      const slot = container.querySelector<HTMLElement>('.rq-board-position__table-slot')!;
+      expect(slot).not.toHaveAttribute('tabindex');
+      expect(screen.getByRole('region', { name: 'Position per week, weeks 27 to 34. Week 34 is this week so far.' })).toBe(slot);
+    });
+
+    it('adds the tab stop when the card narrows so that the table scrolls, and takes it away again when the card widens', async () => {
+      tableScrolls(false);
+      const user = userEvent.setup();
+      const { container } = renderCard();
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+      const slot = container.querySelector<HTMLElement>('.rq-board-position__table-slot')!;
+      expect(slot).not.toHaveAttribute('tabindex');
+
+      tableScrolls(true);
+      resizeCard();
+      expect(slot).toHaveAttribute('tabindex', '0');
+
+      tableScrolls(false);
+      resizeCard();
+      expect(slot).not.toHaveAttribute('tabindex');
+    });
+
+    it('measures the table again when it is opened, because a hidden region has no width to measure', async () => {
+      const user = userEvent.setup();
+      const { container } = renderCard();
+      const slot = container.querySelector<HTMLElement>('.rq-board-position__table-slot')!;
+      expect(slot).not.toHaveAttribute('tabindex');
+
+      tableScrolls(true);
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+      resizeCard();
+
+      expect(slot).toHaveAttribute('tabindex', '0');
     });
 
     it('has no tab stop for the table while it is hidden', () => {
@@ -125,6 +204,19 @@ describe('PositionChartCard', () => {
 
       expect(screen.getByRole('heading', { name: 'Position over time' })).toBeInTheDocument();
       expect(screen.getByText(/Read every Sunday midnight/)).toBeInTheDocument();
+    });
+
+    it('keeps each separator with the part that follows it, so that a narrow line never ends on a lone "·"', () => {
+      const { container } = renderCard();
+
+      const eyebrow = container.querySelector('.rq-board-position__eyebrow')!;
+      expect(Array.from(eyebrow.children).filter((child) => child.textContent === '·')).toEqual([]);
+      for (const text of ['week 27-34', 'Read every Sunday midnight']) {
+        const part = screen.getByText(text).parentElement!;
+        expect(part).toHaveClass('rq-board-position__part');
+        expect(part.firstElementChild).toHaveTextContent('·');
+        expect(part.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+      }
     });
 
     it('shows the visual period in the eyebrow and hides it from the screen reader, because the image text carries the period', () => {
