@@ -1,0 +1,79 @@
+/* Profilens positionsgraf (Position-fliken). ENDAST tokens (regel 1): måtten och färgrollerna (--rq-profile-position-*) bor i temafilen, sektion 1.26
+   (index.css + docs/design/temafil-forslag.css). Filen laddas tillsammans med den lazy-laddade komponenten och ligger därför aldrig i
+   landningens eller profilens huvudbunt. Ingen rörelse: linjen ritas en gång och inget animeras (inte heller under prefers-reduced-motion). */
+
+.rq-profile-position { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
+
+/* Huvud: den levande placeringen och perioden */
+.rq-profile-position__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-4) var(--rq-sp-12); }
+.rq-profile-position__now { font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-display); color: var(--rq-gold-text); }
+.rq-profile-position__period {
+  min-width: 0; margin-left: auto; text-align: right; overflow-wrap: anywhere;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-eyebrow);
+}
+
+/* Ytan: ett fält med en marginal runt (dottens radie plus luft), så ingen dotta klipps. Linje, dottar och veckoetiketter delar fältets mått. */
+.rq-profile-position__plot { position: relative; height: var(--rq-profile-position-h); }
+.rq-profile-position__field { position: absolute; inset: var(--rq-profile-position-pad-y) var(--rq-profile-position-pad-x); }
+.rq-profile-position__grid {
+  position: absolute; left: calc(var(--rq-profile-position-pad-x) * -1); right: calc(var(--rq-profile-position-pad-x) * -1);
+  top: calc(var(--y) * 100%); height: var(--rq-hair); background: var(--rq-profile-position-grid);
+}
+.rq-profile-position__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rq-profile-position__line, .rq-profile-position__dashed {
+  fill: none; stroke: var(--rq-profile-position-line); stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke;
+}
+.rq-profile-position__line { stroke-width: var(--rq-profile-position-line-w); }
+.rq-profile-position__dashed { stroke-width: var(--rq-profile-position-dash-w); stroke-dasharray: var(--rq-profile-position-dash); }
+
+/* Dotten: guldring på alla, fylld guld på #1-veckor, streckad ring (ihålig) för den pågående veckan */
+.rq-profile-position__dot {
+  position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); transform: translate(-50%, -50%);
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  width: var(--rq-profile-position-dot); height: var(--rq-profile-position-dot); border-radius: var(--rq-radius-round);
+  background: var(--rq-profile-position-dot-core); color: var(--rq-profile-position-dot-ink);
+  font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-profile-position-dot-fs); line-height: var(--rq-lh-tight);
+}
+.rq-profile-position__dot[data-ring="true"] { border: var(--rq-profile-position-ring-w) solid var(--rq-profile-position-line); }
+.rq-profile-position__dot[data-filled="true"] { background: var(--rq-profile-position-line); color: var(--rq-profile-position-dot-on-fill); }
+.rq-profile-position__dot[data-hollow="true"] { border-style: dashed; }
+
+/* Veckoetiketter (W27…) under dottarna; den pågående veckan lite starkare */
+.rq-profile-position__weeks { position: relative; height: var(--rq-fs-eyebrow); margin-top: var(--rq-sp-8); }
+.rq-profile-position__weeks .rq-profile-position__field { inset: 0 var(--rq-profile-position-pad-x); }
+.rq-profile-position__week {
+  position: absolute; left: calc(var(--x) * 100%); transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-name); color: var(--rq-text-4);
+}
+.rq-profile-position__week[data-current="true"] { color: var(--rq-text-2); }
+
+/* Förklaringen till den ihåliga dotten */
+.rq-profile-position__legend { display: flex; align-items: center; gap: var(--rq-sp-8); margin: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-profile-position-label); }
+.rq-profile-position__swatch {
+  box-sizing: border-box; flex: 0 0 auto; width: var(--rq-fs-label); height: var(--rq-fs-label); border-radius: var(--rq-radius-round);
+  border: var(--rq-profile-position-ring-w) dashed var(--rq-profile-position-line);
+}
+
+/* Under en avdelare: Best, Lowest, Now */
+.rq-profile-position__stats {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--rq-sp-4) var(--rq-sp-12);
+  padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body);
+}
+.rq-profile-position__stat-label { color: var(--rq-profile-position-label); }
+.rq-profile-position__stat-value { color: var(--rq-text-2); }
+.rq-profile-position__stat[data-tone="gold"] .rq-profile-position__stat-value { color: var(--rq-gold-text); }
+
+/* Show as table */
+.rq-btn.rq-profile-position__toggle { align-self: flex-end; min-height: var(--rq-profile-position-toggle-h); color: var(--rq-profile-position-label); }
+.rq-btn.rq-profile-position__toggle:hover { color: var(--rq-text-2); }
+.rq-profile-position__table-slot { min-width: 0; }
+.rq-profile-position__table { width: 100%; border-collapse: collapse; font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); }
+.rq-profile-position__table th, .rq-profile-position__table td {
+  padding: var(--rq-sp-6) var(--rq-sp-8); text-align: left; font-weight: 400; color: var(--rq-text-2); border-bottom: var(--rq-hair) solid var(--rq-line-1);
+}
+.rq-profile-position__table thead th {
+  font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); border-bottom-color: var(--rq-line-4);
+}
+.rq-profile-position__table tr[data-current="true"] td { font-style: italic; }
+.rq-profile-position__note { color: var(--rq-profile-position-label); }
+.rq-profile-position__footnote { margin: var(--rq-sp-8) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-profile-position-label); }

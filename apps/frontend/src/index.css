@@ -516,6 +516,22 @@
   --rq-profile-heat-cell: 8px;                                        /* heatmapens ruta (desktop 11) */
   --rq-profile-heat-gap: 2px;                                         /* ruta ↔ ruta (båda prototyperna 2 px) */
   --rq-profile-heat-stagger: .02s;                                    /* veckokolumnernas fördröjning när rutnätet växer in (en gång) */
+  --rq-profile-position-h: 132px;                                     /* positionsgrafens yta: rader + dottar (desktop 170) */
+  --rq-profile-position-pad-x: 14px;                                  /* sidomarginal i fältet = dottens radie + luft, så ingen dotta klipps */
+  --rq-profile-position-pad-y: 16px;                                  /* översta/nedersta radens avstånd till kanten */
+  --rq-profile-position-dot: 24px;                                    /* dottens diameter (ägarbeslut: minst 24) */
+  --rq-profile-position-dot-fs: 11px;                                 /* siffran i dotten (desktop 12; aldrig under 11) */
+  --rq-profile-position-ring-w: var(--rq-edge-w-thin);                /* guldringen runt dotten */
+  --rq-profile-position-line-w: 2px;                                  /* heldragen linje */
+  --rq-profile-position-dash-w: 1.5px;                                /* streckad etapp till den pågående veckan */
+  --rq-profile-position-dash: 3 4;                                    /* streckmönstret */
+  --rq-profile-position-toggle-h: 44px;                               /* "Show as table": träffyta (desktop 36) */
+  --rq-profile-position-line: var(--rq-gold);                         /* linje, ring och fylld dotta */
+  --rq-profile-position-grid: var(--rq-line-2);                       /* rutnätsrader */
+  --rq-profile-position-dot-core: var(--rq-bg-shell);                 /* dottens kärna (täcker linjen) */
+  --rq-profile-position-dot-ink: var(--rq-gold-text);                 /* siffran i en dotta med ring */
+  --rq-profile-position-dot-on-fill: var(--rq-on-gold);               /* siffran i den fyllda guldpunkten (ljust: text-1, vitt på brons ger bara 3,2:1) */
+  --rq-profile-position-label: var(--rq-text-3);                      /* legenden, "Best"/"Lowest"/"Now" och "Show as table" (ljust: text-4, .6 ger bara 4,2:1) */
   --rq-profile-sheet-w: min(100%, var(--rq-shell-narrow-max));        /* redigera/radera: bottensheet (mobil) → centrerad dialog (desktop) */
   --rq-profile-sheet-top: auto;
   --rq-profile-sheet-bottom: 0;
@@ -946,6 +962,9 @@
     --rq-profile-journey-row-2: 46px;
     --rq-profile-journey-label-h: 13px;
     --rq-profile-heat-cell: 11px;
+    --rq-profile-position-h: 170px;
+    --rq-profile-position-dot-fs: 12px;
+    --rq-profile-position-toggle-h: 36px;
     --rq-profile-sheet-w: min(480px, 95vw);
     --rq-profile-sheet-top: 50%;
     --rq-profile-sheet-bottom: auto;
@@ -1168,6 +1187,8 @@
   --rq-text-2: #26231f;
   --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .55);
+  --rq-profile-position-dot-on-fill: var(--rq-text-1);   /* #26231f på brons: 4,9:1 */
+  --rq-profile-position-label: var(--rq-text-4);               /* ≥ 4,5:1 mot vitt kort */
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);

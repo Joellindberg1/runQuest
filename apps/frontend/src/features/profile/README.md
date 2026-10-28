@@ -25,13 +25,20 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
     Vymodellen (`buildRunTime`, `buildRunTimeSummary` i `profileModel`) använder bara `summariseRunTime`/`paceSecPerKm` (shared) och `runTimeFormat`; saknad, null, 0, NaN eller negativ tid ger "—" med dold text
     "no time recorded", och "based on N of M runs" visas bara när N < M. Skärmläsaren får en mening per rad/summa (från en timme med ord: "1 hour 9 minutes 40 seconds"), de synliga fälten är `aria-hidden`.
     `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
+  - `PositionChart` — Position-flikens graf (RUN-401; fliken själv är RUN-402): en handritad SVG (ingen diagramlib) ur `positionModel`, som prop. Linjen är en SVG som sträcks över ytan (`non-scaling-stroke`), dottarna är HTML ovanpå
+    (24 px, siffran `aria-hidden`), veckoetiketterna `W27…` sitter under och axelsiffror saknas. `role="img"` bär en mening (`summary`), "Show as table" (`aria-expanded`) visar en `<table>` med rubrikceller. `hidden` ritar ingenting,
+    `new-runner` och `no-finished-week` ger modellens text i stället för graf. Ritas en gång, inget rör sig. Komponenten ska laddas med `React.lazy` (dynamisk import) av fliken och får aldrig hamna i landningens eller profilens huvudbunt;
+    den har egen stilfil, `positionChart.css`, som följer med chunken. Tokens `--rq-profile-position-*` (index.css sektion 1.26 + temafilen). `<svg>` är undantaget i `eslint.config.js` (måste vara `aria-hidden`).
 - **profileModel.ts** — hjälte/celler/titlar (via runnerModel), rundrader, redigeringsregler, bekräftelsetexter, XP-uppräkning, bildvalidering
 - **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS`
 - **heatmapModel.ts** — Consistency-rutnätet och dess tre siffror
 - **frodoModel.ts** — waypoint-/viewport-matematiken; delas med Runner card
+- **positionModel.ts** — Position-flikens vymodell ur `PositionHistoryResponse` (lägen `hidden`/`no-finished-week`/`new-runner`/`ready`, axel, dottar, linje, Best/Lowest/Now, meningen och tabellen). Perioden (`range`) och veckoetiketterna kommer ur
+  leaderboardens `positionWeekLabels`, texterna för den pågående veckan ("this week so far") och tankstrecket (`—`, "not in the group yet", fotnoten) ur `leaderboard/positionTexts` — delade med leaderboardens `positionChartModel`,
+  så att båda skriver samma sak om samma svar (testet `positionTextsAgree` matar samma svar genom båda)
 - **profileFormat.ts** — "1 day"/"19 days"; tal, km och månadsnamn ligger i shared/utils/format
 - **hooks/** — `useRunChanges` (`useUpdateRun`/`useDeleteRun`), `useProfilePictureUpload`
-- `profile.css` — enda stilfilen; mått (`--rq-profile-*`) i temafilen, sektion 1.26 (index.css + docs/design/temafil-forslag.css)
+- `profile.css` — stilfilen för skärmen (utom positionsgrafen, som har `positionChart.css`); mått (`--rq-profile-*`) i temafilen, sektion 1.26 (index.css + docs/design/temafil-forslag.css)
 - `profile.fixture.ts` — testdata (rundor, användare)
 
 ## Regler värda att komma ihåg

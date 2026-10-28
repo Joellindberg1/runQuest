@@ -445,7 +445,7 @@ export default tseslint.config(
       ignores: ["src/features/leaderboard/boardFormat.ts", "src/features/leaderboard/components/BoardParts.tsx", "src/features/leaderboard/hooks/useLeaderboardData.ts"],
     },
   ),
-  designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"]),
+  designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"], { ignores: ["src/features/profile/components/PositionChart.tsx"] }),
   designGroup(["src/features/runner/**/*.{ts,tsx}", "src/pages/RunnerPage.tsx"]),
   designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"]),
   designGroup(["src/features/legal/**/*.{ts,tsx}", "src/pages/LegalPage.tsx"]),
@@ -482,6 +482,12 @@ export default tseslint.config(
       ...NO_NUMBER_FORMAT,
       ...syntaxRule("Arenabanan är dekor och måste vara dold för skärmläsare (aria-hidden=\"true\").", "Program:not(:has(JSXAttribute[name.name='aria-hidden']))"),
     ],
+  }),
+  // Positionsgrafen på profilen är en handritad SVG (ingen diagramlib): en <svg> är tillåten, men den måste vara dold för skärmläsare (grafen får sin
+  // text av role="img" + aria-label och tabellen bakom "Show as table").
+  designGroup(["src/features/profile/components/PositionChart.tsx"], {
+    omit: ["svg"],
+    extra: syntaxRule("Positionsgrafens <svg> är dekor och måste vara dold för skärmläsare (aria-hidden=\"true\").", "JSXOpeningElement[name.name='svg']:not(:has(JSXAttribute[name.name='aria-hidden']))"),
   }),
   // Kända luckor som vakterna aldrig täckte och som finns kvar (ingen kodändring i det här steget). Varje fil har bara det enda undantaget.
   // - BoardParts.tsx: vimpeln ritas som en <svg> ur den delade geometrin (challengeMark).
