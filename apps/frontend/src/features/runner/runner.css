@@ -20,7 +20,7 @@
    Lagret och bredden är skalets: .rq-scrim och .rq-modal (width min(--rq-modal-w, 95vw), max-height 88vh, flex-kolumn, overflow hidden). Här läggs bara den fasta
    huvudytan (rubrik, Challenge; ✕ är .rq-modal__close, positionerad mot modalen) och ytan som scrollar: innehållet får aldrig göra dialogen högre än fönstret. */
 .rq-runner-popup__bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
-.rq-runner-popup__title { margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-3); }
+.rq-runner-popup__title { margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-2); }
 .rq-runner-popup__content { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
 
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */

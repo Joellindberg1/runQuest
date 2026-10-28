@@ -7,15 +7,15 @@ import { warmLanding } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
-// RunnerCard kastar på begäran, för att prova felgränsen runt desktop-overlayn.
-const crash = vi.hoisted(() => ({ runnerCard: false }));
-vi.mock('@/features/runner/components/RunnerCard', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/features/runner/components/RunnerCard')>();
+// RunnerPopup (desktop-overlayn) kastar på begäran, för att prova felgränsen runt den.
+const crash = vi.hoisted(() => ({ runnerPopup: false }));
+vi.mock('@/features/runner/components/RunnerPopup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/runner/components/RunnerPopup')>();
   return {
     ...actual,
-    RunnerCard: (props: Parameters<typeof actual.RunnerCard>[0]) => {
-      if (crash.runnerCard) throw new Error('runner card exploded');
-      return actual.RunnerCard(props);
+    RunnerPopup: (props: Parameters<typeof actual.RunnerPopup>[0]) => {
+      if (crash.runnerPopup) throw new Error('runner popup exploded');
+      return actual.RunnerPopup(props);
     },
   };
 });
@@ -345,7 +345,7 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
 
   it('ett fel i overlayn ger felkortet, bakgrundssidan och skalet står kvar, och Close tar en ur felläget', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    crash.runnerCard = true;
+    crash.runnerPopup = true;
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
 
     const alert = await screen.findByRole('alert');
@@ -354,7 +354,7 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
 
-    crash.runnerCard = false;
+    crash.runnerPopup = false;
     fireEvent.click(within(alert).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     await waitFor(() => expect(location()).toBe('/board'));

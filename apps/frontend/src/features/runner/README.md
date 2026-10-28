@@ -1,14 +1,16 @@
 # Runner Feature — Runner card (`/runner/:id`)
 
 Hjältekort · Frodo's journey · statflikar · titlar · head-to-head · Challenge (ADR 006 beslut 6, ADR 007 B6).
-Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop inifrån appen = overlay
-(`variant="overlay"`, "Runner profile"). Datahämtning och innehåll är gemensamma — bara ramen skiljer.
-`pages/RunnerPage.tsx` äger routing (eget id → `/profile`, okänt id → NotFound) och dialogen.
+Mobil/direktladdning = sida i skalet (`RunnerCard`, Back-knapp); desktop inifrån appen = profil-popupen (`RunnerPopup`, Radix Dialog, "Runner card"; ADR 006 addendum 2026-10-26).
+Datahämtning och paneler är gemensamma (`RunnerPanels`) — bara ramen skiljer.
+`pages/RunnerPage.tsx` äger routing (eget id → `/profile`, okänt id → NotFound) och laddar popupen lazy (`React.lazy` bakom Suspense, egen chunk).
 
 ## Struktur
 
 - **components/**
-  - `RunnerCard` — ramen + all datakoppling; renderar de fem korten och Challenge-knappen
+  - `RunnerCard` — sidan: Back-knapp, Challenge och `RunnerPanels`; `?view=` för statflikarna
+  - `RunnerPanels` — panelerna (hjälte · journey · statflikar | titlar · badges | head to head) och all deras datakoppling; delas av sidan och popupen
+  - `RunnerPopup` — profil-popupen, lazy: dialogramen (Radix Dialog över `.rq-scrim`/`.rq-modal`, bredd `--rq-modal-w`) med fast huvudyta (rubriken "Runner card", Challenge, ✕) och en scrollande yta (`.rq-runner-popup__content`) för innehållet. Fokus in = rubriken (`tabIndex={-1}`); fokus tillbaka = första synliga `[data-runner-id]` för löparen efter stängning (`onCloseAutoFocus`; Challenge-navigering undantagen). Statfliken är komponenttillstånd (`key={id}`), aldrig `?view=`. Tills flikarna (378·S6–S11) är byggda ritar den `RunnerPanels`
   - `HeroCard` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn + badge-minis (`BadgeMinis`)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop)
   - `JourneyCard` — Frodo: enkel stapel (mobil) eller zoombar väg med waypoints (desktop); matematiken i `features/profile/frodoModel`
   - `StatsPanel` — `ViewTabs variant="underline"`, kontrollerad: `RunnerCard` äger `?view=` (`distance` · `streak` · `fun`, default distance; listan i `statViews.ts`)
@@ -29,7 +31,8 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
   Rundor utan `start_time` (manuell loggning) kan inte bevisa avståndet och räknas inte.
 - **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel, så att ett nätverksfel inte blir "No titles".
   Enheten på värdena kommer från `metric_key` i `/titles/leaderboard`; saknas den visas bara talet.
-- `useViewParam` bär med sig router-state, annars tappar overlayn sin `background` när statfliken byts.
+- `useViewParam` (sidan) bär med sig router-state. Popupen använder inte `?view=`: dess flikar är komponenttillstånd som nollställs vid varje öppning.
+- Id-prefixet i `StatsPanel` här är `runner-stats`; profilens panel har `profile-stats`. Popupen öppnas bara från ytor med `data-runner-id`-rader (Board, Log, Duels och preview-widgeten), och ingen av dem ritar någon av panelerna; sidan och popupen finns aldrig samtidigt (bakgrunden är aldrig en `/runner/`-adress).
 - Dynamiska värden går in via `cssVars()` (`--w`, `--x`, `--rq-ring-p`); inga inline-färger/mått (guards.test).
 - **Andras badges (RUN-130, spec F4, Council 1/13/16):** `RunnerCard` hämtar `useUserBadges(user.id)` (löparens samling, inget `seen_tier`) och `useGroupBadges()` — båda ur
   badge-hookarna, så query-nycklarna (`BADGE_QUERY_KEYS`) aldrig krockar med Runner/Duels. `buildRunnerBadges` (badges/badgeModel) ger minis (de visade) och panelrader
