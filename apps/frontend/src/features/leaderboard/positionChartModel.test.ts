@@ -350,10 +350,10 @@ describe('role img text', () => {
     data.runners.forEach((r) => r.positions.unshift(r.positions[0]));
     const model = buildPositionChart(data, OPTIONS);
 
-    expect(model.range).toBe('week 52, 2026 – week 1, 2027');
+    expect(model.range).toBe('week 52, 2026 - week 1, 2027');
     expect(model.spokenRange).toBe('week 52, 2026 to week 1, 2027');
     expect(model.ariaLabel).toContain('week 52, 2026 to week 1, 2027');
-    expect(model.ariaLabel).not.toContain('–');
+    expect(model.ariaLabel).not.toContain(model.range);
     expect(model.ariaLabel).toContain('Week 1, 2027 is this week so far');
   });
 });

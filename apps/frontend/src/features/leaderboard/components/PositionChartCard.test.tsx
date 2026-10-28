@@ -23,12 +23,15 @@ describe('PositionChartCard', () => {
       const { container } = renderCard();
 
       const button = screen.getByRole('button', { name: 'Show as table' });
+      expect(button).toHaveAttribute('aria-expanded', 'false');
       expect(button.getAttribute('aria-controls')).toBe(container.querySelector('.rq-board-position__table-slot')!.id);
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
       expect(screen.getByRole('img')).toBeVisible();
 
       await user.click(button);
 
+      expect(button).toHaveAccessibleName('Show as table');
+      expect(button).toHaveAttribute('aria-expanded', 'true');
       const table = screen.getByRole('table', { name: 'Position per week, weeks 27 to 34. Week 34 is this week so far.' });
       expect(screen.queryByRole('img')).not.toBeInTheDocument();
       const rows = within(table).getAllByRole('row').slice(1);
@@ -37,9 +40,42 @@ describe('PositionChartCard', () => {
       expect(within(rows[0]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['#2', '#2', '#1', '#2', '#2', '#2', '#2', '#1']);
       expect(within(rows[1]).getByRole('rowheader')).toHaveTextContent('(you)');
 
-      await user.click(screen.getByRole('button', { name: 'Show as chart' }));
+      await user.click(button);
+      expect(button).toHaveAttribute('aria-expanded', 'false');
       expect(screen.getByRole('img')).toBeVisible();
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('puts the table in a focusable, named scroll region, so a long period scrolls inside the card and not the page', async () => {
+      const user = userEvent.setup();
+      const { container } = renderCard();
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+
+      const slot = container.querySelector<HTMLElement>('.rq-board-position__table-slot')!;
+      expect(slot).toHaveAttribute('tabindex', '0');
+      expect(screen.getByRole('region', { name: 'Position per week, weeks 27 to 34. Week 34 is this week so far.' })).toBe(slot);
+      expect(slot).toContainElement(screen.getByRole('table'));
+    });
+
+    it('has no tab stop for the table while it is hidden', () => {
+      const { container } = renderCard();
+
+      expect(container.querySelector('.rq-board-position__table-slot')).toHaveAttribute('hidden');
+      expect(screen.queryByRole('region', { name: /Position per week/ })).not.toBeInTheDocument();
+    });
+
+    it('keeps one column per week for the longest period of 26 weeks, and the table sits in the scroll region', async () => {
+      const user = userEvent.setup();
+      const long = responseOf(weeksOf(26, 9), [
+        runnerOf('u-ada', 'Ada Lund', Array.from({ length: 26 }, () => 1)),
+        runnerOf(ME_ID, 'Joel Lindberg', Array.from({ length: 26 }, () => 2)),
+      ]);
+      const { container } = renderCard(long);
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+
+      const table = screen.getByRole('table');
+      expect(within(table).getAllByRole('columnheader')).toHaveLength(27);
+      expect(container.querySelector('.rq-board-position__table-slot')).toContainElement(table);
     });
 
     it('reads the weeks in the table as "week 27" and names the week in progress', async () => {
@@ -94,7 +130,7 @@ describe('PositionChartCard', () => {
     it('shows the visual period in the eyebrow and hides it from the screen reader, because the image text carries the period', () => {
       renderCard();
 
-      const range = screen.getByText('week 27–34');
+      const range = screen.getByText('week 27-34');
       expect(range).toHaveAttribute('aria-hidden', 'true');
       expect(screen.getByRole('img').getAttribute('aria-label')).toContain('weeks 27 to 34');
     });
@@ -102,7 +138,7 @@ describe('PositionChartCard', () => {
     it('names the years in the visible period across the year boundary, week 53 included', () => {
       renderCard(responseOf(YEAR_END_WEEKS, [runnerOf('u-ada', 'Ada Lund', [1, 1, 2, 1, 1, 1, 1, 1]), runnerOf(ME_ID, 'Joel Lindberg', [2, 2, 1, 2, 2, 2, 2, 2])]));
 
-      expect(screen.getByText('week 50, 2026 – week 4, 2027')).toBeInTheDocument();
+      expect(screen.getByText('week 50, 2026 - week 4, 2027')).toBeInTheDocument();
       expect(screen.getByRole('img').getAttribute('aria-label')).toContain('week 50, 2026 to week 4, 2027');
     });
 

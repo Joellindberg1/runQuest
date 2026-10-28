@@ -87,7 +87,7 @@ export interface PositionTableRow {
 export interface PositionGraphModel {
   mode: 'ready';
   columns: PositionColumn[];
-  /** Den synliga perioden (eyebrowen): "week 27–34", över årsskiftet "week 50, 2026 – week 4, 2027". */
+  /** Den synliga perioden (eyebrowen): "week 27-34", över årsskiftet "week 50, 2026 - week 4, 2027". */
   range: string;
   /** Samma period som skärmläsaren får (meningen och captionen): "weeks 27 to 34", över årsskiftet "week 52, 2026 to week 1, 2027". */
   spokenRange: string;

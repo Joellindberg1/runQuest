@@ -2,7 +2,7 @@ import type { PositionHistoryResponse, PositionRunner } from '@runquest/shared';
 import { getInitials } from '@/shared/utils/formatters';
 import { firstName } from '@/shared/utils/format';
 import { positionWeekLabels } from './positionWeekLabels';
-import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from './positionTexts';
+import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, YOU_MARKER, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from './positionTexts';
 
 // Vymodellen för leaderboardens positionsgraf (Position-fliken). Ren: ingen React, ingen klocka och ingen färg per löpare (komponenten väljer
 // guld för `isMe`, neutralt för resten och ca 25 % opacitet för `dimmed`). Tiden, veckorna och ordningen kommer ur svaret.
@@ -158,7 +158,7 @@ export interface PositionChartModel {
   /** Vald löpares id, annars null. */
   selectedId: string | null;
   weeks: ChartWeek[];
-  /** "week 27–34", över årsskiftet "week 50, 2026 – week 4, 2027". */
+  /** "week 27-34", över årsskiftet "week 50, 2026 - week 4, 2027". */
   range: string;
   /** Samma period för skärmläsaren (aria-label och captionen): "weeks 27 to 34", över årsskiftet "week 52, 2026 to week 1, 2027". */
   spokenRange: string;
@@ -325,7 +325,7 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
 
   const standing = (runner: PositionRunner) => {
     const live = runner.positions[weekCount - 1] ?? null;
-    return `${runner.name}${runner.user_id === options.meId ? ' (you)' : ''} ${live === null ? '(no placement)' : `#${live}`}`;
+    return `${runner.name}${runner.user_id === options.meId ? ` ${YOU_MARKER}` : ''} ${live === null ? '(no placement)' : `#${live}`}`;
   };
   const lastWeek = weeks[weekCount - 1];
   const ariaLabel =

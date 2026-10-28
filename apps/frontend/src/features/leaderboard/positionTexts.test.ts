@@ -5,6 +5,7 @@ import {
   NOT_IN_GROUP_FOOTNOTE,
   NOT_IN_GROUP_SPOKEN,
   NO_FINISHED_WEEK_MESSAGE,
+  YOU_MARKER,
   currentWeekSentence,
   placementText,
   spokenPlacementText,
@@ -21,6 +22,10 @@ describe('positionTexts', () => {
 
   it('owns the message for a group with no finished week yet, for the profile and the leaderboard', () => {
     expect(NO_FINISHED_WEEK_MESSAGE).toBe('No finished week yet. Position shows where you stood at the end of each week.');
+  });
+
+  it('owns the word that marks the signed-in runner in spoken and table text', () => {
+    expect(YOU_MARKER).toBe('(you)');
   });
 
   it('writes a placement as #N and a week without one as the dash', () => {

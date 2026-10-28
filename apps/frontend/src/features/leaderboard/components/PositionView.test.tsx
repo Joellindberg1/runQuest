@@ -82,7 +82,7 @@ describe('PositionView', () => {
 
       await user.click(screen.getByRole('button', { name: /Adam Einstein/ }));
       await user.click(screen.getByRole('button', { name: 'Show as table' }));
-      await user.click(screen.getByRole('button', { name: 'Show as chart' }));
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
 
       expect(lineOf(container, 'u-adam')).toHaveAttribute('data-selected', 'true');
     });

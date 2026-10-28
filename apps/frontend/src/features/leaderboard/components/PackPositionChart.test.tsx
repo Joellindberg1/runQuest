@@ -38,7 +38,7 @@ describe('PackPositionChart', () => {
       const { model } = renderChart(six());
 
       expect(model.ariaLabel).toContain('weeks 27 to 34');
-      expect(model.ariaLabel).not.toMatch(/W2\d|27–34/);
+      expect(model.ariaLabel).not.toMatch(/W2\d|27-34/);
     });
 
     it('hides the axis numbers, the dots, the week labels, the names and the initials from the screen reader', () => {

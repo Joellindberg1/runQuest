@@ -107,7 +107,10 @@
 }
 
 /* ── Tabellen ─────────────────────────────────────────────────────────────── */
-.rq-board-position__table-slot { min-width: 0; }
+/* En period på upp till 26 veckor har 26 kolumner: tabellen scrollar i sin egen yta (fokusbar region med inåtriktad ring) i stället för att göra sidan bredare. */
+/* position: relative gör ytan till innehållsblock för de skärmläsarbara (sr-only, absolut placerade) cellerna, annars sticker de ut ur ytan och vidgar sidan. */
+.rq-board-position__table-slot { position: relative; min-width: 0; overflow-x: auto; }
+.rq-board-position__table-slot:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
 .rq-board-position__table { width: 100%; border-collapse: collapse; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-variant-numeric: tabular-nums; }
 .rq-board-position__table th, .rq-board-position__table td {
   padding: var(--rq-sp-6) var(--rq-sp-2); text-align: center; font-weight: 400; color: var(--rq-text-2); border-bottom: var(--rq-hair) solid var(--rq-line-2);

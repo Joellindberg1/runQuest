@@ -14,6 +14,7 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
   const [tableOpen, setTableOpen] = useState(false);
   const tableId = useId();
   const headingId = useId();
+  const captionId = useId();
   if (model.mode === 'hidden') return null;
   const drawn = model.mode === 'chart';
 
@@ -24,8 +25,8 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
           Position over time
         </h2>
         {drawn && (
-          <button type="button" className="rq-btn rq-btn--link rq-board-position__toggle" aria-controls={tableId} onClick={() => setTableOpen((open) => !open)}>
-            {tableOpen ? 'Show as chart' : 'Show as table'}
+          <button type="button" className="rq-btn rq-btn--link rq-board-position__toggle" aria-controls={tableId} aria-expanded={tableOpen} onClick={() => setTableOpen((open) => !open)}>
+            Show as table
           </button>
         )}
       </header>
@@ -44,8 +45,8 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
           <div hidden={tableOpen}>
             <PackPositionChart model={model} />
           </div>
-          <div id={tableId} className="rq-board-position__table-slot" hidden={!tableOpen}>
-            {model.table && <PositionHistoryTable table={model.table} />}
+          <div id={tableId} className="rq-board-position__table-slot" role="region" aria-labelledby={captionId} tabIndex={0} hidden={!tableOpen}>
+            {model.table && <PositionHistoryTable table={model.table} captionId={captionId} />}
           </div>
         </>
       ) : (

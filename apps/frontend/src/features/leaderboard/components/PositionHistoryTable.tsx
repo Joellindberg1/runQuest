@@ -1,14 +1,15 @@
 import type { PositionTableModel } from '../positionChartModel';
+import { YOU_MARKER } from '../positionTexts';
 
 // Samma data som grafen som en tabell ("Show as table"): en rad per löpare med fullt namn, en kolumn per vecka. Texterna kommer ur modellen
 // (captionen, veckornas talade form, tankstrecket och dess fotnot); här ritas bara. Veckoetiketterna och tankstrecket är dolda för skärmläsare och
 // ersätts av sin talade text ("week 27", "not in the group yet").
 
-export function PositionHistoryTable({ table }: { table: PositionTableModel }) {
+export function PositionHistoryTable({ table, captionId }: { table: PositionTableModel; captionId: string }) {
   return (
     <>
       <table className="rq-board-position__table">
-        <caption className="sr-only">{table.caption}</caption>
+        <caption id={captionId} className="sr-only">{table.caption}</caption>
         <thead>
           <tr>
             <th scope="col">Runner</th>
@@ -26,7 +27,7 @@ export function PositionHistoryTable({ table }: { table: PositionTableModel }) {
             <tr key={row.id}>
               <th scope="row" data-me={String(row.isMe)}>
                 {row.name}
-                {row.isMe && <span className="sr-only"> (you)</span>}
+                {row.isMe && <span className="sr-only"> {YOU_MARKER}</span>}
               </th>
               {row.cells.map((cell, index) => (
                 <td key={table.columns[index].weekLabel} data-current={String(cell.isCurrent)} data-empty={String(cell.position === null)}>

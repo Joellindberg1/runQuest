@@ -1,5 +1,5 @@
 // En sanning för positionstexterna. Profilens och leaderboardens vymodell skriver samma saker om samma svar: den pågående veckan, tankstrecket
-// för en vecka före inträdet (skrivet, talat och förklarat) och en placering som #N. Veckoetiketterna och den synliga perioden ("week 27–34")
+// för en vecka före inträdet (skrivet, talat och förklarat) och en placering som #N. Veckoetiketterna och den synliga perioden ("week 27-34")
 // ägs av positionWeekLabels; den här modulen äger resten av texterna, också den talade perioden, så att ingen modell formulerar egna.
 
 import { crossesIsoYear, positionWeekLabels, type LabelledWeek } from './positionWeekLabels';
@@ -9,6 +9,9 @@ export const CURRENT_WEEK_PHRASE = 'this week so far';
 
 /** Gruppen har bara den pågående veckan: ingen linje att dra än. Profilens och leaderboardens vy säger samma sak. */
 export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows where you stood at the end of each week.';
+
+/** Märker den inloggade löparen i texten som läses upp (aria-texten och tabellens radrubrik): "Joel Lindberg (you)". */
+export const YOU_MARKER = '(you)';
 
 /** Tecknet för en vecka före inträdet i gruppen. */
 export const NOT_IN_GROUP_DASH = '—';
@@ -29,7 +32,7 @@ export function spokenPlacementText(position: number | null): string {
 
 /**
  * Perioden som skärmläsaren får: "weeks 27 to 34", över årsskiftet "week 52, 2026 to week 1, 2027", en enda vecka "week 34", inga veckor ''.
- * Den visuella formen med tankstreck ("week 27–34", `range` ur positionWeekLabels) läses olika av olika skärmläsare och används bara på ytan.
+ * Den visuella formen med bindestreck ("week 27-34", `range` ur positionWeekLabels) läses olika av olika skärmläsare och används bara på ytan.
  */
 export function spokenRange(weeks: ReadonlyArray<LabelledWeek>): string {
   if (weeks.length === 0) return '';

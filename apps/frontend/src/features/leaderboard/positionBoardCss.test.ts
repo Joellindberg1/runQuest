@@ -119,6 +119,17 @@ describe('the stylesheet of the position chart', () => {
     expect(glow).toEqual([]);
   });
 
+  it('lets the table scroll inside its own focusable region instead of widening the page, with an inward focus ring', () => {
+    const slot = declarationsOf(css, '.rq-board-position__table-slot');
+    expect(slot['overflow-x']).toBe('auto');
+    expect(slot['min-width']).toBe('0');
+    // De absolut placerade sr-only-cellerna får inte läcka ut ur ytan och vidga sidan: ytan är deras innehållsblock.
+    expect(slot.position).toBe('relative');
+    const focus = declarationsOf(css, '.rq-board-position__table-slot:focus-visible');
+    expect(focus.outline).toBe('var(--rq-focus-ring)');
+    expect(focus['outline-offset']).toBe('var(--rq-focus-inset)');
+  });
+
   it('sets every font size from a token and none below 11 px', () => {
     const sizes: string[] = [];
     postcss.parse(css).walkDecls('font-size', (decl) => { sizes.push(decl.value); });
