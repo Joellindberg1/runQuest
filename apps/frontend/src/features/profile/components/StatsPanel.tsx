@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { zoneDay } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
+import { useTabRowFade } from '../hooks/useTabRowFade';
 import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
 import { Heatmap } from './Heatmap';
 import { PanelLoading } from './ProfileParts';
+import { PositionPanel } from './PositionPanel';
 
 const ID_PREFIX = 'profile-stats';
 
@@ -17,6 +19,9 @@ const STAT_TABS: readonly ViewTab<StatView>[] = [
   { key: 'fun', label: 'Fun facts', icon: 'zap' },
   { key: 'consistency', label: 'Consistency', icon: 'calendar' },
 ];
+// Prototypens trendikon (trending) finns inte i ikonsetet än; trofén är närmast (placering). Byts när ikonen läggs till.
+const POSITION_TAB: ViewTab<StatView> = { key: 'position', label: 'Position', icon: 'trophy' };
+const STAT_TABS_WITH_POSITION: readonly ViewTab<StatView>[] = [...STAT_TABS, POSITION_TAB];
 
 function Rows({ rows, label }: { rows: StatRow[]; label: string }) {
   return (
@@ -59,21 +64,39 @@ interface StatsPanelProps {
   label: string;
   /** Ankaret för sidoturen (`data-tour`); utelämnas där ingen tur pekar på panelen. */
   dataTour?: string;
+  /**
+   * Om fliken Position visas (den femte). Värden avgör det ur gruppens storlek (`showPositionTab`) och låter `?view=position` falla tillbaka när den är dold;
+   * panelen ritar aldrig positionsinnehåll för en flik som inte finns. Utelämnad = fyra flikar.
+   */
+  showPosition?: boolean;
 }
 
-/** Statflikarna Distance · Streak · Fun facts · Consistency, kontrollerade av värden (ADR 006 addendum 2026-10-26, punkt 3). */
-export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTour }: StatsPanelProps) {
+/** Statflikarna Distance · Streak · Fun facts · Consistency · Position, kontrollerade av värden (ADR 006 addendum 2026-10-26, punkt 3). */
+export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTour, showPosition = false }: StatsPanelProps) {
   const distanceRows = useMemo(() => buildDistanceRows(user, now), [user, now]);
   const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  const fade = useTabRowFade(tabRowRef, view);
 
   return (
     <section className="rq-card rq-profile-statcard" aria-label={label} data-tour={dataTour}>
-      <ViewTabs label={label} tabs={STAT_TABS} value={view} onChange={onChange} idPrefix={ID_PREFIX} variant="underline" className="rq-profile-tabs" />
+      <div ref={tabRowRef} className="rq-profile-tabs-wrap" data-fade-start={String(fade.start)} data-fade-end={String(fade.end)}>
+        <ViewTabs
+          label={label}
+          tabs={showPosition ? STAT_TABS_WITH_POSITION : STAT_TABS}
+          value={view}
+          onChange={onChange}
+          idPrefix={ID_PREFIX}
+          variant="underline"
+          className="rq-profile-tabs"
+        />
+      </div>
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, view)} className="rq-profile-panel">
         {view === 'distance' && <Rows rows={distanceRows} label="Distance" />}
         {view === 'streak' && <StreakRows user={user} now={now} />}
         {view === 'fun' && <Rows rows={funRows} label="Fun facts" />}
         {view === 'consistency' && <Heatmap user={user} today={zoneDay(now)} now={now} isDesktop={isDesktop} />}
+        {view === 'position' && <PositionPanel userId={user.id} />}
       </div>
     </section>
   );

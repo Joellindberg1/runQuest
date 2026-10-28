@@ -134,6 +134,20 @@ describe('PositionChart', () => {
       expect(screen.getByText('— = not in the group yet')).toBeInTheDocument();
     });
 
+    it('hides the visible dash of a week without placement from the screen reader and speaks "not in the group yet" instead', async () => {
+      const user = userEvent.setup();
+      render(<PositionChart model={readyOf([null, null, 3, 2, 2, 1])} />);
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+
+      const cell = within(screen.getByRole('table')).getAllByRole('row')[1].querySelector('td') as HTMLElement;
+      const dash = within(cell).getByText('—');
+      expect(dash).toHaveAttribute('aria-hidden', 'true');
+      const spoken = within(cell).getByText('not in the group yet');
+      expect(spoken).toHaveClass('sr-only');
+      expect(spoken).not.toHaveAttribute('aria-hidden');
+      expect(spoken.closest('[aria-hidden="true"]')).toBeNull();
+    });
+
     it('has no footnote when the runner has a placement every week', async () => {
       const user = userEvent.setup();
       render(<PositionChart model={readyOf([3, 2, 1, 2])} />);

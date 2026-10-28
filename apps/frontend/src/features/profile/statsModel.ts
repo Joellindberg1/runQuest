@@ -10,10 +10,28 @@ import { formatDays } from './profileFormat';
 export type { StatRow };
 export { buildDistanceRows, buildStreakRows };
 
-/** `?view=` på /profile (ADR 006 beslut 2). */
+/** De fyra flikarna som alla ser, i designens ordning. Position kommer efter dem och finns bara i en grupp på minst två (`statViewsFor`). */
 export const STAT_VIEWS = ['distance', 'streak', 'fun', 'consistency'] as const;
-export type StatView = (typeof STAT_VIEWS)[number];
+export const POSITION_VIEW = 'position';
+/** `?view=` på /profile (ADR 006 beslut 2). */
+export type StatView = (typeof STAT_VIEWS)[number] | typeof POSITION_VIEW;
 export const DEFAULT_STAT_VIEW: StatView = 'distance';
+
+/** Under två medlemmar finns inget att jämföra sig mot (ADR 007 addendum 2026-10-26: klienten döljer fliken). */
+export const MIN_MEMBERS_FOR_POSITION = 2;
+
+/**
+ * Om Position-fliken visas. Antalet kommer ur `users-with-runs`, som profilen väntar på ändå, så fliken kan döljas utan att positionssvaret
+ * hämtas för den skull.
+ */
+export function showPositionTab(memberCount: number): boolean {
+  return memberCount >= MIN_MEMBERS_FOR_POSITION;
+}
+
+/** De värden `?view=` får anta för en grupp av den här storleken: övriga (också `position` i en grupp på en) faller tillbaka på standardfliken. */
+export function statViewsFor(memberCount: number): readonly StatView[] {
+  return showPositionTab(memberCount) ? [...STAT_VIEWS, POSITION_VIEW] : STAT_VIEWS;
+}
 
 const dayOf = (run: Pick<Run, 'date'>): string => run.date.slice(0, 10);
 
