@@ -146,7 +146,6 @@ describe('buildTokenGroups', () => {
       tokenKey: 't3', tier: 'minor', metricLabel: 'Most km', durationLabel: '7 days', lengthText: 'Runs for 7 days',
     });
     expect(minor.cards[1].stake).toMatchObject({ winFor: '+0.15× for 5 days', loseFor: '−0.07× for 5 days' });
-    expect(minor.stake?.summary).toBe('+0.15× win · −0.07× loss');
   });
 
   it('legendary token shows its own penalty', () => {

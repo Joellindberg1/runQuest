@@ -117,7 +117,7 @@ export function DuelsLayout(props: DuelsLayoutProps) {
 
   const side = (
     <div className="rq-duels__side">
-      <TokensPanel groups={props.tokens} blocker={blocker} showIntro={isDesktop} onSend={props.onOpenSend} />
+      <TokensPanel groups={props.tokens} blocker={blocker} onSend={props.onOpenSend} />
       <BoostPanel boosts={props.boosts} />
       {isDesktop && <RecordPanel cells={props.record} />}
     </div>

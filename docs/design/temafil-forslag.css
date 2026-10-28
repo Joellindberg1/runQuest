@@ -378,6 +378,8 @@
   --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
   --rq-duels-token-cols: minmax(0, 1fr);                              /* send-sheet, tokenval: mobil 1 kolumn, desktop 3 */
   --rq-duels-avatar: 28px;                                            /* motståndarrad (desktop 32) */
+  --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .38);             /* text på ett tomt nivåchip (×0): dämpad men ≥ 3:1 (ljust: .55) */
+  --rq-duels-token-stake-fs: 12px;                                   /* tokenkortets insatsrad: 12 px på mobil och desktop (panelen är 320 px bred på båda och raden ska rymmas på en rad) */
   /* Send-sheet: bottensheet (mobil) → centrerad dialog (desktop) */
   --rq-duels-sheet-w: min(100%, var(--rq-shell-narrow-max));
   --rq-duels-sheet-top: auto;
@@ -1100,6 +1102,7 @@
   --rq-text-1: #26231f;
   --rq-text-2: #26231f;
   --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
+  --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .55);
   /* text-3/4/5 + line-* + fill-* + heat-* följer --rq-ink-rgb automatiskt */
   --rq-panel-border: transparent;               /* inga ytterkanter i ljust, skugga i stället */
   --rq-card-shadow:  0 2px 10px rgba(0, 0, 0, .07);
