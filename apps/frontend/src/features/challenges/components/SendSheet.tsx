@@ -75,12 +75,18 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (picked.tier !== group?.tier) setChoice(startingChoice(groups, { tier: picked.tier, tokenKey: null }));
   };
 
-  // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>). Avstängd knapp (efter en skickad utmaning) tar inte emot fokus; det är fortfarande rätt.
-  // Saknas öppnaren (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
+  // Sant från det att skicket går iväg tills det misslyckas: stänger föräldern arket under tiden är det för att utmaningen gick iväg. Ett ref och inte state, eftersom
+  // Radix läser det först när arket redan har avmonterats.
+  const sentRef = useRef(false);
+
+  // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
+  // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
+  // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
-    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected;
-    const target = usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR));
+    const confirmation = sentRef.current ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
+    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
+    const target = confirmation ?? (usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR)));
     target?.focus();
   };
 
@@ -88,9 +94,11 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (!card || !opponent) return;
     setError(null);
     setSending(true);
+    sentRef.current = true;
     try {
       await onSend(card.tokenKey, opponent.userId);
     } catch (failure) {
+      sentRef.current = false;
       setError(failure instanceof Error ? failure.message : 'Could not send the challenge');
       setSending(false);
     }
