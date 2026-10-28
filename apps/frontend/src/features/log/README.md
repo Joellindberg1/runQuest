@@ -52,11 +52,15 @@ historikkortet i tre kolumner). `pages/LogPage.tsx` är tunn. +New-sheetens "Log
   av det som hämtats). `staleTime: 0` — en runda som ändrats/raderats i Profile ska inte stå kvar. Fel på första sidan = felkort med Retry; fel på nästa sida
   lämnar raderna kvar och visar ett felkort under dem. Min egen runda har guldkant (samma "jag"-markering som Events/Duels). Namn och avatar öppnar Runner card.
 - **Tid och tempo i Group history** (ADR 007 addendum 2026-10-26, punkt 2) kommer ur `summariseRunTime` (shared) och formatfunktionerna i `shared/utils/runTimeFormat`
-  (`formatDuration`, `formatPace`, `timePaceLabel`; en egen modul, inte `format.ts`, som delas med landningen och då drog ny JS till `/`); vymodellen har ingen egen division eller m:ss. En runda utan användbar tid (`moving_time` saknas,
+  (`formatDuration`, `formatPace`, `spokenDuration`, `timePaceLabel`; en egen modul, inte `format.ts`, som delas med landningen och då drog ny JS till `/`); vymodellen har ingen egen division eller m:ss. En runda utan användbar tid (`moving_time` saknas,
   är null, 0 eller NaN, distansen är 0 eller tempot avrundas till 0) får `time`/`pace`/`timePaceLabel` = `null`, och kortet visar "—" med dold text "no time recorded"
   i båda fälten (kolumnen kollapsar aldrig). Med tid läser skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är `aria-hidden`. Kolumnen ritas
-  från 1024 px (mobilen har `--rq-log-time-display: none`; mobilraden är en egen vy på samma vymodell). 1024–1279 px lägger cellerna under rad ett, och namnet
-  får ellips från 1024 px.
+  från 1024 px (`isDesktop`). 1024–1279 px lägger cellerna under rad ett, och namnet får ellips från 1024 px. Från en timme läser `timePaceLabel` tiden med ord
+  ("Time 1 hour 9 minutes 40 seconds, pace 5:45 per kilometre"; `spokenDuration`, samma text som profilens rundlista), annars "Time 52:10, …".
+- **Mobilens rad (under 1024 px)** är en liten rad ovanför km i högergruppen (`.rq-log-run__timeline`, "44:30 · 5:34 /km", mono 11 px, `--rq-text-3`) av samma `HistoryRow`-fält.
+  Den är `role="img"` med `timePaceLabel` som `aria-label`, och bara en av vyerna (raden eller kolumnen) finns i DOM:en per bredd, så tid och tempo läses en gång per kort.
+  En runda utan tid får ingen rad alls på mobil (inget tankstreck, inget tomt element, ingen dold text); korten byter inte höjd. Namnet bryter till högst två rader med
+  ellips (`--rq-log-name-lines: 2`, `overflow-wrap: anywhere`) och högergruppen är en `auto`-kolumn med `nowrap`, så den aldrig krymper.
 - **Sidorna dedupas på run-id** (`buildHistoryRows`): offsetsidor glider när en runda läggs till mellan två hämtningar, och samma runda kan då komma på två sidor.
 - **Väder utan emojis** (regel 10): sol- och snöikon ur ikonsetet där de finns, annars temperatur + etikett ("14 °C · Rain").
 - **Strava-raden (bara mobil)** läser `shared/hooks/useStravaQueries` (`useStravaStatus`) — EN definition med

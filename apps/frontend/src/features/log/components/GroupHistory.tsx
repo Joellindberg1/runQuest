@@ -12,6 +12,8 @@ export type HistoryStatus = 'loading' | 'error' | 'ready';
 
 interface GroupHistoryProps {
   status: HistoryStatus;
+  /** Från 1024 px: tid och tempo i en egen kolumn; under det en liten rad ovanför distansen. */
+  isDesktop: boolean;
   rows: HistoryRow[];
   hasMore: boolean;
   /** Nästa sida hämtas. */
@@ -49,8 +51,8 @@ function TimePaceStat({ label, value, unit, spoken }: { label: string; value: st
 }
 
 /**
- * Tid och tempo (webb, från 1024 px; mobilens rad är en egen story på samma vymodell). Kolumnen finns på varje kort: utan användbar tid står
- * "—" i båda fälten med dold text. Med tid läser skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är dolda för den, så ingenting läses två gånger.
+ * Tid och tempo på datorbredd (från 1024 px). Kolumnen finns på varje kort: utan användbar tid står "—" i båda fälten med dold text. Med tid läser
+ * skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är dolda för den, så ingenting läses två gånger.
  */
 function TimePace({ row }: { row: HistoryRow }) {
   const spoken = row.timePaceLabel !== null;
@@ -63,7 +65,20 @@ function TimePace({ row }: { row: HistoryRow }) {
   );
 }
 
-function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId: string) => void }) {
+/**
+ * Tid och tempo på mobil: en liten rad ovanför distansen utan etiketter ("44:30 · 5:34 /km"), av samma vymodellfält som kolumnen. Raden är en bild för
+ * skärmläsaren med hela meningen som namn, så den läses en gång. Utan användbar tid finns ingen rad alls (inget tankstreck, inget tomt element, ingen dold text).
+ */
+function TimeLine({ row }: { row: HistoryRow }) {
+  if (row.time === null || row.pace === null) return null;
+  return (
+    <p className="rq-log-run__timeline" role="img" aria-label={row.timePaceLabel ?? undefined}>
+      {row.time} · {row.pace} /km
+    </p>
+  );
+}
+
+function RunCard({ row, isDesktop, onOpenRunner }: { row: HistoryRow; isDesktop: boolean; onOpenRunner: (userId: string) => void }) {
   const open = () => onOpenRunner(row.userId);
   return (
     <li className="rq-card rq-card--edge rq-log-run" data-me={row.isMe ? 'true' : undefined}>
@@ -99,12 +114,13 @@ function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId
         </div>
       </div>
 
-      <TimePace row={row} />
+      {isDesktop && <TimePace row={row} />}
 
-      <p className="rq-log-run__totals">
+      <div className="rq-log-run__totals">
+        {!isDesktop && <TimeLine row={row} />}
         <span className="rq-log-run__km">{row.km} km</span>
         <span className="rq-log-run__xp">+{row.xp} XP</span>
-      </p>
+      </div>
 
       <ul className="rq-hairgrid rq-log-run__cells">
         {row.cells.map((cell) => (
@@ -121,7 +137,7 @@ function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId
 }
 
 /** Group history: gruppens rundor som kort, nyast först, med "Show more" (offset-sidor). */
-export function GroupHistory({ status, rows, hasMore, loadingMore, moreFailed, retrying, onRetry, onMore, onOpenRunner }: GroupHistoryProps) {
+export function GroupHistory({ status, isDesktop, rows, hasMore, loadingMore, moreFailed, retrying, onRetry, onMore, onOpenRunner }: GroupHistoryProps) {
   if (status === 'loading') return <SkeletonRows rows={LOADING_ROWS} label="Loading the group history" />;
   if (status === 'error') {
     return <ErrorState title="Couldn't load the group history" retrying={retrying} onRetry={onRetry} />;
@@ -142,7 +158,7 @@ export function GroupHistory({ status, rows, hasMore, loadingMore, moreFailed, r
     <div className="rq-log-history">
       <ul className="rq-log-history__list" aria-label="Runs in the pack">
         {rows.map((row) => (
-          <RunCard key={row.id} row={row} onOpenRunner={onOpenRunner} />
+          <RunCard key={row.id} row={row} isDesktop={isDesktop} onOpenRunner={onOpenRunner} />
         ))}
       </ul>
       {moreFailed && <ErrorState title="Couldn't load more runs" retrying={retrying} onRetry={onMore} />}

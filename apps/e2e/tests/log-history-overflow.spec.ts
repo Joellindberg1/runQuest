@@ -14,6 +14,9 @@ const WIDTHS = [
   { width: 1440, height: 900 },
 ];
 
+// Mobilbredderna: 320 (minsta telefonen) och 375.
+const MOBILE_WIDTHS = [320, 375];
+
 /** Ett riktigt gruppnamn av vanlig längd (ca 210 px i versaler): ska synas helt, aldrig klippas med ellips. */
 const REAL_NAME = 'Daniel Lindblad Lüthje';
 
@@ -33,6 +36,9 @@ const RUNS = [
   run('d', { user_name: 'Alexandra Wilhelmina Montgomery-Featherstonehaugh', distance: 42.2, xp_gained: 412, streak_day: 112, multiplier: 2.5, moving_time: 15180 }),
   run('e', { user_name: 'Adam Einstein', distance: 0, xp_gained: 5, moving_time: 1200 }),
   run('f', { user_name: 'Maria Johansson', distance: 100.5, xp_gained: 1234, streak_day: 123, multiplier: 2.5, moving_time: 400000 }),
+  // Långa syntetiska namn (två långa för- och efternamn) och ett ord utan brytpunkt, med tid över en timme: mobilens namn ska bryta till högst två rader.
+  run('g', { user_name: 'Maximilian Bartholomew Featherstonehaugh Montgomery-Wetherspoon', distance: 21.1, xp_gained: 190, moving_time: 4180 }),
+  run('h', { user_name: 'Pneumonoultramicroscopicsilicovolcanoconiosis Hippopotomonstrosesquippedaliophobia', distance: 12.1, xp_gained: 78, moving_time: 3130 }),
 ];
 
 const CORS_HEADERS = {
@@ -107,6 +113,64 @@ test.describe('the group history on the log page', () => {
       expect(measured.realNameCutSideways, `"${REAL_NAME}" is not cut off at the side (no ellipsis)`).toBe(false);
       expect(measured.realNameCutBelow, `"${REAL_NAME}" is not cut off below (no ellipsis after the last line)`).toBe(false);
       expect(measured.realNameLines, 'the name takes at most two lines').toBeLessThanOrEqual(2);
+    });
+  }
+
+  for (const width of MOBILE_WIDTHS) {
+    test(`on a ${width} px screen long names break to at most two lines beside the distance and XP, nothing scrolls sideways, and the time line sits above the distance`, async ({ page }) => {
+      await openGroupHistory(page, width, 800);
+
+      const measured = await page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll<HTMLElement>('.rq-log-run'));
+        const lines = (el: HTMLElement) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+        const overlaps = (a: DOMRect, b: DOMRect) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+        return {
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          outsideCard: cards.flatMap((card) => {
+            const frame = card.getBoundingClientRect();
+            return Array.from(card.querySelectorAll('*')).filter((el) => {
+              const box = el.getBoundingClientRect();
+              return box.width > 1 && (box.left < frame.left - 1 || box.right > frame.right + 1);
+            }).map((el) => String(el.className));
+          }),
+          // Namnet mot högergruppen (tid, km, XP): ingen överlappning, och namnet bryter till högst två rader.
+          nameOverlapsTotals: cards.filter((card) => overlaps(card.querySelector('.rq-log-run__name')!.getBoundingClientRect(), card.querySelector('.rq-log-run__totals')!.getBoundingClientRect())).length,
+          nameLines: cards.map((card) => lines(card.querySelector<HTMLElement>('.rq-log-run__name')!)),
+          nameWiderThanColumn: cards.filter((card) => {
+            const name = card.querySelector<HTMLElement>('.rq-log-run__name')!;
+            return name.scrollWidth > name.clientWidth + 1;
+          }).length,
+          totalsCut: cards.filter((card) => {
+            const totals = card.querySelector<HTMLElement>('.rq-log-run__totals')!;
+            return totals.scrollWidth > totals.clientWidth + 1;
+          }).length,
+          // Raden ovanför km: finns bara med tid, är en rad, ≥ 11 px, högerställd mot km och ligger över den.
+          timelines: cards.map((card) => {
+            const line = card.querySelector<HTMLElement>('.rq-log-run__timeline');
+            if (!line) return null;
+            const box = line.getBoundingClientRect();
+            const km = card.querySelector('.rq-log-run__km')!.getBoundingClientRect();
+            return { fontSize: parseFloat(getComputedStyle(line).fontSize), lines: lines(line), above: box.bottom <= km.top + 1, rightEdgeGap: Math.abs(box.right - km.right) };
+          }),
+          dashes: cards.filter((card) => card.textContent!.includes('—') || card.textContent!.includes('no time recorded')).length,
+        };
+      });
+
+      expect(measured.overflow, 'the page does not scroll sideways').toBeLessThanOrEqual(0);
+      expect(measured.outsideCard, 'nothing visible sticks out of its card').toEqual([]);
+      expect(measured.nameOverlapsTotals, 'no name reaches into the distance and XP group').toBe(0);
+      expect(Math.max(...measured.nameLines), 'every name takes at most two lines').toBeLessThanOrEqual(2);
+      expect(measured.totalsCut, 'the distance and XP group is never squeezed').toBe(0);
+      // Utan tid finns ingen rad och inget tankstreck; med tid finns raden på exakt de korten.
+      const timedIds = RUNS.map((r) => r.moving_time !== null && r.moving_time > 0 && r.distance > 0);
+      expect(measured.timelines.map((line) => line !== null)).toEqual(timedIds);
+      expect(measured.dashes, 'no card shows a dash or hidden "no time recorded" on mobile').toBe(0);
+      for (const line of measured.timelines.filter((candidate) => candidate !== null)) {
+        expect(line.fontSize, 'the line is at least 11 px').toBeGreaterThanOrEqual(11);
+        expect(line.lines, 'the line is one line').toBe(1);
+        expect(line.above, 'the line sits above the distance').toBe(true);
+        expect(line.rightEdgeGap, 'the line is right-aligned with the distance').toBeLessThanOrEqual(TOLERANCE_PX);
+      }
     });
   }
 

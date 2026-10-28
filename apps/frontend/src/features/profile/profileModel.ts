@@ -2,7 +2,7 @@ import type { Run } from '@runquest/types';
 import { buildHero, buildStatCells, buildTitleRows, xpToNextText, type RunnerHero, type StatCell, type TitleRows } from '@/features/runner/runnerModel';
 import { parseKm, validateDate, validateDistance, type FieldErrors } from '@/features/log/logModel';
 import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
-import { formatDuration, formatPace } from '@/shared/utils/runTimeFormat';
+import { formatDuration, formatPace, spokenDuration } from '@/shared/utils/runTimeFormat';
 import { PROFILE_PICTURE_MAX_BYTES, PROFILE_PICTURE_MIME_TYPES, paceSecPerKm, summariseRunTime, type TitleLeaderboardEntry, type UpdateRunRequest, type UserTitleEntry } from '@runquest/shared';
 
 // Profilens vymodeller: hjältekort, titlar, rundhistorik och redigering. Hjälte-, cell- och titellogiken är Runner cards
@@ -72,23 +72,6 @@ export interface RunTimeCell {
 }
 
 const NO_TIME = '—';
-const SECONDS_PER_HOUR = 3600;
-const SECONDS_PER_MINUTE = 60;
-
-const plural = (count: number, unit: string): string => `${count} ${unit}${count === 1 ? '' : 's'}`;
-
-/**
- * Tiden för skärmläsare. Under en timme räcker "52:10" (läses som minuter och sekunder); från en timme läses "1:09:40" som ett klockslag, så
- * då skrivs det med ord ("1 hour 9 minutes 40 seconds", enheter som är noll utelämnas).
- */
-function spokenDuration(seconds: number): string {
-  const total = Math.round(seconds);
-  if (total < SECONDS_PER_HOUR) return formatDuration(total);
-  const hours = Math.floor(total / SECONDS_PER_HOUR);
-  const minutes = Math.floor((total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
-  const rest = total % SECONDS_PER_MINUTE;
-  return [plural(hours, 'hour'), minutes > 0 ? plural(minutes, 'minute') : '', rest > 0 ? plural(rest, 'second') : ''].filter(Boolean).join(' ');
-}
 
 /** Ett tempo som kan visas: ett ändligt tal över noll (`paceSecPerKm` kan ge 0 när tiden är mycket kort mot distansen). */
 const usablePace = (pace: number | null): pace is number => pace !== null && Number.isFinite(pace) && pace > 0;

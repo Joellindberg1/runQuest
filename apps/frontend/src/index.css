@@ -479,11 +479,10 @@
   --rq-log-avatar: 38px;                                   /* avatar i historikkortet (desktop 46) */
   --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | tid+tempo | km+XP (232 · 1fr · 88 · 128); 1024–1279 vem | tid+tempo | km+XP, celler under */
   --rq-log-run-areas: "who totals" "cells cells";
-  --rq-log-time-display: none;                             /* tid + tempo: mobil ritar inte kolumnen (mobilraden är en egen vy); desktop flex */
   --rq-log-time-fs: 16px;                                  /* tidens och tempots siffror (mono, tabulära) */
-  --rq-log-name-white-space: normal;                       /* namnet i historikkortet: mobil bryter; 1024–1279 nowrap + ellips; från 1280 bryter det till två rader (--rq-log-name-lines) och får ellips först efter dem */
-  --rq-log-name-lines: none;                               /* radbegränsning (line-clamp) för namnet: ingen på mobil och 1024–1279; 2 från 1280 */
-  --rq-log-name-overflow-wrap: normal;                     /* från 1280: ett ord som är bredare än kolumnen bryts (anywhere) i stället för att klippas utan ellips */
+  --rq-log-name-white-space: normal;                       /* namnet i historikkortet: mobil bryter till högst två rader (--rq-log-name-lines) med ellips; 1024–1279 nowrap + ellips på en rad; från 1280 två rader igen */
+  --rq-log-name-lines: 2;                                  /* radbegränsning (line-clamp) för namnet: 2 på mobil och från 1280; ingen på 1024–1279 (en rad, ellips) */
+  --rq-log-name-overflow-wrap: anywhere;                   /* ett ord som är bredare än kolumnen bryts i stället för att klippas utan ellips (mobil och från 1280) */
   --rq-log-run-gap: 10px;                                  /* desktop 12 (prototypen 24; tid + tempo tog kolumnbredd, och 1280 px ska rymma fem celler utan radbrytna etiketter) */
   --rq-log-run-align: start;                               /* desktop center */
   --rq-log-totals-gap: 4px;                                /* km ↔ XP (desktop 14) */
@@ -920,8 +919,9 @@
     --rq-log-avatar: 46px;
     --rq-log-run-cols: 232px minmax(0, 1fr) 88px 128px;
     --rq-log-run-areas: "who cells time totals";
-    --rq-log-time-display: flex;
     --rq-log-name-white-space: nowrap;
+    --rq-log-name-lines: none;
+    --rq-log-name-overflow-wrap: normal;
     --rq-log-run-gap: 12px;
     --rq-log-run-align: center;
     --rq-log-totals-gap: 14px;
