@@ -12,6 +12,7 @@ import { AuthContext, type AuthContextType } from '@/providers/authContext';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { setViewportWidth } from '@/test/viewport';
 import { RunnerCard } from './RunnerCard';
+import { RunnerPopup } from './RunnerPopup';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Badge-anropen styrs per test; resten av kortet går mot fakeBackend som i RunnerPage.test.
@@ -53,14 +54,14 @@ const auth: AuthContextType = {
 
 const loggedOut: AuthContextType = { ...auth, user: null };
 
-function renderCard(width = MOBILE, authValue: AuthContextType = auth, variant: 'page' | 'overlay' = 'page') {
+function renderCard(width = MOBILE, authValue: AuthContextType = auth, surface: 'page' | 'popup' = 'page') {
   setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          <RunnerCard user={KARL} allUsers={PACK} variant={variant} />
+          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={() => {}} /> : <RunnerPopup user={KARL} allUsers={PACK} />}
         </MemoryRouter>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -200,19 +201,18 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     expect(container.querySelector('.rq-runner__side')?.contains(screen.getByRole('region', { name: 'Titles' }))).toBe(true);
   });
 
-  it('overlay-varianten (desktop-modalen): samma ordning som sidan och panelen renderas en gång', async () => {
-    const { container } = renderCard(DESKTOP, auth, 'overlay');
+  it('popupen (desktop-dialogen): samma ordning som sidan och panelen renderas en gång', async () => {
+    const { container } = renderCard(DESKTOP, auth, 'popup');
     await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
     await screen.findByRole('region', { name: 'Head to head' });
 
-    expect(container.querySelector('.rq-runner')).toHaveAttribute('data-variant', 'overlay');
     expect(regionOrder(container)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
     expect(screen.getAllByRole('region', { name: 'Badges' })).toHaveLength(1);
     expect(container.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
     const lower = container.querySelector('.rq-runner__lower') as HTMLElement;
     expect([...lower.children]).toEqual([badgesPanel(), screen.getByRole('region', { name: 'Head to head' })]);
     expect(container.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
-    expect(screen.getByText('Runner profile')).toBeInTheDocument();
+    expect(screen.queryByText('Runner profile')).toBeNull();
   });
 
   it('utan inloggad (ingen head to head) står panelen ensam i .rq-runner__lower', async () => {
@@ -291,7 +291,7 @@ describe('robusthet (T4)', () => {
   });
 });
 
-// Emblem-popovern inuti Runner card-dialogen (RUN-152): samma Radix-struktur som RunnerPage (Dialog.Root/Portal/Overlay/Content). Popovern portas till body, utanför dialogens innehåll —
+// Emblem-popovern inuti profil-popupen: samma Radix-struktur som RunnerPage (Dialog.Root/Portal/Overlay/Content). Popovern portas till body, utanför dialogens innehåll —
 // den får varken räknas som ett klick utanför (stänger dialogen) eller ta Escape från dialogen.
 describe('emblem-popovern i Runner card-dialogen', () => {
   function renderInDialog() {
@@ -308,7 +308,7 @@ describe('emblem-popovern i Runner card-dialogen', () => {
                 <Dialog.Content className="rq-modal" aria-describedby={undefined}>
                   <Dialog.Title className="sr-only">{KARL.name}</Dialog.Title>
                   <Dialog.Close aria-label="Close">✕</Dialog.Close>
-                  <RunnerCard user={KARL} allUsers={PACK} variant="overlay" />
+                  <RunnerPopup user={KARL} allUsers={PACK} />
                 </Dialog.Content>
               </Dialog.Portal>
             </Dialog.Root>
