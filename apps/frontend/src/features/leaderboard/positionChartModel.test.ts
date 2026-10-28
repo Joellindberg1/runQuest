@@ -303,17 +303,29 @@ describe('table', () => {
     expect(table.caption).toBe('Position per week, week 30–33. The last column is this week so far.');
   });
 
+  it('a dash is spoken as "not in the group yet" and the footnote explains it', () => {
+    const data = response(4, [runner('u-me', 'Me Myself', [null, 3, 1, 2]), runner('u-ada', 'Ada Lovelace', [1, 1, 2, 1])]);
+    const table = buildPositionChart(data, OPTIONS).table!;
+
+    expect(table.rows[0].cells.map((cell) => cell.spokenText)).toEqual(['not in the group yet', '#3', '#1', '#2']);
+    expect(table.rows[1].cells.map((cell) => cell.spokenText)).toEqual(['#1', '#1', '#2', '#1']);
+    expect(table.footnote).toBe('— = not in the group yet');
+  });
+
   it('a table without any empty cell says so', () => {
-    expect(buildPositionChart(trio(), OPTIONS).table!.hasEmptyCells).toBe(false);
+    const table = buildPositionChart(trio(), OPTIONS).table!;
+
+    expect(table.hasEmptyCells).toBe(false);
+    expect(table.footnote).toBeNull();
   });
 });
 
 describe('role img text', () => {
-  it('names every runner with the current placement and full name, marks me, and says the last week is in progress', () => {
+  it('names every runner with the current placement and full name, marks me, and calls the last week this week so far', () => {
     const model = buildPositionChart(trio(), OPTIONS);
 
     expect(model.ariaLabel).toBe(
-      'Position over time, week 30–33. Week 33 is in progress. Me Myself (you) #1, Karl Persson #2, Ada #3.',
+      'Position over time, week 30–33. Week 33 is this week so far. Me Myself (you) #1, Karl Persson #2, Ada #3.',
     );
   });
 
@@ -334,7 +346,7 @@ describe('role img text', () => {
 
     expect(model.range).toBe('week 52, 2026 – week 1, 2027');
     expect(model.ariaLabel).toContain('week 52, 2026 – week 1, 2027');
-    expect(model.ariaLabel).toContain('Week 1, 2027 is in progress');
+    expect(model.ariaLabel).toContain('Week 1, 2027 is this week so far');
   });
 });
 

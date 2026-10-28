@@ -1,16 +1,14 @@
 import type { PositionHistoryResponse } from '@runquest/shared';
 import { positionWeekLabels } from '@/features/leaderboard/positionWeekLabels';
+import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, currentWeekSentence, placementText, spokenPlacementText } from '@/features/leaderboard/positionTexts';
 
 // Vymodellen för profilens positionsgraf (ADR 007 addendum 2026-10-26, punkt 1): axel, Best/Lowest/Now, lägen och texter.
 // Ren: ingen React, ingen klocka (tiden kommer från svaret), inga färger. Komponenten ritar bara det här. Antalet veckor styrs av
-// svaret (1–26), veckoetiketterna kommer ur positionWeekLabels och modellen räknar ingen egen kalender.
+// svaret (1–26), veckoetiketterna och perioden kommer ur positionWeekLabels, texterna för den pågående veckan och tankstrecket ur
+// positionTexts (delade med leaderboardens modell) och modellen räknar ingen egen kalender.
 
 export const NEW_RUNNER_MESSAGE = 'First week in the group. Position appears after your first week';
 export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows where you stood at the end of each week.';
-const CURRENT_WEEK_NOTE = 'this week so far';
-const NOT_IN_GROUP_TEXT = 'not in the group yet';
-const NOT_IN_GROUP_DASH = '—';
-const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Den som dras: kolumn = veckoindex (0 = äldsta), position = 1-baserad placering. */
 export interface PositionPoint {
@@ -90,6 +88,8 @@ export interface PositionTableRow {
 export interface PositionGraphModel {
   mode: 'ready';
   columns: PositionColumn[];
+  /** Perioden som den skrivs överallt: "week 27–34", över årsskiftet "week 50, 2026 – week 4, 2027". */
+  range: string;
   axis: PositionAxis;
   /** Antal rutnätsrader (en per placering på axeln). */
   gridRows: number;
@@ -100,7 +100,7 @@ export interface PositionGraphModel {
   summary: string;
   /** Raderna bakom "Show as table". */
   table: PositionTableRow[];
-  /** Tabellens caption med talade etiketter: "Position per week, week 27 to week 34. Week 34 is this week so far." */
+  /** Tabellens caption: "Position per week, week 27–34. Week 34 is this week so far." */
   tableCaption: string;
   /** "— = not in the group yet" när tabellen har tankstreck, annars null. */
   tableFootnote: string | null;
@@ -168,7 +168,7 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
   };
 
   const axis = axisFor([...finishedPositions, live], runners.length);
-  const { labels } = positionWeekLabels(weeks);
+  const { labels, range } = positionWeekLabels(weeks);
   const columns: PositionColumn[] = labels.map((label, column) => ({ ...label, current: column === liveColumn }));
 
   const dots: PositionDot[] = [];
@@ -181,16 +181,11 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
   const lastFinished = finished[finished.length - 1];
   const line: PositionLine = { solid: finished, dashed: { from: lastFinished, to: { column: liveColumn, position: live } } };
 
-  // Årsskiftesregeln ägs av positionWeekLabels: året står på etiketterna om och bara om perioden korsar årsskiftet.
-  const labelsNameYear = labels[0].spoken.includes(String(weeks[0].iso_year));
-  const range = labelsNameYear
-    ? `${labels[0].spoken} to ${labels[liveColumn].spoken}`
-    : `weeks ${weeks[0].iso_week} to ${weeks[liveColumn].iso_week}`;
   const firstPlaced = positions.findIndex((position) => position !== null);
   const from = firstPlaced > 0 ? `, from ${labels[firstPlaced].spoken}` : '';
   const parts = positions.flatMap((position, column) => {
     if (position === null) return [];
-    return column === liveColumn ? [`${CURRENT_WEEK_NOTE} #${position}`] : [`${labels[column].spoken} #${position}`];
+    return column === liveColumn ? [`${CURRENT_WEEK_PHRASE} #${position}`] : [`${labels[column].spoken} #${position}`];
   });
   const summary = `Position in the group, ${range}${from}: ${parts.join(', ')}`;
   const hasDashes = positions.some((position) => position === null);
@@ -199,15 +194,16 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
     week: labels[column].visual,
     spoken: labels[column].spoken,
     position,
-    text: position === null ? NOT_IN_GROUP_DASH : `#${position}`,
-    spokenText: position === null ? NOT_IN_GROUP_TEXT : `#${position}`,
+    text: placementText(position),
+    spokenText: spokenPlacementText(position),
     current: column === liveColumn,
-    note: column === liveColumn ? CURRENT_WEEK_NOTE : null,
+    note: column === liveColumn ? CURRENT_WEEK_PHRASE : null,
   }));
 
   return {
     mode: 'ready',
     columns,
+    range,
     axis,
     gridRows: axis.rows,
     dots,
@@ -215,8 +211,8 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
     stats,
     summary,
     table,
-    tableCaption: `Position per week, ${labels[0].spoken} to ${labels[liveColumn].spoken}. ${capitalise(labels[liveColumn].spoken)} is ${CURRENT_WEEK_NOTE}.`,
-    tableFootnote: hasDashes ? `${NOT_IN_GROUP_DASH} = ${NOT_IN_GROUP_TEXT}` : null,
-    legend: `${labels[liveColumn].visual} · ${CURRENT_WEEK_NOTE}`,
+    tableCaption: `Position per week, ${range}. ${currentWeekSentence(labels[liveColumn].spoken)}`,
+    tableFootnote: hasDashes ? NOT_IN_GROUP_FOOTNOTE : null,
+    legend: `${labels[liveColumn].visual} · ${CURRENT_WEEK_PHRASE}`,
   };
 }

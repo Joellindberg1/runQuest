@@ -176,6 +176,10 @@ describe('modes', () => {
     expect(buildPositionProfileModel(history([1], 1), 'me')).toEqual({ mode: 'hidden' });
   });
 
+  it('a single week without a live placement is hidden, not no-finished-week: hidden is decided before the first-week text', () => {
+    expect(buildPositionProfileModel(history([null], 2), 'me')).toEqual({ mode: 'hidden' });
+  });
+
   it('a runner without a live placement hides the tab', () => {
     expect(buildPositionProfileModel(history([1, 2, null]), 'me')).toEqual({ mode: 'hidden' });
   });
@@ -212,7 +216,7 @@ describe('period length', () => {
 
     expect(model.columns.map((column) => column.visual)).toEqual(['W52', 'W53', 'W1']);
     expect(model.columns[1].spoken).toBe('week 53, 2026');
-    expect(model.summary).toBe('Position in the group, week 52, 2026 to week 1, 2027: week 52, 2026 #2, week 53, 2026 #1, this week so far #3');
+    expect(model.summary).toBe('Position in the group, week 52, 2026 – week 1, 2027: week 52, 2026 #2, week 53, 2026 #1, this week so far #3');
   });
 });
 
@@ -220,17 +224,17 @@ describe('text alternative', () => {
   it('reads the whole line as one sentence ending in this week so far', () => {
     const { summary } = ready(history([1, 1, 2, 2], 6, weeksOf(4, 27)));
 
-    expect(summary).toBe('Position in the group, weeks 27 to 30: week 27 #1, week 28 #1, week 29 #2, this week so far #2');
+    expect(summary).toBe('Position in the group, week 27–30: week 27 #1, week 28 #1, week 29 #2, this week so far #2');
   });
 
   it('says where the sentence starts when weeks before the runner had a placement are left out', () => {
     const { summary } = ready(history([null, null, 3, 2], 6, weeksOf(4, 27)));
 
-    expect(summary).toBe('Position in the group, weeks 27 to 30, from week 29: week 29 #3, this week so far #2');
+    expect(summary).toBe('Position in the group, week 27–30, from week 29: week 29 #3, this week so far #2');
   });
 
   it('the sentence needs no "from" when the runner has a placement every week', () => {
-    expect(ready(history([3, 2], 6, weeksOf(2, 27))).summary).toBe('Position in the group, weeks 27 to 28: week 27 #3, this week so far #2');
+    expect(ready(history([3, 2], 6, weeksOf(2, 27))).summary).toBe('Position in the group, week 27–28: week 27 #3, this week so far #2');
   });
 
   it('the sentence names the years across the year boundary and still says where it starts', () => {
@@ -240,7 +244,7 @@ describe('text alternative', () => {
       { start: '2027-01-04', end: '2027-01-10', iso_week: 1, iso_year: 2027, is_current_week: true },
     ];
     expect(ready(history([null, 1, 3], 6, weeks)).summary).toBe(
-      'Position in the group, week 52, 2026 to week 1, 2027, from week 53, 2026: week 53, 2026 #1, this week so far #3',
+      'Position in the group, week 52, 2026 – week 1, 2027, from week 53, 2026: week 53, 2026 #1, this week so far #3',
     );
   });
 
@@ -257,11 +261,11 @@ describe('text alternative', () => {
 
   it('gives the table a caption and, only when it has dashes, a footnote that explains them', () => {
     const joined = ready(history([null, 3, 1, 2], 6, weeksOf(4, 27)));
-    expect(joined.tableCaption).toBe('Position per week, week 27 to week 30. Week 30 is this week so far.');
+    expect(joined.tableCaption).toBe('Position per week, week 27–30. Week 30 is this week so far.');
     expect(joined.tableFootnote).toBe('— = not in the group yet');
 
     const always = ready(history([3, 1, 2], 6, weeksOf(3, 27)));
-    expect(always.tableCaption).toBe('Position per week, week 27 to week 29. Week 29 is this week so far.');
+    expect(always.tableCaption).toBe('Position per week, week 27–29. Week 29 is this week so far.');
     expect(always.tableFootnote).toBeNull();
   });
 
@@ -272,7 +276,7 @@ describe('text alternative', () => {
       { start: '2027-01-04', end: '2027-01-10', iso_week: 1, iso_year: 2027, is_current_week: true },
     ];
     expect(ready(history([2, 1, 3], 6, weeks)).tableCaption).toBe(
-      'Position per week, week 52, 2026 to week 1, 2027. Week 1, 2027 is this week so far.',
+      'Position per week, week 52, 2026 – week 1, 2027. Week 1, 2027 is this week so far.',
     );
   });
 
