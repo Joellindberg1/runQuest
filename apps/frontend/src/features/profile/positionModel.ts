@@ -9,6 +9,7 @@ export const NEW_RUNNER_MESSAGE = 'First week in the group. Position appears aft
 export const NO_FINISHED_WEEK_MESSAGE = 'No finished week yet. Position shows where you stood at the end of each week.';
 const CURRENT_WEEK_NOTE = 'this week so far';
 const NOT_IN_GROUP_TEXT = 'not in the group yet';
+const NOT_IN_GROUP_DASH = '—';
 
 /** Den som dras: kolumn = veckoindex (0 = äldsta), position = 1-baserad placering. */
 export interface PositionPoint {
@@ -98,6 +99,10 @@ export interface PositionGraphModel {
   summary: string;
   /** Raderna bakom "Show as table". */
   table: PositionTableRow[];
+  /** Tabellens caption: "Position per week, W27 to W34. W34 is this week so far." */
+  tableCaption: string;
+  /** "— = not in the group yet" när tabellen har tankstreck, annars null. */
+  tableFootnote: string | null;
   /** "W34 · this week so far", förklaringen till den ihåliga dotten. */
   legend: string;
 }
@@ -175,21 +180,25 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
   const lastFinished = finished[finished.length - 1];
   const line: PositionLine = { solid: finished, dashed: { from: lastFinished, to: { column: liveColumn, position: live } } };
 
-  const crossesYear = weeks.some((week) => week.iso_year !== weeks[0].iso_year);
-  const range = crossesYear
+  // Årsskiftesregeln ägs av positionWeekLabels: året står på etiketterna om och bara om perioden korsar årsskiftet.
+  const labelsNameYear = labels[0].spoken.includes(String(weeks[0].iso_year));
+  const range = labelsNameYear
     ? `${labels[0].spoken} to ${labels[liveColumn].spoken}`
     : `weeks ${weeks[0].iso_week} to ${weeks[liveColumn].iso_week}`;
+  const firstPlaced = positions.findIndex((position) => position !== null);
+  const from = firstPlaced > 0 ? `, from ${labels[firstPlaced].spoken}` : '';
   const parts = positions.flatMap((position, column) => {
     if (position === null) return [];
     return column === liveColumn ? [`${CURRENT_WEEK_NOTE} #${position}`] : [`${labels[column].spoken} #${position}`];
   });
-  const summary = `Position in the group, ${range}: ${parts.join(', ')}`;
+  const summary = `Position in the group, ${range}${from}: ${parts.join(', ')}`;
+  const hasDashes = positions.some((position) => position === null);
 
   const table: PositionTableRow[] = positions.map((position, column) => ({
     week: labels[column].visual,
     spoken: labels[column].spoken,
     position,
-    text: position === null ? '—' : `#${position}`,
+    text: position === null ? NOT_IN_GROUP_DASH :`#${position}`,
     spokenText: position === null ? NOT_IN_GROUP_TEXT : `#${position}`,
     current: column === liveColumn,
     note: column === liveColumn ? CURRENT_WEEK_NOTE : null,
@@ -205,6 +214,8 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
     stats,
     summary,
     table,
-    legend: `${labels[liveColumn].visual} · ${CURRENT_WEEK_NOTE}`,
+    tableCaption: `Position per week, ${labels[0].visual} to ${labels[liveColumn].visual}. ${labels[liveColumn].visual} is ${CURRENT_WEEK_NOTE}.`,
+    tableFootnote: hasDashes ? `${NOT_IN_GROUP_DASH} = ${NOT_IN_GROUP_TEXT}` : null,
+    legend:`${labels[liveColumn].visual} · ${CURRENT_WEEK_NOTE}`,
   };
 }

@@ -181,6 +181,13 @@ describe('modes', () => {
   });
 });
 
+describe('member threshold', () => {
+  it('exactly two members with one finished week is ready, one member is hidden', () => {
+    expect(buildPositionProfileModel(history([2, 1], 2), 'me').mode).toBe('ready');
+    expect(buildPositionProfileModel(history([1, 1], 1), 'me').mode).toBe('hidden');
+  });
+});
+
 describe('period length', () => {
   it('works from two weeks up to the cap of 26 and never assumes eight', () => {
     const two = ready(history([2, 1]));
@@ -216,10 +223,25 @@ describe('text alternative', () => {
     expect(summary).toBe('Position in the group, weeks 27 to 30: week 27 #1, week 28 #1, week 29 #2, this week so far #2');
   });
 
-  it('leaves out weeks before the runner had a placement', () => {
+  it('says where the sentence starts when weeks before the runner had a placement are left out', () => {
     const { summary } = ready(history([null, null, 3, 2], 6, weeksOf(4, 27)));
 
-    expect(summary).toBe('Position in the group, weeks 27 to 30: week 29 #3, this week so far #2');
+    expect(summary).toBe('Position in the group, weeks 27 to 30, from week 29: week 29 #3, this week so far #2');
+  });
+
+  it('the sentence needs no "from" when the runner has a placement every week', () => {
+    expect(ready(history([3, 2], 6, weeksOf(2, 27))).summary).toBe('Position in the group, weeks 27 to 28: week 27 #3, this week so far #2');
+  });
+
+  it('the sentence names the years across the year boundary and still says where it starts', () => {
+    const weeks: PositionWeek[] = [
+      { start: '2026-12-21', end: '2026-12-27', iso_week: 52, iso_year: 2026, is_current_week: false },
+      { start: '2026-12-28', end: '2027-01-03', iso_week: 53, iso_year: 2026, is_current_week: false },
+      { start: '2027-01-04', end: '2027-01-10', iso_week: 1, iso_year: 2027, is_current_week: true },
+    ];
+    expect(ready(history([null, 1, 3], 6, weeks)).summary).toBe(
+      'Position in the group, week 52, 2026 to week 1, 2027, from week 53, 2026: week 53, 2026 #1, this week so far #3',
+    );
   });
 
   it('table rows carry week, position and the note for the week in progress', () => {
@@ -231,6 +253,16 @@ describe('text alternative', () => {
       { week: 'W29', spoken: 'week 29', position: 1, text: '#1', spokenText: '#1', current: false, note: null },
       { week: 'W30', spoken: 'week 30', position: 2, text: '#2', spokenText: '#2', current: true, note: 'this week so far' },
     ]);
+  });
+
+  it('gives the table a caption and, only when it has dashes, a footnote that explains them', () => {
+    const joined = ready(history([null, 3, 1, 2], 6, weeksOf(4, 27)));
+    expect(joined.tableCaption).toBe('Position per week, W27 to W30. W30 is this week so far.');
+    expect(joined.tableFootnote).toBe('— = not in the group yet');
+
+    const always = ready(history([3, 1, 2], 6, weeksOf(3, 27)));
+    expect(always.tableCaption).toBe('Position per week, W27 to W29. W29 is this week so far.');
+    expect(always.tableFootnote).toBeNull();
   });
 
   it('names the week in progress in the legend', () => {
