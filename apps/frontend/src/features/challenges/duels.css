@@ -246,17 +246,18 @@
 .rq-duels-sheet__error:empty { padding: 0; border: 0; height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
 .rq-duels-sheet__actions { display: flex; flex-direction: var(--rq-duels-sheet-actions-dir); gap: var(--rq-sp-10); }
 .rq-duels-sheet__actions .rq-btn--block { flex: 1; }
-.rq-btn.rq-duels-sheet__cancel { display: var(--rq-duels-sheet-cancel-display); }
 .rq-duels-step { margin: 0 0 var(--rq-sp-8); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 
 .rq-duels-option {
   display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; box-sizing: border-box; padding: var(--rq-sp-10) var(--rq-sp-12); cursor: pointer; text-align: left;
   background: var(--rq-cell); border: var(--rq-hair) solid var(--rq-line-3); color: inherit; font-family: var(--rq-font-ui);
 }
-.rq-duels-option:hover:not(:disabled) { background: var(--rq-row-hover); }
-.rq-duels-option:disabled { cursor: not-allowed; }
+.rq-duels-option:hover:not([aria-disabled="true"]) { background: var(--rq-row-hover); }
+.rq-duels-option[aria-disabled="true"] { cursor: not-allowed; }
 .rq-duels-option__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
 .rq-duels-option__note { font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+/* Varför raden inte går att välja ("In a duel"): i duellens ton, i klartext och inte dämpad, så orsaken syns också på en avstängd rad. */
+.rq-duels-option__reason { color: var(--rq-duel); }
 .rq-duels-option__h2h { flex-shrink: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up); }
 .rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down); }
@@ -279,10 +280,13 @@
   font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-duels-tier-fg);
 }
 
+/* Steg 3: motståndarna är en radiogrupp (OpponentChoice). Raden är minst --rq-control-hit hög (44 px på mobil); fokusringen ritas inåt som på tokenkorten, eftersom
+   sheetens kropp scrollar och klipper en yttre ring. Den valda raden har guldtint och guldkant (som förut) och dessutom aria-checked. */
 .rq-duels-opponents { border: var(--rq-hair) solid var(--rq-line-2); }
-.rq-duels-option--opponent { border: 0; border-left: var(--rq-edge-w) solid transparent; }
-.rq-duels-option--opponent[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); }
-.rq-duels-option--opponent:disabled .rq-name { color: var(--rq-text-4); }
+.rq-duels-option--opponent { min-height: var(--rq-control-hit); border: 0; border-left: var(--rq-edge-w) solid transparent; }
+.rq-duels-option--opponent:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-duels-option--opponent[aria-checked="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); }
+.rq-duels-option--opponent[aria-disabled="true"] .rq-name { color: var(--rq-text-4); }
 .rq-duels-avatar { width: var(--rq-duels-avatar); height: var(--rq-duels-avatar); flex-shrink: 0; overflow: hidden; font-size: var(--rq-fs-label); }
 .rq-duels-avatar img { width: 100%; height: 100%; object-fit: cover; }
 

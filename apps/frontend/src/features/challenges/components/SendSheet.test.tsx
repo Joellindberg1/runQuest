@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { MyChallengeToken } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type MyChallengeToken } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
-import { LEGENDARY_AUTO_START_DAYS } from '@runquest/shared';
 import { ADAM, DAN, KARL, ME, NICK, stat, token } from '../duels.fixture';
 import { stakeOf } from '../duelsFormat';
 import { buildTokenGroups } from '../duelsModel';
-import type { SendPreselection } from '../sendModel';
+import { startRuleText, type SendPreselection } from '../sendModel';
 import { SendSheet } from './SendSheet';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
