@@ -122,6 +122,8 @@
 .rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
 .rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
 .rq-profile-tabs > .rq-tab:focus-visible { outline-offset: var(--rq-focus-inset); }
+/* Den valda fliken har guld under sig; en guldring ovanpå flyter ihop med den (flikarna är alltid valda när de har tangentbordsfokus). Ringen byter till textfärgen, som valda chips (view-controls.css). */
+.rq-profile-tabs > .rq-tab[aria-selected="true"]:focus-visible { outline-color: var(--rq-text-1); }
 .rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
 .rq-profile-rows { margin: 0; }
 .rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }

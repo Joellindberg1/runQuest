@@ -19,6 +19,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   - **Ingen väljare i profilen (RUN-150/151):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel och sammanfattningen har ingen Edit-knapp. Tur-ankarna är oförändrade.
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
+  - `PositionPanel` — innehållet i Position-fliken (femte fliken, bara i en grupp på minst två medlemmar): `usePositionHistory(POSITION_WEEKS_DEFAULT)` → `buildPositionProfileModel(history, userId)` → `PositionChart` (`React.lazy`, egen chunk; importen startar när fliken öppnas). Monteras bara när fliken är vald, så ingen positionsbegäran går på övriga flikar. Laddning = `PanelLoading`, fel = `ErrorState` med Retry
   - `StatsPanel` — `ViewTabs variant="underline"`, kontrollerad (`view`, `onChange`, `label`, `dataTour` från värden): `ProfileScreen` äger `?view=` (`useViewParam`), panelen läser aldrig adressen; `Heatmap` är Consistency-fliken och ritar den löpare den får som prop
   - `TitlesPanel` — "MY TITLES": mobil "5 held · 3 runner-up" + tre titlar + "Show all 8", desktop "Holding · 5" / "Runner-up · 3" med innehavare och avstånd
   - `RunHistory` — fyra rader + "Show all N runs"; varje rad har "Time" och "Pace" och under listan står "Total time"/"Pace" för de rundor som visas just nu (räknas om vid "Show all").
@@ -30,7 +31,8 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
     `new-runner` och `no-finished-week` ger modellens text i stället för graf. Ritas en gång, inget rör sig. Komponenten ska laddas med `React.lazy` (dynamisk import) av fliken och får aldrig hamna i landningens eller profilens huvudbunt;
     den har egen stilfil, `positionChart.css`, som följer med chunken. Tokens `--rq-profile-position-*` (index.css sektion 1.26 + temafilen). `<svg>` är undantaget i `eslint.config.js` (måste vara `aria-hidden`).
 - **profileModel.ts** — hjälte/celler/titlar (via runnerModel), rundrader, redigeringsregler, bekräftelsetexter, XP-uppräkning, bildvalidering
-- **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS`
+- **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS` (de fyra som alla ser), `showPositionTab(memberCount)` och `statViewsFor(memberCount)` (Position som femte flik, ur gruppstorleken i `users-with-runs`; en grupp på en faller `?view=position` tillbaka på Distance)
+- **tabRowFade.ts** och **hooks/useTabRowFade.ts** — kantfaden på flikraden: vilka kanter som har fler flikar bortom sig (`data-fade-start/end` på `.rq-profile-tabs-wrap`, toningen är en mask i `profile.css`) och att den valda fliken hålls utanför fadens zon (`scroll-padding-inline`, samma token som masken)
 - **heatmapModel.ts** — Consistency-rutnätet och dess tre siffror
 - **frodoModel.ts** — waypoint-/viewport-matematiken; delas med Runner card
 - **positionModel.ts** — Position-flikens vymodell ur `PositionHistoryResponse` (lägen `hidden`/`no-finished-week`/`new-runner`/`ready`, axel, dottar, linje, Best/Lowest/Now, meningen och tabellen). Perioden (`range`) och veckoetiketterna kommer ur
