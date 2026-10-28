@@ -300,7 +300,7 @@ describe('table', () => {
     expect(table.rows[0].cells.map((cell) => cell.position)).toEqual([null, 3, 1, 2]);
     expect(table.rows[0].cells.map((cell) => cell.isCurrent)).toEqual([false, false, false, true]);
     expect(table.hasEmptyCells).toBe(true);
-    expect(table.caption).toBe('Position per week, week 30–33. The last column is this week so far.');
+    expect(table.caption).toBe('Position per week, weeks 30 to 33. The last column is this week so far.');
   });
 
   it('a dash is spoken as "not in the group yet" and the footnote explains it', () => {
@@ -325,8 +325,13 @@ describe('role img text', () => {
     const model = buildPositionChart(trio(), OPTIONS);
 
     expect(model.ariaLabel).toBe(
-      'Position over time, week 30–33. Week 33 is this week so far. Me Myself (you) #1, Karl Persson #2, Ada #3.',
+      'Position over time, weeks 30 to 33. Week 33 is this week so far. Me Myself (you) #1, Karl Persson #2, Ada #3.',
     );
+  });
+
+  it('speaks the period as "weeks 30 to 33", and as "week 30" for a single week', () => {
+    expect(buildPositionChart(trio(), OPTIONS).spokenRange).toBe('weeks 30 to 33');
+    expect(buildPositionChart(response(1, [runner('u-me', 'Me', [1]), runner('u-bo', 'Bo', [2])]), OPTIONS).spokenRange).toBe('week 30');
   });
 
   it('twelve runners are all named', () => {
@@ -345,7 +350,9 @@ describe('role img text', () => {
     const model = buildPositionChart(data, OPTIONS);
 
     expect(model.range).toBe('week 52, 2026 – week 1, 2027');
-    expect(model.ariaLabel).toContain('week 52, 2026 – week 1, 2027');
+    expect(model.spokenRange).toBe('week 52, 2026 to week 1, 2027');
+    expect(model.ariaLabel).toContain('week 52, 2026 to week 1, 2027');
+    expect(model.ariaLabel).not.toContain('–');
     expect(model.ariaLabel).toContain('Week 1, 2027 is this week so far');
   });
 });

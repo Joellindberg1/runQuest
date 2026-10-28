@@ -88,7 +88,8 @@ function ReadyChart({ model }: { model: PositionGraphModel }) {
     <div className="rq-profile-position">
       <div className="rq-profile-position__head">
         <span className="rq-profile-position__now">{placementText(now.position)}</span>
-        <span className="rq-profile-position__period">In the group · {model.range}</span>
+        {/* Dold för skärmläsare: tankstrecket läses olika, och bildens aria-label bär redan perioden ("weeks 27 to 34"). */}
+        <span className="rq-profile-position__period" aria-hidden="true">In the group · {model.range}</span>
       </div>
 
       <div className="rq-profile-position__chart" role="img" aria-label={model.summary}>

@@ -37,11 +37,11 @@ const inYear = (iso_week: number, last: number) => week(iso_week, 2026, iso_week
 const midYear = Array.from({ length: 8 }, (_, i) => inYear(27 + i, 34));
 const yearEnd = [week(50, 2026, false), week(51, 2026, false), week(52, 2026, false), week(53, 2026, false), week(1, 2027, false), week(2, 2027, false), week(3, 2027, false), week(4, 2027, true)];
 
-const CASES: Array<{ name: string; data: PositionHistoryResponse }> = [
-  { name: 'eight weeks in the middle of a year with a runner who joined late', data: response(midYear, [null, null, 3, 2, 2, 1, 1, 2]) },
-  { name: 'eight weeks across the year boundary with week 53', data: response(yearEnd, [null, 1, 2, 1, 3, 1, 1, 2]) },
-  { name: 'eight weeks across the year boundary where the runner has a placement every week', data: response(yearEnd, [2, 1, 2, 1, 3, 1, 1, 2]) },
-  { name: 'two weeks', data: response(midYear.slice(-2), [3, 2]) },
+const CASES: Array<{ name: string; data: PositionHistoryResponse; spoken: string }> = [
+  { name: 'eight weeks in the middle of a year with a runner who joined late', data: response(midYear, [null, null, 3, 2, 2, 1, 1, 2]), spoken: 'weeks 27 to 34' },
+  { name: 'eight weeks across the year boundary with week 53', data: response(yearEnd, [null, 1, 2, 1, 3, 1, 1, 2]), spoken: 'week 50, 2026 to week 4, 2027' },
+  { name: 'eight weeks across the year boundary where the runner has a placement every week', data: response(yearEnd, [2, 1, 2, 1, 3, 1, 1, 2]), spoken: 'week 50, 2026 to week 4, 2027' },
+  { name: 'two weeks', data: response(midYear.slice(-2), [3, 2]), spoken: 'weeks 33 to 34' },
 ];
 
 const both = (data: PositionHistoryResponse) => {
@@ -52,15 +52,19 @@ const both = (data: PositionHistoryResponse) => {
   return { profile, board, table: board.table! };
 };
 
-describe.each(CASES)('the profile and the leaderboard model, $name', ({ data }) => {
+describe.each(CASES)('the profile and the leaderboard model, $name', ({ data, spoken }) => {
   it('write the period the same way', () => {
     const { profile, board, table } = both(data);
 
     expect(profile.range).toBe(board.range);
-    expect(profile.summary.startsWith(`Position in the group, ${board.range}`)).toBe(true);
-    expect(profile.tableCaption.startsWith(`Position per week, ${board.range}.`)).toBe(true);
-    expect(table.caption.startsWith(`Position per week, ${board.range}.`)).toBe(true);
-    expect(board.ariaLabel.startsWith(`Position over time, ${board.range}.`)).toBe(true);
+    expect(profile.spokenRange).toBe(spoken);
+    expect(board.spokenRange).toBe(spoken);
+    expect(profile.summary.startsWith(`Position in the group, ${spoken}`)).toBe(true);
+    expect(profile.tableCaption.startsWith(`Position per week, ${spoken}.`)).toBe(true);
+    expect(table.caption.startsWith(`Position per week, ${spoken}.`)).toBe(true);
+    expect(board.ariaLabel.startsWith(`Position over time, ${spoken}.`)).toBe(true);
+    // Skärmläsaren får aldrig den visuella formen med tankstreck ("week 27–34").
+    expect(`${profile.summary} ${profile.tableCaption} ${board.ariaLabel} ${table.caption}`).not.toContain(board.range);
   });
 
   it('call the week in progress the same thing, never "in progress"', () => {

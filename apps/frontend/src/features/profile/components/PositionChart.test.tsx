@@ -83,7 +83,7 @@ describe('PositionChart', () => {
       const image = screen.getByRole('img', { name: model.summary });
       expect(image).toBeInTheDocument();
       expect(model.summary).toBe(
-        'Position in the group, week 27–34: week 27 #1, week 28 #1, week 29 #2, week 30 #1, week 31 #1, week 32 #1, week 33 #1, this week so far #2',
+        'Position in the group, weeks 27 to 34: week 27 #1, week 28 #1, week 29 #2, week 30 #1, week 31 #1, week 32 #1, week 33 #1, this week so far #2',
       );
       expect(dots(container)).toHaveLength(8);
       for (const dot of dots(container)) expect(dot.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -222,6 +222,13 @@ describe('PositionChart', () => {
       const parts = Array.from(stats.children).map((node) => node.textContent);
       expect(parts).toEqual(['Best #1 · 6 of 7 weeks', 'Lowest #2', 'Now #2']);
       expect(stats.querySelector('[data-tone="gold"]')).toHaveTextContent('Best #1 · 6 of 7 weeks');
+    });
+
+    it('hides the visible period from the screen reader, since the image label already carries it', () => {
+      const { container } = render(<PositionChart model={readyOf(EIGHT)} />);
+
+      expect(container.querySelector('.rq-profile-position__period')).toHaveAttribute('aria-hidden', 'true');
+      expect(screen.getByRole('img').getAttribute('aria-label')).toContain('weeks 27 to 34');
     });
 
     it('shows the live placement and the period in the head', () => {
