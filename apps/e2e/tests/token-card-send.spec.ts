@@ -63,7 +63,13 @@ interface CardMeasure {
   lineCounts: number[];
   /** Kortets båda textrader ligger innanför kortets kant. */
   textInsideCard: boolean;
-  send: { width: number; height: number; contrast: number; insideCard: boolean };
+  send: { width: number; height: number; contrast: number; insideCard: boolean; fill: SendFill };
+}
+
+/** SEND ska aldrig vara fylld: knappens egen bakgrundsfärg är helt genomskinlig (alfa 0) och den har ingen bakgrundsbild (gradient). */
+interface SendFill {
+  backgroundAlpha: number;
+  backgroundImage: string;
 }
 
 interface PanelMeasure {
@@ -72,6 +78,7 @@ interface PanelMeasure {
 }
 
 interface SendStateMeasure {
+  fill: SendFill;
   text: number;
   border: number;
   borderAlpha: number;
@@ -82,8 +89,8 @@ interface SendStateMeasure {
 
 /**
  * Körs i sidan (hjälparna delas av båda måtten, eftersom en funktion som skickas till webbläsaren inte kan se något utanför sig själv).
- * 'panel': korten i listan under chipraden, SEND-knappens träffyta och kontrast mot det tonade kortet. 'state': SEND-knappen som har fokus eller hover just nu.
- * Alla bakgrundslager komponeras över sidans botten.
+ * 'panel': korten i listan under chipraden, SEND-knappens träffyta, fyllning och kontrast. 'state': SEND-knappen som har fokus eller hover just nu.
+ * Kontrasten mäts mot knappens sammansatta bakgrund (dess egen bakgrund ovanpå kortets och sidans), så en fylld knapp syns i måttet. Alla lager komponeras över sidans botten.
  */
 function measureInPage(mode: string): PanelMeasure | SendStateMeasure {
   type Rgba = { r: number; g: number; b: number; a: number };
@@ -119,6 +126,10 @@ function measureInPage(mode: string): PanelMeasure | SendStateMeasure {
     const background = backgroundOf(behind);
     return ratio(over(parse(getComputedStyle(element).color), background), background);
   };
+  const fillOf = (element: Element): SendFill => {
+    const style = getComputedStyle(element);
+    return { backgroundAlpha: parse(style.backgroundColor).a, backgroundImage: style.backgroundImage };
+  };
   const lineCount = (node: Element): number => {
     const range = document.createRange();
     range.selectNodeContents(node);
@@ -129,11 +140,11 @@ function measureInPage(mode: string): PanelMeasure | SendStateMeasure {
     const active = document.activeElement;
     const send = active instanceof HTMLButtonElement && active.classList.contains('rq-duels-send') ? active : document.querySelector('.rq-duels-send:hover')!;
     const style = getComputedStyle(send);
-    const behind = send.parentElement!;
-    const background = backgroundOf(behind);
+    const background = backgroundOf(send);
     const border = parse(style.borderTopColor);
     return {
-      text: textContrast(send, behind),
+      fill: fillOf(send),
+      text: textContrast(send, send),
       border: ratio(over(border, background), background),
       borderAlpha: border.a,
       outlineStyle: style.outlineStyle,
@@ -156,7 +167,7 @@ function measureInPage(mode: string): PanelMeasure | SendStateMeasure {
         range.selectNodeContents(line);
         return inside(range.getBoundingClientRect());
       }),
-      send: { width: sendBox.width, height: sendBox.height, contrast: textContrast(send, card), insideCard: inside(sendBox) },
+      send: { width: sendBox.width, height: sendBox.height, contrast: textContrast(send, send), insideCard: inside(sendBox), fill: fillOf(send) },
     };
   });
   const root = document.documentElement;
@@ -193,7 +204,8 @@ test.describe('Your tokens: token cards and the Send button', () => {
             expect(card.lineCounts, `${where}: each of the card's two lines fits on one line`).toEqual([1, 1]);
             expect(card.textInsideCard, `${where}: the text stays inside the card`).toBe(true);
             expect(card.send.insideCard, `${where}: Send stays inside the card`).toBe(true);
-            expect(card.send.contrast, `${where}: Send text contrast against the card`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
+            expect(card.send.fill, `${where}: Send is never filled (transparent background, no gradient)`).toEqual({ backgroundAlpha: 0, backgroundImage: 'none' });
+            expect(card.send.contrast, `${where}: Send text contrast against its own composite background`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
             if (mobile) {
               expect(card.send.width, `${where}: Send is at least ${MIN_HIT_PX} px wide`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
               expect(card.send.height, `${where}: Send is at least ${MIN_HIT_PX} px tall`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
@@ -207,6 +219,7 @@ test.describe('Your tokens: token cards and the Send button', () => {
             const hovered = (await page.evaluate(measureInPage, 'state')) as SendStateMeasure;
             test.info().annotations.push({ type: 'measure', description: `${where} hover: ${JSON.stringify(hovered)}` });
             expect(hovered.borderAlpha, `${where}: the hover edge is solid`).toBe(1);
+            expect(hovered.fill, `${where}: Send is not filled on hover, only its edge is solid`).toEqual({ backgroundAlpha: 0, backgroundImage: 'none' });
             expect(hovered.text, `${where}: Send text contrast on hover`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
           }
 
@@ -216,6 +229,7 @@ test.describe('Your tokens: token cards and the Send button', () => {
           await send.focus();
           const focused = (await page.evaluate(measureInPage, 'state')) as SendStateMeasure;
           test.info().annotations.push({ type: 'measure', description: `${where} focus: ${JSON.stringify(focused)}` });
+          expect(focused.fill, `${where}: Send is not filled with focus`).toEqual({ backgroundAlpha: 0, backgroundImage: 'none' });
           expect(focused.outlineStyle, `${where}: Send shows a focus ring`).not.toBe('none');
           expect(focused.outlineWidth, `${where}: the focus ring has a width`).toBeGreaterThan(0);
           expect(focused.text, `${where}: Send text contrast with focus`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
