@@ -176,6 +176,10 @@ describe('modes', () => {
     expect(buildPositionProfileModel(history([1], 1), 'me')).toEqual({ mode: 'hidden' });
   });
 
+  it('a single week without a live placement is hidden, not no-finished-week: hidden is decided before the first-week text', () => {
+    expect(buildPositionProfileModel(history([null], 2), 'me')).toEqual({ mode: 'hidden' });
+  });
+
   it('a runner without a live placement hides the tab', () => {
     expect(buildPositionProfileModel(history([1, 2, null]), 'me')).toEqual({ mode: 'hidden' });
   });
@@ -257,11 +261,11 @@ describe('text alternative', () => {
 
   it('gives the table a caption and, only when it has dashes, a footnote that explains them', () => {
     const joined = ready(history([null, 3, 1, 2], 6, weeksOf(4, 27)));
-    expect(joined.tableCaption).toBe('Position per week, week 27 to week 30. Week 30 is this week so far.');
+    expect(joined.tableCaption).toBe('Position per week, weeks 27 to 30. Week 30 is this week so far.');
     expect(joined.tableFootnote).toBe('— = not in the group yet');
 
     const always = ready(history([3, 1, 2], 6, weeksOf(3, 27)));
-    expect(always.tableCaption).toBe('Position per week, week 27 to week 29. Week 29 is this week so far.');
+    expect(always.tableCaption).toBe('Position per week, weeks 27 to 29. Week 29 is this week so far.');
     expect(always.tableFootnote).toBeNull();
   });
 

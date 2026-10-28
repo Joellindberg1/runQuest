@@ -14,7 +14,12 @@ export interface PositionWeekLabels {
   range: string;
 }
 
-type LabelledWeek = Pick<PositionWeek, 'iso_week' | 'iso_year'>;
+export type LabelledWeek = Pick<PositionWeek, 'iso_week' | 'iso_year'>;
+
+/** Korsar perioden ISO-årsskiftet? Den enda regeln för när året nämns i texterna (etiketter och talat intervall). */
+export function crossesIsoYear(weeks: ReadonlyArray<LabelledWeek>): boolean {
+  return weeks.some((week) => week.iso_year !== weeks[0].iso_year);
+}
 
 /**
  * ENDA stället som gör veckoetiketter av `iso_week`/`iso_year` (API:t skickar ingen etikett). Antalet veckor styrs av svaret, aldrig av
@@ -25,7 +30,7 @@ export function positionWeekLabels(weeks: ReadonlyArray<LabelledWeek>): Position
   if (weeks.length === 0) return { labels: [], range: '' };
   const first = weeks[0];
   const last = weeks[weeks.length - 1];
-  const crossesYear = weeks.some((week) => week.iso_year !== first.iso_year);
+  const crossesYear = crossesIsoYear(weeks);
   const spoken = (week: LabelledWeek) => (crossesYear ? `week ${week.iso_week}, ${week.iso_year}` : `week ${week.iso_week}`);
 
   const labels = weeks.map((week) => ({ visual: `W${week.iso_week}`, spoken: spoken(week) }));

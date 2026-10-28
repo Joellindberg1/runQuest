@@ -2,6 +2,7 @@ import type { PositionHistoryResponse, PositionRunner } from '@runquest/shared';
 import { getInitials } from '@/shared/utils/formatters';
 import { firstName } from '@/shared/utils/format';
 import { positionWeekLabels } from './positionWeekLabels';
+import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from './positionTexts';
 
 // Vymodellen för leaderboardens positionsgraf (Position-fliken). Ren: ingen React, ingen klocka och ingen färg per löpare (komponenten väljer
 // guld för `isMe`, neutralt för resten och ca 25 % opacitet för `dimmed`). Tiden, veckorna och ordningen kommer ur svaret.
@@ -126,6 +127,8 @@ export interface TableColumn {
 export interface TableCell {
   /** "#3", eller "—" när löparen inte hade någon placering. */
   text: string;
+  /** Det skärmläsaren får: "#3", eller "not in the group yet" i stället för tankstrecket. */
+  spokenText: string;
   position: number | null;
   isCurrent: boolean;
 }
@@ -144,6 +147,8 @@ export interface PositionTableModel {
   rows: TableRow[];
   /** Minst en cell är "—": komponenten förklarar tankstrecket. */
   hasEmptyCells: boolean;
+  /** "— = not in the group yet" när minst en cell är "—", annars null. */
+  footnote: string | null;
 }
 
 export interface PositionChartModel {
@@ -153,6 +158,8 @@ export interface PositionChartModel {
   weeks: ChartWeek[];
   /** "week 27–34", över årsskiftet "week 50, 2026 – week 4, 2027". */
   range: string;
+  /** Samma period för skärmläsaren (aria-label och captionen): "weeks 27 to 34", över årsskiftet "week 52, 2026 to week 1, 2027". */
+  spokenRange: string;
   geometry: ChartGeometry;
   /** Rutnätet och axeltalen: en rad per placering 1..antal löpare. Tom vid `hidden`. */
   gridRows: GridRow[];
@@ -229,16 +236,13 @@ function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartG
   return points;
 }
 
-function placementText(position: number | null): string {
-  return position === null ? '—' : `#${position}`;
-}
-
 /** Bygger hela vymodellen ur svaret. Se filhuvudet för ordning och antal veckor. */
 export function buildPositionChart(data: PositionHistoryResponse, options: PositionChartOptions): PositionChartModel {
   const { runners } = data;
   const weekCount = data.weeks.length;
   const finishedCount = Math.max(0, weekCount - 1);
   const { labels, range } = positionWeekLabels(data.weeks);
+  const speech = spokenRange(data.weeks);
   const weeks: ChartWeek[] = labels.map((label, i) => ({ ...label, x: weekX(i, weekCount), isCurrent: i === weekCount - 1 }));
 
   const mode: PositionChartMode = runners.length < 2 || weekCount === 0 ? 'hidden' : finishedCount === 0 ? 'no-finished-week' : 'chart';
@@ -290,15 +294,16 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
           };
         });
 
+  const hasEmptyCells = runners.some((runner) => weeks.some((_, i) => (runner.positions[i] ?? null) === null));
   const table: PositionTableModel | null =
     mode === 'hidden'
       ? null
       : {
-          caption: `Position per week, ${range}. The last column is this week so far.`,
+          caption: `Position per week, ${speech}. The last column is ${CURRENT_WEEK_PHRASE}.`,
           columns: weeks.map((week) => ({
             weekLabel: week.visual,
             spoken: week.spoken,
-            header: week.isCurrent ? 'this week so far' : week.visual,
+            header: week.isCurrent ? CURRENT_WEEK_PHRASE : week.visual,
             isCurrent: week.isCurrent,
           })),
           rows: runners.map((runner) => ({
@@ -307,11 +312,13 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
             isMe: runner.user_id === options.meId,
             cells: weeks.map((week, i) => ({
               text: placementText(runner.positions[i] ?? null),
+              spokenText: spokenPlacementText(runner.positions[i] ?? null),
               position: runner.positions[i] ?? null,
               isCurrent: week.isCurrent,
             })),
           })),
-          hasEmptyCells: runners.some((runner) => weeks.some((_, i) => (runner.positions[i] ?? null) === null)),
+          hasEmptyCells,
+          footnote: hasEmptyCells ? NOT_IN_GROUP_FOOTNOTE : null,
         };
 
   const standing = (runner: PositionRunner) => {
@@ -322,11 +329,11 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
   const ariaLabel =
     mode === 'hidden'
       ? ''
-      : `Position over time, ${range}. ${lastWeek.spoken.charAt(0).toUpperCase()}${lastWeek.spoken.slice(1)} is in progress. ${runners.map(standing).join(', ')}.`;
+      : `Position over time, ${speech}. ${currentWeekSentence(lastWeek.spoken)} ${runners.map(standing).join(', ')}.`;
 
   const gridRows: GridRow[] = mode === 'hidden' ? [] : runners.map((_, k) => ({ position: k + 1, y: rowY(k + 1, geometry) }));
 
-  return { mode, selectedId, weeks, range, geometry, gridRows, lines, paintOrder: paintOrderOf(lines), order, table, ariaLabel };
+  return { mode, selectedId, weeks, range, spokenRange: speech, geometry, gridRows, lines, paintOrder: paintOrderOf(lines), order, table, ariaLabel };
 }
 
 /**
