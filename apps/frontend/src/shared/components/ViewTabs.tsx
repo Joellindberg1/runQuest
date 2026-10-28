@@ -55,6 +55,8 @@ export function ViewTabs<T extends string>({ label, tabs, value, onChange, idPre
   }, [value]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Ctrl/Meta/Alt/Shift + tangent är webbläsarens (Ctrl+End, Alt+Vänster = bakåt): raden fångar den inte och hindrar den inte.
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
     const nextIndex = targetIndex(event.key, tabs.findIndex((tab) => tab.key === value), tabs.length);
     if (nextIndex === null) return;
     event.preventDefault();

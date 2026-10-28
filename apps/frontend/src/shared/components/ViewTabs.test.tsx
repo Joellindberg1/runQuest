@@ -59,6 +59,25 @@ describe('ViewTabs', () => {
     expect(screen.getByRole('tab', { name: 'Gamma' })).toHaveFocus();
   });
 
+  it.each([
+    ['ctrlKey', 'End'],
+    ['ctrlKey', 'Home'],
+    ['metaKey', 'ArrowLeft'],
+    ['altKey', 'ArrowLeft'],
+    ['altKey', 'ArrowRight'],
+    ['shiftKey', 'End'],
+  ] as const)('ViewTabs leaves %s + %s to the browser: no tab change and the default is not prevented', (modifier, key) => {
+    const onChange = setup('b');
+    const notPrevented = fireEvent.keyDown(screen.getByRole('tab', { name: 'Beta' }), { key, [modifier]: true });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notPrevented).toBe(true);
+  });
+
+  it('ViewTabs still prevents the default for an unmodified arrow, so the page does not scroll', () => {
+    setup('b');
+    expect(fireEvent.keyDown(screen.getByRole('tab', { name: 'Beta' }), { key: 'ArrowRight' })).toBe(false);
+  });
+
   it('andra tangenter gör ingenting', () => {
     const onChange = setup();
     fireEvent.keyDown(screen.getByRole('tablist'), { key: 'Enter' });
