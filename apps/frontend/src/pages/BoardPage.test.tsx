@@ -436,10 +436,10 @@ describe('Streaks-vyn (?view=streaks)', () => {
 describe('?view= — växling och delad URL', () => {
   const selected = () => screen.getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent;
 
-  it('default är season (All-time); fliklistan har tre flikar', async () => {
+  it('default är season (All-time); fliklistan har fyra flikar (Position kommer sist, med fem medlemmar)', async () => {
     renderBoard('/board');
     expect(await screen.findByTestId('podium-1')).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All-time', 'Week', 'Streaks']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All-time', 'Week', 'Streaks', 'Position']);
     expect(selected()).toBe('All-time');
   });
 
@@ -480,7 +480,7 @@ describe('?view= — växling och delad URL', () => {
   it('desktop har samma flikar (i rubrikraden)', async () => {
     renderBoard('/board?view=week', DESKTOP);
     await screen.findByRole('table', { name: 'This week' });
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByText(/Week \d+ · 5 runners/)).toBeInTheDocument();
   });
 });

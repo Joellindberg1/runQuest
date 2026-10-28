@@ -14,8 +14,26 @@
 .rq-board__title { margin: 0; font-weight: 400; }
 .rq-board__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-board__week { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-board__tabs { display: flex; gap: var(--rq-sp-6); }
-.rq-board__tabs > [role="tab"] { font-family: var(--rq-font-ui); }
+/* Fyra flikar (med Position) ryms inte på 320 px: lika breda flikar (flex: 1) som aldrig krymper under sin text, och rymms de inte scrollar raden i sidled i sin egen yta i stället för att göra sidan bredare
+   (RUN-387-mönstret, som profilens flikrad). overflow-x: auto gör också overflow-y till auto och klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset i view-controls.css). */
+.rq-board__tabs-wrap { min-width: 0; }
+/* scroll-padding-inline är kantfadens zon: samma token som toningen nedan, och useTabRowFade läser måttet härifrån för att hålla den valda fliken utanför zonen. */
+.rq-board__tabs { display: flex; gap: var(--rq-sp-6); overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: var(--rq-sp-24); }
+.rq-board__tabs > [role="tab"] { flex: 1; white-space: nowrap; font-family: var(--rq-font-ui); }
+/* Kantfade: raden tonas ut mot den kant som har fler flikar bortom sig (data-fade-* sätts av useTabRowFade, ur radens scrollläge). Masken använder bara alfa; textfärgen är bara en
+   ogenomskinlig färg. Utan data-attributen (alla flikar ryms) finns ingen mask. */
+.rq-board__tabs-wrap[data-fade-start="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-board__tabs-wrap[data-fade-end="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-board__tabs-wrap[data-fade-start="true"][data-fade-end="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+}
 .rq-board__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
 .rq-board__panel { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-board__loading { display: flex; justify-content: center; padding: var(--rq-sp-40) 0; }
