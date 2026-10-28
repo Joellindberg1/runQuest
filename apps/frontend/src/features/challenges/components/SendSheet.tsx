@@ -11,6 +11,8 @@ import { TierChip } from './TierChip';
 import { TokenChoice } from './TokenChoice';
 
 const ICON_HEAD = 21;
+const HEADER_SEND_SELECTOR = '[data-tour="duels-send"]';
+const PAGE_HEADING_SELECTOR = '.rq-duels__title';
 
 interface SendSheetProps {
   groups: TierGroup[];
@@ -92,9 +94,12 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   };
 
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>). Avstängd knapp (efter en skickad utmaning) tar inte emot fokus; det är fortfarande rätt.
+  // Saknas öppnaren (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
-    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
+    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected;
+    const target = usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR));
+    target?.focus();
   };
 
   const submit = async () => {

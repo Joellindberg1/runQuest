@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -331,5 +332,28 @@ describe('Send flow: where it starts', () => {
 
     renderSheet();
     expect(checked()).toEqual([false, false, false]);
+  });
+});
+
+describe('Send flow: focus when there is no opener', () => {
+  function Host() {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <h1 className="rq-duels__title" tabIndex={-1}>Challenges</h1>
+        {open && (
+          <SendSheet groups={buildTokenGroups(ALL_TIERS)} blocker={null} members={[stat(ME), stat(KARL)]} users={undefined} meId={ME} preselection={null} initialOpponent={null} onClose={() => setOpen(false)} onSend={async () => {}} />
+        )}
+      </>
+    );
+  }
+
+  it('without an opener and without a header button, the focus goes to the page heading', async () => {
+    const user = userEvent.setup();
+    resetFakeBackend();
+    renderWithApp(<Host />);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Challenges' })).toHaveFocus();
   });
 });

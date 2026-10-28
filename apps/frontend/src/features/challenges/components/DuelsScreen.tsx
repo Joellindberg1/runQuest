@@ -108,6 +108,9 @@ export function DuelsScreen() {
   const summary = summaryText({ live: my.group_active.length, waitingOnMe: incoming.length, tokens: tokenTotal(tokenGroups) }, isDesktop);
 
   const sendOpen = params.get(SEND_PARAM) === '1';
+  // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
+  // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
+  if (!sendOpen && preselection !== null) setPreselection(null);
   // Öppna med en ny historikpost (back stänger sheeten); stäng med replace så back inte öppnar den igen.
   const openSend = (next?: SendPreselection) => {
     setPreselection(next ?? null);
@@ -122,7 +125,6 @@ export function DuelsScreen() {
     );
   };
   const closeSend = () => {
-    setPreselection(null);
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
