@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import RunnerRoute from './RunnerPage';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -15,7 +16,8 @@ vi.mock('@/features/badges/api', () => ({
 }));
 
 // Popupens chunk hålls tillbaka tills provet släpper den. Importeras RunnerPopup statiskt väntar modulgrafen på fabriken och filen kommer aldrig förbi insamlingen; bara
-// en dynamisk import (React.lazy) låter sidan visa skrim och laddare medan chunken hämtas.
+// en dynamisk import (React.lazy) låter sidan visa skrim och laddare medan chunken hämtas. Modulen laddas en gång per fil: proven av laddläget kommer därför FÖRE provet som
+// släpper chunken, och det sista provet i filen är det som släpper den.
 const popupChunk = vi.hoisted(() => {
   let release: () => void = () => {};
   const loaded = new Promise<void>((resolve) => { release = resolve; });
@@ -33,22 +35,84 @@ beforeEach(() => {
   handlers.getTitleLeaderboard = () => ({ success: true, data: [] });
 });
 
+const location = () => screen.getByTestId('location').textContent;
+
+function renderPending() {
+  return renderWithApp(
+    <Routes>
+      <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+      <Route path="/board" element={<div>Board page</div>} />
+    </Routes>,
+    { entry: '/runner/u-karl', width: 1280 },
+  );
+}
+
 describe('the profile popup is a lazy chunk', () => {
-  it('shows the scrim and a loading state first, and the dialog when the chunk has loaded', async () => {
+  it('while the chunk loads, the loading state is a busy dialog over the scrim', async () => {
+    renderPending();
+
+    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).getByText('Loading runner')).toBeInTheDocument();
+    expect(document.querySelector('.rq-scrim')).not.toBeNull();
+  });
+
+  it('while the chunk loads, focus moves into the dialog and Tab does not release it to the page behind', async () => {
+    const user = userEvent.setup();
     renderWithApp(
-      <Routes>
-        <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
-      </Routes>,
+      <>
+        <button type="button">Behind the popup</button>
+        <Routes>
+          <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+        </Routes>
+      </>,
       { entry: '/runner/u-karl', width: 1280 },
     );
+    screen.getByRole('button', { name: 'Behind the popup' }).focus();
 
-    expect(await screen.findByText('Loading runner')).toBeInTheDocument();
-    expect(document.querySelector('.rq-scrim')).not.toBeNull();
+    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    await waitFor(() => expect(dialog).toHaveFocus());
+
+    await user.tab();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    await user.tab({ shift: true });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(screen.getByRole('button', { name: 'Behind the popup', hidden: true })).not.toHaveFocus();
+  });
+
+  it('while the chunk loads, Escape closes the popup', async () => {
+    renderPending();
+    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    await waitFor(() => expect(dialog).toHaveFocus());
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    await waitFor(() => expect(location()).toBe('/board'));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('while the chunk loads, a click on the scrim closes the popup', async () => {
+    renderPending();
+    await screen.findByRole('dialog', { name: 'Runner card' });
+
+    fireEvent.click(document.querySelector('.rq-scrim') as HTMLElement);
+
+    await waitFor(() => expect(location()).toBe('/board'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('shows the real dialog, not busy, when the chunk has loaded', async () => {
+    renderPending();
+    expect(await screen.findByText('Loading runner')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: `Runner card: ${OTHER.name}` })).toBeNull();
 
     popupChunk.release();
     const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
-    expect(await within(dialog).findByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
+    expect(dialog).not.toHaveAttribute('aria-busy');
+    await waitFor(() => expect(within(dialog).getByRole('heading', { level: 2, name: `Runner card: ${OTHER.name}` })).toHaveFocus());
+    expect(await within(dialog).findByRole('tab', { name: 'The Journey' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     await waitFor(() => expect(screen.queryByText('Loading runner')).toBeNull());
   });
 });

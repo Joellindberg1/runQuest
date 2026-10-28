@@ -6,12 +6,14 @@ import { AppShell } from './AppShell';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { enableErrorReporting, reportError } from '@/shared/observability/errorReporting';
+import { loadRunnerPopup } from '@/features/runner/loadRunnerPopup';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/shared/observability/errorReporting', () => ({
   enableErrorReporting: vi.fn(() => Promise.resolve()),
   reportError: vi.fn(),
 }));
+vi.mock('@/features/runner/loadRunnerPopup', () => ({ loadRunnerPopup: vi.fn(async () => ({})) }));
 
 const MOBILE_WIDTH = 1023;
 const DESKTOP_WIDTH = 1024;
@@ -84,6 +86,39 @@ describe('AppShell: exakt en variant i DOM (ADR 006 beslut 5)', () => {
     await screen.findByText('page /board');
     expect(desktop.container.querySelector('[data-tour="nav-events"]')).not.toBeNull();
     expect(desktop.container.querySelector('[data-tour="header-events"]')).toBeNull();
+  });
+});
+
+describe('AppShell: förladdning av profil-popupen', () => {
+  const Rows: React.FC = () => <button type="button" data-runner-id="u-karl">Karl row</button>;
+  const TreeWithRow: React.FC = () => (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/board" element={<Rows />} />
+      </Route>
+    </Routes>
+  );
+
+  beforeEach(() => vi.mocked(loadRunnerPopup).mockClear());
+
+  it('desktop: hämtar popupens chunk när pekaren går över en löparrad, före klicket', async () => {
+    renderWithApp(<TreeWithRow />, { entry: '/board', width: DESKTOP_WIDTH });
+    const row = await screen.findByRole('button', { name: 'Karl row' });
+    expect(loadRunnerPopup).not.toHaveBeenCalled();
+
+    fireEvent.pointerOver(row);
+
+    expect(loadRunnerPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it('mobil: popupen finns inte, så ingenting förladdas', async () => {
+    renderWithApp(<TreeWithRow />, { entry: '/board', width: MOBILE_WIDTH });
+    const row = await screen.findByRole('button', { name: 'Karl row' });
+
+    fireEvent.pointerOver(row);
+    row.focus();
+
+    expect(loadRunnerPopup).not.toHaveBeenCalled();
   });
 });
 
