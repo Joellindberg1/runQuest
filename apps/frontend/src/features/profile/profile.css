@@ -177,7 +177,7 @@
 .rq-profile-history__sum { padding: var(--rq-sp-10) var(--rq-pad-card); background: var(--rq-row-soft); border-top: var(--rq-hair) dashed var(--rq-line-2); }
 .rq-profile-run__pair { display: inline-flex; align-items: baseline; gap: var(--rq-sp-6); }
 .rq-profile-run__tlabel { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-profile-run__tvalue { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
+.rq-profile-run__tvalue { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
 .rq-profile-history__sum .rq-profile-run__tvalue { color: var(--rq-text-2); }
 .rq-profile-history__basis { margin-left: auto; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 
