@@ -294,7 +294,9 @@ describe('PositionChart', () => {
       sheet.walkDecls((decl) => {
         if (/^(-webkit-)?(animation|transition)/.test(decl.prop)) moving.push(decl.prop);
       });
-      sheet.walkAtRules('keyframes', (rule) => moving.push(`@keyframes ${rule.params}`));
+      sheet.walkAtRules('keyframes', (rule) => {
+        moving.push(`@keyframes ${rule.params}`);
+      });
       expect(sheet.nodes.length).toBeGreaterThan(10);
       expect(moving).toEqual([]);
     });
