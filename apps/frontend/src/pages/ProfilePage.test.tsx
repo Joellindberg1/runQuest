@@ -613,6 +613,14 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     expect(within(sheet).getByRole('button', { name: /Delete run/ })).toBeDisabled();
   });
 
+  it('moving_time följer med från users-with-runs till rundan (mapApiUser tappar den inte)', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, moving_time: 3130 } : r)) });
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    expect(screen.getByText('Time 52:10, pace 5:13 per kilometre')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Time of the runs shown' })).toHaveTextContent('52:10');
+  });
+
   it('radens knapp: Strava-runda heter "View" (synlig text + aria-label), manuell behåller "Edit" exakt som förut', async () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, source: 'strava' } : r)) });
     renderProfile();
