@@ -13,6 +13,7 @@ Mobil (<1024 px) och desktop (≥1024) är två varianter av samma data; exakt e
   - `BoardParts` — avatar, delta-pil, namn-knapp, challenge-vimplar (`ChallengeRibbons`), `cssVars`
 - **Vymodeller (rena, testade):** `seasonModel`, `weekModel`, `streakModel`, `boardFormat`
 - **hooks/** `useBoardQueries` (week, rank-delta); `usePositionHistory(weeks, enabled)` (`['leaderboard','positions',weeks]`, delas av Leaderboard och profilen, antalet veckor i svaret styr: anta aldrig 8); `shared/hooks/useXpConfig`, `useViewParam`
+- **Positionsgrafens vymodell:** `positionChartModel` (`buildPositionChart`, `selectRunner`, `chartHeight`) gör linjer, slutpunkter, valt läge, "Current order", tabell och `role="img"`-text ur `PositionHistoryResponse`. Sorterar aldrig själv (svarets ordning = Standings, `compareXpStandings`), bär ingen färg och antar inget antal veckor.
 - **Veckoetiketter:** `positionWeekLabels` är enda stället som gör `W27` / `week 27` / intervalltext ur `iso_week` + `iso_year` (år i skärmläsartexten över ISO-årsskiftet)
 - `board.css` — enda stilfilen; bara tokens utanför mått-blocket i toppen.
 
