@@ -149,6 +149,8 @@
   --rq-down-hover:  #fca5a5;      /* hover på fylld röd knapp */
   --rq-on-down:     #0a0a0a;      /* text på fylld röd knapp */
   --rq-on-up:       #0a0a0a;      /* text/knopp på grön fyllning (reglaget i på-läge) */
+  --rq-up-text:     var(--rq-up);   /* liten text i vinst/förlust-ton på en tonad yta (ljust: mörkare, ≥ 4,5:1 mot guld-/bronstint) */
+  --rq-down-text:   var(--rq-down);
   --rq-duel:        #fdba74;
   --rq-duel-base:   #f97316;
   --rq-strava:      #fc5200;
@@ -1160,6 +1162,8 @@
   --rq-down-hover:  #b91c1c;
   --rq-on-down:     #ffffff;
   --rq-on-up:       #ffffff;
+  --rq-up-text:     #166534;                    /* --rq-up (#15803d) ger 4,35:1 mot den valda radens bronstint, #166534 ger över 6:1 */
+  --rq-down-text:   #b91c1c;                    /* --rq-down (#dc2626) ger 4,37:1 mot "The bet"-kortets bronstint, #b91c1c ger över 5:1 */
   --rq-duel:        #b45309;
   --rq-duel-base:   #c2410c;
 

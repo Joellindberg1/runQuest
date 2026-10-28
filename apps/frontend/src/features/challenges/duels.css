@@ -252,15 +252,15 @@
   display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; box-sizing: border-box; padding: var(--rq-sp-10) var(--rq-sp-12); cursor: pointer; text-align: left;
   background: var(--rq-cell); border: var(--rq-hair) solid var(--rq-line-3); color: inherit; font-family: var(--rq-font-ui);
 }
-.rq-duels-option:hover:not([aria-disabled="true"]) { background: var(--rq-row-hover); }
+.rq-duels-option:hover:not([aria-disabled="true"], [aria-checked="true"]) { background: var(--rq-row-hover); }
 .rq-duels-option[aria-disabled="true"] { cursor: not-allowed; }
 .rq-duels-option__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
 .rq-duels-option__note { font-size: var(--rq-fs-label); color: var(--rq-text-4); }
 /* Varför raden inte går att välja ("In a duel"): i duellens ton, i klartext och inte dämpad, så orsaken syns också på en avstängd rad. */
 .rq-duels-option__reason { color: var(--rq-duel); }
 .rq-duels-option__h2h { flex-shrink: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up); }
-.rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down); }
+.rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up-text); }
+.rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down-text); }
 
 /* Steg 1: nivåchipsen är samma TierChip som i Your tokens (.rq-duels-chips ovan). Statusregionen tar ingen plats förrän den har en text. */
 .rq-duels-sheet__status:not(:empty) { margin-top: var(--rq-sp-8); }
@@ -282,11 +282,17 @@
 
 /* Steg 3: motståndarna är en radiogrupp (OpponentChoice). Raden är minst --rq-control-hit hög (44 px på mobil); fokusringen ritas inåt som på tokenkorten, eftersom
    sheetens kropp scrollar och klipper en yttre ring. Den valda raden har guldtint och guldkant (som förut) och dessutom aria-checked. */
-.rq-duels-opponents { border: var(--rq-hair) solid var(--rq-line-2); }
+/* Raderna ligger på sheetens egen yta (som tokenkorten i steg 2), och hårlinjerna mellan dem är rader med kantlinje i stället för hårlinjegridens bakgrund: en halvgenomskinlig
+   radbakgrund över gridens gråa linjefärg blir annars mörkare än sheeten och drar texten under 4,5:1 i ljust tema. */
+.rq-hairgrid.rq-duels-opponents { gap: 0; background: var(--rq-popover); border: var(--rq-hair) solid var(--rq-line-2); }
 .rq-duels-option--opponent { min-height: var(--rq-control-hit); border: 0; border-left: var(--rq-edge-w) solid transparent; }
+.rq-duels-option--opponent + .rq-duels-option--opponent { border-top: var(--rq-hair) solid var(--rq-line-2); }
 .rq-duels-option--opponent:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-duels-option--opponent[aria-checked="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); }
 .rq-duels-option--opponent[aria-disabled="true"] .rq-name { color: var(--rq-text-4); }
+/* På den valda radens guldtint räcker --rq-text-4 inte till 4,5:1 i ljust tema (4,49:1; --rq-text-3 är där ännu svagare, 3,8:1): den dämpade texten tar --rq-text-2. */
+.rq-duels-option--opponent[aria-checked="true"] .rq-duels-option__note,
+.rq-duels-option--opponent[aria-checked="true"] .rq-duels-option__h2h:not([data-tone="up"], [data-tone="down"]) { color: var(--rq-text-2); }
 .rq-duels-avatar { width: var(--rq-duels-avatar); height: var(--rq-duels-avatar); flex-shrink: 0; overflow: hidden; font-size: var(--rq-fs-label); }
 .rq-duels-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -297,5 +303,5 @@
 .rq-duels-bet__stakes > div { min-width: 0; text-align: start; }
 .rq-duels-bet__stakes dt { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
-.rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up); }
-.rq-duels-bet__stakes [data-tone="down"] dt, .rq-duels-bet__stakes [data-tone="down"] dd { color: var(--rq-down); }
+.rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up-text); }
+.rq-duels-bet__stakes [data-tone="down"] dt, .rq-duels-bet__stakes [data-tone="down"] dd { color: var(--rq-down-text); }
