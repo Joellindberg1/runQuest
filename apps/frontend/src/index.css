@@ -421,7 +421,7 @@
   --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
   --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
   --rq-runner-close-gutter: 44px;       /* popup: luft till modalens ✕ i toppraden */
-  --rq-runner-popup-panel-h: 340px;     /* popup: panelytans fasta höjd under flikraden, så att dialogen är lika hög på alla flikar (under .rq-modal max-height) */
+  --rq-runner-popup-panel-h: 300px;     /* popup: panelytans fasta höjd under flikraden, så att dialogen är lika hög på alla flikar (under .rq-modal max-height) */
 
   /* ── 1.22 Titles-mått (inkrement 4) ────────────────────────────────────────
      Mått ur App-/Web-prototypens titles-skärm som saknade token. Endast mått —
