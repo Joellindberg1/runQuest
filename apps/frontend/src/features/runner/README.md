@@ -2,15 +2,16 @@
 
 Hjältekort · Frodo's journey · statflikar · titlar · head-to-head · Challenge (ADR 006 beslut 6, ADR 007 B6).
 Mobil/direktladdning = sida i skalet (`RunnerCard`, Back-knapp); desktop inifrån appen = profil-popupen (`RunnerPopup`, Radix Dialog, "Runner card"; ADR 006 addendum 2026-10-26).
-Datahämtning och paneler är gemensamma (`RunnerPanels`) — bara ramen skiljer.
+Datahämtningen är gemensam (`hooks/useRunnerPanelData`) och panelerna är desamma — sidan ritar dem staplade (`RunnerPanels`), popupen en i taget i sina flikar (`PopupSections`); bara ramen skiljer.
 `pages/RunnerPage.tsx` äger routing (eget id → `/profile`, okänt id → NotFound) och laddar popupen lazy (`React.lazy` bakom Suspense, egen chunk).
 
 ## Struktur
 
 - **components/**
   - `RunnerCard` — sidan: Back-knapp, Challenge och `RunnerPanels`; `?view=` för statflikarna
-  - `RunnerPanels` — panelerna (hjälte · journey · statflikar | titlar · badges | head to head) och all deras datakoppling; delas av sidan och popupen
-  - `RunnerPopup` — profil-popupen, lazy: dialogramen (Radix Dialog över `.rq-scrim`/`.rq-modal`, bredd `--rq-modal-w`) med fast huvudyta (rubriken "Runner card", Challenge, ✕) och en scrollande yta (`.rq-runner-popup__content`) för innehållet. Fokus in = rubriken (`tabIndex={-1}`); fokus tillbaka = första synliga `[data-runner-id]` för löparen efter stängning (`onCloseAutoFocus`; Challenge-navigering undantagen). Statfliken är komponenttillstånd (`key={id}`), aldrig `?view=`. Tills flikarna (378·S6–S11) är byggda ritar den `RunnerPanels`
+  - `RunnerPanels` — panelerna (hjälte · journey · statflikar | titlar · badges | head to head) på sidan (`RunnerCard`), och `HeadToHeadSection`. Datakopplingen ligger i `hooks/useRunnerPanelData`, som popupen delar
+  - `RunnerPopup` — profil-popupen, lazy: dialogramen (Radix Dialog över `.rq-scrim`/`.rq-modal`, bredd `--rq-modal-w`) med fast huvudyta (rubriken "Runner card", Challenge, ✕) och en scrollande yta (`.rq-runner-popup__content`) för innehållet. Fokus in = rubriken (`tabIndex={-1}`); fokus tillbaka = första synliga `[data-runner-id]` för löparen efter stängning (`onCloseAutoFocus`; Challenge-navigering undantagen). Statfliken är komponenttillstånd (`key={id}`), aldrig `?view=`. Under huvudytan: hjältekortet och flikarna (`PopupSections`).
+  - `PopupSections` — popupens flikrad (`ViewTabs variant="underline"`, Overview · The Journey · Titles held · Badges; id-prefix `runner-popup`, skilt från `runner-stats`) över EN tabpanel med fast höjd (`--rq-runner-popup-panel-h`, scrollar för sig, så dialogen är lika hög på alla flikar). Bara vald flik ritas: Overview = statflikarna + Head to head, The Journey = `JourneyCard`, Titles held = `TitlesPanel`, Badges = `BadgePanel` (befintliga paneler; innehållet uppgraderas av egna storys). Flik och Overview-växling är `useState` i `RunnerPopup` (`popupSections.ts`), aldrig `?view=`, och nollställs vid varje öppning.
   - `HeroCard` — `.rq-card--hero`: nivåring (`.rq-ring` + `--rq-ring-p`), namn + badge-minis (`BadgeMinis`)/rank/rundor/"N XP to level M", statceller (3 mobil, 5 desktop)
   - `JourneyCard` — Frodo: enkel stapel (mobil) eller zoombar väg med waypoints (desktop); matematiken i `features/profile/frodoModel`
   - `StatsPanel` — `ViewTabs variant="underline"`, kontrollerad: `RunnerCard` äger `?view=` (`distance` · `streak` · `fun`, default distance; listan i `statViews.ts`)

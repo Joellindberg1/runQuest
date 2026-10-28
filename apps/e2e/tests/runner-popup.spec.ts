@@ -48,8 +48,11 @@ const holder = (index: number) => ({
   status: 'holder',
 });
 
-/** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. */
-async function stubGroup(page: Page, titles: number): Promise<void> {
+/** Serierna i BADGE_SERIES (packages/shared/src/badges.ts): löparens badges i proven som vill ha en full samling (en post per serie). */
+const BADGE_SERIES_KEYS = ['milestoner', 'earth_trotter', 'climber', 'streak_keeper', 'early_bird', 'night_owl', 'speedster', 'precisionist'];
+
+/** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. `badges` = antal serier löparen har intjänade (0-8). */
+async function stubGroup(page: Page, titles: number, badges = 0): Promise<void> {
   await answerWith(page, '/auth/users-with-runs', { success: true, data: GROUP });
   await answerWith(page, '/titles/user/', {
     success: true,
@@ -68,11 +71,15 @@ async function stubGroup(page: Page, titles: number): Promise<void> {
     success: true,
     data: { opponent: { id: RUNNER.id, name: RUNNER.name, profile_picture: null }, record: { wins: 1, draws: 0, losses: 1, total: 2 }, history: [], active: null },
   });
-  await answerWith(page, '/badges/user/', { success: true, data: { items: [], showcase: [] } });
+  const earned = BADGE_SERIES_KEYS.slice(0, badges);
+  await answerWith(page, '/badges/user/', {
+    success: true,
+    data: { items: earned.map((series, index) => ({ series, tier: 1 + (index % 6), earned_at: '2026-10-01T12:00:00Z' })), showcase: earned.slice(0, 3) },
+  });
 }
 
-async function openBoard(page: Page, width: number, height: number, titles = 3): Promise<void> {
-  await stubGroup(page, titles);
+async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0): Promise<void> {
+  await stubGroup(page, titles, badges);
   await page.setViewportSize({ width, height });
   await page.goto('/board');
   await dismissOverlays(page);
@@ -88,9 +95,22 @@ async function openPopup(page: Page): Promise<Locator> {
   await runnerRow(page).click();
   const dialog = popup(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('region', { name: "Frodo's journey" })).toBeVisible();
+  await expect(dialog.getByRole('tablist', { name: 'Runner sections' })).toBeVisible();
   await waitForStylesApplied(page);
   return dialog;
+}
+
+const SECTIONS = ['Overview', 'The Journey', 'Titles held', 'Badges'] as const;
+const sectionTab = (dialog: Locator, name: (typeof SECTIONS)[number]): Locator => dialog.getByRole('tablist', { name: 'Runner sections' }).getByRole('tab', { name });
+const sectionPanel = (dialog: Locator): Locator => dialog.locator('.rq-runner-popup-panel');
+
+/** Väntar tills flikens egen panel är ritad med sitt innehåll (inte laddaren), så att höjden mäts i det läge användaren ser. */
+async function expectSectionLoaded(dialog: Locator, name: (typeof SECTIONS)[number]): Promise<void> {
+  const panel = sectionPanel(dialog);
+  if (name === 'Overview') await expect(panel.getByRole('region', { name: 'Head to head' })).toBeVisible();
+  if (name === 'The Journey') await expect(panel.getByRole('region', { name: "Frodo's journey" })).toBeVisible();
+  if (name === 'Titles held') await expect(panel.getByRole('list', { name: 'Titles held' })).toBeVisible();
+  if (name === 'Badges') await expect(panel.getByRole('list', { name: 'Earned badges' })).toBeVisible();
 }
 
 /**
@@ -185,28 +205,150 @@ test.describe('the profile popup on desktop', () => {
     });
   }
 
-  for (const height of [768, 256]) {
-    test(`with 15 titles the content scrolls inside the dialog on a ${height} px tall screen, and the heading row stays`, async ({ page }) => {
-      await openBoard(page, 1024, height, 15);
+  test('with 15 titles on a 768 px tall screen the Titles panel scrolls on its own, and the heading row and the tabs stay', async ({ page }) => {
+    await openBoard(page, 1024, 768, 15);
+    const dialog = await openPopup(page);
+    await sectionTab(dialog, 'Titles held').click();
+    await expectSectionLoaded(dialog, 'Titles held');
+
+    const panel = sectionPanel(dialog);
+    const bar = dialog.locator('.rq-runner-popup__bar');
+    const tabs = dialog.getByRole('tablist', { name: 'Runner sections' });
+    const before = { bar: (await bar.boundingBox())!, tabs: (await tabs.boundingBox())! };
+    const scrolls = await panel.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+    expect(scrolls.scroll, 'the 15 titles are taller than the panel').toBeGreaterThan(scrolls.client);
+
+    await panel.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await panel.evaluate((element) => element.scrollTop), 'the panel scrolled').toBeGreaterThan(0);
+    expect((await bar.boundingBox())!.y, 'the heading row did not scroll away').toBeCloseTo(before.bar.y, 0);
+    expect((await tabs.boundingBox())!.y, 'the tabs did not scroll away').toBeCloseTo(before.tabs.y, 0);
+
+    const box = (await dialog.boundingBox())!;
+    expect(box.y, 'the dialog starts inside the window').toBeGreaterThanOrEqual(-TOLERANCE_PX);
+    expect(box.y + box.height, 'the dialog ends inside the window').toBeLessThanOrEqual(768 + TOLERANCE_PX);
+    await expectPageLocked(page, dialog);
+  });
+
+  test('with 15 titles on a 256 px tall screen the content scrolls inside the dialog, the heading row stays and the dialog is never taller than the window', async ({ page }) => {
+    await openBoard(page, 1024, 256, 15);
+    const dialog = await openPopup(page);
+    await sectionTab(dialog, 'Titles held').click();
+    await expectSectionLoaded(dialog, 'Titles held');
+
+    const content = dialog.locator('.rq-runner-popup__content');
+    const bar = dialog.locator('.rq-runner-popup__bar');
+    const before = (await bar.boundingBox())!;
+    const scrolls = await content.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+    expect(scrolls.scroll, 'the content is taller than its scroll area').toBeGreaterThan(scrolls.client);
+
+    await content.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect((await bar.boundingBox())!.y, 'the heading row did not scroll away').toBeCloseTo(before.y, 0);
+    expect(await content.evaluate((element) => element.scrollTop), 'the content scrolled').toBeGreaterThan(0);
+
+    const box = (await dialog.boundingBox())!;
+    expect(box.y, 'the dialog starts inside the window').toBeGreaterThanOrEqual(-TOLERANCE_PX);
+    expect(box.y + box.height, 'the dialog is never taller than the window').toBeLessThanOrEqual(256 + TOLERANCE_PX);
+    await expectPageLocked(page, dialog);
+  });
+
+  // Stabil höjd: panelytan har fast höjd, så dialogen är lika hög på alla fyra flikar, också med 15 titlar och en full badge-samling, och både medan en flik laddar och när den är klar.
+  for (const [width, height] of [[1440, 900], [1280, 768]] as const) {
+    test(`the dialog is equally tall on every tab, with 15 titles and many badges, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
+      await openBoard(page, width, height, 15, BADGE_SERIES_KEYS.length);
       const dialog = await openPopup(page);
 
-      const content = dialog.locator('.rq-runner-popup__content');
-      const bar = dialog.locator('.rq-runner-popup__bar');
-      const before = (await bar.boundingBox())!;
-      const scrolls = await content.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
-      expect(scrolls.scroll, 'the content is taller than its scroll area').toBeGreaterThan(scrolls.client);
+      const heights: Record<string, number> = {};
+      for (const name of SECTIONS) {
+        await sectionTab(dialog, name).click();
+        heights[`${name} (just selected)`] = (await dialog.boundingBox())!.height;
+        await expectSectionLoaded(dialog, name);
+        heights[`${name} (loaded)`] = (await dialog.boundingBox())!.height;
+      }
+      testInfo.annotations.push({ type: 'dialog heights', description: JSON.stringify(heights) });
 
-      await content.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      const after = (await bar.boundingBox())!;
-      expect(after.y, 'the heading row did not scroll away').toBeCloseTo(before.y, 0);
-      expect(await content.evaluate((element) => element.scrollTop), 'the content scrolled').toBeGreaterThan(0);
-
+      const values = Object.values(heights);
+      expect(Math.max(...values) - Math.min(...values), `the dialog height varies: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(TOLERANCE_PX);
       const box = (await dialog.boundingBox())!;
       expect(box.y, 'the dialog starts inside the window').toBeGreaterThanOrEqual(-TOLERANCE_PX);
-      expect(box.y + box.height, 'the dialog is never taller than the window').toBeLessThanOrEqual(height + TOLERANCE_PX);
-      await expectPageLocked(page, dialog);
+      expect(box.y + box.height, 'the dialog ends inside the window').toBeLessThanOrEqual(height + TOLERANCE_PX);
+      // Fliken med 15 titlar överstiger panelen: det som inte ryms scrollar i panelen, inte i dialogen.
+      await sectionTab(dialog, 'Titles held').click();
+      await expectSectionLoaded(dialog, 'Titles held');
+      const titles = await sectionPanel(dialog).evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+      expect(titles.scroll, '15 titles do not fit in the panel').toBeGreaterThan(titles.client);
     });
   }
+
+  test('the tabs move with the arrow keys, Home and End, keep one tab stop, and Tab goes on to the panel', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+
+    await sectionTab(dialog, 'Overview').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(sectionTab(dialog, 'The Journey')).toBeFocused();
+    await expect(sectionTab(dialog, 'The Journey')).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('End');
+    await expect(sectionTab(dialog, 'Badges')).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(sectionTab(dialog, 'Overview')).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(sectionTab(dialog, 'Badges')).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(sectionTab(dialog, 'Overview')).toBeFocused();
+
+    const stops = await dialog.getByRole('tablist', { name: 'Runner sections' }).getByRole('tab').evaluateAll((tabs) => tabs.filter((tab) => (tab as HTMLElement).tabIndex === 0).length);
+    expect(stops, 'only the selected tab is a tab stop').toBe(1);
+
+    await page.keyboard.press('Tab');
+    await expect(sectionPanel(dialog)).toBeFocused();
+  });
+
+  test('the tab state resets when the popup is opened again', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    let dialog = await openPopup(page);
+    await dialog.getByRole('tab', { name: 'Streak' }).click();
+    await expect(dialog.getByRole('tab', { name: 'Streak' })).toHaveAttribute('aria-selected', 'true');
+    await sectionTab(dialog, 'Titles held').click();
+    await expect(sectionTab(dialog, 'Titles held')).toHaveAttribute('aria-selected', 'true');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    expect(new URL(page.url()).search, 'no search parameter was written for the tabs').toBe('');
+
+    dialog = await openPopup(page);
+    await expect(sectionTab(dialog, 'Overview')).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.getByRole('tab', { name: 'Distance' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('the selected tab has the selected tint and edge, and the focus ring of a tab is drawn inside it', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    const selected = sectionTab(dialog, 'Overview');
+    const other = sectionTab(dialog, 'Badges');
+
+    const colours = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      return { tint: parseFloat(root.getPropertyValue('--rq-tint-selected')), edge: parseFloat(root.getPropertyValue('--rq-edge-selected')) };
+    });
+    expect(colours, 'the selected tokens exist').toEqual({ tint: 0.14, edge: 0.5 });
+    const alpha = (value: string) => Number(/\/\s*([\d.]+)\)$/.exec(value)?.[1] ?? /rgba\(.*,\s*([\d.]+)\)$/.exec(value)?.[1] ?? 1);
+    const style = (tab: Locator) => tab.evaluate((element) => { const s = getComputedStyle(element); return { background: s.backgroundColor, top: s.borderTopColor }; });
+    expect(alpha((await style(selected)).background), 'selected background tint').toBeCloseTo(0.14, 2);
+    expect(alpha((await style(selected)).top), 'selected edge').toBeCloseTo(0.5, 2);
+    expect(alpha((await style(other)).background), 'an unselected tab has no tint').toBe(0);
+
+    await selected.focus();
+    await page.keyboard.press('ArrowRight');
+    const ring = await sectionTab(dialog, 'The Journey').evaluate((tab) => {
+      const s = getComputedStyle(tab);
+      const box = tab.getBoundingClientRect();
+      const reach = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth);
+      return { focusVisible: tab.matches(':focus-visible'), top: box.top - reach, bottom: box.bottom + reach, boxTop: box.top, boxBottom: box.bottom };
+    });
+    expect(ring.focusVisible, 'the tab has a keyboard focus ring').toBe(true);
+    expect(ring.top, 'the ring starts at or below the tab top').toBeGreaterThanOrEqual(ring.boxTop - TOLERANCE_PX);
+    expect(ring.bottom, 'the ring ends at or above the tab bottom').toBeLessThanOrEqual(ring.boxBottom + TOLERANCE_PX);
+  });
 
   test('the focus ring of a stat tab is drawn inside the tab, so the scroll area does not clip it', async ({ page }) => {
     await openBoard(page, 1280, 900);
@@ -227,6 +369,71 @@ test.describe('the profile popup on desktop', () => {
     expect(measured.focusVisible, 'the tab has a keyboard focus ring').toBe(true);
     expect(measured.ringTop, 'the ring starts at or below the tab top').toBeGreaterThanOrEqual(measured.boxTop - TOLERANCE_PX);
     expect(measured.ringBottom, 'the ring ends at or above the tab bottom').toBeLessThanOrEqual(measured.boxBottom + TOLERANCE_PX);
+  });
+});
+
+// Popupens chunk (RunnerPopup-*.js) hålls tillbaka tills provet släpper den: det kalla läget. Medan den hämtas visar sidan en upptagen dialog över skrimman.
+test.describe('the profile popup while its chunk loads', () => {
+  async function holdPopupChunk(page: Page): Promise<() => void> {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/assets/RunnerPopup-*.js', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    return release;
+  }
+  const pendingDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Runner card', exact: true });
+
+  test('a busy dialog holds focus, Tab and Shift+Tab never reach the page behind, and the real dialog takes over', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const release = await holdPopupChunk(page);
+    await runnerRow(page).click();
+
+    const pending = pendingDialog(page);
+    await expect(pending).toBeVisible();
+    await expect(pending).toHaveAttribute('aria-busy', 'true');
+    await expect(pending).toHaveAttribute('aria-modal', 'true');
+    await expect(pending).toBeFocused();
+    for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Tab']) {
+      await page.keyboard.press(key);
+      expect(await pending.evaluate((element) => element === document.activeElement), `${key} leaves focus on the dialog`).toBe(true);
+    }
+
+    release();
+    const dialog = popup(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).not.toHaveAttribute('aria-busy');
+    await expect(dialog.getByRole('heading', { level: 2, name: `Runner card: ${RUNNER.name}` })).toBeFocused();
+    await expect(pending).toHaveCount(0);
+  });
+
+  test('Escape closes the busy dialog and the address goes back to the board', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const release = await holdPopupChunk(page);
+    await runnerRow(page).click();
+    await expect(pendingDialog(page)).toBeFocused();
+
+    await page.keyboard.press('Escape');
+
+    await expect(pendingDialog(page)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/board$/);
+    release();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('a click on the scrim closes the busy dialog and the address goes back to the board', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const release = await holdPopupChunk(page);
+    await runnerRow(page).click();
+    await expect(pendingDialog(page)).toBeVisible();
+
+    await page.mouse.click(8, 8);
+
+    await expect(pendingDialog(page)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/board$/);
+    release();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 });
 

@@ -305,7 +305,8 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
   it('desktop med background: overlay ovanpå kvarstående bakgrundssida', async () => {
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
 
-    const dialog = await screen.findByRole('dialog');
+    // Medan popupens chunk hämtas visar sidan en upptagen dialog med samma roll (namnet är då "Runner card"): provet väntar på den riktiga, med löparens namn.
+    const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
     expect(await within(dialog).findByRole('heading', { level: 1, name: OTHER.name })).toBeInTheDocument();
     // Bakgrundssidan (Leaderboard) renderas fortfarande under overlayn.
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
@@ -321,7 +322,7 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
 
   it('Esc stänger overlayn; utan historik faller vi tillbaka på /board', async () => {
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
 
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
