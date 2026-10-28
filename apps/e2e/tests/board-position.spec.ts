@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
+import { contrastOf } from '../support/contrast';
 import { dismissOverlays } from '../support/overlays';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
@@ -13,6 +14,13 @@ const MIN_TOUCH_TARGET_PX = 44;
 const MIN_RING_WIDTH_PX = 2;
 /** Radens lodräta lägesfel mellan skiljetecknet och texten efter det när de ligger på samma rad. */
 const SAME_LINE_PX = 4;
+
+/** WCAG AA för brödtext och för ikontext/ramar (fokusringen). */
+const MIN_TEXT_CONTRAST = 4.5;
+const MIN_RING_CONTRAST = 3;
+/** Golvet för de ovala chipsen: dagens värde (4,04:1 i det ljusa temat) får inte bli sämre. */
+const MIN_CHIP_TEXT_CONTRAST = 4;
+const THEMES = ['dark', 'light'] as const;
 
 const TABS = ['All-time', 'Week', 'Streaks', 'Position'];
 const ROW_WIDTHS = [
@@ -128,6 +136,36 @@ async function pageDoesNotScrollSideways(page: Page): Promise<void> {
   expect(root.scrollWidth, 'the page is not wider than the window').toBeLessThanOrEqual(root.clientWidth + TOLERANCE_PX);
 }
 
+/**
+ * Körs i sidan (skickas till `locator.evaluate`, får inte läsa något utanför sig själv): fokusringens kontrast mot elementets sammansatta bakgrund. Färgerna läggs lager för lager på en
+ * canvas, som läser alla färgsyntaxer webbläsaren förstår, och kontrasten räknas på de sammansatta pixlarna.
+ */
+function ringContrastOf(element: Element): { drawn: boolean; width: number; ratio: number } {
+  const style = getComputedStyle(element);
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true })!;
+  const paint = (color: string) => {
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+  };
+  const read = () => Array.from(context.getImageData(0, 0, 1, 1).data) as [number, number, number, number];
+  const luminance = ([r, g, b]: [number, number, number, number]) => {
+    const channel = (value: number) => (value / 255 <= 0.03928 ? value / 255 / 12.92 : ((value / 255 + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  };
+  paint('white');
+  const layers: string[] = [];
+  for (let node: Element | null = element; node; node = node.parentElement) layers.push(getComputedStyle(node).backgroundColor);
+  for (const layer of layers.reverse()) paint(layer);
+  const background = read();
+  paint(style.outlineColor);
+  const ring = read();
+  const [lighter, darker] = [luminance(background), luminance(ring)].sort((a, b) => b - a) as [number, number];
+  return { drawn: style.outlineStyle !== 'none', width: parseFloat(style.outlineWidth), ratio: Number((((lighter + 0.05) / (darker + 0.05))).toFixed(2)) };
+}
+
 const chartOf = (page: Page) => page.getByRole('img', { name: /^Position over time, weeks/ });
 
 test.describe('the Position tab on the board', () => {
@@ -196,6 +234,39 @@ test.describe('the Position tab on the board', () => {
     });
   }
 
+  for (const theme of THEMES) {
+    for (const { width, height } of [ROW_WIDTHS[0]!, ROW_WIDTHS[3]!]) {
+      test(`reads the four tabs and their focus ring with enough contrast in the ${theme} theme at ${width} px`, async ({ page }) => {
+        await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
+        await openBoard(page, { members: 6, view: 'position', width, height });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expect(chartOf(page)).toBeVisible();
+
+        // Textfärgen mot flikens egen sammansatta bakgrund. Den valda fliken når AA. De ovala flikarna har chip-receptets textfärg (`.rq-filter`, --rq-text-3), som Season, Week och Streaks hade före
+        // Position och som är 4,04:1 i det ljusa temat: det är ett öppet antagande (docs/open-assumptions.md), inte något den här storyn ändrar, så provet vaktar att värdet inte blir sämre.
+        const texts = await page.evaluate(contrastOf, { selectors: ['.rq-board__tabs > [role="tab"]'] });
+        expect(texts).toHaveLength(TABS.length);
+        const selected = await page.locator('.rq-board__tabs > [role="tab"]').evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('aria-selected') === 'true'));
+        texts.forEach((sample, index) => {
+          test.info().annotations.push({ type: 'measure', description: `${theme} / ${width} px / "${sample.text}"${selected[index] ? ' (selected)' : ''}: ${sample.ratio}:1` });
+          expect(sample.ratio, `${theme} / ${width} px: the "${sample.text}" tab`).toBeGreaterThanOrEqual(selected[index] ? MIN_TEXT_CONTRAST : MIN_CHIP_TEXT_CONTRAST);
+        });
+
+        // Fokusringen på den valda och en ovald flik mot flikens bakgrund (icke-text: 3:1).
+        for (const name of ['Position', 'Week']) {
+          const tab = page.getByRole('tab', { name });
+          await tab.focus();
+          await page.keyboard.press('Shift+Tab');
+          await tab.focus();
+          const ring = await tab.evaluate(ringContrastOf);
+          test.info().annotations.push({ type: 'measure', description: `${theme} / ${width} px / ${name}: ${JSON.stringify(ring)}` });
+          expect(ring.drawn, `${theme} / ${width} px: the "${name}" tab shows a ring`).toBe(true);
+          expect(ring.ratio, `${theme} / ${width} px: the ring of the "${name}" tab against the tab`).toBeGreaterThanOrEqual(MIN_RING_CONTRAST);
+        }
+      });
+    }
+  }
+
   test('fades the start and keeps the selected tab clear of the fade once the row has been scrolled, at 320 px', async ({ page }) => {
     await openBoard(page, { members: 6, view: 'position', width: 320 });
     const tablist = page.getByRole('tablist', { name: 'Standings view' });
@@ -205,20 +276,36 @@ test.describe('the Position tab on the board', () => {
     await expect(wrap).toHaveAttribute('data-fade-start', 'true');
     await expect(wrap).toHaveAttribute('data-fade-end', 'false');
 
-    // En flik i mitten: båda kanterna syns, och fliken ligger utanför fadens zon (scroll-padding) på de sidor där en fade ritas.
-    await page.getByRole('tab', { name: 'Week' }).click();
-    await expect(wrap).toHaveAttribute('data-fade-start', 'true');
+    // Varje flik i tur och ordning: kantfaden följer radens scrollläge, och den valda fliken ligger helt i bild och utanför fadens zon (scroll-padding) på de sidor där en fade ritas.
+    for (const name of ['Week', 'Streaks', 'All-time', 'Position']) {
+      await page.getByRole('tab', { name }).click();
+      await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+      await expect
+        .poll(
+          async () =>
+            tablist.evaluate((element) => {
+              const outer = element.parentElement!;
+              const zone = parseFloat(getComputedStyle(element).scrollPaddingLeft);
+              const tab = element.querySelector('[role="tab"][aria-selected="true"]')!.getBoundingClientRect();
+              const row = element.getBoundingClientRect();
+              const fadeStart = outer.getAttribute('data-fade-start') === 'true';
+              const fadeEnd = outer.getAttribute('data-fade-end') === 'true';
+              return {
+                startFollowsScroll: fadeStart === element.scrollLeft > 1,
+                endFollowsScroll: fadeEnd === element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
+                inRow: tab.left >= row.left - 1 && tab.right <= row.right + 1,
+                clearOfStart: !fadeStart || tab.left - row.left >= zone - 1,
+                clearOfEnd: !fadeEnd || row.right - tab.right >= zone - 1,
+              };
+            }),
+          { message: `the "${name}" tab is in the row, clear of the fade, and the fade follows the scroll` },
+        )
+        .toEqual({ startFollowsScroll: true, endFollowsScroll: true, inRow: true, clearOfStart: true, clearOfEnd: true });
+    }
+    // Första fliken står mot början: ingen startfade, slutfaden syns.
+    await page.getByRole('tab', { name: 'All-time' }).click();
+    await expect(wrap).toHaveAttribute('data-fade-start', 'false');
     await expect(wrap).toHaveAttribute('data-fade-end', 'true');
-    await expect
-      .poll(async () =>
-        tablist.evaluate((element) => {
-          const zone = parseFloat(getComputedStyle(element).scrollPaddingLeft);
-          const tab = element.querySelector('[role="tab"][aria-selected="true"]')!.getBoundingClientRect();
-          const row = element.getBoundingClientRect();
-          return { zone, clearOfStart: tab.left - row.left >= zone - 1, clearOfEnd: row.right - tab.right >= zone - 1 };
-        }),
-      )
-      .toMatchObject({ clearOfStart: true, clearOfEnd: true });
   });
 
   for (const width of [320, 375]) {
@@ -300,7 +387,7 @@ test.describe('the Position tab on the board', () => {
         parts.map((part) => {
           const sep = part.querySelector('.rq-board-position__sep');
           const text = sep?.nextElementSibling;
-          return { visible: part.getBoundingClientRect().width > 0 && !!sep && getComputedStyle(sep).display !== 'none', sepTop: sep?.getBoundingClientRect().top ?? 0, textTop: text?.getBoundingClientRect().top ?? 0, text: text?.textContent ?? '' };
+          return { visible: !!sep && getComputedStyle(sep).display !== 'none', sepTop: sep?.getBoundingClientRect().top ?? 0, textTop: text?.getBoundingClientRect().top ?? 0, text: text?.textContent ?? '' };
         }),
       );
       expect(lines.length).toBeGreaterThanOrEqual(2);
