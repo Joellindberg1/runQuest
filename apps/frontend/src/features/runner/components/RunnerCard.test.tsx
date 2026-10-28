@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import * as Dialog from '@radix-ui/react-dialog';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@runquest/types';
@@ -61,7 +60,7 @@ function renderCard(width = MOBILE, authValue: AuthContextType = auth, surface: 
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={() => {}} /> : <RunnerPopup user={KARL} allUsers={PACK} />}
+          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={() => {}} /> : <RunnerPopup id={KARL.id} runner={KARL} users={PACK} failure={null} failed={false} onClose={() => {}} />}
         </MemoryRouter>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -202,16 +201,18 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
   });
 
   it('popupen (desktop-dialogen): samma ordning som sidan och panelen renderas en gång', async () => {
-    const { container } = renderCard(DESKTOP, auth, 'popup');
+    renderCard(DESKTOP, auth, 'popup');
+    // Dialogen portas till body, utanför renderingens container.
+    const dialog = await screen.findByRole('dialog');
     await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
     await screen.findByRole('region', { name: 'Head to head' });
 
-    expect(regionOrder(container)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
+    expect(regionOrder(dialog)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
     expect(screen.getAllByRole('region', { name: 'Badges' })).toHaveLength(1);
-    expect(container.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
-    const lower = container.querySelector('.rq-runner__lower') as HTMLElement;
+    expect(dialog.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
+    const lower = dialog.querySelector('.rq-runner__lower') as HTMLElement;
     expect([...lower.children]).toEqual([badgesPanel(), screen.getByRole('region', { name: 'Head to head' })]);
-    expect(container.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
+    expect(dialog.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
     expect(screen.queryByText('Runner profile')).toBeNull();
   });
 
@@ -291,9 +292,9 @@ describe('robusthet (T4)', () => {
   });
 });
 
-// Emblem-popovern inuti profil-popupen: samma Radix-struktur som RunnerPage (Dialog.Root/Portal/Overlay/Content). Popovern portas till body, utanför dialogens innehåll —
+// Emblem-popovern inuti profil-popupen (RunnerPopup äger sin Radix-dialog). Popovern portas till body, utanför dialogens innehåll —
 // den får varken räknas som ett klick utanför (stänger dialogen) eller ta Escape från dialogen.
-describe('emblem-popovern i Runner card-dialogen', () => {
+describe('emblem-popovern i profil-popupen', () => {
   function renderInDialog() {
     setViewportWidth(DESKTOP);
     const onOpenChange = vi.fn();
@@ -302,23 +303,14 @@ describe('emblem-popovern i Runner card-dialogen', () => {
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={auth}>
           <MemoryRouter>
-            <Dialog.Root open onOpenChange={onOpenChange}>
-              <Dialog.Portal>
-                <Dialog.Overlay className="rq-scrim" />
-                <Dialog.Content className="rq-modal" aria-describedby={undefined}>
-                  <Dialog.Title className="sr-only">{KARL.name}</Dialog.Title>
-                  <Dialog.Close aria-label="Close">✕</Dialog.Close>
-                  <RunnerPopup user={KARL} allUsers={PACK} />
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
+            <RunnerPopup id={KARL.id} runner={KARL} users={PACK} failure={null} failed={false} onClose={() => onOpenChange(false)} />
           </MemoryRouter>
         </AuthContext.Provider>
       </QueryClientProvider>,
     );
     return { onOpenChange };
   }
-  const runnerDialog = () => screen.getByRole('dialog', { name: KARL.name });
+  const runnerDialog = () => screen.getByRole('dialog', { name: `Runner card: ${KARL.name}` });
   const popover = () => screen.queryByRole('dialog', { name: speedster.name });
 
   it('emblemet öppnar popovern; ett klick inuti den stänger inte Runner card-dialogen', async () => {

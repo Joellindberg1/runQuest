@@ -14,8 +14,8 @@ vi.mock('@/features/badges/api', () => ({
   },
 }));
 
-// Popupens innehåll hålls tillbaka tills provet släpper det. Importeras RunnerPopup statiskt väntar modulgrafen på fabriken och filen kommer aldrig förbi insamlingen; bara
-// en dynamisk import (React.lazy) låter dialogramen ritas medan innehållet väntar.
+// Popupens chunk hålls tillbaka tills provet släpper den. Importeras RunnerPopup statiskt väntar modulgrafen på fabriken och filen kommer aldrig förbi insamlingen; bara
+// en dynamisk import (React.lazy) låter sidan visa skrim och laddare medan chunken hämtas.
 const popupChunk = vi.hoisted(() => {
   let release: () => void = () => {};
   const loaded = new Promise<void>((resolve) => { release = resolve; });
@@ -33,8 +33,8 @@ beforeEach(() => {
   handlers.getTitleLeaderboard = () => ({ success: true, data: [] });
 });
 
-describe('the profile popup content is a lazy chunk', () => {
-  it('draws the dialog frame and a loading state first, and the content when the chunk has loaded', async () => {
+describe('the profile popup is a lazy chunk', () => {
+  it('shows the scrim and a loading state first, and the dialog when the chunk has loaded', async () => {
     renderWithApp(
       <Routes>
         <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
@@ -42,13 +42,13 @@ describe('the profile popup content is a lazy chunk', () => {
       { entry: '/runner/u-karl', width: 1280 },
     );
 
-    const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
-    expect(within(dialog).getByText('Loading runner')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('region', { name: "Frodo's journey" })).toBeNull();
+    expect(await screen.findByText('Loading runner')).toBeInTheDocument();
+    expect(document.querySelector('.rq-scrim')).not.toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
 
     popupChunk.release();
+    const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
     expect(await within(dialog).findByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
-    await waitFor(() => expect(within(dialog).queryByText('Loading runner')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Loading runner')).toBeNull());
   });
 });
