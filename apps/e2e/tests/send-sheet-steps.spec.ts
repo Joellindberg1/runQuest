@@ -329,6 +329,68 @@ test.describe('the send-a-challenge sheet: tier chips and one card per token', (
     });
   }
 
+  // Förvalet hör till posten som öppnade arket: Back stänger arket utan att något stängs-anrop körs, och nästa ingång (New, rubrikens knapp, Forward) ska börja blankt.
+  test('after Send on a card and browser Back, New > Send a challenge opens a blank sheet on a phone (390 px)', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'));
+    await stubChallengeApi(page, 'full');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/duels');
+    await dismissOverlays(page);
+    const panel = page.getByRole('region', { name: 'Your tokens' });
+    await panel.getByRole('button', { name: 'Major ×1' }).click();
+    await panel.getByRole('button', { name: /^Send a major challenge/ }).click();
+    const sheet = page.getByRole('dialog', { name: 'Send a challenge' });
+    await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(1);
+
+    await page.goBack();
+    await expect(sheet).toHaveCount(0);
+    await page.getByRole('button', { name: 'New', exact: true }).click();
+    await page.getByRole('button', { name: /Send a challenge/ }).click();
+    await expect(sheet.getByRole('radiogroup')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Minor ×3' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(0);
+  });
+
+  test('after Send on a card and browser Back, the header button and Forward open a blank sheet on desktop (1280 px)', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'));
+    await stubChallengeApi(page, 'full');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/duels?view=standings');
+    await dismissOverlays(page);
+    const panel = page.getByRole('region', { name: 'Your tokens' });
+    await panel.getByRole('button', { name: 'Major ×1' }).click();
+    await panel.getByRole('button', { name: /^Send a major challenge/ }).click();
+    const sheet = page.getByRole('dialog', { name: 'Send a challenge' });
+    await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(1);
+
+    await page.goBack();
+    await expect(sheet).toHaveCount(0);
+    await page.goForward();
+    await expect(sheet.getByRole('radiogroup')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Minor ×3' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(0);
+
+    await page.goBack();
+    await expect(sheet).toHaveCount(0);
+    await page.getByRole('button', { name: 'Send a challenge', exact: true }).click();
+    await expect(sheet.getByRole('button', { name: 'Minor ×3' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByRole('radio', { checked: true })).toHaveCount(0);
+  });
+
+  test('a deep link has no opener: Esc puts the focus on the header Send button, not on the body', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'));
+    await stubChallengeApi(page, 'full');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // dismissOverlays trycker Escape, som skulle stänga arket: överlagren tas bort på /duels först, sedan laddas djuplänken om.
+    await page.goto('/duels');
+    await dismissOverlays(page);
+    await page.goto('/duels?send=1');
+    await expect(page.getByRole('dialog', { name: 'Send a challenge' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Send a challenge' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Send a challenge', exact: true })).toBeFocused();
+  });
+
   test('with a challenge already sent, every SEND is disabled, the reason is visible, and the sheet shows only the reason', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'));
     await stubChallengeApi(page, 'blocked');

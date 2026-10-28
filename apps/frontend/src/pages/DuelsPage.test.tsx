@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token } from '@/features/challenges/duels.fixture';
@@ -699,6 +699,61 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     });
   }
 
+  describe('the preselection belongs to the entry that opened the sheet', () => {
+    function History() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button type="button" onClick={() => navigate(-1)}>history back</button>
+          <button type="button" onClick={() => navigate(1)}>history forward</button>
+          <Link to="/duels?send=1">plain entry</Link>
+          <Link to={`/duels?send=1&opponent=${DAN}`}>runner entry</Link>
+        </>
+      );
+    }
+    const renderWithHistory = () => renderWithApp(
+      <Routes><Route path="/duels" element={<><DuelsPage /><History /></>} /></Routes>,
+      { entry: '/duels', width: MOBILE },
+    );
+    const sendOnMajor = async (user: ReturnType<typeof userEvent.setup>) => {
+      await screen.findByText('2 live · 5 tokens');
+      await user.click(screen.getByRole('button', { name: 'Major ×1' }));
+      await user.click(screen.getByRole('button', { name: 'Send a major challenge: Most km, 10 days' }));
+      await screen.findByRole('dialog', { name: 'Send a challenge' });
+      expect(within(sheet()).getAllByRole('radio', { checked: true })).toHaveLength(1);
+    };
+    const expectBlank = () => {
+      expect(within(sheet()).getByRole('button', { name: 'Minor ×3' })).toHaveAttribute('aria-pressed', 'true');
+      expect(within(sheet()).queryAllByRole('radio', { checked: true })).toEqual([]);
+    };
+
+    for (const entry of ['plain entry', 'runner entry']) {
+      it(`Send on a card, browser Back, then the ${entry} opens a blank sheet`, async () => {
+        const user = userEvent.setup();
+        renderWithHistory();
+        await sendOnMajor(user);
+        fireEvent.click(screen.getByText('history back'));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+        await user.click(screen.getByRole('link', { name: entry }));
+        await screen.findByRole('dialog', { name: 'Send a challenge' });
+        expectBlank();
+      });
+    }
+
+    it('Send on a card, Back, then Forward opens a blank sheet', async () => {
+      const user = userEvent.setup();
+      renderWithHistory();
+      await sendOnMajor(user);
+      fireEvent.click(screen.getByText('history back'));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+      fireEvent.click(screen.getByText('history forward'));
+      await screen.findByRole('dialog', { name: 'Send a challenge' });
+      expectBlank();
+    });
+  });
+
   describe('focus when the sheet closes without sending', () => {
     const cardSend = () => screen.getByRole('button', { name: 'Send a minor challenge: Most runs, 5 days' });
     const closers: Array<[string, (user: ReturnType<typeof userEvent.setup>) => Promise<void>, number]> = [
@@ -717,6 +772,21 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
         await close(user);
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         expect(cardSend()).toHaveFocus();
+      });
+    }
+
+    for (const [how, close, width, label] of [
+      ['Escape', (user: ReturnType<typeof userEvent.setup>) => user.keyboard('{Escape}'), MOBILE, 'Send'],
+      ['the close button', (user: ReturnType<typeof userEvent.setup>) => user.click(within(sheet()).getByRole('button', { name: 'Close' })), MOBILE, 'Send'],
+      ['Cancel', (user: ReturnType<typeof userEvent.setup>) => user.click(within(sheet()).getByRole('button', { name: 'Cancel' })), DESKTOP, 'Send a challenge'],
+    ] as const) {
+      it(`a deep link has no opener, so closing with ${how} puts the focus on the header Send button`, async () => {
+        const user = userEvent.setup();
+        renderDuels('/duels?send=1', width);
+        await screen.findByRole('dialog', { name: 'Send a challenge' });
+        await close(user);
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(screen.getByRole('button', { name: label })).toHaveFocus();
       });
     }
 
