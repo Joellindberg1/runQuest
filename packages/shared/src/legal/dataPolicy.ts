@@ -10,6 +10,7 @@
 // v0.8.1 (RUN-345): rättslig grund (berättigat intresse) för 'statistics' och 'errors', rätten att invända, och överföring utanför EU i 'processors'.
 // Umamis DPA ingår automatiskt (https://umami.is/dpa, SCC Module Two/Three). Sentrys DPA (https://sentry.io/legal/dpa/, ägaren accepterade den 2026-10-21)
 // bygger överföringen på EU-US Data Privacy Framework och använder SCC först när ramverket inte gäller: skriv inte "SCC" som huvudväg för Sentry.
+// v0.8.3 (RUN-411): tiden (moving time) och tempot per runda syns för packets medlemmar (Group history, ADR 007 addendum 2026-10-26); 'data' och 'strava' säger det.
 // Språk: engelska, klartext. Ingen HTML och ingen markdown i styckena.
 
 import { WEBHOOK_RETENTION_DONE_DAYS, WEBHOOK_RETENTION_FAILED_DAYS } from '../rules.js';
@@ -34,7 +35,7 @@ export interface LegalDocument {
 }
 
 /** Version av integritetstexten, 'YYYY-MM-DD[.N]'. Höjs vid varje innehållsändring. Väntelistans samtyckesversion är samma värde. */
-export const DATA_POLICY_VERSION = '2026-10-22';
+export const DATA_POLICY_VERSION = '2026-10-27';
 
 /**
  * Var Umami Cloud lagrar statistiken: EU, Frankfurt (ägaren bekräftade regionen i Umami-kontot 2026-10-19).
@@ -137,11 +138,11 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Everything below is used to run the game: to log you in, to work out XP, levels, streaks, titles and badges, and to show them to your pack.',
       'Legal basis: these details, including runs imported from Strava, are needed to provide the game you joined (performance of a contract). The waitlist is an exception and is based on your consent (see the Waitlist section). Visitor statistics and error reports are another exception and are based on legitimate interest (see their sections).',
       'Account: your username, your email address and a hashed password (the password itself is never stored). Accounts are created by the administrator; there is no public sign-up. An account can also hold a gender, which the title standings use.',
-      'Runs: the date and distance of each run, whether it was on a treadmill, and the XP, level and streak worked out from them. Runs come from Strava (see the Strava section) or are added by hand in the app.',
+      'Runs: the date and distance of each run, whether it was on a treadmill, and the XP, level and streak worked out from them. Runs come from Strava (see the Strava section) or are added by hand in the app. For runs imported from Strava, the moving time and the pace worked out from it are shown to the members of your pack.',
       'Profile picture: if you upload one, the file is stored in Supabase Storage in a public bucket. Anyone who has the address of the picture can open it.',
       'Pack data: the pack you belong to and what happens in it: challenges between members, events, badges, titles and a news feed of pack activity such as level-ups and title changes.',
       'Notifications: your notification settings (what the bell counts) and which Pack News rows you have read are stored per user. They are private to you: other users cannot see them.',
-      'Who sees what: members of your pack can see your username, profile picture, level, XP, streaks, runs, titles and badges. Logged-in users can also see who holds each title, with name, gender, profile picture and score. The administrator has access to all data in the database.',
+      'Who sees what: members of your pack can see your username, profile picture, level, XP, streaks, runs, titles and badges. For each run imported from Strava they can also see its moving time and pace. Logged-in users can also see who holds each title, with name, gender, profile picture and score. The administrator has access to all data in the database.',
     ],
   },
   {
@@ -155,7 +156,7 @@ export const DATA_POLICY_SECTIONS: readonly LegalSection[] = [
       'Your Strava athlete ID is stored too, to link the events Strava sends to your RunQuest account (one Strava account can be connected to one RunQuest account). When you connect, RunQuest also stores the version of this text you agreed to and the time you agreed.',
       'New runs arrive through Strava webhooks: Strava tells RunQuest when one of your activities is created, updated or deleted, and RunQuest then fetches that activity from Strava. As a backup, RunQuest also checks Strava for new runs at least every 12 hours.',
       'Strava data is not used for AI. It is not used to train, fine-tune or prompt any AI model, and it is not sent to any AI service.',
-      'Who sees your runs: the members of your pack, in the app. Your runs are not public.',
+      'Who sees your runs: the members of your pack, in the app, including the moving time and pace of each run. Your runs are not public.',
       `${STRAVA_REMOVED_SENTENCE} Event XP that you have already earned is kept. If the activity later becomes a public run again, it is imported again.`,
       'Strava runs are read-only in the app, so a single run cannot be deleted there; delete the activity on Strava or use "Disconnect".',
       `${STRAVA_DISCONNECT_SENTENCES[0]} The runs and tokens are deleted even if Strava does not answer. Runs you added by hand and event XP you have already earned stay. Your XP, streaks, titles and badges are recalculated. ${STRAVA_DISCONNECT_SENTENCES[1]}`,
