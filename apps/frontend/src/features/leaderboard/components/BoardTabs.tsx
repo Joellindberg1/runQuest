@@ -3,6 +3,7 @@ import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { tabId } from '@/shared/components/viewTabIds';
 import { useTabRowFade } from '@/shared/hooks/useTabRowFade';
 import type { BoardView } from '../boardViews';
+import '../boardTabs.css';
 
 /** Prefixet för flikarnas och panelens id:n; sidan pekar panelen tillbaka på den valda fliken med samma prefix. */
 export const BOARD_TABS_ID_PREFIX = 'board';
@@ -16,7 +17,7 @@ interface BoardTabsProps {
 }
 
 /**
- * Standings flikrad. Fyra flikar ryms inte på 320 px: raden scrollar i sidled i sin egen yta (RUN-387-mönstret i board.css) och tonas ut mot den kant som har fler flikar bortom
+ * Standings flikrad. Fyra flikar ryms inte på 320 px: raden scrollar i sidled i sin egen yta (RUN-387-mönstret i boardTabs.css) och tonas ut mot den kant som har fler flikar bortom
  * sig (`useTabRowFade`). Kantfaden är bara markup runt raden (data-attributen på omslaget); raden är fortfarande den enda tablisten. En komponent per plats i sidan (rubrikraden på
  * desktop, under rubriken på mobil), så att måtten följer raden när sidan byter läge.
  */
