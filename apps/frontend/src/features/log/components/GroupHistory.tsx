@@ -24,6 +24,45 @@ interface GroupHistoryProps {
   onOpenRunner: (userId: string) => void;
 }
 
+const NO_VALUE = '—';
+
+/** Ett fält i tid/tempo-kolumnen: etiketten först i DOM (läses före värdet), värdet ritas ovanför den (column-reverse). */
+function TimePaceStat({ label, value, unit, spoken }: { label: string; value: string | null; unit?: string; spoken: boolean }) {
+  return (
+    <p className="rq-log-run__stat" aria-hidden={spoken ? true : undefined}>
+      <span className="rq-log-run__stat-label">{label}</span>
+      {value === null ? (
+        <>
+          <span className="rq-log-run__stat-value" aria-hidden="true">
+            {NO_VALUE}
+          </span>
+          <span className="sr-only">no time recorded</span>
+        </>
+      ) : (
+        <span className="rq-log-run__stat-value">
+          {value}
+          {unit}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/**
+ * Tid och tempo (webb, från 1024 px; mobilens rad är en egen story på samma vymodell). Kolumnen finns på varje kort: utan användbar tid står
+ * "—" i båda fälten med dold text. Med tid läser skärmläsaren EN mening (`timePaceLabel`) och de synliga fälten är dolda för den, så ingenting läses två gånger.
+ */
+function TimePace({ row }: { row: HistoryRow }) {
+  const spoken = row.timePaceLabel !== null;
+  return (
+    <div className="rq-log-run__timepace">
+      {row.timePaceLabel !== null && <span className="sr-only">{row.timePaceLabel}</span>}
+      <TimePaceStat label="Time" value={row.time} spoken={spoken} />
+      <TimePaceStat label="Pace" value={row.pace} unit=" /km" spoken={spoken} />
+    </div>
+  );
+}
+
 function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId: string) => void }) {
   const open = () => onOpenRunner(row.userId);
   return (
@@ -59,6 +98,8 @@ function RunCard({ row, onOpenRunner }: { row: HistoryRow; onOpenRunner: (userId
           </p>
         </div>
       </div>
+
+      <TimePace row={row} />
 
       <p className="rq-log-run__totals">
         <span className="rq-log-run__km">{row.km} km</span>

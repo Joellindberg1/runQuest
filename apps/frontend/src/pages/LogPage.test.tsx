@@ -410,6 +410,60 @@ describe('Log — Group history', () => {
     expect(primaryButtons(container)).toHaveLength(0);
   });
 
+  it('tid och tempo står i en egen kolumn med etiketterna Time och Pace, och skärmläsaren läser dem en gång per runda', async () => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 3130, distance: 10 }), historyItem({ id: 'b', moving_time: 2670, distance: 8 })] });
+    const { container } = renderLog('/log?view=group');
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [first, second] = [...container.querySelectorAll('.rq-log-run')].map((card) => within(card as HTMLElement));
+    expect(first!.getAllByText('Time 52:10, pace 5:13 per kilometre')).toHaveLength(1);
+    expect(second!.getAllByText('Time 44:30, pace 5:34 per kilometre')).toHaveLength(1);
+    expect(first!.getByText('52:10')).toBeInTheDocument();
+    expect(first!.getByText('5:13 /km')).toBeInTheDocument();
+    expect(first!.getByText('Time', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    expect(first!.getByText('Pace', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    // Den synliga texten ligger utanför skärmläsarens träd; annars lästes tiden två gånger.
+    expect(first!.getByText('52:10').closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('en runda utan tid visar tankstreck med dold text i båda fälten, och kolumnen finns kvar', async () => {
+    setup({
+      history: [
+        historyItem({ id: 'a', moving_time: 3130, distance: 10 }),
+        historyItem({ id: 'b', moving_time: null, source: 'manual' }),
+        historyItem({ id: 'c', moving_time: 0 }),
+      ],
+    });
+    const { container } = renderLog('/log?view=group');
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const cards = [...container.querySelectorAll('.rq-log-run')].map((card) => within(card as HTMLElement));
+    for (const card of cards.slice(1)) {
+      expect(card.getAllByText('—')).toHaveLength(2);
+      expect(card.getAllByText('no time recorded')).toHaveLength(2);
+      expect(card.queryByText(/NaN|0:00/)).toBeNull();
+    }
+    // Alla rader har fältens etiketter, så kolumnen bär samma innehåll oavsett om rundan har tid.
+    for (const card of cards) {
+      expect(card.getByText('Time', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+      expect(card.getByText('Pace', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    }
+    expect(cards[0]!.queryByText('no time recorded')).toBeNull();
+  });
+
+  it('samma runda på två sidor ritas en gång', async () => {
+    const runs = manyRuns(15);
+    setup({ history: runs });
+    // Servern har fått en ny runda mellan hämtningarna: sida två börjar om med sista raden på sida ett.
+    handlers.getGroupRunHistoryPage = (_limit: unknown, offset: unknown) => {
+      const start = offset === 0 ? 0 : 9;
+      const slice = runs.slice(start, start + 10);
+      return { success: true, data: historyPage(slice, runs.length, offset as number, 10) };
+    };
+    const { container } = renderLog('/log?view=group');
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    await waitFor(() => expect(container.querySelectorAll('.rq-log-run')).toHaveLength(15));
+  });
+
   it('inga emojis i vädret — ikon eller text', async () => {
     setup({ history: [historyItem({ weather_code: 61, temperature_c: 12 })] });
     renderLog('/log?view=group');

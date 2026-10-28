@@ -1,7 +1,8 @@
-import type { GroupRunHistoryItem } from '@runquest/shared';
+import { summariseRunTime, type GroupRunHistoryItem } from '@runquest/shared';
 import type { RQIconName } from '@/shared/components/icons';
 import { getInitials } from '@/shared/utils/formatters';
 import { formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
+import { formatDuration, formatPace, timePaceLabel } from '@/shared/utils/runTimeFormat';
 import { describeWeather } from './logFormat';
 import type { Tone } from './xpPreviewModel';
 
@@ -32,6 +33,12 @@ export interface HistoryRow {
   weather: { icon: RQIconName | null; temperature: string; label: string | null } | null;
   source: { label: string; strava: boolean };
   km: string;
+  /** Löptid ("52:10", "1:09:40"). null = ingen användbar tid (manuell runda, utan moving_time, distans 0): kortet visar "—" med dold text "no time recorded". */
+  time: string | null;
+  /** Tempo per km ("5:13"), null i samma lägen som `time`. Enheten (" /km") sätter kortet. */
+  pace: string | null;
+  /** Skärmläsartexten för tid och tempo ("Time 52:10, pace 5:13 per kilometre"), null när `time` och `pace` är det. */
+  timePaceLabel: string | null;
   xp: string;
   cells: HistoryCell[];
   /** Min egen runda: guldkant (samma markering som "jag" i Events/Duels). */
@@ -55,6 +62,22 @@ function weatherOf(item: GroupRunHistoryItem): HistoryRow['weather'] {
   };
 }
 
+type TimePace = Pick<HistoryRow, 'time' | 'pace' | 'timePaceLabel'>;
+const NO_TIME: TimePace = { time: null, pace: null, timePaceLabel: null };
+
+/**
+ * Tid och tempo för en runda. Tempot och "har rundan en användbar tid" avgörs av shared (`summariseRunTime`: tid och distans måste båda vara
+ * ändliga och > 0); här finns ingen egen division. Formatfunktionerna tar bara giltiga tal, så null, NaN, 0 och ett tempo som avrundas till 0
+ * grenar av före formateringen och ger tankstreck-läget, aldrig "NaN", "0:00" eller ett negativt tal.
+ */
+function timePaceOf(item: GroupRunHistoryItem): TimePace {
+  const { total_seconds: seconds, pace_sec_per_km: pace, runs_with_time: runsWithTime } = summariseRunTime([
+    { moving_time: item.moving_time, distance: Number(item.distance) },
+  ]);
+  if (runsWithTime === 0 || pace === null || pace <= 0) return NO_TIME;
+  return { time: formatDuration(seconds), pace: formatPace(pace), timePaceLabel: timePaceLabel(seconds, pace) };
+}
+
 export function buildHistoryRow(item: GroupRunHistoryItem, meId: string | undefined): HistoryRow {
   return {
     id: item.id,
@@ -67,6 +90,7 @@ export function buildHistoryRow(item: GroupRunHistoryItem, meId: string | undefi
     weather: weatherOf(item),
     source: sourceOf(item.source),
     km: formatKm(Number(item.distance)),
+    ...timePaceOf(item),
     xp: formatInt(item.xp_gained),
     cells: [
       { key: 'streak', value: String(item.streak_day), label: 'streak day', tone: 'default' },
@@ -79,6 +103,17 @@ export function buildHistoryRow(item: GroupRunHistoryItem, meId: string | undefi
   };
 }
 
+/**
+ * Raderna för alla hämtade sidor. Sidorna är offsetsidor: läggs en runda till (eller tas en bort) mellan två hämtningar glider fönstret och en runda kommer på
+ * två sidor. Därför dedupas på run-id innan något byggs (första förekomsten vinner, serverns ordning behålls); annars ritas rundan två gånger med samma React-nyckel.
+ */
 export function buildHistoryRows(items: readonly GroupRunHistoryItem[], meId: string | undefined): HistoryRow[] {
-  return items.map((item) => buildHistoryRow(item, meId));
+  const seen = new Set<string>();
+  const rows: HistoryRow[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    rows.push(buildHistoryRow(item, meId));
+  }
+  return rows;
 }

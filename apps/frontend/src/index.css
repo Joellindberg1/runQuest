@@ -477,9 +477,14 @@
   --rq-log-fields-cols: minmax(0, 1fr);                    /* datum + distans: mobil staplade, desktop bredvid varandra */
   --rq-log-xp-size: 52px;                                  /* Estimated XP-siffran (desktop 68) */
   --rq-log-avatar: 38px;                                   /* avatar i historikkortet (desktop 46) */
-  --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | km+XP (250 · 1fr · 210) */
+  --rq-log-run-cols: minmax(0, 1fr) auto;                  /* historikkort: mobil vem | km+XP, celler under; desktop vem | celler | tid+tempo | km+XP (232 · 1fr · 88 · 128); 1024–1279 vem | tid+tempo | km+XP, celler under */
   --rq-log-run-areas: "who totals" "cells cells";
-  --rq-log-run-gap: 10px;                                  /* desktop 24 */
+  --rq-log-time-display: none;                             /* tid + tempo: mobil ritar inte kolumnen (mobilraden är en egen vy); desktop flex */
+  --rq-log-time-fs: 16px;                                  /* tidens och tempots siffror (mono, tabulära) */
+  --rq-log-name-white-space: normal;                       /* namnet i historikkortet: mobil bryter; 1024–1279 nowrap + ellips; från 1280 bryter det till två rader (--rq-log-name-lines) och får ellips först efter dem */
+  --rq-log-name-lines: none;                               /* radbegränsning (line-clamp) för namnet: ingen på mobil och 1024–1279; 2 från 1280 */
+  --rq-log-name-overflow-wrap: normal;                     /* från 1280: ett ord som är bredare än kolumnen bryts (anywhere) i stället för att klippas utan ellips */
+  --rq-log-run-gap: 10px;                                  /* desktop 12 (prototypen 24; tid + tempo tog kolumnbredd, och 1280 px ska rymma fem celler utan radbrytna etiketter) */
   --rq-log-run-align: start;                               /* desktop center */
   --rq-log-totals-gap: 4px;                                /* km ↔ XP (desktop 14) */
   --rq-log-tag-break: none;                                /* desktop: underlaget på egen rad, väder + källa under (block) */
@@ -913,9 +918,11 @@
     --rq-log-fields-cols: repeat(2, minmax(0, 1fr));
     --rq-log-xp-size: 68px;
     --rq-log-avatar: 46px;
-    --rq-log-run-cols: 250px minmax(0, 1fr) 210px;
-    --rq-log-run-areas: "who cells totals";
-    --rq-log-run-gap: 24px;
+    --rq-log-run-cols: 232px minmax(0, 1fr) 88px 128px;
+    --rq-log-run-areas: "who cells time totals";
+    --rq-log-time-display: flex;
+    --rq-log-name-white-space: nowrap;
+    --rq-log-run-gap: 12px;
     --rq-log-run-align: center;
     --rq-log-totals-gap: 14px;
     --rq-log-tag-break: block;
@@ -1059,6 +1066,25 @@
 @media (min-width: 1024px) and (max-width: 1279px) {
   :root {
     --rq-board-rest-cols: 36px minmax(0, 1.4fr) minmax(0, 1fr) 72px 76px 64px 92px;
+  }
+}
+
+/* Smal desktop, Group history: med tid och tempo som egen kolumn rymmer inte en rad vem · fem celler · tid · km (cellerna blev ~40 px och etiketterna skrev över varandra
+   redan före kolumnen). Här ligger cellerna under rad ett (vem | tid + tempo | km + XP), som på mobil, och namnet tar det som blir över (ellips). Från 1280 px gäller raden ovan. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --rq-log-run-cols: minmax(0, 1fr) 88px auto;
+    --rq-log-run-areas: "who time totals" "cells cells cells";
+  }
+}
+
+/* Group history från 1280 px: vem-kolumnen (232 px) ger namnet 174 px, så ett vanligt gruppnamn ("Daniel Lindblad Lüthje", ca 210 px) fick ellips på en rad. Kolumnbredderna
+   rymmer inte mer (cellerna behöver sina ~440 px), så namnet får i stället bryta till två rader (ellips först efter dem). */
+@media (min-width: 1280px) {
+  :root {
+    --rq-log-name-white-space: normal;
+    --rq-log-name-lines: 2;
+    --rq-log-name-overflow-wrap: anywhere;
   }
 }
 
