@@ -3,10 +3,13 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { User } from '@runquest/types';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
+import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
+import { DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
 import { DEFAULT_STAT_VIEW, type StatView } from '../statViews';
 import { ChallengeButton } from './ChallengeButton';
-import { RunnerPanels } from './RunnerPanels';
+import { HeroCard } from './HeroCard';
+import { PopupSections } from './PopupSections';
 import '../runner.css';
 
 interface RunnerPopupProps {
@@ -41,17 +44,21 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
 }
 
 /**
- * Löparens kort i dialogens scrollande yta. Tillståndet är komponenttillstånd, inte adress (ADR 006 addendum 2026-10-26, beslut 3): statfliken nollställs vid varje öppning
- * eftersom ramen monterar komponenten med `key={user.id}` och popupen avmonteras när den stängs. Popupen skriver aldrig `?view=`. Tills flikarna (Overview, The journey,
- * Titles held, Badges) är byggda ritar den Runner cards befintliga paneler.
+ * Löparens kort i dialogens scrollande yta: hjältekortet (bannern) och under det flikarna Overview, The Journey, Titles held och Badges. Flik, Overview-växling och allt annat
+ * tillstånd är komponenttillstånd, inte adress (ADR 006 addendum 2026-10-26, beslut 3): de nollställs vid varje öppning eftersom ramen monterar komponenten med `key={user.id}`
+ * och popupen avmonteras när den stängs. Popupen skriver aldrig `?view=` och inga sökparametrar. Panelerna är Runner cards befintliga; hämtningen sker en gång här
+ * (`useRunnerPanelData`), så att den inte följer med fliken.
  */
 function PopupContent({ user, allUsers }: { user: User; allUsers: User[] }) {
+  const [section, setSection] = useState<PopupSection>(DEFAULT_POPUP_SECTION);
   const [statView, setStatView] = useState<StatView>(DEFAULT_STAT_VIEW);
+  const data = useRunnerPanelData(user, allUsers);
 
   return (
     <div className="rq-runner rq-rise">
       <div className="rq-runner__body">
-        <RunnerPanels user={user} allUsers={allUsers} statView={statView} onStatViewChange={setStatView} />
+        <HeroCard hero={data.hero} cells={data.cells} showcase={data.showcase} />
+        <PopupSections user={user} data={data} section={section} onSectionChange={setSection} statView={statView} onStatViewChange={setStatView} />
       </div>
     </div>
   );

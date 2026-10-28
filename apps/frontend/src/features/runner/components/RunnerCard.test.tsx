@@ -200,19 +200,22 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     expect(container.querySelector('.rq-runner__side')?.contains(screen.getByRole('region', { name: 'Titles' }))).toBe(true);
   });
 
-  it('popupen (desktop-dialogen): samma ordning som sidan och panelen renderas en gång', async () => {
+  it('popupen (desktop-dialogen): hjälte över flikarna, en panel i taget och Badges-panelen renderas en gång', async () => {
     renderCard(DESKTOP, auth, 'popup');
     // Dialogen portas till body, utanför renderingens container.
     const dialog = await screen.findByRole('dialog');
-    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
     await screen.findByRole('region', { name: 'Head to head' });
 
-    expect(regionOrder(dialog)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
+    // Overview är startfliken: hjälten, statflikarna och head to head. Inget av de andra flikarnas innehåll ritas.
+    expect(regionOrder(dialog)).toEqual(['Runner', 'Runner stats', 'Head to head']);
+    expect(screen.queryByRole('region', { name: 'Badges' })).toBeNull();
+    expect(dialog.querySelector('.rq-runner__lower')).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Badges' }));
+    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
+    expect(regionOrder(dialog)).toEqual(['Runner', 'Badges']);
     expect(screen.getAllByRole('region', { name: 'Badges' })).toHaveLength(1);
     expect(dialog.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
-    const lower = dialog.querySelector('.rq-runner__lower') as HTMLElement;
-    expect([...lower.children]).toEqual([badgesPanel(), screen.getByRole('region', { name: 'Head to head' })]);
-    expect(dialog.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
     expect(screen.queryByText('Runner profile')).toBeNull();
   });
 
@@ -312,10 +315,15 @@ describe('emblem-popovern i profil-popupen', () => {
   }
   const runnerDialog = () => screen.getByRole('dialog', { name: `Runner card: ${KARL.name}` });
   const popover = () => screen.queryByRole('dialog', { name: speedster.name });
+  // Badges bor på sin flik i popupen.
+  const openBadgesTab = async () => {
+    fireEvent.click(await screen.findByRole('tab', { name: 'Badges' }));
+    return screen.findByRole('region', { name: 'Badges' });
+  };
 
   it('emblemet öppnar popovern; ett klick inuti den stänger inte Runner card-dialogen', async () => {
     const { onOpenChange } = renderInDialog();
-    const panel = await screen.findByRole('region', { name: 'Badges' });
+    const panel = await openBadgesTab();
     await within(panel).findByRole('list', { name: 'Earned badges' });
 
     fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));
@@ -333,7 +341,7 @@ describe('emblem-popovern i profil-popupen', () => {
 
   it('Escape stänger bara popovern: Runner card-dialogen står kvar', async () => {
     const { onOpenChange } = renderInDialog();
-    const panel = await screen.findByRole('region', { name: 'Badges' });
+    const panel = await openBadgesTab();
     await within(panel).findByRole('list', { name: 'Earned badges' });
 
     fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));

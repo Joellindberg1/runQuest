@@ -69,7 +69,6 @@ describe('the profile popup is a lazy chunk', () => {
       </>,
       { entry: '/runner/u-karl', width: 1280 },
     );
-    screen.getByRole('button', { name: 'Behind the popup' }).focus();
 
     const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
     await waitFor(() => expect(dialog).toHaveFocus());

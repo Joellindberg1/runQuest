@@ -23,6 +23,22 @@
 .rq-runner-popup__title { margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-2); }
 .rq-runner-popup__content { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
 
+/* ── Profil-popupen: flikraden och panelytan ──────────────────────────────────
+   Flikraden är ViewTabs (variant underline) med skalets .rq-tab; ringen, hit-ytan och typsnittet kommer från view-controls.css. Vald flik har samma tint och kant som övriga vald-ytor
+   (--rq-tint-selected / --rq-edge-selected, receptet .rq-filter) plus .rq-tabs guldlinje under. Alla flikar har en genomskinlig kant av samma bredd, så att raden inte rör sig när valet byts.
+   Panelytan har FAST höjd och scrollar för sig: dialogen blir då lika hög på alla flikar (och aldrig högre än .rq-modal tillåter, då scrollar innehållet i dialogen som förut). */
+.rq-runner-popup-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-runner-popup-tabs > .rq-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-8); margin-bottom: 0; padding: var(--rq-sp-12) var(--rq-sp-8);
+  font-weight: 600; white-space: nowrap; background: none; border: var(--rq-hair) solid transparent; border-bottom: var(--rq-edge-w-thin) solid transparent;
+}
+.rq-runner-popup-tabs > .rq-tab[aria-selected="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); border-bottom-color: var(--rq-gold);
+}
+.rq-runner-popup-panel { height: var(--rq-runner-popup-panel-h); overflow-y: auto; padding-top: var(--rq-sp-14); }
+.rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-runner__split > .rq-runner-h2h { align-self: stretch; }
+
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
 .rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
 .rq-runner-head__title { margin: 0; font-weight: 400; }

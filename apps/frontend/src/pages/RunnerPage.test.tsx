@@ -444,9 +444,11 @@ describe('the profile popup (background location)', () => {
     '/board',
     { pathname: '/runner/u-karl', state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
   ];
+  // Medan popupens chunk hämtas visar sidan en upptagen dialog med samma roll (men namnet "Runner card"); det är den riktiga dialogen, med löparens namn, som proven väntar på.
+  const findPopup = () => screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
   const openPopup = async () => {
     renderWithApp(<AppRoutes />, { entry: fromBoard, width: DESKTOP });
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await findPopup();
     await within(dialog).findByRole('heading', { level: 1, name: 'Karl Persson' });
     return dialog;
   };
@@ -596,7 +598,7 @@ describe('the profile popup (background location)', () => {
     await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
 
     await user.click(boardRow());
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await findPopup();
     await waitFor(() => expect(popupTitle(dialog)).toHaveFocus());
 
     await user.keyboard('{Escape}');
@@ -611,7 +613,7 @@ describe('the profile popup (background location)', () => {
       </Routes>,
       { entry: '/runner/u-karl', width: DESKTOP },
     );
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await findPopup();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -653,7 +655,7 @@ describe('the profile popup (background location)', () => {
     await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
 
     await user.click(boardRow());
-    let dialog = await screen.findByRole('dialog');
+    let dialog = await findPopup();
     await user.click(await within(dialog).findByRole('tab', { name: 'Streak' }));
     expect(within(dialog).getByRole('tab', { name: 'Streak' })).toHaveAttribute('aria-selected', 'true');
     await user.click(within(dialog).getByRole('tab', { name: 'Titles held' }));
@@ -663,7 +665,7 @@ describe('the profile popup (background location)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     await user.click(boardRow());
-    dialog = await screen.findByRole('dialog');
+    dialog = await findPopup();
     expect(await within(dialog).findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(within(dialog).getByRole('tab', { name: 'Titles held' })).toHaveAttribute('aria-selected', 'false');
     expect(await within(dialog).findByRole('tab', { name: 'Distance' })).toHaveAttribute('aria-selected', 'true');
@@ -801,9 +803,12 @@ describe('the profile popup (background location)', () => {
       { entry: '/runner/u-karl', width: DESKTOP },
     );
 
-    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    // ✕ finns bara i den riktiga dialogen (den upptagna som visas medan chunken hämtas har ingen).
+    const close = await screen.findByRole('button', { name: 'Close' });
+    const dialog = screen.getByRole('dialog', { name: 'Runner card' });
+    expect(dialog).not.toHaveAttribute('aria-busy');
     expect(within(dialog).getByText('Loading runner')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(dialog).toContainElement(close);
   });
 });
 
