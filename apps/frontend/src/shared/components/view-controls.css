@@ -20,7 +20,8 @@
    textfärgen, så den inte flyter ihop med guldramen. */
 .rq-segmented > .rq-filter:focus-visible,
 [role="tablist"] > .rq-filter:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
-/* De understrukna flikarna (variant="underline") behåller sin offset (profile.css äger den); bara färgen byts mot samma ljusa-tema-skäl. */
-[role="tablist"] > .rq-tab:focus-visible { outline-color: var(--rq-gold-text); }
+/* De understrukna flikarna (variant="underline") får samma inåtriktade ring och samma färg som chipen. De ligger i ett kort eller i en dialog med intern scroll
+   (Runner card, Profile, Log, Duels, Admin, Playbook), och en yttre ring (offset +2 px) klipps av korten och av scrollytan. */
+[role="tablist"] > .rq-tab:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
 .rq-segmented > .rq-filter[aria-pressed="true"]:focus-visible,
 [role="tablist"] > .rq-filter[aria-selected="true"]:focus-visible { outline-color: var(--rq-text-1); }
