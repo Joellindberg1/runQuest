@@ -1,4 +1,3 @@
-import { usePreloadRunnerPopup } from '@/features/runner/usePreloadRunnerPopup';
 import { TrackBackdrop } from '@/shared/components/TrackBackdrop';
 import { AppHeader } from './AppHeader';
 import { ShellOutlet } from './ShellOutlet';
@@ -10,8 +9,6 @@ import { useShellUser } from './useShellUser';
 export function DesktopShell() {
   const user = useShellUser();
   const { items, hasOpenEvent } = useRightNow();
-  // Profil-popupen finns bara på desktop (ADR 006 addendum 2026-10-26): mobilen hämtar den aldrig.
-  usePreloadRunnerPopup();
 
   return (
     <div className="rq-shell rq-shell--desktop" data-shell="desktop">
