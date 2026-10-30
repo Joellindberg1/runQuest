@@ -140,8 +140,3 @@ export function formatCountdown(ms: number, style: CountdownStyle): string {
 export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }
-
-/** Det som står efter förnamnet ("Persson" ur "Karl Persson", "von Elling" ur "Nicklas von Elling"); ett ord långt namn ger tomt. Härlett ur `firstName`, så delningen har en enda regel. */
-export function restOfName(name: string): string {
-  return name.trim().slice(firstName(name).length).trim();
-}

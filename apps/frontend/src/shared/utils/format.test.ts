@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MONTHS_LONG, MONTHS_SHORT, formatAgo, formatCountdown, formatDayMonth, formatInt, formatKm, formatMultiplier, formatTimes, firstName, restOfName,
+  MONTHS_LONG, MONTHS_SHORT, formatAgo, formatCountdown, formatDayMonth, formatInt, formatKm, formatMultiplier, formatTimes, firstName,
   type AgoStyle, type CountdownStyle,
 } from './format';
 
@@ -175,29 +175,5 @@ describe('firstName', () => {
   it('ett enda namn är sig självt, och ett tomt namn ger tomt', () => {
     expect(firstName('Karl')).toBe('Karl');
     expect(firstName('')).toBe('');
-  });
-});
-
-describe('restOfName', () => {
-  it('allt efter förnamnet, med enkla mellanrum', () => {
-    expect(restOfName('Karl Persson')).toBe('Persson');
-    expect(restOfName('Nicklas von Elling')).toBe('von Elling');
-    expect(restOfName('Daniel Lindblad Lüthje')).toBe('Lindblad Lüthje');
-    expect(restOfName('  Anna   Maria  Lindqvist ')).toBe('Maria  Lindqvist');
-  });
-
-  it('ett ord långt namn, ett bindestreckat ord och ett tomt namn har inget efternamn', () => {
-    expect(restOfName('Karl')).toBe('');
-    expect(restOfName('Anna-Karin')).toBe('');
-    expect(restOfName('Montgomery-Featherstonehaugh')).toBe('');
-    expect(restOfName('')).toBe('');
-  });
-
-  it('förnamnet delas på mellanrum, inte på bindestreck, och förnamn plus efternamn ger tillbaka namnet', () => {
-    expect(firstName('Anna-Karin Svensson')).toBe('Anna-Karin');
-    expect(restOfName('Anna-Karin Svensson')).toBe('Svensson');
-    for (const name of ['Karl Persson', 'Nicklas von Elling', 'Ann Pneumonoultramicroscopicsilicovolcanoconiosis']) {
-      expect(`${firstName(name)} ${restOfName(name)}`).toBe(name);
-    }
   });
 });
