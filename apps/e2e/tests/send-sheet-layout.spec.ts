@@ -41,6 +41,17 @@ interface SheetMeasure {
   cancel: Box;
 }
 
+/** Körs i sidan: de tre cellerna i "The bet" (If you win, If you lose, Starts) och raden de ligger i. */
+function measureStakeCells(): { row: Box; cells: Box[] } {
+  const box = (node: Element): Box => {
+    const rect = node.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, height: rect.height, width: rect.width };
+  };
+  const row = document.querySelector('.rq-duels-bet__stakes');
+  if (!row) throw new Error('missing the stakes row');
+  return { row: box(row), cells: Array.from(row.children).map(box) };
+}
+
 /** Körs i sidan: arkets delar, knapparna och hur mycket sidan under kan scrolla. */
 function measureSheet(): SheetMeasure {
   const box = (node: Element): Box => {
@@ -136,6 +147,11 @@ test.describe('the send-a-challenge sheet: fixed head and button row', () => {
           expect(after.bet.top, `${where}: The bet is inside the middle`).toBeGreaterThanOrEqual(after.body.top - ROUNDING_PX);
           expect(after.bet.bottom, `${where}: The bet ends above the button row`).toBeLessThanOrEqual(after.foot.top + ROUNDING_PX);
 
+          // På desktop är "The bet" tre kolumner på samma rad.
+          const stakes = await page.evaluate(measureStakeCells);
+          expect(stakes.cells, `${where}: three cells`).toHaveLength(3);
+          for (const cell of stakes.cells) expect(Math.abs(cell.top - (stakes.cells[0]?.top ?? 0)), `${where}: win, lose and Starts share one row`).toBeLessThanOrEqual(1);
+
           // Stängknappen ✕ är en tillräckligt stor träffyta också för muspekaren (WCAG 2.5.8).
           const cross = await sheet.getByRole('button', { name: 'Close' }).boundingBox();
           expect(cross?.width ?? 0, `${where}: the close cross is at least ${MIN_POINTER_PX} px wide`).toBeGreaterThanOrEqual(MIN_POINTER_PX - ROUNDING_PX);
@@ -219,6 +235,14 @@ test.describe('the send-a-challenge sheet on a phone', () => {
             expect(column.textRight, `${where} / ${label}: the value under "${column.term}" stays inside its column`).toBeLessThanOrEqual(column.columnRight + ROUNDING_PX);
             expect(column.scroll, `${where} / ${label}: the value under "${column.term}" does not overflow`).toBeLessThanOrEqual(0);
           }
+
+          // På en telefon står Starts på en egen rad under vinst och förlust, över hela radens bredd.
+          const { row, cells } = await page.evaluate(measureStakeCells);
+          const [win, lose, starts] = cells;
+          expect(cells, `${where} / ${label}: three cells`).toHaveLength(3);
+          expect(Math.abs((win?.top ?? 0) - (lose?.top ?? 1)), `${where} / ${label}: win and lose share a row`).toBeLessThanOrEqual(1);
+          expect(starts?.top ?? 0, `${where} / ${label}: Starts is on its own row below win and lose`).toBeGreaterThanOrEqual(Math.max(win?.bottom ?? 0, lose?.bottom ?? 0) - ROUNDING_PX);
+          expect(starts?.width ?? 0, `${where} / ${label}: Starts spans the whole row`).toBeGreaterThanOrEqual(row.width - ROUNDING_PX);
         }
 
         // Hemindikatorn: med en safe-area på 34 px ligger Send ovanför den (värdet kommer ur env(safe-area-inset-bottom) via temafilens token).
@@ -275,6 +299,26 @@ test.describe('the send-a-challenge sheet: empty and blocked states', () => {
         expect(new URL(page.url()).pathname).toBe('/duels');
       });
     }
+  }
+});
+
+test.describe('the send-a-challenge sheet: empty and blocked states above the home indicator', () => {
+  test.skip(!apiIsStubbed(), 'The sheet is filled from a stubbed challenges API; run with E2E_STUB_API=1 against a local build.');
+
+  for (const scenario of ['no-tokens', 'live'] as const) {
+    test(`${scenario} at 390×844 with a home indicator: Close ends above it and is still at least ${MIN_HIT_PX} px tall`, async ({ page }) => {
+      const { sheet } = await openSheetFromHeader(page, 'dark', 390, 844, scenario);
+      const client = await page.context().newCDPSession(page);
+      await client.send('Emulation.setSafeAreaInsetsOverride', { insets: { bottom: HOME_INDICATOR_PX } });
+      await waitForStylesApplied(page);
+      const close = sheet.getByRole('button', { name: 'Close', exact: true }).filter({ hasText: 'Close' });
+      await expect(close).toBeVisible();
+      const box = await close.boundingBox();
+      const viewportHeight = page.viewportSize()?.height ?? 0;
+      expect(viewportHeight - ((box?.y ?? 0) + (box?.height ?? 0)), `${scenario}: Close ends above the home indicator`).toBeGreaterThanOrEqual(HOME_INDICATOR_PX - ROUNDING_PX);
+      expect(box?.height ?? 0, `${scenario}: Close is a thumb target`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
+      await client.send('Emulation.setSafeAreaInsetsOverride', { insets: { bottom: 0 } });
+    });
   }
 });
 
