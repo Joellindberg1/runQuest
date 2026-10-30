@@ -62,6 +62,24 @@
    under namnet (flex-wrap; --rq-sp-4 mellan raderna). Gruppen står kvar till höger (auto-marginalen), så kortet ser likadant ut med och utan radbrytning. */
 .rq-board-podium__nameline[data-minis="true"] { flex-wrap: wrap; row-gap: var(--rq-sp-4); }
 .rq-board-podium__nameline.rq-board-podium__nameline--room { min-height: var(--rq-badge-h-sm); }
+/* Mobilens podium: namnraden är ett rutnät, inte en flexrad, så kortet blir lika brett och högt för alla tre platserna vid lika många badges. Kolumnerna är förnamn | pil | luft | badges.
+   Namnknappen spänner över de tre första och är ett delrutnät: förnamnet ligger i kolumn 1, pilen (ett syskon utanför knappen) i kolumn 2 på samma rad, och efternamnet på en egen rad under, högst två rader med ellips.
+   Pilen kan därför aldrig hamna ensam på en rad, och namnets bredd styrs av badgegruppens bredd, inte av namnets längd. Badgesen har sin egen kolumn och går aldrig över texten. */
+.rq-board-podium__nameline.rq-board-podium__nameline--stack { display: grid; grid-template-columns: minmax(0, max-content) max-content minmax(0, 1fr) max-content; gap: 0; padding-right: var(--rq-board-minis-inset); }
+.rq-board-podium__nameline--stack .rq-board-namebtn { grid-column: 1 / 4; grid-row: 1 / 3; display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; align-content: start; }
+.rq-board-podium__given { grid-column: 1; grid-row: 1; min-width: 0; align-self: last baseline; }
+.rq-board-podium__surname { grid-column: 1 / -1; grid-row: 2; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; }
+.rq-board-podium__nameline--stack .rq-board-delta { grid-column: 2; grid-row: 1; margin-left: var(--rq-sp-8); align-self: last baseline; }
+.rq-board-podium__nameline--stack .rq-badge-minis { grid-column: 4; grid-row: 1 / 3; margin: 0 0 0 var(--rq-sp-8); }
+/* Rymmer raden inte ett vanligt förnamn bredvid tre badges (under ca 255 px minus placeringens plats, alltså telefoner upp till 367 px) ligger badgegruppen på en egen rad under namnet, till höger. Gränsen gäller radens bredd och inte namnets
+   längd, så alla tre korten gör samma sak och blir lika höga; förnamnet bryts då inte mitt i ordet. */
+.rq-board-podium__nameline--stack { container-type: inline-size; }
+@container (max-width: 227px) {
+  .rq-board-podium__nameline--stack .rq-badge-minis { grid-column: 1 / -1; grid-row: 3; justify-self: end; margin-top: var(--rq-sp-4); }
+}
+/* Placeringen som läsbar text i rankfärgen uppe till höger (mobil); desktop har kvar sin spöksiffra. Guldet läses i den mörkare textnyansen i ljust tema (--rq-rank-1 ger 3,3:1 mot vitt). */
+.rq-board-podium__rank { position: absolute; top: var(--rq-pad-card); right: var(--rq-pad-card); font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-rank-solid); }
+.rq-board-podium[data-rank="1"] .rq-board-podium__rank { color: var(--rq-gold-text); }
 .rq-board [data-minis="true"] .rq-board-delta { flex-shrink: 0; }
 .rq-board-cell-ribbons { display: flex; justify-content: flex-end; margin-top: var(--rq-sp-4); }
 .rq-board-cell-stack { display: flex; flex-direction: column; align-items: flex-end; gap: var(--rq-sp-4); }

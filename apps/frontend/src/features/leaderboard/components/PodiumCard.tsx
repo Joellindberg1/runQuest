@@ -1,3 +1,4 @@
+import { ordinal } from '@/features/events/eventsFormat';
 import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { type SeasonRow } from '../seasonModel';
 import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName, TitleLine } from './BoardParts';
@@ -53,7 +54,11 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
       {...(tourAnchor ? { 'data-tour': 'leaderboard-card' } : {})}
       onClick={open}
     >
-      <span className="rq-ghost-rank" aria-hidden="true">{row.rank}</span>
+      {wide ? (
+        <span className="rq-ghost-rank" aria-hidden="true">{row.rank}</span>
+      ) : (
+        <span className="rq-board-podium__rank" role="img" aria-label={`${ordinal(row.rank)} place`}>#{row.rank}</span>
+      )}
       <div className="rq-board-podium__body">
         <div className="rq-board-podium__head">
           <RunnerAvatar initials={row.initials} pictureUrl={row.pictureUrl} />
@@ -71,8 +76,8 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                 </div>
               </>
             ) : (
-              <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
-                <RunnerName userId={row.id} name={row.name} onOpen={open} />
+              <div className="rq-board-podium__nameline rq-board-podium__nameline--room rq-board-podium__nameline--stack" data-minis={hasMinis || undefined}>
+                <RunnerName userId={row.id} name={row.name} onOpen={open} split />
                 <DeltaMark delta={row.delta} />
                 <BadgeMinis showcase={row.showcase} />
               </div>
