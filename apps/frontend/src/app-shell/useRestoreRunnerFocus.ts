@@ -1,16 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { matchPath, NavigationType, useLocation, useNavigate, useNavigationType, type Location } from 'react-router-dom';
+import { matchPath, useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from 'react-router-dom';
 import { paths } from '@/paths';
-import { readBackground, readFocusRunnerId } from '@/shared/hooks/useOpenRunner';
+import { readFocusRunnerId } from '@/shared/hooks/routeState';
+import { readBackground } from '@/shared/hooks/useOpenRunner';
 import { focusRunnerRowWhenRendered } from '@/shared/utils/focusRunnerRow';
+
+// Värdena i react-routers `NavigationType`; enumen själv importeras inte, så att den inte hamnar i router-chunken som landningen också laddar.
+const PUSH: NavigationType = 'PUSH' as NavigationType;
+const REPLACE: NavigationType = 'REPLACE' as NavigationType;
 
 /**
  * Löparen vars kort en navigering lämnade (sida eller popup), när det sker bakåt: Back/Esc/✕/skrim ur popupen och Back ur sidan är alla POP. Den direktladdade sidans tillbakalänk byter ut sin
  * post (REPLACE) och räknas också. Popupen byter ut sin post när Challenge öppnar send-flödet, och det flödet har egen fokushantering, så där räknas bara POP.
  */
 function runnerCardLeft(before: Location | null, now: Location, type: NavigationType): string | null {
-  if (!before || type === NavigationType.Push || matchPath(paths.runnerPattern, now.pathname)) return null;
-  if (type === NavigationType.Replace && readBackground(before)) return null;
+  if (!before || type === PUSH || matchPath(paths.runnerPattern, now.pathname)) return null;
+  if (type === REPLACE && readBackground(before)) return null;
   return matchPath(paths.runnerPattern, before.pathname)?.params.id ?? null;
 }
 
