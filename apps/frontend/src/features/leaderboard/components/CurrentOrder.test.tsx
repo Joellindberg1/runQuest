@@ -142,6 +142,40 @@ describe('CurrentOrder', () => {
     expect(screen.getByText('Pick a runner to lift their line.')).toBeInTheDocument();
   });
 
+  describe('without anything to pick', () => {
+    // Ingen graf att lyfta en linje i (ingen avslutad vecka än): raden får inte se ut som en knapp som inte gör något.
+    const renderPlain = () => render(<CurrentOrder entries={orderOf()} />);
+
+    it('stays an ordered list of the runners in Standings order, with the placement, the name and the "You" tag as text', () => {
+      renderPlain();
+
+      expect(screen.getByRole('list').tagName).toBe('OL');
+      const items = screen.getAllByRole('listitem');
+      expect(items).toHaveLength(6);
+      expect(items[0]).toHaveTextContent('#1');
+      expect(items[0]).toHaveTextContent('Karl Persson');
+      expect(items[1]).toHaveTextContent('Joel Lindberg');
+      expect(within(items[1]).getByText('You')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Current order' })).toBeInTheDocument();
+    });
+
+    it('has no buttons, no tab stops, no pressed state, no "Shown" tag and no hint about picking a runner', () => {
+      const { container } = renderPlain();
+
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(container.querySelectorAll('[tabindex], [aria-pressed]')).toHaveLength(0);
+      expect(screen.queryByText('Shown')).toBeNull();
+      expect(screen.queryByText('Pick a runner to lift their line.')).toBeNull();
+    });
+
+    it('still says in which week a runner who joined later was first placed', () => {
+      render(<CurrentOrder entries={orderOf(twelve({ id: 'u-sara', firstIndex: 3 }))} />);
+
+      expect(screen.getAllByText(/^Joined /)).toHaveLength(1);
+      expect(screen.getByText('Joined W30')).toBeInTheDocument();
+    });
+  });
+
   it('draws nothing for an empty order', () => {
     const { container } = renderOrder([]);
 

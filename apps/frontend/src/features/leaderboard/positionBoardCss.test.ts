@@ -130,6 +130,24 @@ describe('the stylesheet of the position chart', () => {
     expect(focus['outline-offset']).toBe('var(--rq-focus-inset)');
   });
 
+  it('keeps the row headings of the table whole: a name wraps at a space and never in the middle of a word, because a table that is too wide scrolls instead', () => {
+    for (const selector of ['.rq-board-position__table th[scope="row"]', '.rq-board-position__table thead th:first-child']) {
+      expect({ selector, wrap: declarationsOf(css, selector)['overflow-wrap'] }).toEqual({ selector, wrap: 'normal' });
+    }
+  });
+
+  it('keeps a separator of the eyebrow together with the text after it, so a narrow line breaks before the "·" and never after it', () => {
+    expect(declarationsOf(css, '.rq-board-position__part')['white-space']).toBe('nowrap');
+  });
+
+  it('gives the pointer and the hover to a row that is a button and not to the plain order', () => {
+    const plain = declarationsOf(css, '.rq-board-position-order__row');
+    expect(plain.cursor).toBeUndefined();
+    const button = declarationsOf(css, 'button.rq-board-position-order__row');
+    expect(button.cursor).toBe('pointer');
+    expect(declarationsOf(css, 'button.rq-board-position-order__row:hover').background).toBe('var(--rq-row-hover)');
+  });
+
   it('sets every font size from a token and none below 11 px', () => {
     const sizes: string[] = [];
     postcss.parse(css).walkDecls('font-size', (decl) => { sizes.push(decl.value); });

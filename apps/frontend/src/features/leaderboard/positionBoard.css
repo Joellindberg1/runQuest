@@ -21,6 +21,8 @@
   color: var(--rq-text-eyebrow);
 }
 @media (max-width: 1023px) { .rq-board-position__season { display: none; } }
+/* Ett skiljetecken hör till texten efter sig: delen bryts aldrig inuti, så en smal rad (320 px) bryts före "·" och slutar aldrig på ett ensamt. Mellanrummet inuti delen är radens eget. */
+.rq-board-position__part { display: inline-flex; align-items: baseline; gap: var(--rq-sp-8); white-space: nowrap; }
 .rq-board-position__message { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
 
 /* ── Grafen ───────────────────────────────────────────────────────────────── */
@@ -118,7 +120,7 @@
 .rq-board-position__table thead th { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-name); vertical-align: bottom; color: var(--rq-board-position-label); border-bottom-color: var(--rq-line-4); }
 .rq-board-position__table thead th[data-current="true"] { color: var(--rq-text-2); }
 .rq-board-position__table th[scope="row"], .rq-board-position__table thead th:first-child {
-  text-align: left; min-width: 9ch; overflow-wrap: anywhere; padding-right: var(--rq-sp-6);
+  text-align: left; min-width: 9ch; overflow-wrap: normal; padding-right: var(--rq-sp-6);
 }
 .rq-board-position__table tbody th[scope="row"] { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-name); text-transform: uppercase; line-height: var(--rq-lh-tight); }
 .rq-board-position__table tbody th[data-me="true"] { color: var(--rq-gold-text); }
@@ -149,14 +151,18 @@
 }
 .rq-board-position-order__hint { margin: var(--rq-sp-4) 0 var(--rq-sp-12); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
 .rq-board-position-order__list { display: flex; flex-direction: column; gap: var(--rq-board-position-order-gap); margin: 0; padding: 0; list-style: none; }
+/* Utan hint (inget att välja) står listan direkt under rubriken: samma avstånd som hintets undre marginal. */
+.rq-board-position-order__title + .rq-board-position-order__list { margin-top: var(--rq-sp-12); }
 
 /* En rad är en knapp: minst 44 px på mobil (en rad som radbryter växer, den klipps aldrig), inåtriktad fokusring (en yttre skulle klippas av kortet). */
 .rq-board-position-order__row {
   box-sizing: border-box; display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; min-height: var(--rq-board-position-order-h);
   margin: 0; padding: var(--rq-sp-6) var(--rq-sp-10); border: var(--rq-hair) solid var(--rq-line-3); border-radius: var(--rq-radius); background: var(--rq-row-soft);
-  font-family: var(--rq-font-ui); text-align: left; color: var(--rq-text-2); cursor: pointer;
+  font-family: var(--rq-font-ui); text-align: left; color: var(--rq-text-2);
 }
-.rq-board-position-order__row:hover { background: var(--rq-row-hover); }
+/* Pekaren och hovern hör till en rad som är en knapp. Utan en ritad graf är raden bara ordning (en vanlig div) och ska inte se klickbar ut. */
+button.rq-board-position-order__row { cursor: pointer; }
+button.rq-board-position-order__row:hover { background: var(--rq-row-hover); }
 .rq-board-position-order__row:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
 .rq-board-position-order__row[aria-pressed="true"] { border-color: var(--rq-board-position-line-on); background: var(--rq-fill-2); }
 .rq-board-position-order__row[aria-pressed="true"][data-me="true"] { border-color: var(--rq-board-position-line-me); }

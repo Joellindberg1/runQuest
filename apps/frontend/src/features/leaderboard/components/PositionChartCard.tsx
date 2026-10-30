@@ -1,4 +1,5 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
+import { useScrollsSideways } from '../hooks/useScrollsSideways';
 import type { PositionChartModel } from '../positionChartModel';
 import '../positionBoard.css';
 import { PackPositionChart } from './PackPositionChart';
@@ -15,8 +16,10 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
   const tableId = useId();
   const headingId = useId();
   const captionId = useId();
-  if (model.mode === 'hidden') return null;
+  const slotRef = useRef<HTMLDivElement>(null);
   const drawn = model.mode === 'chart';
+  const tableScrolls = useScrollsSideways(slotRef, drawn);
+  if (model.mode === 'hidden') return null;
 
   return (
     <section className="rq-board-position__card" aria-labelledby={headingId}>
@@ -35,17 +38,23 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
         <>
           {/* Perioden står redan i bildens text ("weeks 27 to 34"); tankstrecket läses olika av olika skärmläsare, så den synliga formen är dold. */}
           <p className="rq-board-position__eyebrow">
-            {/* "Season rank" står bara på desktop (skissens webb); på mobil ryms inte raden annars på en rad. */}
+            {/* "Season rank" står bara på desktop (skissens webb); på mobil ryms inte raden annars på en rad. Varje skiljetecken hör till texten efter sig (en del bryts aldrig inuti),
+                så en smal rad bryts före "·" och slutar aldrig på ett ensamt. */}
             <span className="rq-board-position__season">Season rank</span>
-            <span className="rq-board-position__sep rq-board-position__season" aria-hidden="true">·</span>
-            <span aria-hidden="true">{model.range}</span>
-            <span className="rq-board-position__sep" aria-hidden="true">·</span>
-            <span>Read every Sunday midnight</span>
+            <span className="rq-board-position__part">
+              <span className="rq-board-position__sep rq-board-position__season" aria-hidden="true">·</span>
+              <span aria-hidden="true">{model.range}</span>
+            </span>
+            <span className="rq-board-position__part">
+              <span className="rq-board-position__sep" aria-hidden="true">·</span>
+              <span>Read every Sunday midnight</span>
+            </span>
           </p>
           <div hidden={tableOpen}>
             <PackPositionChart model={model} />
           </div>
-          <div id={tableId} className="rq-board-position__table-slot" role="region" aria-labelledby={captionId} tabIndex={0} hidden={!tableOpen}>
+          {/* Tabbstopp bara när tabellen faktiskt scrollar (en lång period på en smal skärm): en yta som ryms är inget att tabba till. */}
+          <div id={tableId} ref={slotRef} className="rq-board-position__table-slot" role="region" aria-labelledby={captionId} tabIndex={tableScrolls ? 0 : undefined} hidden={!tableOpen}>
             {model.table && <PositionHistoryTable table={model.table} captionId={captionId} />}
           </div>
         </>

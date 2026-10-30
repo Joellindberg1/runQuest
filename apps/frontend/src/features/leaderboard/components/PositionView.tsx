@@ -10,7 +10,7 @@ import { PositionChartCard } from './PositionChartCard';
 // ett klick i legenden väljer löparen, och grafen lyfter linjen. Att samma id igen avmarkerar bestäms av modellens `selectRunner`, så regeln finns på ett
 // ställe. Radavståndet följer skalets brytpunkt (`useIsDesktop`, 1024 px); var legenden står (bredvid eller under) avgör stilen med samma brytpunkt.
 //
-// Fliken (en egen story) hämtar svaret (`usePositionHistory`) och lazy-laddar den här komponenten: `React.lazy(() => import('./PositionView'))`.
+// Fliken (`PositionTab`) hämtar svaret (`usePositionHistory`) och lazy-laddar den här komponenten (`positionViewLoader`).
 // `hidden` ritar ingenting. Innan matchMedia är läst ritas ingenting (ADR 006 risk 6: gissa aldrig mobil/desktop).
 
 interface PositionViewProps {
@@ -31,7 +31,8 @@ export function PositionView({ data, meId }: PositionViewProps) {
   return (
     <div className="rq-card rq-board-position">
       <PositionChartCard model={model} />
-      <CurrentOrder entries={model.order} onSelect={(id) => setSelectedId(selectRunner(model, id).selectedId)} />
+      {/* Utan en ritad graf (ingen avslutad vecka än) finns ingen linje att lyfta: ordningen står kvar, men som en vanlig lista. */}
+      <CurrentOrder entries={model.order} onSelect={model.mode === 'chart' ? (id) => setSelectedId(selectRunner(model, id).selectedId) : undefined} />
     </div>
   );
 }
