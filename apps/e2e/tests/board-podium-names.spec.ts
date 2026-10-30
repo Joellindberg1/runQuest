@@ -58,7 +58,7 @@ async function openBoard(page: Page, { names, badges = 0, width, height = PHONE_
   );
   await answerWith(page, '/leaderboard/rank-delta', {
     as_of: '2026-10-12',
-    users: group.map((member, index) => ({ user_id: member.id, xp: member.total_xp, rank: index + 1, previous_xp: 0, previous_rank: index + 1, rank_delta: [3, -1, 0][index] ?? null })),
+    users: group.map((member, index) => ({ user_id: member.id, xp: member.total_xp, rank: index + 1, previous_xp: 0, previous_rank: index + 1, rank_delta: [12, -2, 1][index] ?? null })),
   });
   await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize({ width, height });
@@ -159,6 +159,47 @@ test.describe('the podium cards on a phone', () => {
           expect(cards.every((card) => card.hasSurname), 'every example name has a surname').toBe(true);
         });
       }
+    }
+  }
+
+  // Ett förnamn på 11-12 tecken ska ligga helt bredvid pilen, med och utan badges, och korten ska vara lika höga och lika breda även när namnen är olika långa. Gränsen för var badgegruppen
+  // flyttar upp bredvid namnet gäller radens bredd, inte namnets längd; ett namn som bryts mitt i ordet eller ett kort som växer av ett längre namn fäller provet.
+  const WORD_NAMES = ['Bartholomew Montgomery', 'Christopher Oppenheimer', 'Maximilianus Sebastiansson', 'Dan Rest', 'Eva Rest', 'Fia Rest'];
+  for (const width of PHONE_WIDTHS) {
+    for (const badges of [0, 1, 3]) {
+      test(`keeps the words of differently long names whole and the cards equally tall with ${badges} badges on a ${width} px phone`, async ({ page }) => {
+        await openBoard(page, { names: WORD_NAMES, badges, width });
+
+        const cards = await page.evaluate(() =>
+          Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => {
+            const splitWords: string[] = [];
+            for (const part of Array.from(card.querySelectorAll('.rq-board-podium__given, .rq-board-podium__surname'))) {
+              const text = part.firstChild as Text;
+              for (const match of text.data.matchAll(/\S+/g)) {
+                const range = document.createRange();
+                range.setStart(text, match.index!);
+                range.setEnd(text, match.index! + match[0].length);
+                const lines = new Set(Array.from(range.getClientRects()).filter((box) => box.width > 0).map((box) => Math.round(box.top)));
+                if (lines.size > 1) splitWords.push(match[0]);
+              }
+            }
+            return {
+              name: card.querySelector('.rq-board-namebtn')!.textContent ?? '',
+              splitWords,
+              height: card.getBoundingClientRect().height,
+              nameWidth: card.querySelector('.rq-board-namebtn')!.getBoundingClientRect().width,
+            };
+          }),
+        );
+
+        expect(cards).toHaveLength(3);
+        test.info().annotations.push({ type: 'measure', description: `${width} px / ${badges} badges: heights ${cards.map((card) => card.height.toFixed(1)).join('/')}, name widths ${cards.map((card) => card.nameWidth.toFixed(1)).join('/')}` });
+        for (const card of cards) expect(card.splitWords, `${card.name} has no word broken in the middle`).toEqual([]);
+        for (const card of cards.slice(1)) {
+          expect(Math.abs(card.height - cards[0]!.height), `${card.name} is as tall as ${cards[0]!.name}`).toBeLessThanOrEqual(TOLERANCE_PX);
+          expect(Math.abs(card.nameWidth - cards[0]!.nameWidth), `${card.name} has the name width of ${cards[0]!.name}`).toBeLessThanOrEqual(TOLERANCE_PX);
+        }
+      });
     }
   }
 
