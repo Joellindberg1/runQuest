@@ -115,7 +115,8 @@ for (const [label, size] of [['390 px (mobile)', MOBILE], ['1280 px (direct load
         const opened = context.waitForEvent('page');
         await backLink(page).click(click);
         const tab = await opened;
-        await tab.waitForLoadState('domcontentloaded');
+        // Under laddning står en ny flik på about:blank; adressen läses först när den har blivit /board.
+        await tab.waitForURL('**/board');
         expect(new URL(tab.url()).pathname).toBe('/board');
         await tab.close();
         expect(new URL(page.url()).pathname).toBe(`/runner/${RUNNER.id}`);

@@ -11,6 +11,8 @@ interface ChallengeButtonProps {
   replace?: boolean;
   /** Router-state som länken bär med (popupen: `{ sendOrigin }`, se `SendOriginState`). */
   state?: SendOriginRouteState;
+  /** Duels-fliken (`?view=`) som popupen öppnades över: en send som slutar utan ursprung landar på samma flik. */
+  view?: string;
 }
 
 /**
@@ -19,7 +21,7 @@ interface ChallengeButtonProps {
  * parametrarna och förväljer löparen. Med en pågående utmaning visas i stället en statuschip
  * (en avstängd knapp har för låg kontrast för att bära tillståndsinfo). Popupens avstängda knapp med skäl är `ChallengeOff`, som bara popupens chunk bär.
  */
-export function ChallengeButton({ opponentId, active, replace, state }: ChallengeButtonProps) {
+export function ChallengeButton({ opponentId, active, replace, state, view }: ChallengeButtonProps) {
   if (active) {
     return (
       <span className="rq-chip rq-chip--status rq-chip--duel">
@@ -29,7 +31,7 @@ export function ChallengeButton({ opponentId, active, replace, state }: Challeng
     );
   }
   return (
-    <Link to={duelsSendPath(opponentId)} replace={replace} state={state} className="rq-btn rq-btn--secondary rq-btn--sm">
+    <Link to={duelsSendPath(opponentId, view)} replace={replace} state={state} className="rq-btn rq-btn--secondary rq-btn--sm">
       <RQIcon name="swords" size={15} />
       Challenge
     </Link>

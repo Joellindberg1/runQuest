@@ -35,6 +35,9 @@ beforeEach(() => {
   handlers.getTitleLeaderboard = () => ({ success: true, data: [] });
 });
 
+// Väntläget heter "Runner card" medan löparen är okänd och "Loading <namn>'s runner card" när hen är känd (cachad grupp): provet ska inte bero på vilket.
+const PENDING_NAME = /^(Runner card|Loading .+'s runner card)$/;
+
 const location = () => screen.getByTestId('location').textContent;
 
 function renderPending() {
@@ -51,7 +54,7 @@ describe('the profile popup is a lazy chunk', () => {
   it('while the chunk loads, the loading state is a busy dialog over the scrim', async () => {
     renderPending();
 
-    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    const dialog = await screen.findByRole('dialog', { name: PENDING_NAME });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAttribute('aria-busy', 'true');
     expect(within(dialog).getByText('Loading runner')).toBeInTheDocument();
@@ -70,7 +73,7 @@ describe('the profile popup is a lazy chunk', () => {
       { entry: '/runner/u-karl', width: 1280 },
     );
 
-    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    const dialog = await screen.findByRole('dialog', { name: PENDING_NAME });
     await waitFor(() => expect(dialog).toHaveFocus());
 
     await user.tab();
@@ -82,7 +85,7 @@ describe('the profile popup is a lazy chunk', () => {
 
   it('while the chunk loads, Escape closes the popup', async () => {
     renderPending();
-    const dialog = await screen.findByRole('dialog', { name: 'Runner card' });
+    const dialog = await screen.findByRole('dialog', { name: PENDING_NAME });
     await waitFor(() => expect(dialog).toHaveFocus());
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
@@ -93,7 +96,7 @@ describe('the profile popup is a lazy chunk', () => {
 
   it('while the chunk loads, a click on the scrim closes the popup', async () => {
     renderPending();
-    await screen.findByRole('dialog', { name: 'Runner card' });
+    await screen.findByRole('dialog', { name: PENDING_NAME });
 
     fireEvent.click(document.querySelector('.rq-scrim') as HTMLElement);
 

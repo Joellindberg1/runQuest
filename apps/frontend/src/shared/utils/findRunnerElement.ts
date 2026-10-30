@@ -1,7 +1,7 @@
 /** Attributet som varje element som öppnar en löpare bär (ADR 006: fokus tillbaka till löparens rad). */
 const RUNNER_ID_ATTRIBUTE = 'data-runner-id';
 
-function isRendered(element: HTMLElement): boolean {
+export function isRendered(element: HTMLElement): boolean {
   if (getComputedStyle(element).visibility === 'hidden') return false;
   for (let node: HTMLElement | null = element; node; node = node.parentElement) {
     if (node.hidden || getComputedStyle(node).display === 'none') return false;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
@@ -9,9 +9,12 @@ import { OPPONENT_PARAM, SEND_PARAM } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { readSendOrigin, withoutSendOrigin, type FocusRunnerState } from '@/shared/hooks/routeState';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
+import { historyIdx } from '@/shared/utils/historyIdx';
+import { requestRunnerFocus } from '@/shared/utils/runnerFocusIntent';
 import { firstName } from '@/shared/utils/format';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
@@ -38,6 +41,7 @@ export function DuelsScreen() {
   const isDesktop = useIsDesktop();
   const now = useNow();
   const openRunner = useOpenRunner();
+  const navigate = useNavigate();
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useViewParam(DUELS_VIEWS, DEFAULT_DUELS_VIEW);
@@ -111,6 +115,10 @@ export function DuelsScreen() {
   // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
   // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
   if (!sendOpen && preselection !== null) setPreselection(null);
+  // Ursprunget (sidan under löparens popup) gäller bara flödet som popupens Challenge öppnade. Det får inte ligga kvar efter ett skick (`closeSend` tömmer det):
+  // annars skulle ett senare Cancel hoppa till en gammal bakgrundssida.
+  const origin = readSendOrigin(state);
+  const stateWithoutOrigin = withoutSendOrigin(state);
   // Öppna med en ny historikpost (back stänger sheeten); stäng med replace så back inte öppnar den igen.
   const openSend = (next?: SendPreselection) => {
     setPreselection(next ?? null);
@@ -124,6 +132,7 @@ export function DuelsScreen() {
       { state },
     );
   };
+  // Stängning utan att gå till en annan sida: efter ett skick och för flöden utan ursprung.
   const closeSend = () => {
     setParams(
       (previous) => {
@@ -132,8 +141,23 @@ export function DuelsScreen() {
         next.delete(OPPONENT_PARAM);
         return next;
       },
-      { replace: true, state },
+      { replace: true, state: stateWithoutOrigin },
     );
+  };
+  // Avbrutet (Cancel, ✕, Esc, skrim, Close i det blockerade läget). Med ursprung går vi tillbaka till sidan under popupen och skalet fokuserar löparens rad.
+  // Ligger den en post bakåt (indexet som popupen skickade stämmer med var vi är) går vi ett steg bakåt: historiken får ingen ny post, och fokusavsikten bärs i minnet eftersom
+  // `navigate(-1)` inte kan bära route-state. Går det inte att avgöra (djuplänk, ny flik, historiken ändrad) ersätter vi send-flödets post med sidan, och avsikten bärs av route-state.
+  const cancelSend = () => {
+    if (!origin) {
+      closeSend();
+      return;
+    }
+    if (origin.returnIdx !== undefined && historyIdx() === origin.returnIdx + 1) {
+      requestRunnerFocus(origin.runnerId);
+      navigate(-1);
+      return;
+    }
+    navigate(origin.returnTo, { replace: true, state: { focusRunnerId: origin.runnerId } satisfies FocusRunnerState });
   };
 
   const respond = async (run: () => Promise<unknown>, success: string, failure: string) => {
@@ -211,7 +235,8 @@ export function DuelsScreen() {
           meId={meId}
           preselection={preselection}
           initialOpponent={params.get(OPPONENT_PARAM)}
-          onClose={closeSend}
+          cancelFocus={origin ? 'page' : 'opener'}
+          onClose={cancelSend}
           onSend={sendChallenge}
         />
       )}

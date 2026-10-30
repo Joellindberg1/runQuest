@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
@@ -17,9 +17,25 @@ import { CellGrid, PanelLoading } from './RunnerParts';
 export function HeadToHeadBanner({ opponentName, meId, data, isError, isFetching, onRetry }: HeadToHeadSource) {
   const view = useMemo(() => (data ? buildHeadToHead(data, meId) : null), [data, meId]);
 
+  // Retry försvinner när svaret kommer, och en knapp som hade fokus lämnar det på dialogramen. Efter ett omförsök som lyckades går fokus till panelens mening (rekordet), som läses upp.
+  const sentenceRef = useRef<HTMLParagraphElement>(null);
+  const retried = useRef(false);
+  const retry = () => {
+    retried.current = true;
+    onRetry();
+  };
+  const ready = !!data && !isError;
+  useEffect(() => {
+    if (!ready || !retried.current) return;
+    retried.current = false;
+    // Bara när fokus är strandat (på <body> eller dialogramen): har användaren redan gått till något annat ska det inte dras tillbaka hit.
+    const active = document.activeElement;
+    if (active === null || active === document.body || active.getAttribute('role') === 'dialog') sentenceRef.current?.focus();
+  }, [ready]);
+
   let body;
   if (isError) {
-    body = <ErrorState title="Couldn't load head to head" message="Your data is safe." retrying={isFetching} onRetry={onRetry} />;
+    body = <ErrorState title="Couldn't load head to head" message="Your data is safe." retrying={isFetching} onRetry={retry} />;
   } else if (!data || !view) {
     body = <PanelLoading label="Loading head to head" />;
   } else if (data.record.total === 0) {
@@ -34,7 +50,7 @@ export function HeadToHeadBanner({ opponentName, meId, data, isError, isFetching
         <RQIcon name="swords" size={15} />
         <span>Head to head with you</span>
       </div>
-      {data && !isError && <p className="sr-only">{headToHeadSentence(data.record, opponentName)}</p>}
+      {data && !isError && <p ref={sentenceRef} tabIndex={-1} className="sr-only">{headToHeadSentence(data.record, opponentName)}</p>}
       <div className="rq-runner-h2h-banner__body">{body}</div>
     </div>
   );

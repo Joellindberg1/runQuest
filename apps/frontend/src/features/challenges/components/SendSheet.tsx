@@ -28,6 +28,8 @@ interface SendSheetProps {
   preselection: SendPreselection | null;
   /** `?opponent=`: förvald motståndare om personen går att utmana. */
   initialOpponent: string | null;
+  /** Vart fokus går när sheeten avbryts: `opener` = kortet/knappen som öppnade den, `page` = sidan som tar över (avbrutet flöde från löparens popup, där skalet fokuserar löparens rad). Efter ett skick gäller alltid bekräftelsen. */
+  cancelFocus?: 'opener' | 'page';
   onClose: () => void;
   /** Kastar vid fel; sheeten visar då meddelandet och stannar kvar. */
   onSend: (tokenKey: string, opponentId: string) => Promise<void>;
@@ -40,7 +42,7 @@ interface SendSheetProps {
  * Förvalet kommer ur `startingChoice` (förvald nivå/kort, annars det ensamma kortet, aldrig förra valet); byte av nivå börjar om därifrån.
  * Monteras bara medan den är öppen, så valen nollställs varje gång.
  */
-export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, onClose, onSend }: SendSheetProps) {
+export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, cancelFocus = 'opener', onClose, onSend }: SendSheetProps) {
   const baseOptions = useMemo(() => buildOpponents({ members, users, meId, headToHead: {} }), [members, users, meId]);
 
   const [choice, setChoice] = useState<SendPreselection | null>(() => startingChoice(groups, preselection));
@@ -97,6 +99,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
+    if (cancelFocus === 'page' && !sentRef.current) return;
     const confirmation = sentRef.current ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
     const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
     const target = confirmation ?? (usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR)));

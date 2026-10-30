@@ -201,6 +201,25 @@ describe('Head to head in its own panel in the banner', () => {
     expect(within(panel).queryByRole('alert')).toBeNull();
   });
 
+  it('after a successful Retry the focus goes to the panel record, not to the dialog frame', async () => {
+    let fail = true;
+    handlers.getHeadToHead = () => (fail ? { success: false, error: 'boom' } : { success: true, data: record(2, 0, 1) });
+    renderPopup();
+    await heroName();
+    const panel = document.querySelector('.rq-runner-h2h-banner') as HTMLElement;
+    await within(panel).findByText("Couldn't load head to head", undefined, SLOW);
+    const retry = within(panel).getByRole('button', { name: 'Retry' });
+    retry.focus();
+    expect(retry).toHaveFocus();
+
+    fail = false;
+    fireEvent.click(retry);
+
+    const recordLine = await sentence('Head to head: 2–0–1 to you');
+    await waitFor(() => expect(recordLine).toHaveFocus());
+    expect(screen.getByRole('dialog')).not.toHaveFocus();
+  });
+
   it('is no longer in the Overview panel, and the stats fill it', async () => {
     renderPopup();
     await heroName();

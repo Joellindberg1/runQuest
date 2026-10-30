@@ -14,6 +14,8 @@ export interface BackgroundState {
 export interface SendOriginState {
   returnTo: string;
   runnerId: string;
+  /** Postens plats i historiken (`history.state.idx`) för sidan under popupen, när den är känd: send-flödet ersatte popupens post, så sidan ligger en post bakåt och Avbryt kan gå ett steg bakåt. */
+  returnIdx?: number;
 }
 
 export interface SendOriginRouteState {

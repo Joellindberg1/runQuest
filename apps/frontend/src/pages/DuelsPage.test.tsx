@@ -148,7 +148,7 @@ describe('Duels — rubrik och Live (mobil)', () => {
     renderDuels();
     expect(await screen.findByRole('heading', { name: 'No duels are live', level: 2 })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Send a challenge' }));
-    expect(location()).toBe('/duels?send=1');
+    expect(location()).toBe('/duels?send=1&view=live');
   });
 
   it('tokens-panelen: tre nivåchips med antal och ett kort per token på första nivån med tokens', async () => {

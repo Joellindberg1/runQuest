@@ -1,9 +1,10 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
 import { ME, OTHER, RANK_DELTA, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
-import { warmLanding } from '@/test/warmLazy';
+import { warmLanding, warmRunnerPopup } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
@@ -43,6 +44,7 @@ beforeEach(() => {
 });
 
 beforeAll(warmLanding);
+beforeAll(warmRunnerPopup);
 
 describe('varje route renderar utan krasch inne i skalet', () => {
   it.each([
@@ -361,5 +363,45 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
     await waitFor(() => expect(location()).toBe('/board'));
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     spy.mockRestore();
+  });
+  describe('the error card is a dialog that gives the focus back', () => {
+    const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
+    afterEach(() => { resetHistoryIdx(); });
+
+    async function openBrokenPopup() {
+      crash.runnerPopup = true;
+      renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP, history: true });
+      const dialog = await screen.findByRole('dialog', { name: 'Something broke' });
+      await waitFor(() => expect(karlRow()).not.toBeNull());
+      crash.runnerPopup = false;
+      return dialog;
+    }
+
+    it('has dialog semantics and a name, and holds the focus', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+      spy.mockRestore();
+    });
+
+    it.each([
+      ['Escape', (dialog: HTMLElement) => fireEvent.keyDown(dialog, { key: 'Escape' })],
+      ['the Close button', (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))],
+    ])('%s closes it and puts the focus on the runner row, not on the page body', async (_how, close) => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+
+      close(dialog);
+
+      await waitFor(() => expect(location()).toBe('/board'));
+      await waitFor(() => expect(screen.queryByRole('dialog', { hidden: true })).toBeNull());
+      await waitFor(() => expect(karlRow()).toHaveFocus());
+      expect(document.body).not.toHaveFocus();
+      spy.mockRestore();
+    });
   });
 });

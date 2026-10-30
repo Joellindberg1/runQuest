@@ -4,10 +4,12 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { User } from '@runquest/types';
 import { useGroupStats, useMyChallenges } from '@/features/challenges/hooks/useDuelsQueries';
 import type { StatView } from '@/features/profile/statsModel';
+import { paths } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { readBackground } from '@/shared/hooks/useOpenRunner';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
+import { historyIdx } from '@/shared/utils/historyIdx';
 import { challengeAvailability } from '../challengeAvailability';
 import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
@@ -46,7 +48,12 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
 
   const active = headToHead.data?.active?.status ?? null;
   const background = readBackground(location);
-  const state = background ? { sendOrigin: { returnTo: `${background.pathname}${background.search}`, runnerId } } : undefined;
+  // Popupens post ersätts av send-flödet och ligger en post efter sidan under: indexet låter Avbryt gå ett steg bakåt i stället för att lägga till en post.
+  const idx = historyIdx();
+  const sendOrigin = background ? { returnTo: `${background.pathname}${background.search}`, runnerId, ...(idx !== null && idx > 0 ? { returnIdx: idx - 1 } : {}) } : undefined;
+  const state = sendOrigin ? { sendOrigin } : undefined;
+  // Ligger popupen över /duels följer fliken med in i send-flödet.
+  const duelsView = background?.pathname === paths.duels ? new URLSearchParams(background.search).get('view') : null;
   const availability = challengeAvailability({
     meId: user?.id ?? '',
     runnerId,
@@ -64,7 +71,7 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
       }}
     >
       {active || availability.status === 'ready' ? (
-        <ChallengeButton opponentId={runnerId} active={active} replace state={state} />
+        <ChallengeButton opponentId={runnerId} active={active} replace state={state} view={duelsView ?? undefined} />
       ) : (
         <ChallengeOff reason={availability.status === 'blocked' ? availability.reason : null} />
       )}

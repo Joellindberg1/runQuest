@@ -22,9 +22,11 @@ interface RunnerRouteProps {
  * kommer med chunken (och ersätter den här i samma ritning); tills dess är det här en dialog som gör tre saker, så litet som möjligt eftersom den ligger i ingångs-chunken:
  * Esc och klick på skrimman stänger (`onClose`), fokus flyttas in och stannar kvar (Tab har inget annat att gå till, så den hålls kvar i stället för att nå sidan bakom).
  * Fokus sätts i ref-callbacken och Esc/Tab fångas på dialogen själv, eftersom fokus alltid ligger där: inga effekter och ingen dokumentlyssnare, som kostade ingångs-chunken byte.
+ * Dialogen heter "Loading <namn>'s runner card" när löparen är känd (annars "Runner card"): ett namn som skiljer väntläget från den riktiga dialogen ("Runner card: <namn>"), så att den som väntar
+ * på den riktiga inte fångar väntläget. Skrollås under väntan ingår inte (det kräver en effekt i ingångs-chunken): se docs/open-assumptions.md.
  * Förladdning av chunken vid hover/fokus på en löparrad ingår inte: en dokumentlyssnare i skalet mättes till ca 150 B gzip i ingångs-chunken, och posten får växa högst 100 B (uppföljning).
  */
-function PopupPending({ onClose }: { onClose: () => void }) {
+function PopupPending({ name, onClose }: { name?: string; onClose: () => void }) {
   return (
     <>
       <div className="rq-scrim" onClick={onClose} />
@@ -33,7 +35,7 @@ function PopupPending({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-busy="true"
-        aria-label="Runner card"
+        aria-label={name ? `Loading ${name}'s runner card` : 'Runner card'}
         tabIndex={-1}
         className="rq-modal"
         onKeyDown={(event) => {
@@ -68,7 +70,7 @@ export const RunnerRoute: React.FC<RunnerRouteProps> = ({ presentation }) => {
     if (!loading && !failed && !runner) return <Navigate to={{ pathname: location.pathname, search: location.search }} replace state={null} />;
 
     return (
-      <Suspense fallback={<PopupPending onClose={close} />}>
+      <Suspense fallback={<PopupPending name={runner?.name} onClose={close} />}>
         <RunnerPopup id={id} runner={runner} users={users} failure={failure} failed={failed} onClose={close} />
       </Suspense>
     );

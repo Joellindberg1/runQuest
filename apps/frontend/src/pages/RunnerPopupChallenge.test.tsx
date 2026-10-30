@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { AppRoutes } from '@/routes';
 import { challenge, stat, token } from '@/features/challenges/duels.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { warmRunnerPopup } from '@/test/warmLazy';
 import type { SendOriginState } from '@/shared/hooks/useOpenRunner';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -19,6 +20,8 @@ vi.mock('@/features/badges/api', () => ({
 }));
 
 // Challenge i profil-popupen (ADR 006 punkt 5): länken som stänger popupen och öppnar send-flödet, och den avstängda knappen med synligt skäl.
+
+beforeAll(warmRunnerPopup);
 
 const DESKTOP = 1280;
 const MOBILE = 390;
