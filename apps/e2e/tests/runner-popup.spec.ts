@@ -87,9 +87,9 @@ type HeadToHeadStub = 'record' | 'win' | 'none' | 'loading' | 'error';
 const HEAD_TO_HEAD_RECORDS = { record: { wins: 1, draws: 0, losses: 1 }, win: { wins: 2, draws: 0, losses: 1 }, none: { wins: 0, draws: 0, losses: 0 } } as const;
 
 /** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. `badges` = antal serier löparen har intjänade (0-8). */
-async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record', challenge: RunnerChallengeScenario = 'ready'): Promise<void> {
+async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record', challenge: RunnerChallengeScenario = 'ready', runnerKm?: number): Promise<void> {
   await stubRunnerChallenge(page, { scenario: challenge, runner: RUNNER, other: OTHER_MEMBER });
-  await answerWith(page, '/auth/users-with-runs', { success: true, data: GROUP });
+  await answerWith(page, '/auth/users-with-runs', { success: true, data: runnerKm === undefined ? GROUP : GROUP.map((member) => (member.id === RUNNER.id ? { ...member, total_km: runnerKm } : member)) });
   await answerWith(page, '/titles/user/', {
     success: true,
     data: Array.from({ length: titles }, (_, index) => holder(index + 1)),
@@ -127,10 +127,12 @@ interface OpenOptions {
   challenge?: RunnerChallengeScenario;
   /** Temat sätts som next-themes gör: `localStorage.theme` före sidans skript, som ger `data-theme` på <html>. */
   theme?: 'dark' | 'light';
+  /** Löparens totala km (Frodo's journey); standard 40. */
+  runnerKm?: number;
 }
 
-async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', challenge = 'ready', theme }: OpenOptions = {}): Promise<void> {
-  await stubGroup(page, titles, badges, headToHead, challenge);
+async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', challenge = 'ready', theme, runnerKm }: OpenOptions = {}): Promise<void> {
+  await stubGroup(page, titles, badges, headToHead, challenge, runnerKm);
   if (theme) await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize({ width, height });
   await page.goto('/board');
@@ -156,14 +158,14 @@ const SECTIONS = ['Overview', 'The Journey', 'Titles held', 'Badges'] as const;
 const sectionTab = (dialog: Locator, name: (typeof SECTIONS)[number]): Locator => dialog.getByRole('tablist', { name: 'Runner sections' }).getByRole('tab', { name });
 const sectionPanel = (dialog: Locator): Locator => dialog.locator('.rq-runner-popup-panel');
 const OVERVIEW_VIEWS = ['Activity', 'Distance', 'Streak', 'Fun facts'] as const;
-const overviewButton = (dialog: Locator, name: (typeof OVERVIEW_VIEWS)[number]): Locator => dialog.getByRole('group', { name: 'Overview' }).getByRole('button', { name });
+const overviewButton = (dialog: Locator, name: (typeof OVERVIEW_VIEWS)[number]): Locator => dialog.getByRole('group', { name: 'Overview view', exact: true }).getByRole('button', { name });
 
 /** Väntar tills flikens egen panel är ritad med sitt innehåll (inte laddaren), så att höjden mäts i det läge användaren ser. */
 async function expectSectionLoaded(dialog: Locator, name: (typeof SECTIONS)[number]): Promise<void> {
   const panel = sectionPanel(dialog);
   // Head to head ligger i bannern (ovanför flikarna), inte i Overview-panelen: Overview är klar när statflikarna ritats och bannern har fått sitt svar (meningen).
   if (name === 'Overview') {
-    await expect(panel.getByRole('group', { name: 'Overview' })).toBeVisible();
+    await expect(panel.getByRole('group', { name: 'Overview view', exact: true })).toBeVisible();
     await expect(dialog.getByText(/^Head to head: /)).toBeAttached();
   }
   if (name === 'The Journey') await expect(panel.getByRole('region', { name: "Frodo's journey" })).toBeVisible();
@@ -414,7 +416,7 @@ test.describe('the profile popup on desktop', () => {
   test('the focus ring of an Overview button is drawn inside the button, so the scroll area does not clip it', async ({ page }) => {
     await openBoard(page, 1280, 900);
     const dialog = await openPopup(page);
-    const tabs = dialog.getByRole('group', { name: 'Overview' }).getByRole('button');
+    const tabs = dialog.getByRole('group', { name: 'Overview view', exact: true }).getByRole('button');
 
     await tabs.first().focus();
     await page.keyboard.press('Tab');
@@ -468,7 +470,7 @@ test.describe('the Overview of the profile popup', () => {
     const dialog = await openPopup(page);
     await expectSectionLoaded(dialog, 'Overview');
 
-    const group = dialog.getByRole('group', { name: 'Overview' });
+    const group = dialog.getByRole('group', { name: 'Overview view', exact: true });
     await expect(group.getByRole('button')).toHaveText(['Activity', 'Distance', 'Streak', 'Fun facts']);
     await expect(overviewButton(dialog, 'Activity')).toHaveAttribute('aria-pressed', 'true');
     for (const view of OVERVIEW_VIEWS.slice(1)) await expect(overviewButton(dialog, view)).toHaveAttribute('aria-pressed', 'false');
@@ -668,6 +670,148 @@ test.describe('the Overview of the profile popup', () => {
       testInfo.annotations.push({ type: `contrast (${theme})`, description: JSON.stringify(report) });
     });
   }
+});
+
+// Fliken The Journey: Frodos väg ur samma modell som profilens kort, i dialogens fasta panelyta (ingen intern scroll, samma höjd), med förloppet som text och läsbara etiketter.
+test.describe('the Journey tab of the profile popup', () => {
+  /** Doors of Durin: en löpare mitt på vägen, så att både tier 1- och tier 2-etiketter, ticks och markören syns. */
+  const JOURNEY_KM = 988.4;
+  const journey = (dialog: Locator): Locator => dialog.getByRole('region', { name: "Frodo's journey" });
+  const zoomButton = (dialog: Locator): Locator => journey(dialog).getByRole('button');
+
+  async function openJourney(page: Page, width: number, height: number, options: OpenOptions = {}): Promise<Locator> {
+    await openBoard(page, width, height, 3, 0, { runnerKm: JOURNEY_KM, ...options });
+    const dialog = await openPopup(page);
+    await sectionTab(dialog, 'The Journey').click();
+    await expectSectionLoaded(dialog, 'The Journey');
+    return dialog;
+  }
+
+  for (const [width, height] of [[1440, 900], [1280, 768]] as const) {
+    test(`the dialog is ${DIALOG_HEIGHT_PX} px on the tab at every zoom level and the panel does not scroll, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
+      const dialog = await openJourney(page, width, height);
+
+      const measured: Record<string, { dialog: number; scroll: number; client: number }> = {};
+      for (const zoom of ['Overview', 'Zoomed', 'Close-up']) {
+        await expect(zoomButton(dialog)).toHaveText(zoom);
+        const scrolls = await sectionPanel(dialog).evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+        measured[zoom] = { dialog: (await dialog.boundingBox())!.height, ...scrolls };
+        expect(Math.abs(measured[zoom]!.dialog - DIALOG_HEIGHT_PX), `the dialog is ${DIALOG_HEIGHT_PX} px at ${zoom}: ${JSON.stringify(measured)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+        expect(scrolls.scroll, `the Journey panel has no scroll of its own at ${zoom}: ${JSON.stringify(measured)}`).toBeLessThanOrEqual(scrolls.client + TOLERANCE_PX);
+        await zoomButton(dialog).click();
+      }
+      testInfo.annotations.push({ type: 'journey tab', description: JSON.stringify(measured) });
+    });
+  }
+
+  test('the progress bar tells a screen reader the percent, the km and the last checkpoint, and the zoom button is the only button', async ({ page }) => {
+    const dialog = await openJourney(page, 1280, 900);
+
+    const bar = journey(dialog).getByRole('progressbar', { name: 'Progress to Mount Doom' });
+    await expect(bar).toHaveAttribute('aria-valuenow', '30');
+    await expect(bar).toHaveAttribute('aria-valuetext', /^30\.3% of the way to Mount Doom, 988 of 3\s266 km, last checkpoint Doors of Durin$/);
+    await expect(journey(dialog).getByRole('button')).toHaveCount(1);
+    // The fill is the gold token, resolved in the active theme: a probe element coloured by `var(--rq-gold)` reads the same colour as the fill.
+    const colours = await bar.evaluate((element) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--rq-gold)';
+      element.append(probe);
+      const gold = getComputedStyle(probe).color;
+      probe.remove();
+      return { fill: getComputedStyle(element.querySelector('.rq-fill')!).backgroundColor, gold };
+    });
+    expect(colours.fill, 'the fill is --rq-gold').toBe(colours.gold);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the labels are at least ${MIN_LABEL_PX} px and the text is at least ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px, at every zoom level`, async ({ page }, testInfo) => {
+      const report: Record<string, Record<string, number>> = {};
+      for (const width of [1024, 1280, 1440]) {
+        const dialog = await openJourney(page, width, 900, { theme });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
+        const measured: Record<string, number> = {};
+        const sizes: Record<string, number> = {};
+        for (const zoom of ['Overview', 'Zoomed', 'Close-up']) {
+          await expect(zoomButton(dialog)).toHaveText(zoom);
+          for (const [label, selector] of [
+            ['title', '.rq-runner-journey .rq-runner-head'],
+            ['zoom button', '.rq-runner-journey button'],
+            ['waypoint label', '.rq-runner-wp__label'],
+            ['road end', '.rq-runner-road__end'],
+            ['checkpoint line', '.rq-runner-journey__sum'],
+            ['checkpoint name', '.rq-runner-journey__cp'],
+          ] as const) {
+            for (const found of await page.evaluate(contrastOf, { selectors: [selector] })) measured[`${zoom}: ${label}${found.index === 0 ? '' : ` #${found.index}`}`] = found.ratio;
+            const found = await dialog.locator(selector).evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+            for (const size of found) sizes[`${zoom}: ${label}`] = Math.min(sizes[`${zoom}: ${label}`] ?? Infinity, size);
+          }
+          await zoomButton(dialog).click();
+        }
+        report[`${width}px`] = measured;
+        const tooLow = Object.entries(measured).filter(([, ratio]) => ratio < MIN_LABEL_CONTRAST);
+        expect(tooLow, `text below ${MIN_LABEL_CONTRAST}:1 at ${width} px: ${JSON.stringify(measured)}`).toEqual([]);
+        const tooSmall = Object.entries(sizes).filter(([, size]) => size < MIN_LABEL_PX);
+        expect(tooSmall, `text below ${MIN_LABEL_PX} px at ${width} px: ${JSON.stringify(sizes)}`).toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+      }
+      testInfo.annotations.push({ type: `journey contrast (${theme})`, description: JSON.stringify(report) });
+    });
+  }
+});
+
+// Aktivitetskartan i Overview: tabbstopp bara när den scrollar, och intron en gång per öppning.
+test.describe('the activity map of the Overview of the profile popup', () => {
+  const heatRegion = (dialog: Locator): Locator => dialog.getByRole('region', { name: /^Run heatmap: / });
+  const firstWeekAnimation = (dialog: Locator) => dialog.locator('.rq-profile-heat__week').first().evaluate((element) => getComputedStyle(element).animationName);
+
+  for (const width of [1024, 1280, 1440]) {
+    test(`the map is a tab stop exactly when it scrolls, on a ${width} px screen`, async ({ page }, testInfo) => {
+      await openBoard(page, width, 900);
+      const dialog = await openPopup(page);
+      await expectSectionLoaded(dialog, 'Overview');
+
+      const region = heatRegion(dialog);
+      await expect(region).toBeVisible();
+      const measured = await region.evaluate((element) => ({ scrolls: element.scrollWidth - element.clientWidth > 8, tabindex: element.getAttribute('tabindex'), fits: element.getAttribute('data-fits') }));
+      testInfo.annotations.push({ type: 'map', description: JSON.stringify(measured) });
+      expect(measured.tabindex, `a map that ${measured.scrolls ? 'scrolls' : 'fits'}: ${JSON.stringify(measured)}`).toBe(measured.scrolls ? '0' : null);
+      expect(measured.fits).toBe(String(!measured.scrolls));
+    });
+  }
+
+  test('the map grows in the first time it is shown in an opening, not when Activity or Overview is picked again, and again in the next opening', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    let dialog = await openPopup(page);
+    await expect(heatRegion(dialog)).toBeVisible();
+    expect(await firstWeekAnimation(dialog), 'first time in this opening').toBe('rqGrowY');
+
+    await overviewButton(dialog, 'Distance').click();
+    await overviewButton(dialog, 'Activity').click();
+    await expect(heatRegion(dialog)).toBeVisible();
+    expect(await firstWeekAnimation(dialog), 'Activity picked again').toBe('none');
+
+    await sectionTab(dialog, 'The Journey').click();
+    await sectionTab(dialog, 'Overview').click();
+    await expect(heatRegion(dialog)).toBeVisible();
+    expect(await firstWeekAnimation(dialog), 'back from another tab').toBe('none');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    dialog = await openPopup(page);
+    await expect(heatRegion(dialog)).toBeVisible();
+    expect(await firstWeekAnimation(dialog), 'a new opening').toBe('rqGrowY');
+  });
+
+  test('the Overview switch has a name of its own, apart from the Overview panel that holds it', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    await expectSectionLoaded(dialog, 'Overview');
+
+    await expect(sectionPanel(dialog).getByRole('group', { name: 'Overview view', exact: true })).toBeVisible();
+    await expect(sectionPanel(dialog).getByRole('group', { name: 'Overview', exact: true })).toHaveCount(0);
+  });
 });
 
 // Bannern och Head to head i sin egen panel uppe till höger (ADR 006 punkt 4): inga layoutsprång mellan lägena, ingen överlappning med namnet, läsbara etiketter och en mening för skärmläsaren.

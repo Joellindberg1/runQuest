@@ -126,11 +126,11 @@
 .rq-profile-heat__month-label { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-profile-heat__month[data-current="true"] .rq-profile-heat__month-label { color: var(--rq-gold-text); }
 .rq-profile-heat__weeks { display: flex; gap: var(--rq-profile-heat-gap); margin-top: var(--rq-sp-4); }
-.rq-profile-heat__week {
-  display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom;
+.rq-profile-heat__week { display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom; }
+/* Rutorna växer in bara när Heatmap har valt att spela introt vid monteringen (`data-intro`). */
+.rq-profile-heat[data-intro="true"] .rq-profile-heat__week {
   animation: rqGrowY var(--rq-dur-grow) var(--rq-ease-bar) both; animation-delay: calc(var(--i) * var(--rq-profile-heat-stagger));
 }
-.rq-profile-heat[data-intro="false"] .rq-profile-heat__week { animation: none; }
 .rq-profile-heat__cell, .rq-profile-heat__swatch { box-sizing: border-box; flex: 0 0 auto; width: var(--rq-profile-heat-cell); height: var(--rq-profile-heat-cell); background: var(--rq-heat-0); border: var(--rq-hair) solid var(--rq-line-2); }
 .rq-profile-heat__cell[data-level="1"], .rq-profile-heat__swatch[data-level="1"] { background: var(--rq-heat-1); border-color: transparent; }
 .rq-profile-heat__cell[data-level="2"], .rq-profile-heat__swatch[data-level="2"] { background: var(--rq-heat-2); border-color: transparent; }

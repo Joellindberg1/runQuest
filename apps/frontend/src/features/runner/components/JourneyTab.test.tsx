@@ -77,7 +77,7 @@ describe('the Journey tab', () => {
     const inPopup = readJourney(journey);
 
     expect(inPopup.checkpoint).toBe('Last checkpoint Doors of Durin');
-    expect(inPopup.progress).toBe(`30.3% · 988 / 3 266 km`);
+    expect(inPopup.progress).toBe(`30.3% · 988 / 3\u00a0266 km`);
     expect(inPopup.labels).toEqual(['Bree', 'Rivendell', 'Moria', 'Rauros', 'The Black Gate']);
     expect(inPopup).toEqual(onProfile);
 
@@ -93,7 +93,7 @@ describe('the Journey tab', () => {
     expect(bar).toHaveAttribute('aria-valuemin', '0');
     expect(bar).toHaveAttribute('aria-valuemax', '100');
     expect(bar).toHaveAttribute('aria-valuenow', '30');
-    expect(bar).toHaveAttribute('aria-valuetext', '30.3% of the way to Mount Doom, 988 of 3 266 km, last checkpoint Doors of Durin');
+    expect(bar).toHaveAttribute('aria-valuetext', '30.3% of the way to Mount Doom, 988 of 3\u00a0266 km, last checkpoint Doors of Durin');
   });
 
   it('journey tab contains no button without an action', async () => {
@@ -121,10 +121,10 @@ describe('the Journey tab', () => {
 
   describe('edge cases', () => {
     const cases: ReadonlyArray<{ name: string; km: number; checkpoint: string; progress: string; valueNow: string }> = [
-      { name: '0 km', km: 0, checkpoint: 'The Shire', progress: '0.0% · 0 / 3 266 km', valueNow: '0' },
-      { name: 'between two milestones (Rivendell 457, Hollin 602)', km: 530, checkpoint: 'Rivendell', progress: '16.2% · 530 / 3 266 km', valueNow: '16' },
-      { name: 'exactly on a milestone (Moria 1181)', km: 1181, checkpoint: 'Moria', progress: '36.2% · 1 181 / 3 266 km', valueNow: '36' },
-      { name: 'late on the way (Gorgoroth 3031, Sammath Naur 3148)', km: 3100, checkpoint: 'Gorgoroth', progress: '94.9% · 3 100 / 3 266 km', valueNow: '95' },
+      { name: '0 km', km: 0, checkpoint: 'The Shire', progress: '0.0% · 0 / 3\u00a0266 km', valueNow: '0' },
+      { name: 'between two milestones (Rivendell 457, Hollin 602)', km: 530, checkpoint: 'Rivendell', progress: '16.2% · 530 / 3\u00a0266 km', valueNow: '16' },
+      { name: 'exactly on a milestone (Moria 1181)', km: 1181, checkpoint: 'Moria', progress: '36.2% · 1\u00a0181 / 3\u00a0266 km', valueNow: '36' },
+      { name: 'late on the way (Gorgoroth 3031, Sammath Naur 3148)', km: 3100, checkpoint: 'Gorgoroth', progress: '94.9% · 3\u00a0100 / 3\u00a0266 km', valueNow: '95' },
     ];
 
     it.each(cases)('$name: checkpoint, progress line and bar agree, and no number is NaN or negative', async ({ km, checkpoint, progress, valueNow }) => {

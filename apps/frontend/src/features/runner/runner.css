@@ -139,6 +139,10 @@
 .rq-runner-journey__sum { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
 .rq-runner-journey__cp { color: var(--rq-text-2); }
 .rq-runner-journey__sum[data-done="true"] { color: var(--rq-gold-text); }
+/* Ljust: text-3 (.60) ger 4,2:1 mot vitt kort, text-4 (.65) ger 4,7:1; samma lösning som i Overview. Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-runner-journey .rq-runner-journey__sum:not([data-done="true"]),
+[data-theme="light"] .rq-runner-journey .rq-runner-wp__label[data-tier="1"],
+[data-theme="light"] .rq-runner-journey .rq-btn--ghost:not(:hover) { color: var(--rq-text-4); }
 
 /* Desktop: vägen med waypoint-etiketter (alla läge i procent via --x, mått ur tokens) */
 .rq-runner-road { position: relative; height: var(--rq-runner-journey-h); }
