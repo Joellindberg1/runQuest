@@ -304,6 +304,11 @@ describe('titlar', () => {
     expect(batman).toHaveTextContent('The Batman');
     expect(batman).toHaveTextContent('held by Nicklas von Elling');
     expect(batman).toHaveTextContent('7 runs'); // 18 − 11
+
+    // The page keeps its one list: the type filter and the type line belong to the popup.
+    expect(within(section).queryByRole('group', { name: 'Titles filter' })).toBeNull();
+    expect(within(section).queryByRole('region', { name: 'Title list' })).toBeNull();
+    expect(section.querySelector('.rq-runner-title__type')).toBeNull();
   });
 
   it('inga titlar → anteckning, inte en tom ruta', async () => {

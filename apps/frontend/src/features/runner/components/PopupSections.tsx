@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { User } from '@runquest/types';
 import { BadgePanel } from '@/features/badges/components/BadgePanel';
 import type { StatView } from '@/features/profile/statsModel';
@@ -6,9 +6,10 @@ import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import type { RunnerPanelData } from '../hooks/useRunnerPanelData';
 import type { PopupSection } from '../popupSections';
+import { ALL_TITLES, type TitleFilter } from '../titlesFilter';
 import { JourneyCard } from './JourneyCard';
 import { OverviewPanel } from './OverviewPanel';
-import { TitlesPanel } from './TitlesPanel';
+import { PopupTitlesPanel } from './PopupTitlesPanel';
 
 const SECTION_TABS: readonly ViewTab<PopupSection>[] = [
   { key: 'overview', label: 'Overview', icon: 'user' },
@@ -38,6 +39,8 @@ interface PopupSectionsProps {
 export function PopupSections({ user, data, section, onSectionChange, statView, onStatViewChange }: PopupSectionsProps) {
   // Lever lika länge som popupen är öppen (komponenten avmonteras när den stängs), så kartan växer in en gång per öppning.
   const heatIntroPlayed = useRef(false);
+  // Titles held-flikens typfilter hör till popupen, inte till fliken: valet står kvar när flikarna byts och nollställs när popupen öppnas igen eller löparen byts (komponenten monteras då på nytt).
+  const [titleFilter, setTitleFilter] = useState<TitleFilter>(ALL_TITLES);
 
   return (
     <div className="rq-runner-popup-sections">
@@ -53,7 +56,7 @@ export function PopupSections({ user, data, section, onSectionChange, statView, 
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, section)} tabIndex={0} className="rq-runner-popup-panel">
         {section === 'overview' && <OverviewPanel user={user} now={data.now} cells={data.cells} view={statView} onChange={onStatViewChange} heatIntroPlayed={heatIntroPlayed} />}
         {section === 'journey' && <JourneyCard totalKm={user.total_km} />}
-        {section === 'titles' && <TitlesPanel user={user} />}
+        {section === 'titles' && <PopupTitlesPanel user={user} filter={titleFilter} onFilterChange={setTitleFilter} />}
         {section === 'badges' && <BadgePanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />}
       </div>
     </div>

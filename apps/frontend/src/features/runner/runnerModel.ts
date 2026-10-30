@@ -3,6 +3,7 @@ import type { ChallengeHistoryItem, HeadToHeadResponse, XpConfigResponse, TitleL
 import { MARATHON_DISTANCE_KM, calculateStreakMultiplier, dayOfWeek, hasDoubleRunGap, stockholmClock } from '@runquest/shared';
 import { formatDayMonth, formatInt, formatKm, formatMultiplier } from '@/shared/utils/format';
 import { buildStreakRow } from '@/features/leaderboard/streakModel';
+import { categoryOf, type TitleCategoryId } from '@/features/titles/titleCategories';
 import { hasLinearGap, resolveGenderedTitle, titleValueText } from '@/features/titles/titleFormat';
 import { leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 
@@ -189,6 +190,8 @@ export interface HeldTitleRow {
   id: string;
   name: string;
   value: string;
+  /** Titelns kategori (ur måttnyckeln, `TITLE_CATEGORIES`); popupens typfilter och typraden läser den. */
+  category: TitleCategoryId;
 }
 
 export interface RunnerUpTitleRow {
@@ -200,6 +203,7 @@ export interface RunnerUpTitleRow {
   /** Skillnaden till innehavaren ("5 days"); null för mått där en differens inte är läsbar (tider, tempo). */
   gap: string | null;
   value: string;
+  category: TitleCategoryId;
 }
 
 export interface TitleRows {
@@ -215,7 +219,10 @@ export function buildTitleRows(userTitles: UserTitleEntry[], board: TitleLeaderb
 
   const held = userTitles
     .filter((title) => title.is_current_holder)
-    .map((title) => ({ id: title.title_id, name: nameOf(title), value: titleValueText(entryFor(title)?.metric_key, title.value ?? 0) }));
+    .map((title) => {
+      const metric = entryFor(title)?.metric_key;
+      return { id: title.title_id, name: nameOf(title), value: titleValueText(metric, title.value ?? 0), category: categoryOf(metric) };
+    });
 
   const runnersUp = userTitles
     .filter((title): title is UserTitleEntry & { position: number } =>
@@ -233,6 +240,7 @@ export function buildTitleRows(userTitles: UserTitleEntry[], board: TitleLeaderb
         holder: entry?.holder?.user_name ?? null,
         gap: linear ? titleValueText(metric, Math.max(0, holderValue - (title.value ?? 0))) : null,
         value: titleValueText(metric, title.value ?? 0),
+        category: categoryOf(metric),
       };
     });
 

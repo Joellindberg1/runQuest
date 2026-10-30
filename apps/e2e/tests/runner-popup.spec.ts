@@ -18,6 +18,8 @@ const DIALOG_HEIGHT_PX = 669;
 /** Etiketter i bannern: minst 11 px och WCAG AA för text (4,5:1) i båda teman. */
 const MIN_LABEL_PX = 11;
 const MIN_LABEL_CONTRAST = 4.5;
+/** Fokusringen är en grafisk komponent: minst 3:1 mot ytan (WCAG 1.4.11). */
+const MIN_RING_CONTRAST = 3;
 
 /** Panelytan scrollar för sig: en rullist tar upp till ca 20 px av bredden. */
 const SCROLLBAR_ALLOWANCE_PX = 20;
@@ -86,21 +88,37 @@ const BADGE_SERIES_KEYS = ['milestoner', 'earth_trotter', 'climber', 'streak_kee
 type HeadToHeadStub = 'record' | 'win' | 'none' | 'loading' | 'error';
 const HEAD_TO_HEAD_RECORDS = { record: { wins: 1, draws: 0, losses: 1 }, win: { wins: 2, draws: 0, losses: 1 }, none: { wins: 0, draws: 0, losses: 0 } } as const;
 
+/** Titlarnas mått (`metric_key`, cyklas över titlarna; avgör kategorin i typfiltret) och hur många runner-up-titlar löparen har (position 2, mått ur `RUNNER_UP_METRICS`). */
+interface TitleStub {
+  titleMetrics?: readonly string[];
+  runnersUp?: number;
+}
+const RUNNER_UP_METRICS = ['longestStreak', 'fastestMarathon'] as const;
+const runnerUp = (index: number) => ({
+  title_id: `popup-runner-up-${index}`, title_name: `The Runner Up Number ${index}`, title_description: '', position: 2, value: 9, earned_at: '2026-10-01T00:00:00.000Z', is_current_holder: false, status: 'runner_up',
+});
+
 /** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. `badges` = antal serier löparen har intjänade (0-8). */
-async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record', challenge: RunnerChallengeScenario = 'ready', runnerKm?: number): Promise<void> {
+async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record', challenge: RunnerChallengeScenario = 'ready', runnerKm?: number, { titleMetrics = ['runs'], runnersUp = 0 }: TitleStub = {}): Promise<void> {
   await stubRunnerChallenge(page, { scenario: challenge, runner: RUNNER, other: OTHER_MEMBER });
   await answerWith(page, '/auth/users-with-runs', { success: true, data: runnerKm === undefined ? GROUP : GROUP.map((member) => (member.id === RUNNER.id ? { ...member, total_km: runnerKm } : member)) });
   await answerWith(page, '/titles/user/', {
     success: true,
-    data: Array.from({ length: titles }, (_, index) => holder(index + 1)),
-    meta: { user_id: RUNNER.id, total_titles: titles, current_holder_count: titles, timestamp: '2026-10-19T00:00:00.000Z' },
+    data: [...Array.from({ length: titles }, (_, index) => holder(index + 1)), ...Array.from({ length: runnersUp }, (_, index) => runnerUp(index + 1))],
+    meta: { user_id: RUNNER.id, total_titles: titles + runnersUp, current_holder_count: titles, timestamp: '2026-10-19T00:00:00.000Z' },
   });
   await answerWith(page, '/titles/leaderboard', {
     success: true,
-    data: Array.from({ length: titles }, (_, index) => ({
-      id: `popup-title-${index + 1}`, name: `The Title Number ${index + 1}`, description: '', unlock_requirement: 0, metric_key: 'runs',
-      holder: { user_id: RUNNER.id, user_name: RUNNER.name, value: index + 1, earned_at: '' }, runners_up: [],
-    })),
+    data: [
+      ...Array.from({ length: titles }, (_, index) => ({
+        id: `popup-title-${index + 1}`, name: `The Title Number ${index + 1}`, description: '', unlock_requirement: 0, metric_key: titleMetrics[index % titleMetrics.length],
+        holder: { user_id: RUNNER.id, user_name: RUNNER.name, value: index + 1, earned_at: '' }, runners_up: [],
+      })),
+      ...Array.from({ length: runnersUp }, (_, index) => ({
+        id: `popup-runner-up-${index + 1}`, name: `The Runner Up Number ${index + 1}`, description: '', unlock_requirement: 0, metric_key: RUNNER_UP_METRICS[index % RUNNER_UP_METRICS.length],
+        holder: { user_id: OTHER_MEMBER.id, user_name: OTHER_MEMBER.name, value: 14, earned_at: '' }, runners_up: [],
+      })),
+    ],
     meta: {},
   });
   if (headToHead === 'loading') {
@@ -129,10 +147,12 @@ interface OpenOptions {
   theme?: 'dark' | 'light';
   /** Löparens totala km (Frodo's journey); standard 40. */
   runnerKm?: number;
+  /** Titlarnas mått och antalet runner-up-titlar (se `TitleStub`). */
+  titles?: TitleStub;
 }
 
-async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', challenge = 'ready', theme, runnerKm }: OpenOptions = {}): Promise<void> {
-  await stubGroup(page, titles, badges, headToHead, challenge, runnerKm);
+async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', challenge = 'ready', theme, runnerKm, titles: titleStub }: OpenOptions = {}): Promise<void> {
+  await stubGroup(page, titles, badges, headToHead, challenge, runnerKm, titleStub);
   if (theme) await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize({ width, height });
   await page.goto('/board');
@@ -265,21 +285,25 @@ test.describe('the profile popup on desktop', () => {
     });
   }
 
-  test('with 15 titles on a 768 px tall screen the Titles panel scrolls on its own, and the heading row and the tabs stay', async ({ page }) => {
+  test('with 15 titles on a 768 px tall screen the list of titles scrolls on its own, and the heading row, the tabs and the panel stay', async ({ page }) => {
     await openBoard(page, 1024, 768, 15);
     const dialog = await openPopup(page);
     await sectionTab(dialog, 'Titles held').click();
     await expectSectionLoaded(dialog, 'Titles held');
 
     const panel = sectionPanel(dialog);
+    const list = panel.getByRole('region', { name: 'Title list' });
     const bar = dialog.locator('.rq-runner-popup__bar');
     const tabs = dialog.getByRole('tablist', { name: 'Runner sections' });
     const before = { bar: (await bar.boundingBox())!, tabs: (await tabs.boundingBox())! };
-    const scrolls = await panel.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
-    expect(scrolls.scroll, 'the 15 titles are taller than the panel').toBeGreaterThan(scrolls.client);
+    const panelSizes = await panel.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+    expect(panelSizes.scroll, 'the panel itself has nothing to scroll: the list inside it does').toBeLessThanOrEqual(panelSizes.client + TOLERANCE_PX);
+    const scrolls = await list.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+    expect(scrolls.scroll, 'the 15 titles are taller than the list').toBeGreaterThan(scrolls.client);
 
-    await panel.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-    expect(await panel.evaluate((element) => element.scrollTop), 'the panel scrolled').toBeGreaterThan(0);
+    await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await list.evaluate((element) => element.scrollTop), 'the list scrolled').toBeGreaterThan(0);
+    expect(await panel.evaluate((element) => element.scrollTop), 'the panel did not scroll').toBe(0);
     expect((await bar.boundingBox())!.y, 'the heading row did not scroll away').toBeCloseTo(before.bar.y, 0);
     expect((await tabs.boundingBox())!.y, 'the tabs did not scroll away').toBeCloseTo(before.tabs.y, 0);
 
@@ -333,11 +357,11 @@ test.describe('the profile popup on desktop', () => {
       const box = (await dialog.boundingBox())!;
       expect(box.y, 'the dialog starts inside the window').toBeGreaterThanOrEqual(-TOLERANCE_PX);
       expect(box.y + box.height, 'the dialog ends inside the window').toBeLessThanOrEqual(height + TOLERANCE_PX);
-      // Fliken med 15 titlar överstiger panelen: det som inte ryms scrollar i panelen, inte i dialogen.
+      // Fliken med 15 titlar överstiger listan: det som inte ryms scrollar i listan, inte i panelen eller dialogen.
       await sectionTab(dialog, 'Titles held').click();
       await expectSectionLoaded(dialog, 'Titles held');
-      const titles = await sectionPanel(dialog).evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
-      expect(titles.scroll, '15 titles do not fit in the panel').toBeGreaterThan(titles.client);
+      const titles = await sectionPanel(dialog).getByRole('region', { name: 'Title list' }).evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+      expect(titles.scroll, '15 titles do not fit in the list').toBeGreaterThan(titles.client);
     });
   }
 
@@ -1196,6 +1220,180 @@ test.describe('Challenge in the heading row of the profile popup', () => {
         }
       }
       testInfo.annotations.push({ type: `reason contrast, size and lines (${theme})`, description: JSON.stringify(results) });
+    });
+  }
+});
+
+/** Tre kategorier (Time of day, Distance, Consistency) cyklas över titlarna: 15 titlar ger fem i varje. Två runner-up-titlar (Consistency och Pace). */
+const TITLE_STUB: TitleStub = { titleMetrics: ['earlyRunCount', 'longestRun', 'longestStreak'], runnersUp: 2 };
+const titlesList = (dialog: Locator): Locator => sectionPanel(dialog).getByRole('region', { name: 'Title list' });
+const titlesFilter = (dialog: Locator): Locator => sectionPanel(dialog).getByRole('group', { name: 'Titles filter', exact: true });
+const heldRows = (dialog: Locator): Locator => sectionPanel(dialog).getByRole('list', { name: 'Titles held', exact: true }).getByRole('listitem');
+
+async function openTitlesTab(page: Page, width: number, height: number, titles: number, options: OpenOptions = {}): Promise<Locator> {
+  await openBoard(page, width, height, titles, 0, { ...options, titles: { ...TITLE_STUB, ...options.titles } });
+  const dialog = await openPopup(page);
+  await sectionTab(dialog, 'Titles held').click();
+  await expectSectionLoaded(dialog, 'Titles held');
+  return dialog;
+}
+
+/** Hur många olika vänsterkanter raderna har: en kolumn ger en, två kolumner två. */
+const columnsOf = (rows: Locator): Promise<number> =>
+  rows.evaluateAll((elements) => new Set(elements.map((element) => Math.round(element.getBoundingClientRect().left))).size);
+
+test.describe('the Titles held tab of the profile popup', () => {
+  for (const [width, height] of [[1280, 768], [1440, 900]] as const) {
+    test(`with 15 titles on a ${width}x${height} screen the list scrolls in the panel, the filter stays, the dialog is ${DIALOG_HEIGHT_PX} px and nothing in it scrolls sideways`, async ({ page }, testInfo) => {
+      const dialog = await openTitlesTab(page, width, height, 15);
+      const list = titlesList(dialog);
+
+      expect((await dialog.boundingBox())!.height, 'the dialog height').toBeCloseTo(DIALOG_HEIGHT_PX, 0);
+      const sizes = await list.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+      expect(sizes.scroll, '15 titles are taller than the list').toBeGreaterThan(sizes.client);
+      await expect(list, 'a list that scrolls is a tab stop').toHaveAttribute('tabindex', '0');
+      expect(await sectionPanel(dialog).evaluate((element) => element.scrollHeight - element.clientHeight), 'the panel does not scroll').toBeLessThanOrEqual(TOLERANCE_PX);
+
+      const filter = titlesFilter(dialog);
+      const head = dialog.locator('.rq-runner-titles--popup .rq-runner-head');
+      const before = { filter: (await filter.boundingBox())!, head: (await head.boundingBox())! };
+      await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+      expect(await list.evaluate((element) => element.scrollTop), 'the list scrolled').toBeGreaterThan(0);
+      const after = { filter: (await filter.boundingBox())!, head: (await head.boundingBox())! };
+      expect(after.filter.y, 'the filter row did not move').toBeCloseTo(before.filter.y, 0);
+      expect(after.head.y, 'the heading did not move').toBeCloseTo(before.head.y, 0);
+      // Sidan bakom (Board) har ett eget överflöd i sidled som inte hör till popupen; det som prövas är dialogen, dess scrollyta, panelen och listan.
+      for (const [label, locator] of [['dialog', dialog], ['content', dialog.locator('.rq-runner-popup__content')], ['panel', sectionPanel(dialog)], ['list', list]] as const) {
+        expect(await locator.evaluate((element) => element.scrollWidth - element.clientWidth), `${label} does not scroll sideways`).toBeLessThanOrEqual(0);
+      }
+      const pageOverflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const onTitles = await pageOverflow();
+      await sectionTab(dialog, 'Overview').click();
+      await expectSectionLoaded(dialog, 'Overview');
+      expect(onTitles, 'the Titles tab adds no sideways overflow to the page compared with Overview').toBe(await pageOverflow());
+      testInfo.annotations.push({ type: 'list', description: JSON.stringify({ dialogHeight: (await dialog.boundingBox())!.height, list: sizes, filterTop: before.filter.y, pageOverflow: onTitles }) });
+    });
+  }
+
+  test('the titles are in two columns at 1024, 1280 and 1440 px, and in one column when the dialog is narrower', async ({ page }, testInfo) => {
+    const report: Record<string, number> = {};
+    for (const width of [1024, 1280, 1440]) {
+      const dialog = await openTitlesTab(page, width, 900, 6);
+      const rows = heldRows(dialog);
+      report[`${width}: columns`] = await columnsOf(rows);
+      report[`${width}: row width`] = Math.round((await rows.first().boundingBox())!.width);
+      report[`${width}: list width`] = Math.round((await titlesList(dialog).boundingBox())!.width);
+      expect(report[`${width}: columns`], `${width}: two columns`).toBe(2);
+    }
+    const dialog = await openTitlesTab(page, 1280, 900, 6);
+    await dialog.evaluate((element) => { (element as HTMLElement).style.width = '480px'; });
+    report['narrow dialog: columns'] = await columnsOf(heldRows(dialog));
+    expect(report['narrow dialog: columns'], 'one column when the two do not fit').toBe(1);
+    testInfo.annotations.push({ type: 'columns', description: JSON.stringify(report) });
+  });
+
+  test('the filter lists the categories of the titles, narrows the list and the count, and a list that fits is no tab stop', async ({ page }) => {
+    const dialog = await openTitlesTab(page, 1280, 900, 15);
+    const filter = titlesFilter(dialog);
+
+    await expect(filter.getByRole('button')).toHaveText(['All', 'Time of day', 'Distance', 'Pace', 'Consistency']);
+    await expect(filter.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(dialog.getByText('15 held')).toBeVisible();
+
+    await filter.getByRole('button', { name: 'Distance' }).click();
+    await expect(dialog.getByText('5 held')).toBeVisible();
+    await expect(heldRows(dialog)).toHaveCount(5);
+    await expect(heldRows(dialog).first().locator('.rq-runner-title__type')).toHaveText('Distance');
+    await expect(sectionPanel(dialog).getByRole('heading', { name: /^Runner-up/ })).toHaveCount(0);
+    await expect(titlesList(dialog), 'a list that fits is not a tab stop').not.toHaveAttribute('tabindex', /.*/);
+
+    await filter.getByRole('button', { name: 'Pace' }).click();
+    await expect(dialog.getByText('0 held')).toBeVisible();
+    await expect(sectionPanel(dialog).getByRole('heading', { name: 'Runner-up · 1' })).toBeVisible();
+
+    await filter.getByRole('button', { name: 'All' }).click();
+    await expect(heldRows(dialog)).toHaveCount(15);
+    await expect(titlesList(dialog)).toHaveAttribute('tabindex', '0');
+  });
+
+  test('the filter is back on "All" when the popup is opened again', async ({ page }) => {
+    const dialog = await openTitlesTab(page, 1280, 900, 6);
+    await titlesFilter(dialog).getByRole('button', { name: 'Distance' }).click();
+    await expect(titlesFilter(dialog).getByRole('button', { name: 'Distance' })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await openPopup(page);
+    await sectionTab(popup(page), 'Titles held').click();
+    await expectSectionLoaded(popup(page), 'Titles held');
+    await expect(titlesFilter(popup(page)).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(heldRows(popup(page))).toHaveCount(6);
+  });
+
+  test('a runner whose titles are all in one category has no filter, and a runner without titles has the invitation text', async ({ page }) => {
+    const single = await openTitlesTab(page, 1280, 900, 4, { titles: { titleMetrics: ['longestRun'], runnersUp: 0 } });
+    await expect(single.getByText('4 held')).toBeVisible();
+    await expect(sectionPanel(single).getByRole('group', { name: 'Titles filter', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await openBoard(page, 1280, 900, 0, 0, { titles: { runnersUp: 0 } });
+    const none = await openPopup(page);
+    await sectionTab(none, 'Titles held').click();
+    await expect(none.getByText('No titles yet — Bo is still chasing the first one.')).toBeVisible();
+    await expect(sectionPanel(none).getByRole('group', { name: 'Titles filter', exact: true })).toHaveCount(0);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the labels are at least ${MIN_LABEL_PX} px and the text is at least ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px`, async ({ page }, testInfo) => {
+      const report: Record<string, Record<string, number>> = {};
+      for (const width of [1024, 1280, 1440]) {
+        const dialog = await openTitlesTab(page, width, 900, 15, { theme });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
+        const measured: Record<string, number> = {};
+        const sample = async (label: string, selector: string) => {
+          for (const found of await page.evaluate(contrastOf, { selectors: [selector] })) measured[label] = Math.min(measured[label] ?? Infinity, found.ratio);
+        };
+        const sizeOf = (selector: string) => dialog.locator(selector).evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+
+        const held = '.rq-runner-titles--popup .rq-runner-title[data-kind="held"]';
+        const runnerUpRow = '.rq-runner-titles--popup .rq-runner-title[data-kind="runner-up"]';
+        await sample('filter: resting button', '.rq-runner-titles__filter > .rq-filter[aria-pressed="false"]');
+        await sample('filter: pressed button', '.rq-runner-titles__filter > .rq-filter[aria-pressed="true"]');
+        await sample('held: name', `${held} .rq-runner-title__name`);
+        await sample('held: type', `${held} .rq-runner-title__type`);
+        await sample('held: value', `${held} .rq-runner-title__value`);
+        await sample('heading: count', '.rq-runner-titles--popup .rq-runner-head__aside');
+        await sample('runner-up: heading', '.rq-runner-titles--popup .rq-runner-sub');
+        await sample('runner-up: name', `${runnerUpRow} .rq-runner-title__name`);
+        await sample('runner-up: held by', `${runnerUpRow} .rq-runner-title__holder`);
+        await sample('runner-up: gap or value', `${runnerUpRow} .rq-runner-title__value`);
+        for (const selector of ['.rq-runner-titles__filter > .rq-filter', '.rq-runner-title__type', '.rq-runner-title__holder', '.rq-runner-sub', '.rq-runner-head__aside']) {
+          for (const size of await sizeOf(selector)) expect(size, `${selector} size at ${width}`).toBeGreaterThanOrEqual(MIN_LABEL_PX);
+        }
+
+        report[String(width)] = { ...measured };
+        expect(Object.keys(measured).length, 'the samples were found').toBeGreaterThan(8);
+        for (const [label, ratio] of Object.entries(measured)) expect(ratio, `${theme} ${width}: ${label}`).toBeGreaterThanOrEqual(MIN_LABEL_CONTRAST);
+
+        // Fokusringen på listan (tangentbordet når den bara när den scrollar): inåtriktad och minst 3:1 mot kortets yta. Ringens färg läggs som textfärg på listan för att mätas som text mot ytan.
+        await sectionTab(dialog, 'Titles held').focus();
+        await page.keyboard.press('Tab');
+        const list = titlesList(dialog);
+        await list.focus();
+        const ring = await list.evaluate((element) => {
+          const style = getComputedStyle(element);
+          element.style.color = style.outlineColor;
+          return { style: style.outlineStyle, offset: parseFloat(style.outlineOffset) };
+        });
+        expect(ring.style, 'the focused list draws a ring').not.toBe('none');
+        expect(ring.offset, 'the ring is drawn inside the list').toBeLessThan(0);
+        const [ringSample] = await page.evaluate(contrastOf, { selectors: ['.rq-runner-titles__scroll'] });
+        report[String(width)]!['focus ring of the list'] = ringSample!.ratio;
+        expect(ringSample!.ratio, `${theme} ${width}: focus ring of the list`).toBeGreaterThanOrEqual(MIN_RING_CONTRAST);
+        await list.evaluate((element) => { element.style.color = ''; });
+      }
+      testInfo.annotations.push({ type: `contrast ${theme}`, description: JSON.stringify(report) });
     });
   }
 });

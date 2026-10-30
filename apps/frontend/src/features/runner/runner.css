@@ -181,6 +181,26 @@
 .rq-runner-title__main { display: flex; flex-direction: column; min-width: 0; }
 .rq-runner-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 
+/* ── Profil-popupen: Titles held ──────────────────────────────────────────────
+   Kortet fyller panelytans innerhöjd (panelen scrollar då inte själv): rubriken och typfiltret står fast och bara listan under scrollar. Listan är en container, så att kolumnerna
+   följer dess bredd och inte fönstrets: två kolumner när de ryms (prototypen, popupens 860 px ger ca 780 px), annars en. Typraden är mono i etikettens storlek (11 px) och --rq-text-4,
+   tokenen som är AA-kalibrerad mot kortets yta; på den guldtonade raden prövas den i båda teman. Sidans panel (.rq-runner-titles utan --popup) är oförändrad. */
+.rq-runner-titles--popup { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.rq-runner-titles__filter { flex-shrink: 0; margin-bottom: var(--rq-sp-10); }
+.rq-runner-titles__scroll { flex: 1; min-height: 0; overflow-y: auto; container-type: inline-size; }
+.rq-runner-titles__scroll:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
+.rq-runner-list.rq-runner-titles__grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+.rq-runner-titles--popup .rq-runner-title[data-kind="held"] { padding: var(--rq-sp-8) var(--rq-sp-12); }
+.rq-runner-title__type { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-titles--popup .rq-runner-title__name { overflow-wrap: anywhere; }
+@container (min-width: 560px) {
+  .rq-runner-list.rq-runner-titles__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Ljust tema: den vilande knappen (text-3 ger 4,22:1) och Runner-up-raderna (namnet i text-3 och en ton på gapet, 4,14:1) lyfts till AA med samma scopade regel som Overview och Journey. Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-runner-titles__filter > .rq-filter:not([aria-pressed="true"]) { color: var(--rq-text-2); }
+[data-theme="light"] .rq-runner-titles--popup .rq-runner-title[data-kind="runner-up"] .rq-runner-title__name { color: var(--rq-text-2); }
+[data-theme="light"] .rq-runner-titles--popup .rq-runner-title__value[data-tone="muted"] { color: var(--rq-text-4); }
+
 /* BADGES-panelen (RUN-130) bor sedan RUN-128 i features/badges/badges.css, med komponenten. */
 
 /* ── Head to head: senaste mötena ─────────────────────────────────────────── */
