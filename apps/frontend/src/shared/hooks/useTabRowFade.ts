@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { revealDelta } from '@/shared/components/tabReveal';
-import { fadeClearance, scrollEdges, type ScrollEdges } from '@/shared/components/tabRowFade';
+import { fadeClearance, scrollEdges, SUBPIXEL_TOLERANCE_PX, type ScrollEdges } from '@/shared/components/tabRowFade';
 
 const NO_EDGES: ScrollEdges = { start: false, end: false };
 
@@ -47,8 +47,9 @@ export function useTabRowFade(wrapRef: RefObject<HTMLElement | null>, selected: 
     const clearance = parseFloat(getComputedStyle(list).scrollPaddingLeft);
     const row = list.getBoundingClientRect();
     const box = tab.getBoundingClientRect();
-    // Rymmer inte ens fliken i raden är det revealDelta som bestämmer (vänsterkant mot vänsterkant); då finns ingen zon att hålla.
-    if (revealDelta(row, box) !== 0) return;
+    // Rymmer inte ens fliken i raden är det revealDelta som bestämmer (vänsterkant mot vänsterkant); då finns ingen zon att hålla. En rest under en pixel räknas inte: `scrollLeft` är ett heltal,
+    // så fliken som `ViewTabs` just förde i bild kan ligga en bråkdel utanför kanten, och den resten får inte stjäla fadens fria zon.
+    if (Math.abs(revealDelta(row, box)) >= SUBPIXEL_TOLERANCE_PX) return;
     const delta = fadeClearance(row, box, clearance, scrollEdges(list));
     if (delta !== 0) list.scrollLeft += delta;
   }, [wrapRef, selected]);

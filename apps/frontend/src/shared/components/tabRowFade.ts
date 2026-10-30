@@ -4,7 +4,7 @@ import type { HorizontalSpan } from './tabReveal';
 // fliken hålls utanför fadens zon så att dess text aldrig tonas ut. Webbläsaren ger måtten; här bor räkneregeln.
 
 /** Subpixelmarginal: `scrollLeft` är ett decimaltal på skärmar med skalning. */
-const EDGE_TOLERANCE_PX = 1;
+export const SUBPIXEL_TOLERANCE_PX = 1;
 
 export interface ScrollMetrics {
   scrollLeft: number;
@@ -21,8 +21,8 @@ export interface ScrollEdges {
 
 export function scrollEdges({ scrollLeft, clientWidth, scrollWidth }: ScrollMetrics): ScrollEdges {
   return {
-    start: scrollLeft > EDGE_TOLERANCE_PX,
-    end: scrollLeft + clientWidth < scrollWidth - EDGE_TOLERANCE_PX,
+    start: scrollLeft > SUBPIXEL_TOLERANCE_PX,
+    end: scrollLeft + clientWidth < scrollWidth - SUBPIXEL_TOLERANCE_PX,
   };
 }
 
