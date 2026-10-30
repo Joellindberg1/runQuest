@@ -53,14 +53,14 @@ const auth: AuthContextType = {
 
 const loggedOut: AuthContextType = { ...auth, user: null };
 
-function renderCard(width = MOBILE, authValue: AuthContextType = auth, surface: 'page' | 'popup' = 'page') {
+function renderCard(width = MOBILE, authValue: AuthContextType = auth, surface: 'page' | 'popup' = 'page', onBack: () => void = () => {}) {
   setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={() => {}} /> : <RunnerPopup id={KARL.id} runner={KARL} users={PACK} failure={null} failed={false} onClose={() => {}} />}
+          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={onBack} /> : <RunnerPopup id={KARL.id} runner={KARL} users={PACK} failure={null} failed={false} onClose={() => {}} />}
         </MemoryRouter>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -83,6 +83,35 @@ beforeEach(() => {
   badgesApi.getGroupBadges.mockReset();
   badgesApi.getUserBadges.mockResolvedValue(KARL_BADGES);
   badgesApi.getGroupBadges.mockResolvedValue(groupOf({ [speedster.key]: 1, [milestoner.key]: 5, [nightOwl.key]: 6, [streakKeeper.key]: 2 }));
+});
+
+describe('tillbakalänken', () => {
+  const backLink = () => screen.findByRole('link', { name: 'Standings' });
+
+  it('ett vanligt vänsterklick förhindras och går via onBack (ett steg bakåt)', async () => {
+    const onBack = vi.fn();
+    renderCard(MOBILE, auth, 'page', onBack);
+    const back = await backLink();
+
+    // fireEvent.click returnerar false när händelsen avbrutits (preventDefault): länken navigerar alltså inte själv.
+    expect(fireEvent.click(back)).toBe(false);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['Cmd', { metaKey: true }],
+    ['Shift', { shiftKey: true }],
+    ['Alt', { altKey: true }],
+    ['mittenknappen', { button: 1 }],
+  ])('%s-klick är en vanlig länk: webbläsaren får göra sitt, onBack anropas inte', async (_name, init) => {
+    const onBack = vi.fn();
+    renderCard(MOBILE, auth, 'page', onBack);
+    const back = await backLink();
+
+    expect(fireEvent.click(back, init)).toBe(true);
+    expect(onBack).not.toHaveBeenCalled();
+  });
 });
 
 describe('minis i hjältekortet (T1)', () => {

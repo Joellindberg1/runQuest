@@ -875,7 +875,7 @@ test.describe('the runner card as a page', () => {
     await dismissOverlays(page);
 
     await expect(page.getByRole('heading', { level: 1, name: RUNNER.name })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Back/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Standings' })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 

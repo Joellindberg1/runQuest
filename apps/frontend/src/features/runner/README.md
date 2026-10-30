@@ -1,14 +1,14 @@
 # Runner Feature — Runner card (`/runner/:id`)
 
 Hjältekort · Frodo's journey · statflikar · titlar · head-to-head · Challenge (ADR 006 beslut 6, ADR 007 B6).
-Mobil/direktladdning = sida i skalet (`RunnerCard`, Back-knapp); desktop inifrån appen = profil-popupen (`RunnerPopup`, Radix Dialog, "Runner card"; ADR 006 addendum 2026-10-26).
+Mobil/direktladdning = sida i skalet (`RunnerCard`, tillbakalänken "← Standings"); desktop inifrån appen = profil-popupen (`RunnerPopup`, Radix Dialog, "Runner card"; ADR 006 addendum 2026-10-26).
 Datahämtningen är gemensam (`hooks/useRunnerPanelData`) och panelerna är desamma — sidan ritar dem staplade (`RunnerPanels`), popupen en i taget i sina flikar (`PopupSections`); bara ramen skiljer.
 `pages/RunnerPage.tsx` äger routing (eget id → `/profile`, okänt id → NotFound) och laddar popupen lazy (`React.lazy` bakom Suspense, egen chunk).
 
 ## Struktur
 
 - **components/**
-  - `RunnerCard` — sidan: Back-knapp, Challenge och `RunnerPanels`; `?view=` för statflikarna
+  - `RunnerCard` — sidan: tillbakalänken (länk till `/board`, vanligt klick = ett steg bakåt), rubrikens fokus vid inträde, Challenge och `RunnerPanels`; `?view=` för statflikarna
   - `RunnerPanels` — panelerna (hjälte · journey · statflikar | titlar · badges | head to head) på sidan (`RunnerCard`). Datakopplingen, inklusive head to head (`headToHead`, null utan inloggad), ligger i `hooks/useRunnerPanelData`, som popupen delar
   - `RunnerPopup` — profil-popupen, lazy: dialogramen (Radix Dialog över `.rq-scrim`/`.rq-modal`, bredd `--rq-modal-w`) med fast huvudyta (rubriken "Runner card", Challenge, ✕) och en scrollande yta (`.rq-runner-popup__content`) för innehållet. Fokus in = rubriken (`tabIndex={-1}`); fokus tillbaka = första synliga `[data-runner-id]` för löparen efter stängning (`onCloseAutoFocus`; Challenge-navigering undantagen). Statfliken är komponenttillstånd (`key={id}`), aldrig `?view=`. Under huvudytan: bannern (`PopupBanner`) och flikarna (`PopupSections`).
   - `PopupBanner` — popupens banner (ADR 006 punkt 4), bara i popupens chunk: nivåring (`LevelRing`), namn med högst tre badge-minis, "#1 in the group · 159 runs · 363 XP to level 25" på en rad, fyra statceller (TOTAL XP · TOTAL KM · RUNS · TITLES HELD, ingen CHALLENGES) och `HeadToHeadBanner` uppe till höger. Sidans `HeroCard` är oförändrad och har kvar CHALLENGES.

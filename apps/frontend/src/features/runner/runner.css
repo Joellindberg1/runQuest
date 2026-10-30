@@ -6,7 +6,10 @@
 /* ── Ram: sida (mobil/direktladdning) ─────────────────────────────────────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .rq-runner__bar { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-12); }
-.rq-runner__bar .rq-back { margin-bottom: 0; }
+/* Tillbakalänken är en länk med minst 44 px träffyta på mobil (--rq-control-hit; desktop 0) och text som klarar 4,5:1 i båda teman: --rq-text-3 ger 4,04:1 mot den ljusa basen, --rq-text-4 är
+   AA-kalibrerad i båda. Scopat hit: .rq-back delas med badges-sidan. */
+.rq-runner__bar .rq-back { margin-bottom: 0; min-height: var(--rq-control-hit); min-width: var(--rq-control-hit); color: var(--rq-text-4); }
+.rq-runner__bar .rq-back:hover { color: var(--rq-text-2); }
 .rq-runner__spacer { flex: 1; }
 .rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
