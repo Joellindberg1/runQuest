@@ -655,3 +655,115 @@ describe('Send flow: sending and cancelling', () => {
     }
   });
 });
+
+describe('Send flow: the dialog pattern', () => {
+  it('the sheet is a modal dialog with a name, and says so to assistive technology', () => {
+    renderSheet();
+    expect(sheet()).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('Tab and Shift+Tab never leave the sheet', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    const inside = () => sheet().contains(document.activeElement);
+    expect(inside()).toBe(true);
+    for (let press = 0; press < 30; press += 1) {
+      await user.tab();
+      expect(inside(), `Tab ${press + 1}`).toBe(true);
+    }
+    for (let press = 0; press < 30; press += 1) {
+      await user.tab({ shift: true });
+      expect(inside(), `Shift+Tab ${press + 1}`).toBe(true);
+    }
+  });
+
+  it('Escape closes the sheet', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderSheet({ onClose });
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Send flow: a row is named by the person', () => {
+  it('the initials in the avatar are not part of the name a screen reader gives the row', () => {
+    renderSheet({ members: PACK });
+    expect(opponent(/Karl Persson/)).toHaveAccessibleName(/^Karl Persson/);
+    expect(opponent(/Daniel Lindblad/)).toHaveAccessibleName(/^Daniel Lindblad Lüthje/);
+  });
+});
+
+describe('Send flow: while the challenge is on its way', () => {
+  const READY = { members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' } } as const;
+
+  /** En skickning som inte svarar förrän testet säger till. */
+  function pendingSend() {
+    let refuse: (reason: Error) => void = () => {};
+    const onSend = vi.fn(() => new Promise<void>((_resolve, reject) => { refuse = reject; }));
+    return { onSend, refuse: (reason: Error) => refuse(reason) };
+  }
+
+  const cancel = () => within(sheet()).getByRole('button', { name: 'Cancel' });
+  const cross = () => within(sheet()).getByRole('button', { name: 'Close' });
+
+  it('Cancel and the close cross are off while sending, and come back when the send is refused', async () => {
+    const user = userEvent.setup();
+    const { onSend, refuse } = pendingSend();
+    const onClose = vi.fn();
+    renderSheet({ ...READY, onSend, onClose });
+    expect(cancel()).toBeEnabled();
+    expect(cross()).toBeEnabled();
+
+    await user.click(sendButton());
+    expect(cancel()).toBeDisabled();
+    expect(cross()).toBeDisabled();
+    await user.click(cancel());
+    await user.click(cross());
+    expect(onClose).not.toHaveBeenCalled();
+
+    refuse(new Error('Opponent already has an active or pending challenge'));
+    await within(sheet()).findByRole('alert');
+    expect(cancel()).toBeEnabled();
+    expect(cross()).toBeEnabled();
+  });
+
+  it('Escape does not close the sheet while sending, and the focus stays inside it', async () => {
+    const user = userEvent.setup();
+    const { onSend } = pendingSend();
+    const onClose = vi.fn();
+    renderSheet({ ...READY, onSend, onClose });
+    await user.click(sendButton());
+
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Send a challenge' })).toBeInTheDocument();
+    expect(sheet().contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it('a press on the scrim does not close the sheet while sending', async () => {
+    const user = userEvent.setup();
+    const { onSend } = pendingSend();
+    const onClose = vi.fn();
+    renderSheet({ ...READY, onSend, onClose });
+    await user.click(sendButton());
+
+    await user.click(document.querySelector('.rq-scrim') as HTMLElement);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Send a challenge' })).toBeInTheDocument();
+  });
+
+  it('after a refused send Escape closes the sheet again', async () => {
+    const user = userEvent.setup();
+    const { onSend, refuse } = pendingSend();
+    const onClose = vi.fn();
+    renderSheet({ ...READY, onSend, onClose });
+    await user.click(sendButton());
+    refuse(new Error('Opponent already has an active or pending challenge'));
+    await within(sheet()).findByRole('alert');
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
