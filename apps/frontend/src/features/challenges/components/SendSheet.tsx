@@ -136,10 +136,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
           <div className="rq-duels-sheet__body">
             {blocker || group === null ? (
-              <>
-                <p role="status" className="rq-duels-sheet__blocked">{blocker?.message ?? 'You have no tokens to send. You earn them by levelling up.'}</p>
-                <Dialog.Close className="rq-btn rq-btn--ghost">Close</Dialog.Close>
-              </>
+              <p role="status" className="rq-duels-sheet__blocked">{blocker?.message ?? 'You have no tokens to send. You earn them by levelling up.'}</p>
             ) : (
               <>
                 <section aria-labelledby="duels-send-tier">
@@ -190,7 +187,12 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
               </>
             )}
           </div>
-          {blocker || group === null ? null : (
+          {/* Knappraden finns också när arket bara visar orsaken: Close ligger i samma fasta rad, med samma luft ovanför hemindikatorn. */}
+          {blocker || group === null ? (
+            <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
+              <Dialog.Close className="rq-btn rq-btn--ghost rq-btn--block">Close</Dialog.Close>
+            </footer>
+          ) : (
             <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
               <button ref={sendRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}
