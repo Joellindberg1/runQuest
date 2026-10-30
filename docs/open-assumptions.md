@@ -215,19 +215,16 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
-1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
-   med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
-   graciöst). Vill ha: flagga även mottagarsidan.
-2. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
+1. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
    participantCount/memberCount) — desktop-prototypens namnrad ("Karl ✓ …")
    kräver nytt fält.
-3. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
-4. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
+2. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
+3. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
    för participation; `requiresWeather` är typad `string | null` men hanterades
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
-5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
-6. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
+4. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
+5. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
    klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
    bara till). Medvetet val i9c; läker vid window focus.
 
@@ -302,6 +299,7 @@ Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md 
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).
+- **`group-stats.has_pending_challenge` gällde bara utmanaren** — löst i buggen 2026-10-30: fältet gäller båda sidor av en väntande utmaning, med samma regel som `POST /challenges/send` avvisar på (`services/challengeBusy.ts`); aktiva dueller visas av `challenge_active`.
 - **Backend-kontraktsfrågor löstes i i9-dataspåret 2026-10-05:** `source` i users-with-runs (Strava-rundor kan inte raderas; null = manuell), PUT kvalificerar event med dagsfönster (DELETE medvetet utan anrop, svarar 409 för kvalificerande rundor), Stockholm-datumvalidering.
 - **Utgången eller ogiltig JWT gav 403** — nu 401 (`middleware/auth.ts`), så klienten loggar ut.
 - **Init-loggen skrev service-nyckelns prefix** — loggar nu bara "set"/"missing" (`config/database.ts`).

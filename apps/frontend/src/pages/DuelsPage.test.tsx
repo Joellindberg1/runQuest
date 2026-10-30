@@ -469,6 +469,23 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
   });
 
+  it('mottagaren av en väntande utmaning är avstängd med orsak, som avsändaren, och kan inte förväljas', async () => {
+    // Så svarar group-stats när Adam har utmanat Dan: båda sidor är flaggade men ingen duell är aktiv än.
+    const waiting = { has_pending_challenge: true, challenge_active: false };
+    setup({
+      stats: STATS.map((s) => (s.user_id === ADAM || s.user_id === DAN ? { ...s, ...waiting } : s)),
+      my: { group_active: [] },
+    });
+    renderDuels(`/duels?send=1&opponent=${DAN}`);
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    for (const name of ['Adam', 'Daniel Lindblad']) {
+      const row = within(sheet()).getAllByRole('button', { name: new RegExp(name) })[0];
+      expect(row).toBeDisabled();
+      expect(within(row).getByText('Waiting on a reply')).toBeInTheDocument();
+    }
+    expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
+  });
+
   it('en fri motståndare ur ?opponent= är vald; "The bet" sammanfattar mått, motståndare och längd', async () => {
     setup({ stats: STATS.map((s) => (s.user_id === DAN ? { ...s, challenge_active: false } : s)), my: { group_active: [ADAM_NICK] } });
     renderDuels(`/duels?send=1&opponent=${DAN}`);
