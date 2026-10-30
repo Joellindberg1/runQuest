@@ -37,7 +37,8 @@ Datahämtningen är gemensam (`hooks/useRunnerPanelData`) och panelerna är desa
 - **Double-run days** = dagar där två rundors starttider ligger ≥ 4 h isär (samma 4 h-gräns som titeln The Double Trouble; titeln kräver dessutom 5 km per runda och mäter km).
   Rundor utan `start_time` (manuell loggning) kan inte bevisa avståndet och räknas inte.
 - **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel, så att ett nätverksfel inte blir "No titles".
-  Enheten på värdena kommer från `metric_key` i `/titles/leaderboard`; saknas den visas bara talet.
+  Enheten och typen på värdena kommer från `metric_key` i `/titles/leaderboard`, som panelen läser med `useTitleBoard` (kastar vid fel, som titlarna): felar topplistan visas felkortet
+  med Retry, aldrig titlar av typen "Other" med råa värden. Retry hämtar om båda. Saknas bara en enskild titel i svaret visas bara talet.
 - `useViewParam` (sidan) bär med sig router-state. Popupen använder inte `?view=`: dess flikar är komponenttillstånd som nollställs vid varje öppning.
 - Id-prefixet i `StatsPanel` här är `runner-stats`; profilens panel har `profile-stats`. Popupen öppnas bara från ytor med `data-runner-id`-rader (Board, Log, Duels och preview-widgeten), och ingen av dem ritar någon av panelerna; sidan och popupen finns aldrig samtidigt (bakgrunden är aldrig en `/runner/`-adress).
 - Dynamiska värden går in via `cssVars()` (`--w`, `--x`, `--rq-ring-p`); inga inline-färger/mått (guards.test).
