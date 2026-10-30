@@ -431,7 +431,8 @@
   --rq-duels-sheet-shift: 0;
   --rq-duels-sheet-max-h: 88vh;
   --rq-duels-sheet-edge-w: 2px;                                       /* guld toppkant på bottensheeten (desktop 1 px runtom) */
-  --rq-duels-sheet-actions-dir: column;                               /* desktop: row (Send + Cancel) */
+  --rq-duels-bet-cols: repeat(2, minmax(0, 1fr));                     /* "The bet": vinst och förlust sida vid sida, Starts på en egen rad under (desktop: tre kolumner) */
+  --rq-duels-bet-starts-span: 1 / -1;                                 /* Starts över hela raden så att Legendary-regeln ryms på 320 px (desktop: auto) */
 
   /* ── 1.24 Events-mått (inkrement 6) ────────────────────────────────────────
      Mått ur App-/Web-prototypens events-skärm som saknade token. Endast mått —
@@ -903,7 +904,8 @@
     --rq-duels-sheet-bottom: auto;
     --rq-duels-sheet-shift: -50%;
     --rq-duels-sheet-edge-w: 1px;
-    --rq-duels-sheet-actions-dir: row;
+    --rq-duels-bet-cols: repeat(3, minmax(0, 1fr));
+    --rq-duels-bet-starts-span: auto;
     --rq-events-split-cols: minmax(0, 1fr) 340px;
     --rq-events-week-cols: repeat(3, minmax(0, 1fr));
     --rq-events-ring: 132px;

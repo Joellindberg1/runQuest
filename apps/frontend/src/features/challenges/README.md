@@ -34,6 +34,13 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   "Starts" kommer ur `startRuleText` (midnatten efter accepten; legendary också efter `LEGENDARY_AUTO_START_DAYS` dagar utan svar, samma konstant som `challengeScheduler`), aldrig
   prototypens "when accepted". Cancel syns på mobil och desktop. Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt: fokus går till bekräftelsen
   (`.rq-duels-notice`, `tabIndex -1`); annars till öppnaren, rubrikens Send eller sidans rubrik. Vinst- och förlusttext på en tonad yta använder `--rq-up-text`/`--rq-down-text`.
+  Bekräftelsen efter en skickad utmaning ("Challenge sent to …") bygger sin startregel på `startRuleSentence`, samma `unansweredClause` som "Starts", så de två säger aldrig olika.
+- **Arkets skal.** `SendSheet` är en Radix-dialog med `aria-modal="true"` (Radix sätter det inte själv). Huvudet och knappraden ligger utanför det scrollande mellanstycket, så
+  stegrubrikerna kan aldrig hamna under knappraden (därför ingen `scroll-padding`); på mobil står Send och Cancel på en rad ovanför hemindikatorn (`--rq-tabbar-pb`, som läser
+  `env(safe-area-inset-bottom)`). Medan ett skick pågår går arket inte att stänga: Cancel och ✕ är avstängda, Escape och tryck på skrimmen ignoreras (`onOpenChange`), och fokus
+  flyttas till arket så att det inte hamnar på `<body>` när Send stängs av. Tomt läge och blockerat läge (`sendBlocker`) visar orsaken och en Close som följer samma `returnFocus` som Cancel.
+  Arket har ingen glid-in-rörelse (varken på mobil eller desktop): `prefers-reduced-motion` har alltså inget att stänga av, och e2e-provet vaktar att arket står still. Raderna i steg 3 heter
+  personen (avataren är `aria-hidden`).
 - **Backend avvisar `/send` om jag har en aktiv ELLER väntande utmaning (som utmanare eller motståndare).** `sendBlocker` speglar det: live-duell, skickad,
   inkommande, inga tokens. En motståndare som är upptagen som *mottagare* av en väntande utmaning syns inte i group-stats — då svarar servern 400
   och sheeten visar meddelandet inline.

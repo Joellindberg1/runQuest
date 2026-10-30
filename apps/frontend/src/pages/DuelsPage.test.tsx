@@ -5,7 +5,7 @@ import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token } from '@/features/challenges/duels.fixture';
-import type { MyChallengesData } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type MyChallengesData } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
@@ -528,6 +528,30 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(location()).toBe('/duels?view=live');
   });
 
+  for (const [tier, chipName] of [['minor', 'Minor ×3'], ['legendary', 'Legendary ×1']] as const) {
+    it(`the confirmation after a ${tier} send says the same start rule as The bet`, async () => {
+      setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });
+      handlers.sendChallenge = () => ({ success: true, data: { challenge_id: 'new' } });
+      renderDuels('/duels?send=1');
+      await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+      fireEvent.click(within(sheet()).getByRole('button', { name: chipName }));
+      fireEvent.click(within(within(sheet()).getByRole('radiogroup', { name: /^2 · Pick a challenge/ })).getAllByRole('radio')[0]);
+      fireEvent.click(option('Adam Einstein'));
+      const starts = within(sheet()).getByText('Starts').closest('div')?.querySelector('dd')?.textContent ?? '';
+      expect(starts).toMatch(/^Midnight after it is accepted/);
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
+
+      const confirmation = (await screen.findByText(/^Challenge sent to Adam\./)).textContent ?? '';
+      expect(confirmation).toContain('midnight after they accept');
+      // Det som The bet säger om dagar utan svar säger bekräftelsen också, och för minor säger ingen av dem något.
+      const unanswered = /after (\d+) d unanswered/.exec(starts)?.[0] ?? null;
+      if (tier === 'legendary') expect(unanswered).toBe(`after ${LEGENDARY_AUTO_START_DAYS} d unanswered`);
+      if (unanswered) expect(confirmation).toContain(unanswered);
+      else expect(confirmation).not.toMatch(/unanswered|\bd\b/);
+    });
+  }
+
   it('serverfel (motståndaren upptagen) visas i sheeten, som stannar kvar', async () => {
     setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });
     handlers.sendChallenge = () => ({ success: false, error: 'Opponent already has an active or pending challenge' });
@@ -599,6 +623,37 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
       await screen.findByRole('dialog', { name: 'Send a challenge' });
       expect(within(sheet()).getByRole('status')).toHaveTextContent(message);
       view.unmount();
+    }
+  });
+
+  describe('a sheet that cannot send is never a blank surface', () => {
+    const cases: Array<[string, Scenario, RegExp]> = [
+      ['no tokens', { my: { tokens: [] } }, /You have no tokens to send/],
+      ['a live duel', { my: { group_active: [MINE] } }, /You are in a live duel/],
+      ['a challenge already sent', { my: { sent_challenge: TO_DAN } }, /Your challenge to Daniel is waiting for an answer/],
+      ['a challenge waiting on me', { my: { received_challenges: [FROM_NICK] } }, /A challenge is waiting on you/],
+    ];
+
+    for (const [name, scenario, message] of cases) {
+      it(`${name}: the reason is in the sheet with a Close button, and Close puts the focus back on the header Send`, async () => {
+        const user = userEvent.setup();
+        setup(scenario);
+        renderDuels();
+        await screen.findByRole('region', { name: 'Your tokens' });
+        const header = screen.getByRole('button', { name: 'Send' });
+        await user.click(header);
+        await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+        expect(within(sheet()).getByRole('status')).toHaveTextContent(message);
+        const close = within(sheet()).getAllByRole('button', { name: 'Close' }).find((button) => button.textContent === 'Close');
+        expect(close).toBeDefined();
+        expect(within(sheet()).queryByRole('button', { name: 'Send challenge' })).toBeNull();
+
+        await user.click(close as HTMLElement);
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(header).toHaveFocus();
+        expect(location()).toBe('/duels');
+      });
     }
   });
 

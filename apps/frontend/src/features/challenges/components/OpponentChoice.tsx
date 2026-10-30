@@ -58,7 +58,8 @@ function OpponentRow({ option, checked, tabStop, onSelect, onKeyDown, buttonRef 
       onClick={() => { if (!option.disabled) onSelect(); }}
       onKeyDown={onKeyDown}
     >
-      <span className="rq-avatar rq-duels-avatar">
+      {/* Avataren är dekor: raden heter personen, aldrig initialerna ("KJ Karl Johansson"). */}
+      <span className="rq-avatar rq-duels-avatar" aria-hidden="true">
         {option.pictureUrl ? <img src={option.pictureUrl} alt="" /> : option.initials}
       </span>
       <span className="rq-duels-option__text">

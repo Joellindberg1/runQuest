@@ -141,13 +141,25 @@ export function resolveOpponentParam(param: string | null, options: readonly Opp
 
 const STARTS_AFTER_ACCEPT = 'Midnight after it is accepted';
 
+/** Det enda stället som vet att en legendary också startar av sig själv: "The bet" och bekräftelsen efter en skickad utmaning bygger båda på den. */
+function unansweredClause(tier: ChallengeTier): string | null {
+  return tier === 'legendary' ? `or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : null;
+}
+
 /**
  * "Starts" i "The bet": en utmaning börjar vid gruppens nästa midnatt efter accepten (routes/challenges.ts, `groupNextMidnight`), aldrig i samma ögonblick.
  * En legendary kan inte avböjas och startar av sig själv efter `LEGENDARY_AUTO_START_DAYS` dagar utan svar (challengeScheduler): dagarna kommer ur samma
  * konstant som schemaläggaren läser, så texten och regeln inte kan glida isär.
  */
 export function startRuleText(tier: ChallengeTier): string {
-  return tier === 'legendary' ? `${STARTS_AFTER_ACCEPT}, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : STARTS_AFTER_ACCEPT;
+  const clause = unansweredClause(tier);
+  return clause ? `${STARTS_AFTER_ACCEPT}, ${clause}` : STARTS_AFTER_ACCEPT;
+}
+
+/** Samma regel som `startRuleText`, som en mening efter "Challenge sent to …". */
+export function startRuleSentence(tier: ChallengeTier): string {
+  const clause = unansweredClause(tier);
+  return `It starts at midnight after they accept${clause ? `, ${clause}` : ''}.`;
 }
 
 /** Rubriken i "The bet": vad som saknas, och därefter vad vadet är ("Most km vs Karl · 7 days"). */
