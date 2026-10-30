@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { renderWithApp } from '@/test/renderApp';
@@ -69,5 +70,32 @@ describe('StatsPanel — the fade at the edges of the tab row', () => {
     expect(wrap).not.toHaveAttribute('role');
     expect(wrap.children).toHaveLength(1);
     expect(wrap.firstElementChild).toBe(tablist);
+  });
+
+  it('measures the row again when the Position tab joins it, because the row itself does not change size', () => {
+    // Raden är 300 px bred och de fem flikarna behöver 430 px. Fyra flikar ryms (raden mäts bara om när antalet flikar ändras, ingen storleksändring och ingen scroll syns för ResizeObserver).
+    function Host() {
+      const [showPosition, setShowPosition] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setShowPosition(true)}>
+            Show Position
+          </button>
+          <StatsPanel user={runner} now={NOW} isDesktop={false} view="distance" onChange={vi.fn()} label="Your stats" showPosition={showPosition} />
+        </>
+      );
+    }
+    renderWithApp(<Host />, { entry: '/profile' });
+    const tablist = screen.getByRole('tablist', { name: 'Your stats' });
+    const wrap = tablist.parentElement as HTMLElement;
+    lendLayout(tablist, { client: 300, scroll: TABS_WIDTH });
+    expect(edges(wrap)).toEqual({ start: 'false', end: 'false' });
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Position' }));
+
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getByRole('tablist', { name: 'Your stats' })).toBe(tablist);
+    expect(edges(wrap)).toEqual({ start: 'false', end: 'true' });
   });
 });
