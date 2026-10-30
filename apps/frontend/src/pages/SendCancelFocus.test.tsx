@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { MyChallengesData } from '@runquest/shared';
 import { AppRoutes } from '@/routes';
-import { challenge, stat, token } from '@/features/challenges/duels.fixture';
+import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 
