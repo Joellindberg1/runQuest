@@ -299,7 +299,7 @@ Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md 
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).
-- **`group-stats.has_pending_challenge` gällde bara utmanaren** — löst i buggen 2026-10-30: fältet gäller båda sidor av en väntande utmaning, med samma regel som `POST /challenges/send` avvisar på (`services/challengeBusy.ts`); aktiva dueller visas av `challenge_active`.
+- **`group-stats.has_pending_challenge` gällde bara utmanaren** — löst i buggen 2026-10-30: fältet gäller båda sidor av en väntande utmaning, med samma regel som `POST /challenges/send` avvisar på (`services/challengeBusy.ts`); aktiva dueller visas av `challenge_active`, som både en accept och schemaläggarens legendary-autostart sätter för båda parter (`services/challengeActivation.ts`).
 - **Backend-kontraktsfrågor löstes i i9-dataspåret 2026-10-05:** `source` i users-with-runs (Strava-rundor kan inte raderas; null = manuell), PUT kvalificerar event med dagsfönster (DELETE medvetet utan anrop, svarar 409 för kvalificerande rundor), Stockholm-datumvalidering.
 - **Utgången eller ogiltig JWT gav 403** — nu 401 (`middleware/auth.ts`), så klienten loggar ut.
 - **Init-loggen skrev service-nyckelns prefix** — loggar nu bara "set"/"missing" (`config/database.ts`).

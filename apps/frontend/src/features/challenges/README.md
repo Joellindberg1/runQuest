@@ -52,7 +52,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   users-with-runs (tokens/W-D-L på Board) och Runner cards head-to-head. Send-sheetens head-to-head-tips delar Runner cards query FULLT ut (nyckel, sidstorlek och dataform = hela
   `HeadToHeadResponse`; `record` härleds i `combine`) — en annan form under samma nyckel kraschar Runner card (integrationstestet låser skarven).
 - **Upptagen i sheeten:** `group-stats.has_pending_challenge` gäller båda sidor av en väntande utmaning (utmanare och mottagare) och `challenge_active` båda sidor av en
-  aktiv duell, samma regel som backend avvisar `/send` på. Sheeten stänger av båda med orsaken; 400 från `/send` visas ändå inline om raden hunnit bli inaktuell.
+  aktiv duell (sätts av accept och av schemaläggarens legendary-autostart), samma regel som backend avvisar `/send` på. Sheeten stänger av båda med orsaken; 400 från `/send` visas ändå inline om raden hunnit bli inaktuell.
 - **Framdrift** hämtas per live-duell (`/challenges/:id/progress`, ingen batch-endpoint finns); ett fel lämnar bara det kortet utan värden ("—").
   Progress-anropet avgör dessutom en duell som passerat `determine_at` (backend), så kortet kan försvinna vid nästa hämtning.
 - **Match history** är offset-sidor (20 per sida, "Show more"); filtret "My matches" gäller de sidor som hunnit laddas. Hämtas först när fliken visas.

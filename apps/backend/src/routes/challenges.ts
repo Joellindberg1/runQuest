@@ -7,7 +7,7 @@ import {
   getProgressForChallenge,
   settleChallenge,
 } from '../services/challengeService.js';
-import { challengeScore, challengeWindow, compareChallengeStandings, groupNextMidnight } from '@runquest/shared';
+import { challengeScore, compareChallengeStandings, groupNextMidnight } from '@runquest/shared';
 import { buildPageMeta, fetchOffsetPage, parseOffsetPage } from '../utils/pagination.js';
 import { groupIdOrRespondEmpty, tokenGroupId } from '../utils/groupScope.js';
 import { recordChallengeAccepted, recordChallengeReceived, retractChallengeReceived } from '../services/activityLog.js';
@@ -21,6 +21,7 @@ import type {
   ChallengeGroupHistoryApiResponse, ChallengeGroupStatsResponse, ChallengeProgressResponse, HeadToHeadApiResponse, MyChallengesResponse,
   RespondChallengeResponse, SendChallengeResponse, WithdrawChallengeResponse,
 } from '@runquest/shared';
+import { activatePendingChallenge } from '../services/challengeActivation.js';
 import { BUSY_CHALLENGE_STATUSES, isRunnerBusy } from '../services/challengeBusy.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
@@ -371,41 +372,16 @@ router.put('/:id/respond', authenticateJWT, async (req, res): Promise<void> => {
     // Accept: aktivera utmaningen. Den startar vid gruppens nästa midnatt (Stockholm tills tidszon per grupp finns, RUN-21) och
     // aldrig i samma ögonblick som den accepteras; rundor från acceptansdagen räknas därför aldrig (ägarens regel 2026-10-19).
     const { day: startDate } = groupNextMidnight(new Date());
-    const { endDate, determineAt: determineAtInstant } = challengeWindow(startDate, challenge.duration_days);
-    const determineAt = determineAtInstant.toISOString();
-
-    // Sekventiellt: utmaningen aktiveras först, spelarnas flagga efteråt. Misslyckas flaggan släpps aktiveringen
-    // (tillbaka till pending), så utmaningen aldrig lämnas aktiv medan spelarna inte räknas som upptagna.
-    // Villkorad på status = pending + radräkning: raderar en decline/withdraw/auto-decline utmaningen mellan läsningen
-    // ovan och denna skrivning träffar updaten 0 rader utan fel — då får varken flaggor eller loggrad sättas.
-    const { data: activated, error: activateError } = await supabase
-      .from('challenges')
-      .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-      .eq('id', id)
-      .eq('status', 'pending')
-      .select('id');
-    if (activateError) {
-      logger.error(`❌ Failed to activate challenge ${id} (${errorCode(activateError)})`);
+    const activation = await activatePendingChallenge(supabase, challenge, startDate);
+    if (activation.outcome === 'failed') {
+      const what = activation.stage === 'activate' ? 'activate challenge' : 'set challenge_active for challenge';
+      logger.error(`❌ Failed to ${what} ${id} (${errorCode(activation.error)})`);
       fail(res, 500, 'Failed to accept challenge'); return;
     }
-    // supabase-js ger alltid en array efter .select() utan fel; en tom array = ingen rad aktiverades.
-    if (Array.isArray(activated) && activated.length === 0) {
+    if (activation.outcome === 'not_pending') {
       fail(res, 404, 'Challenge not found or already responded'); return;
     }
-
-    const { error: flagError } = await supabase
-      .from('users')
-      .update({ challenge_active: true })
-      .in('id', [challenge.challenger_id, challenge.opponent_id]);
-    if (flagError) {
-      logger.error(`❌ Failed to set challenge_active for challenge ${id} (${errorCode(flagError)})`);
-      const { error: revertError } = await supabase
-        .from('challenges')
-        .update({ status: 'pending', start_date: null, end_date: null, determine_at: null })
-        .eq('id', id);
-      if (revertError) logger.error(`❌ Could not revert activation of challenge ${id} (${errorCode(revertError)})`);
-      fail(res, 500, 'Failed to accept challenge'); return;
-    }
+    const { endDate } = activation;
 
     // Efter lyckad aktivering + flagga (aldrig på revert-grenen). Icke-kastande: ett loggfel fäller aldrig accepten.
     await recordChallengeAccepted(challenge, startDate);
@@ -672,7 +648,7 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
         total,
         points: Math.round(challengeScore(u.wins, u.draws, u.losses) * 1000) / 1000,
         challenge_active: u.challenge_active,
-        // Samma regel som POST /send avvisar på. Aktiva dueller flaggas redan av challenge_active, som sätts för båda sidor vid accept.
+        // Samma regel som POST /send avvisar på. Aktiva dueller flaggas redan av challenge_active, som en accept och legendary-autostarten sätter för båda sidor.
         has_pending_challenge: isRunnerBusy(u.id, pendingChallenges),
         current_level: u.current_level,
         profile_picture: u.profile_picture ?? null,
