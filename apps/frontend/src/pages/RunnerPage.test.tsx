@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
@@ -90,7 +90,7 @@ const H2H: HeadToHeadResponse = {
   active: null,
 };
 
-function renderRunner(entry = '/runner/u-karl', width = MOBILE) {
+function renderRunner(entry: string | string[] = '/runner/u-karl', width = MOBILE) {
   return renderWithApp(
     <Routes>
       <Route path="/runner/:id" element={<RunnerRoute presentation="page" />} />
@@ -419,17 +419,66 @@ describe('Challenge-knappen', () => {
 });
 
 describe('ramen: sida respektive overlay', () => {
-  it('mobil/sida: Back-knapp, ingen "Runner profile"-rubrik och ingen dialog', async () => {
+  // MemoryRouter har ingen riktig historik; useCloseRunner läser indexet ur window.history.state.
+  const historyState = vi.spyOn(window.history, 'state', 'get');
+  afterEach(() => historyState.mockReset());
+
+  it('mobil/sida: tillbakalänk, ingen "Runner profile"-rubrik och ingen dialog', async () => {
     renderRunner();
-    expect(await screen.findByRole('button', { name: /Back/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Standings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Standings|Back/ })).toBeNull();
     expect(screen.queryByText('Runner profile')).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('Back går ett steg tillbaka, eller till /board utan historik', async () => {
+  it('back control is a link with an href to the board', async () => {
     renderRunner();
-    fireEvent.click(await screen.findByRole('button', { name: /Back/ }));
+    const back = await screen.findByRole('link', { name: 'Standings' });
+
+    expect(back).toHaveAttribute('href', '/board');
+    expect(back).toHaveTextContent('← Standings');
+    // Pilen är dekoration: det tillgängliga namnet är bara "Standings".
+    expect(back.querySelector('[aria-hidden="true"]')).toHaveTextContent('←');
+  });
+
+  it('clicking it goes one step back', async () => {
+    // Historiken har en post före kortet (klientnavigering hit från Duels): ett steg bakåt är /duels, inte /board.
+    historyState.mockReturnValue({ idx: 1 });
+    renderRunner(['/duels', '/runner/u-karl']);
+    fireEvent.click(await screen.findByRole('link', { name: 'Standings' }));
+
+    await waitFor(() => expect(location()).toBe('/duels'));
+  });
+
+  it('direct load: the back control goes to the board (no history to step back into)', async () => {
+    renderRunner();
+    fireEvent.click(await screen.findByRole('link', { name: 'Standings' }));
     await waitFor(() => expect(location()).toBe('/board'));
+  });
+
+  it('runner page focuses the heading on entry', async () => {
+    renderRunner();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Karl Persson' });
+
+    expect(heading).toHaveAttribute('tabindex', '-1');
+    expect(heading).toHaveFocus();
+  });
+
+  it('runner page focuses the heading when entered by in-app navigation', async () => {
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="page" />} />
+        <Route path="/board" element={<Link to="/runner/u-karl">Open Karl</Link>} />
+      </Routes>,
+      { entry: '/board' },
+    );
+    await userEvent.click(await screen.findByRole('link', { name: 'Open Karl' }));
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Karl Persson' });
+
+    expect(heading).toHaveFocus();
+    // Fokus ligger kvar på rubriken när panelerna hämtat klart efter första ritningen.
+    await screen.findByRole('region', { name: 'Head to head' });
+    expect(heading).toHaveFocus();
   });
 
   it('egen profil: /runner/<eget id> → /profile (inget head-to-head mot sig själv)', async () => {
