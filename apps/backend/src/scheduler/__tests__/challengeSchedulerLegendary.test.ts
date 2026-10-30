@@ -18,7 +18,7 @@ vi.mock('../../config/database.js', () => ({
 
 import { getSupabaseClient } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
-import { createFakeDb, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
+import { createFakeDb, type RecordedQuery, type Row } from '../../routes/__tests__/helpers/fakeDb.js';
 import { getProgressForChallenge } from '../../services/challengeService.js';
 import { startChallengeScheduler } from '../challengeScheduler.js';
 
@@ -43,13 +43,17 @@ const world = (over: Record<string, Row[]> = {}): Record<string, Row[]> => ({
   }],
   activity_log: [],
   user_challenge_tokens: [],
-  users: [],
+  users: [
+    { id: 'a', challenge_active: false },
+    { id: 'b', challenge_active: false },
+    { id: 'c', challenge_active: false },
+  ],
   runs: [],
   ...over,
 });
 
-function use(tables: Record<string, Row[]>) {
-  const db = createFakeDb(tables, { numericIds: ['activity_log'] });
+function use(tables: Record<string, Row[]>, failWhen?: (q: RecordedQuery) => { message: string } | null) {
+  const db = createFakeDb(tables, { numericIds: ['activity_log'], failWhen });
   vi.mocked(getSupabaseClient).mockReturnValue(db.client as any);
   startChallengeScheduler();
   return db;
@@ -146,5 +150,78 @@ describe('auto-start av legendary', () => {
     await tick();
 
     expect(tables.challenges[0]).toMatchObject({ start_date: '2026-07-04', end_date: '2026-07-06' });
+  });
+});
+
+describe('auto-start av legendary: parternas challenge_active', () => {
+  const flags = (tables: Record<string, Row[]>) => Object.fromEntries(tables.users.map((u) => [u.id, u.challenge_active]));
+
+  it('sätter challenge_active för båda parter vid auto-start, och för ingen annan', async () => {
+    const tables = world();
+    use(tables);
+    vi.setSystemTime(new Date('2026-07-04T10:10:00Z'));
+    await tick();
+
+    expect(tables.challenges[0].status).toBe('active');
+    expect(flags(tables)).toEqual({ a: true, b: true, c: false });
+  });
+
+  it('misslyckas flaggan återgår utmaningen till pending, så ingen duell är aktiv utan upptagna parter', async () => {
+    const tables = world();
+    use(tables, (q) => (q.table === 'users' && q.mutation === 'update' ? { message: 'flag failed' } : null));
+    vi.setSystemTime(new Date('2026-07-04T10:10:00Z'));
+    await tick();
+
+    expect(tables.challenges[0]).toMatchObject({ status: 'pending', start_date: null, end_date: null, determine_at: null });
+    expect(flags(tables)).toEqual({ a: false, b: false, c: false });
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('en accept som hann före (utmaningen är inte längre pending) ger inga flaggor från autostarten', async () => {
+    const tables = world();
+    let acceptedFirst = false;
+    use(tables, (q) => {
+      if (q.table === 'challenges' && q.mutation === 'update' && !acceptedFirst) {
+        acceptedFirst = true;
+        tables.challenges[0].status = 'active';
+      }
+      return null;
+    });
+    vi.setSystemTime(new Date('2026-07-04T10:10:00Z'));
+    await tick();
+
+    expect(flags(tables)).toEqual({ a: false, b: false, c: false });
+    expect(tables.challenges[0].start_date).toBeUndefined();
+  });
+});
+
+describe('en auto-startad legendary avgörs som en accepterad', () => {
+  it('efter autostart och avgörande är båda parternas challenge_active av igen och utmaningen är completed', async () => {
+    const tables = world({
+      challenges: [{
+        id: 'L1', group_id: 'g1', status: 'pending', tier: 'legendary', metric: 'km', duration_days: 3,
+        challenger_id: 'a', opponent_id: 'b', legendary_sent_at: SENT_FIVE_DAYS_AGO,
+        winner_type: 'multiplier_days', winner_delta: 0.2, winner_duration: 3,
+        loser_type: 'multiplier_days', loser_delta: -0.1, loser_duration: 2,
+      }],
+      users: [
+        { id: 'a', group_id: 'g1', wins: 0, draws: 0, losses: 0, challenge_active: false },
+        { id: 'b', group_id: 'g1', wins: 0, draws: 0, losses: 0, challenge_active: false },
+      ],
+      user_boosts: [],
+      runs: [{ id: 'r1', user_id: 'a', date: '2026-07-05', distance: 8 }],
+    });
+    use(tables);
+    vi.setSystemTime(new Date('2026-07-04T10:10:00Z'));
+    await tick();
+    expect(tables.users.map((u) => u.challenge_active)).toEqual([true, true]);
+
+    vi.setSystemTime(new Date('2026-07-08T02:00:00Z')); // efter determine_at (2026-07-08T01:00Z)
+    const settle = h.crons.get('5 * * * *');
+    expect(settle).toBeDefined();
+    await settle!();
+
+    expect(tables.challenges[0].status).toBe('completed');
+    expect(tables.users.map((u) => u.challenge_active)).toEqual([false, false]);
   });
 });
