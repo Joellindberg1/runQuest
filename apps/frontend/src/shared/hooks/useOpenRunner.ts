@@ -7,6 +7,19 @@ export interface BackgroundState {
   background?: Location;
 }
 
+/**
+ * Varifrån send-flödet öppnades när det skedde från en löpares profil-popup (ADR 006 addendum 2026-10-26, punkt 5): sidan under popupen (`returnTo`, pathname och search)
+ * och löparen (`runnerId`). Challenge i popupen skickar det som `state: { sendOrigin }`; vad /duels gör med det vid ett avbrutet flöde är en egen sak.
+ */
+export interface SendOriginState {
+  returnTo: string;
+  runnerId: string;
+}
+
+export interface SendOriginRouteState {
+  sendOrigin: SendOriginState;
+}
+
 export function readBackground(location: Location): Location | undefined {
   return (location.state as BackgroundState | null)?.background;
 }

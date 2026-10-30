@@ -7,6 +7,7 @@ import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, U
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { AppRoutes } from '@/routes';
 import RunnerRoute from './RunnerPage';
+import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
@@ -444,6 +445,11 @@ describe('the profile popup (background location)', () => {
     '/board',
     { pathname: '/runner/u-karl', state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
   ];
+  // Challenge är en länk bara när jag kan skicka och Karl är ledig; annars en avstängd knapp (RunnerPopupChallenge.test.tsx prövar alla lägen).
+  beforeEach(() => {
+    handlers.getMyChallenges = () => ({ success: true, data: { tokens: [token({ id: 't1' })], sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [] } });
+    handlers.getChallengeGroupStats = () => ({ success: true, data: [stat(ME.id), stat('u-karl')] });
+  });
   // Medan popupens chunk hämtas visar sidan en upptagen dialog med samma roll (men namnet "Runner card"); det är den riktiga dialogen, med löparens namn, som proven väntar på.
   const findPopup = () => screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
   const openPopup = async () => {
@@ -461,7 +467,7 @@ describe('the profile popup (background location)', () => {
 
     expect(within(dialog).getByText('Runner card')).toBeInTheDocument();
     expect(within(dialog).queryByText('Runner profile')).toBeNull();
-    expect(within(dialog).getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
+    expect(await within(dialog).findByRole('link', { name: 'Challenge' })).toBeInTheDocument();
     expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
     // Head to head sits in the banner, read as one sentence, and not as a panel of its own.
     expect(await within(dialog).findByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
@@ -818,7 +824,7 @@ describe('the profile popup (background location)', () => {
 
     fireEvent.click(await within(dialog).findByRole('link', { name: 'Challenge' }));
     await waitFor(() => expect(location()).toBe('/duels?send=1&opponent=u-karl'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Runner card/ })).toBeNull());
   });
 
   it('an unknown id falls back to the page variant: Page not found in the shell, no dialog', async () => {
