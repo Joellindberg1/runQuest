@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { MyChallengeToken } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type MyChallengeToken } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
-import { KARL, ME, stat, token } from '../duels.fixture';
+import { ADAM, DAN, KARL, ME, NICK, stat, token } from '../duels.fixture';
 import { stakeOf } from '../duelsFormat';
 import { buildTokenGroups } from '../duelsModel';
-import type { SendPreselection } from '../sendModel';
+import { startRuleText, type SendPreselection } from '../sendModel';
 import { SendSheet } from './SendSheet';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -27,25 +27,37 @@ const ALL_TIERS = [MINOR_KM_A, MINOR_KM_B, MINOR_RUNS, MAJOR, LEGENDARY_NO_PENAL
 const NO_MAJOR = ALL_TIERS.filter((entry) => entry.tier !== 'major');
 const LONE_CARDS = [MINOR_KM_A, MAJOR, LEGENDARY_NO_PENALTY];
 
+type Records = Record<string, { wins: number; draws: number; losses: number; total: number }>;
+
 interface SheetOptions {
   tokens?: MyChallengeToken[];
   preselection?: SendPreselection | null;
+  members?: ReturnType<typeof stat>[];
+  initialOpponent?: string | null;
+  records?: Records;
+  onSend?: (tokenKey: string, opponentId: string) => Promise<void>;
+  onClose?: () => void;
 }
 
-function renderSheet({ tokens = ALL_TIERS, preselection = null }: SheetOptions = {}) {
+// Jag, två lediga medlemmar, en i en duell och en som väntar på mitt svar.
+const PACK = [stat(ME), stat(KARL), stat(DAN), stat(ADAM, { challenge_active: true }), stat(NICK, { has_pending_challenge: true })];
+
+function renderSheet({ tokens = ALL_TIERS, preselection = null, members = [stat(ME), stat(KARL)], initialOpponent = null, records, onSend = async () => {}, onClose = () => {} }: SheetOptions = {}) {
   resetFakeBackend();
-  handlers.getHeadToHead = () => ({ success: false, error: 'not needed' });
+  handlers.getHeadToHead = records
+    ? (id: unknown) => ({ success: true, data: { opponent: { id, name: '', profile_picture: null }, record: records[id as string], history: [], active: null } })
+    : () => ({ success: false, error: 'not needed' });
   const view = renderWithApp(
     <SendSheet
       groups={buildTokenGroups(tokens)}
       blocker={null}
-      members={[stat(ME), stat(KARL)]}
+      members={members}
       users={undefined}
       meId={ME}
       preselection={preselection}
-      initialOpponent={null}
-      onClose={() => {}}
-      onSend={async () => {}}
+      initialOpponent={initialOpponent}
+      onClose={onClose}
+      onSend={onSend}
     />,
   );
   return view;
@@ -355,5 +367,291 @@ describe('Send flow: focus when there is no opener', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Challenges' })).toHaveFocus();
+  });
+});
+
+const opponentGroup = () => within(sheet()).getByRole('radiogroup', { name: '3 · Pick an opponent' });
+const opponents = () => within(opponentGroup()).getAllByRole('radio');
+const opponent = (name: RegExp | string) => within(opponentGroup()).getByRole('radio', { name });
+const chosenOpponents = () => opponents().map((radio) => radio.getAttribute('aria-checked') === 'true');
+const bet = () => within(sheet()).getByRole('region', { name: 'The bet' });
+const sendButton = () => within(sheet()).getByRole('button', { name: /^Send|^Sending/ });
+
+describe('Send flow step 3: pick an opponent', () => {
+  it('the opponents are a radiogroup with aria-checked, and none is chosen to begin with', () => {
+    renderSheet({ members: PACK });
+    expect(opponents().map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'false']);
+    expect(within(opponentGroup()).queryAllByRole('radio', { checked: true })).toEqual([]);
+    expect(within(sheet()).queryByRole('button', { name: /Karl Persson/ })).toBeNull();
+  });
+
+  it('you cannot challenge yourself: I am not in the list', () => {
+    renderSheet({ members: PACK });
+    expect(within(opponentGroup()).queryByRole('radio', { name: /Joel Lindberg/ })).toBeNull();
+    expect(opponents()).toHaveLength(PACK.length - 1);
+  });
+
+  it('choosing an opponent moves the check, and choosing another moves it again', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    await user.click(opponent(/Karl Persson/));
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+    await user.click(opponent(/Daniel Lindblad/));
+    expect(chosenOpponents()).toEqual([true, false, false, false]);
+  });
+
+  it('an opponent in a duel or waiting on a reply is disabled, shows why, and cannot be chosen', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    const inDuel = opponent(/Adam Einstein/);
+    const waiting = opponent(/Nicklas von Elling/);
+    for (const radio of [inDuel, waiting]) {
+      expect(radio).toHaveAttribute('aria-disabled', 'true');
+      expect(radio).toHaveAttribute('tabindex', '-1');
+    }
+    expect(within(inDuel).getByText('In a duel')).toBeVisible();
+    expect(within(waiting).getByText('Waiting on a reply')).toBeVisible();
+    expect(inDuel).toHaveAccessibleName(/In a duel/);
+    expect(opponent(/Karl Persson/)).not.toHaveAttribute('aria-disabled', 'true');
+
+    await user.click(inDuel);
+    await user.click(waiting);
+    expect(chosenOpponents()).toEqual([false, false, false, false]);
+  });
+
+  it('?opponent= preselects an opponent who can be challenged, and nobody else', () => {
+    const first = renderSheet({ members: PACK, initialOpponent: KARL });
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+    first.unmount();
+
+    for (const unavailable of [ADAM, NICK, ME, 'u-not-in-the-pack']) {
+      const view = renderSheet({ members: PACK, initialOpponent: unavailable });
+      expect(chosenOpponents()).toEqual([false, false, false, false]);
+      view.unmount();
+    }
+  });
+
+  it('the head to head hint says to you, the name, drawn or never met, and a busy opponent keeps theirs next to the reason', async () => {
+    renderSheet({
+      members: PACK,
+      records: {
+        [KARL]: { wins: 2, draws: 0, losses: 0, total: 2 },
+        [NICK]: { wins: 0, draws: 0, losses: 1, total: 1 },
+        [DAN]: { wins: 0, draws: 1, losses: 0, total: 1 },
+        [ADAM]: { wins: 0, draws: 0, losses: 0, total: 0 },
+      },
+    });
+    expect(await within(opponentGroup()).findByText('2–0 to you')).toBeVisible();
+    expect(within(opponent(/Nicklas von Elling/)).getByText('0–1 to Nicklas')).toBeVisible();
+    expect(within(opponent(/Nicklas von Elling/)).getByText('Waiting on a reply')).toBeVisible();
+    expect(within(opponent(/Daniel Lindblad/)).getByText('drawn 1')).toBeVisible();
+    expect(within(opponent(/Adam Einstein/)).getByText('never met')).toBeVisible();
+    expect(opponentGroup().textContent).not.toMatch(/\b(him|her)\b/i);
+  });
+
+  it('the opponents are one tab stop on the first one that can be chosen, and on the chosen one once there is one', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    expect(opponents().map((radio) => radio.getAttribute('tabindex'))).toEqual(['0', '-1', '-1', '-1']);
+    await user.click(opponent(/Karl Persson/));
+    expect(opponents().map((radio) => radio.getAttribute('tabindex'))).toEqual(['-1', '0', '-1', '-1']);
+  });
+
+  it('arrow keys move the choice and the focus together, skip the ones that cannot be chosen, and wrap around', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    const [daniel, karl] = opponents();
+    daniel.focus();
+
+    await user.keyboard('{ArrowDown}');
+    expect(karl).toHaveFocus();
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+
+    await user.keyboard('{ArrowRight}');
+    expect(daniel).toHaveFocus();
+    expect(chosenOpponents()).toEqual([true, false, false, false]);
+
+    await user.keyboard('{ArrowUp}');
+    expect(karl).toHaveFocus();
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+
+    await user.keyboard('{ArrowLeft}');
+    expect(daniel).toHaveFocus();
+  });
+
+  it('Home and End jump to the first and the last opponent that can be chosen, and Space and Enter choose the focused one', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    const [daniel, karl] = opponents();
+    daniel.focus();
+    await user.keyboard('{End}');
+    expect(karl).toHaveFocus();
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+    await user.keyboard('{Home}');
+    expect(daniel).toHaveFocus();
+    expect(chosenOpponents()).toEqual([true, false, false, false]);
+
+    karl.focus();
+    await user.keyboard(' ');
+    expect(chosenOpponents()).toEqual([false, true, false, false]);
+    daniel.focus();
+    await user.keyboard('{Enter}');
+    expect(chosenOpponents()).toEqual([true, false, false, false]);
+  });
+
+  it('with nobody to challenge the list says so instead of staying empty', () => {
+    renderSheet({ members: [stat(ME)] });
+    expect(within(sheet()).queryByRole('radio', { name: /Joel/ })).toBeNull();
+    expect(within(sheet()).getByText('Nobody else is in your group yet.')).toBeVisible();
+  });
+});
+
+describe('the bet', () => {
+  const winOf = () => within(bet()).getByText('If you win').nextElementSibling as HTMLElement;
+  const loseOf = () => within(bet()).getByText('If you lose').nextElementSibling as HTMLElement;
+  const startsOf = () => within(bet()).getByText('Starts').nextElementSibling as HTMLElement;
+
+  it('the bet is a polite live region that is read as a whole', () => {
+    renderSheet({ members: PACK });
+    expect(bet()).toHaveAttribute('aria-live', 'polite');
+    expect(bet()).toHaveAttribute('aria-atomic', 'true');
+    expect(bet().querySelectorAll('[aria-live], [role="status"], [role="alert"]')).toHaveLength(0);
+  });
+
+  it('the bet names the challenge and the opponent once both are chosen, and says what is missing before that', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    expect(within(bet()).getByText('Pick a challenge and an opponent')).toBeVisible();
+    await user.click(opponent(/Karl Persson/));
+    expect(within(bet()).getByText('Pick a challenge')).toBeVisible();
+    await user.click(radios()[0]);
+    expect(within(bet()).getByText('Most km vs Karl · 7 days')).toBeVisible();
+    await user.click(radios()[2]);
+    expect(within(bet()).getByText('Most runs vs Karl · 5 days')).toBeVisible();
+  });
+
+  it('the bet shows the stake of the chosen token, in the words of the cards', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK, tokens: [MINOR_KM_A, MINOR_RUNS, LEGENDARY_NO_PENALTY] });
+    expect(winOf()).toHaveTextContent('—');
+    expect(loseOf()).toHaveTextContent('—');
+
+    for (const [index, source] of [MINOR_KM_A, MINOR_RUNS].entries()) {
+      await user.click(radios()[index]);
+      expect(winOf()).toHaveTextContent(stakeOf(source).winFor);
+      expect(loseOf()).toHaveTextContent(stakeOf(source).loseFor);
+    }
+    await user.click(chip('Legendary ×1'));
+    expect(winOf().textContent).toBe(stakeOf(LEGENDARY_NO_PENALTY).winFor);
+    expect(loseOf().textContent).toBe('No penalty');
+  });
+
+  it('the bet shows the real start rule', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    // Minor och major: midnatten efter accepten. Aldrig prototypens "when accepted".
+    expect(startsOf().textContent).toBe('Midnight after it is accepted');
+    expect(startsOf().textContent).toBe(startRuleText('minor'));
+    await user.click(chip('Major ×1'));
+    expect(startsOf().textContent).toBe('Midnight after it is accepted');
+
+    // Legendary startar också av sig själv efter schemaläggarens antal dagar, ur samma konstant, redan innan ett kort är valt.
+    await user.click(chip('Legendary ×1'));
+    expect(startsOf().textContent).toBe(`Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered`);
+    expect(startsOf().textContent).toBe(startRuleText('legendary'));
+    expect(bet().textContent).not.toMatch(/when accepted/i);
+  });
+
+  it('the bet is announced once per change: a change of choice changes it once, anything else leaves it alone', async () => {
+    const user = userEvent.setup();
+    renderSheet({
+      members: PACK,
+      records: { [KARL]: { wins: 2, draws: 0, losses: 0, total: 2 }, [DAN]: { wins: 0, draws: 0, losses: 0, total: 0 } },
+    });
+    let changes = 0;
+    const observer = new MutationObserver(() => { changes += 1; });
+    observer.observe(bet(), { childList: true, characterData: true, subtree: true, attributes: true });
+
+    // Head to head-tipsen kommer in i listan efter att arket öppnats: det rör inte kortet.
+    await within(opponentGroup()).findByText('2–0 to you');
+    await user.click(within(sheet()).getByRole('group', { name: '1 · Pick a tier' }));
+    expect(changes).toBe(0);
+
+    // Flera snabba val i rad: varje ändring ger exakt en uppdatering, och att välja det redan valda ger ingen.
+    await user.click(radios()[0]);
+    expect(changes).toBe(1);
+    await user.click(radios()[0]);
+    expect(changes).toBe(1);
+    await user.click(opponent(/Karl Persson/));
+    expect(changes).toBe(2);
+    await user.click(opponent(/Daniel Lindblad/));
+    await user.click(opponent(/Karl Persson/));
+    await user.click(radios()[2]);
+    expect(changes).toBe(5);
+    // Ett identiskt kort (samma mått, längd och insats) ger samma text: ingen ny uppläsning.
+    await user.click(radios()[2]);
+    await user.keyboard('{Tab}');
+    expect(changes).toBe(5);
+    observer.disconnect();
+    expect(within(bet()).getAllByText(/Most runs vs Karl/)).toHaveLength(1);
+  });
+});
+
+describe('Send flow: sending and cancelling', () => {
+  it('Send challenge is disabled until a tier, a token and an opponent are chosen', async () => {
+    const user = userEvent.setup();
+    renderSheet({ members: PACK });
+    expect(sendButton()).toBeDisabled();
+    await user.click(radios()[0]);
+    expect(sendButton()).toBeDisabled();
+    await user.click(opponent(/Karl Persson/));
+    expect(sendButton()).toBeEnabled();
+  });
+
+  it('Cancel is there, closes the flow and sends nothing', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(async () => {});
+    const onClose = vi.fn();
+    renderSheet({ members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' }, onSend, onClose });
+    expect(sendButton()).toBeEnabled();
+    await user.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('Sending… shows while the challenge is on its way, and the button cannot be pressed twice', async () => {
+    const user = userEvent.setup();
+    let finish: () => void = () => {};
+    const onSend = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    renderSheet({ members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' }, onSend });
+    await user.click(sendButton());
+    expect(sendButton()).toHaveTextContent('Sending…');
+    expect(sendButton()).toBeDisabled();
+    await user.click(sendButton());
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('a', KARL);
+    finish();
+  });
+
+  it('a failed send keeps the sheet, shows the message in an alert, and lets me try again', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(async () => { throw new Error('Opponent already has an active or pending challenge'); });
+    renderSheet({ members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' }, onSend });
+    await user.click(sendButton());
+    expect(await within(sheet()).findByRole('alert')).toHaveTextContent('Opponent already has an active or pending challenge');
+    expect(sendButton()).toHaveTextContent('Send challenge');
+    expect(sendButton()).toBeEnabled();
+  });
+
+  it('after a refused send the focus is back on Send, not on the page body, and a second refusal does the same', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(async () => { throw new Error('Opponent already has an active or pending challenge'); });
+    renderSheet({ members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' }, onSend });
+    for (const attempt of [1, 2]) {
+      await user.click(sendButton());
+      await within(sheet()).findByRole('alert');
+      await waitFor(() => expect(sendButton()).toHaveFocus());
+      expect(onSend, `attempt ${attempt}`).toHaveBeenCalledTimes(attempt);
+    }
   });
 });

@@ -1,8 +1,8 @@
 import type { User } from '@runquest/types';
-import type { ChallengeGroupStat, ChallengeTier, HeadToHeadRecord } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat, type ChallengeTier, type HeadToHeadRecord } from '@runquest/shared';
 import { getInitials, leaderboardUtils } from '@/shared/utils/leaderboardUtils';
 import { firstName } from '@/shared/utils/format';
-import type { ResultTone, SentCard, TierGroup } from './duelsModel';
+import type { ResultTone, SentCard, TierGroup, TokenCard } from './duelsModel';
 
 // Send-sheetens logik: varför man inte kan skicka, motståndarvalen och head-to-head-tipsen. Ren logik.
 
@@ -55,13 +55,17 @@ export interface OpponentOption {
   disabledReason: string | null;
 }
 
-/** Head-to-head ur mitt perspektiv: "2–0 to you" · "0–1 to Nicklas" · "drawn 1" · "never met". */
+/**
+ * Head-to-head ur mitt perspektiv: "2–0 to you" · "0–1 to Nicklas" · "drawn 1" · "never met". Könsneutralt: namnet, eller "them" när namnet saknas, aldrig him/her.
+ * Popupens head-to-head-mening (features/runner) är en annan text om samma post.
+ */
 export function h2hHint(record: HeadToHeadRecord | undefined, opponentFirstName: string): OpponentOption['h2h'] {
+  const them = opponentFirstName || 'them';
   if (!record) return null;
   if (record.total === 0) return { text: 'never met', tone: 'muted' };
   const score = `${record.wins}–${record.losses}`;
   if (record.wins > record.losses) return { text: `${score} to you`, tone: 'up' };
-  if (record.losses > record.wins) return { text: `${score} to ${opponentFirstName}`, tone: 'down' };
+  if (record.losses > record.wins) return { text: `${score} to ${them}`, tone: 'down' };
   return { text: record.wins === 0 ? `drawn ${record.draws}` : `${score} level`, tone: 'muted' };
 }
 
@@ -131,5 +135,25 @@ export function startingChoice(groups: readonly TierGroup[], preselection: SendP
 /** `?opponent=` gäller bara om personen går att utmana: i gruppen, inte jag själv, inte upptagen. */
 export function resolveOpponentParam(param: string | null, options: readonly OpponentOption[]): string | null {
   return options.find((option) => option.userId === param && !option.disabled)?.userId ?? null;
+}
+
+// ─── "The bet" ────────────────────────────────────────────────────────────────
+
+const STARTS_AFTER_ACCEPT = 'Midnight after it is accepted';
+
+/**
+ * "Starts" i "The bet": en utmaning börjar vid gruppens nästa midnatt efter accepten (routes/challenges.ts, `groupNextMidnight`), aldrig i samma ögonblick.
+ * En legendary kan inte avböjas och startar av sig själv efter `LEGENDARY_AUTO_START_DAYS` dagar utan svar (challengeScheduler): dagarna kommer ur samma
+ * konstant som schemaläggaren läser, så texten och regeln inte kan glida isär.
+ */
+export function startRuleText(tier: ChallengeTier): string {
+  return tier === 'legendary' ? `${STARTS_AFTER_ACCEPT}, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : STARTS_AFTER_ACCEPT;
+}
+
+/** Rubriken i "The bet": vad som saknas, och därefter vad vadet är ("Most km vs Karl · 7 days"). */
+export function betSummary(card: TokenCard | null, opponentFirstName: string | null): string {
+  if (!card) return opponentFirstName ? 'Pick a challenge' : 'Pick a challenge and an opponent';
+  if (!opponentFirstName) return 'Pick an opponent';
+  return `${card.metricLabel} vs ${opponentFirstName} · ${card.durationLabel}`;
 }
 

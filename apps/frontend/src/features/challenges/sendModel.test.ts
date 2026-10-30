@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@runquest/types';
+import { LEGENDARY_AUTO_START_DAYS } from '@runquest/shared';
 import { buildSent, buildTokenGroups } from './duelsModel';
-import { buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice } from './sendModel';
+import { betSummary, buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice, startRuleText } from './sendModel';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat, token } from './duels.fixture';
 
 const sent = buildSent(challenge({ id: 's1', challenger_id: ME, opponent_id: KARL }), NAMES);
@@ -43,6 +44,38 @@ describe('h2hHint', () => {
   it('inget svar än → ingen text (ingen gissning)', () => {
     expect(h2hHint(undefined, 'Karl')).toBeNull();
   });
+
+  it('names the opponent, or says "to them" when there is no name, and never uses him or her', () => {
+    expect(h2hHint(record(0, 0, 2), 'Karl')?.text).toBe('0–2 to Karl');
+    expect(h2hHint(record(0, 0, 2), '')?.text).toBe('0–2 to them');
+    for (const counts of [record(2, 0, 0), record(0, 0, 1), record(0, 1, 0), record(1, 0, 1), record(0, 0, 0)]) {
+      expect(h2hHint(counts, 'Karl')?.text).not.toMatch(/\b(him|her|his|hers)\b/i);
+    }
+  });
+});
+
+describe('startRuleText', () => {
+  it('minor and major start at the midnight after the accept; legendary also starts on its own after the unanswered days of the scheduler', () => {
+    expect(startRuleText('minor')).toBe('Midnight after it is accepted');
+    expect(startRuleText('major')).toBe('Midnight after it is accepted');
+    expect(startRuleText('legendary')).toBe(`Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered`);
+  });
+
+  it('never claims that it starts when it is accepted', () => {
+    for (const tier of ['minor', 'major', 'legendary'] as const) expect(startRuleText(tier)).not.toMatch(/when accepted/i);
+  });
+});
+
+describe('betSummary', () => {
+  const [group] = buildTokenGroups([token({ id: 'a', tier: 'minor', metric: 'km', duration_days: 7 })]);
+  const card = group.cards[0];
+
+  it('says what is still missing, and names the bet once both are chosen', () => {
+    expect(betSummary(null, null)).toBe('Pick a challenge and an opponent');
+    expect(betSummary(null, 'Karl')).toBe('Pick a challenge');
+    expect(betSummary(card, null)).toBe('Pick an opponent');
+    expect(betSummary(card, 'Karl')).toBe('Most km vs Karl · 7 days');
+  });
 });
 
 describe('buildOpponents', () => {
@@ -62,6 +95,14 @@ describe('buildOpponents', () => {
     const options = buildOpponents({ members, users, meId: ME, headToHead: {} });
     expect(options.map((option) => option.userId)).toEqual([KARL, DAN, NICK, ADAM]);
     expect(options.map((option) => option.disabledReason)).toEqual([null, null, 'Waiting on a reply', 'In a duel']);
+  });
+
+  it('you cannot challenge yourself: I am never in the list, however the group is ordered', () => {
+    for (const order of [members, [...members].reverse()]) {
+      const options = buildOpponents({ members: order, users, meId: ME, headToHead: {} });
+      expect(options.map((option) => option.userId)).not.toContain(ME);
+      expect(options).toHaveLength(members.length - 1);
+    }
   });
 
   it('notisen: nivå · placering · XP per dag', () => {

@@ -142,9 +142,10 @@ export function DuelsLayout(props: DuelsLayoutProps) {
       {!isDesktop && tabs}
 
       {/* Live regions måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras. */}
+      {/* Bekräftelsen har tabIndex -1: efter en skickad utmaning flyttar send-arket fokus hit (kortet som öppnade arket finns inte kvar). */}
       <div role="status" className="rq-duels-notice-slot">
         {props.notice && (
-          <p className="rq-duels-notice" data-tone={props.notice.tone}>
+          <p className="rq-duels-notice" data-tone={props.notice.tone} tabIndex={-1}>
             {props.notice.text}
           </p>
         )}
