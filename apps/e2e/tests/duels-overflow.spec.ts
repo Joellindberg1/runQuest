@@ -171,62 +171,68 @@ const VIEW_ROWS: Record<(typeof VIEWS)[number], { row: string; name: string }> =
   history: { row: '.rq-duels-match', name: '.rq-duels-match__name' },
 };
 
-async function openDuels(page: Page, view: string, theme: string, size: { width: number; height: number }): Promise<void> {
+async function openDuels(page: Page, theme: string, size: { width: number; height: number }): Promise<void> {
   await stubDuelsApi(page);
   await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize(size);
-  await page.goto(`/duels?view=${view}`);
+  await page.goto('/duels?view=standings');
   await dismissOverlays(page);
   await waitForStylesApplied(page);
 }
 
+interface TabsMeasure {
+  tabsOnOneRow: boolean;
+  selectedInside: boolean;
+  overlapsSend: boolean;
+  minTabHeight: number;
+}
+
+async function measureTabs(page: Page): Promise<TabsMeasure> {
+  return page.getByRole('tablist', { name: 'Duels view' }).evaluate((list, tolerance) => {
+    const listBox = list.getBoundingClientRect();
+    const tabs = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).map((tab) => ({ box: tab.getBoundingClientRect(), selected: tab.getAttribute('aria-selected') === 'true' }));
+    const selected = tabs.find((tab) => tab.selected)!;
+    const send = document.querySelector<HTMLElement>('.rq-duels__send')!.getBoundingClientRect();
+    return {
+      tabsOnOneRow: new Set(tabs.map((tab) => Math.round(tab.box.top / tolerance))).size === 1,
+      selectedInside: selected.box.left >= listBox.left - tolerance && selected.box.right <= listBox.right + tolerance,
+      overlapsSend: listBox.right > send.left + tolerance && listBox.left < send.right - tolerance && listBox.bottom > send.top + tolerance && listBox.top < send.bottom - tolerance,
+      minTabHeight: Math.min(...tabs.map((tab) => tab.box.height)),
+    };
+  }, TOLERANCE_PX);
+}
+
+const TAB_NAMES: Record<(typeof VIEWS)[number], string> = { standings: 'Standings', live: 'Live', history: 'History' };
+
 test.describe('the Duels screen with long names', () => {
   test.skip(!apiIsStubbed(), 'The screen is filled from a stubbed challenges API; run with E2E_STUB_API=1 against a local build.');
 
+  // En sida per bredd och tema som går igenom flikarna med klick (som en besökare), så att sidan laddas och överlägg avvaktas en gång.
   for (const theme of THEMES) {
     for (const size of WIDTHS) {
-      for (const view of VIEWS) {
-        test(`${view} has no overlapping text and no sideways scroll at ${size.width} px in the ${theme} theme`, async ({ page }) => {
-          await openDuels(page, view, theme, size);
+      test(`standings, live and history have no overlapping text, no sideways scroll and a one-line tab row at ${size.width} px in the ${theme} theme`, async ({ page }) => {
+        await openDuels(page, theme, size);
+
+        for (const view of VIEWS) {
+          if (view !== 'standings') await page.getByRole('tab', { name: TAB_NAMES[view] }).click();
           const { row, name } = VIEW_ROWS[view];
           await expect(page.locator(row).first()).toBeVisible();
+          await waitForStylesApplied(page);
 
           const measured = await measureRows(page, row, name);
-          const page_ = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+          const tabs = await measureTabs(page);
+          const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
 
-          expect(measured.rows, 'the rows are on the screen').toBeGreaterThanOrEqual(3);
-          expect(measured.overlaps, 'no two texts in a row overlap').toEqual([]);
-          expect(measured.escapes, 'every text stays inside its own box and its row').toEqual([]);
-          expect(measured.misclicks, 'a click in the middle of a name hits the name button').toEqual([]);
-          expect(page_.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(page_.clientWidth);
-        });
-      }
-
-      test(`the view tabs stay on one line and in reach at ${size.width} px in the ${theme} theme`, async ({ page }) => {
-        await openDuels(page, 'history', theme, size);
-        const tablist = page.getByRole('tablist', { name: 'Duels view' });
-        await expect(tablist.getByRole('tab')).toHaveCount(4);
-
-        const measured = await tablist.evaluate((list, tolerance) => {
-          const listBox = list.getBoundingClientRect();
-          const tabs = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).map((tab) => ({ label: tab.textContent ?? '', box: tab.getBoundingClientRect(), selected: tab.getAttribute('aria-selected') === 'true' }));
-          const selected = tabs.find((tab) => tab.selected)!;
-          const send = Array.from(document.querySelectorAll<HTMLElement>('.rq-duels__send')).map((button) => button.getBoundingClientRect())[0]!;
-          return {
-            tops: new Set(tabs.map((tab) => Math.round(tab.box.top / tolerance))).size,
-            minTabHeight: Math.min(...tabs.map((tab) => tab.box.height)),
-            selectedInside: selected.box.left >= listBox.left - tolerance && selected.box.right <= listBox.right + tolerance,
-            overlapsSend: listBox.right > send.left + tolerance && listBox.left < send.right - tolerance && listBox.bottom > send.top + tolerance && listBox.top < send.bottom - tolerance,
-            scrollWidth: document.documentElement.scrollWidth,
-            clientWidth: document.documentElement.clientWidth,
-          };
-        }, TOLERANCE_PX);
-
-        expect(measured.tops, 'all four tabs share one row').toBe(1);
-        expect(measured.selectedInside, 'the selected tab is fully inside the tab row').toBe(true);
-        expect(measured.overlapsSend, 'the tab row does not run into the Send button').toBe(false);
-        expect(measured.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(measured.clientWidth);
-        if (size.width <= MOBILE_MAX_WIDTH) expect(measured.minTabHeight, 'tabs are tall enough to tap').toBeGreaterThanOrEqual(MIN_TAP_PX);
+          expect(measured.rows, `${view}: the rows are on the screen`).toBeGreaterThanOrEqual(3);
+          expect.soft(measured.overlaps, `${view}: no two texts in a row overlap`).toEqual([]);
+          expect.soft(measured.escapes, `${view}: every text stays inside its own box and its row`).toEqual([]);
+          expect.soft(measured.misclicks, `${view}: a click in the middle of a name hits the name button`).toEqual([]);
+          expect.soft(scroll.scrollWidth, `${view}: the page does not scroll sideways`).toBeLessThanOrEqual(scroll.clientWidth);
+          expect.soft(tabs.tabsOnOneRow, `${view}: all four tabs share one row`).toBe(true);
+          expect.soft(tabs.selectedInside, `${view}: the selected tab is fully inside the tab row`).toBe(true);
+          expect.soft(tabs.overlapsSend, `${view}: the tab row does not run into the Send button`).toBe(false);
+          if (size.width <= MOBILE_MAX_WIDTH) expect.soft(tabs.minTabHeight, `${view}: tabs are tall enough to tap`).toBeGreaterThanOrEqual(MIN_TAP_PX);
+        }
       });
     }
   }
