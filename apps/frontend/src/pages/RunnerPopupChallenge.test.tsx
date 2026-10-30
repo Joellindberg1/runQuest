@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -19,6 +19,11 @@ vi.mock('@/features/badges/api', () => ({
 }));
 
 // Challenge i profil-popupen (ADR 006 punkt 5): länken som stänger popupen och öppnar send-flödet, och den avstängda knappen med synligt skäl.
+
+// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden, så den värms här.
+beforeAll(async () => {
+  await import('@/features/runner/components/RunnerPopup');
+});
 
 const DESKTOP = 1280;
 const MOBILE = 390;

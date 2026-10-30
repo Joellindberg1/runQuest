@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { AppRoutes } from '@/routes';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { resetHistoryIdx } from '@/test/HistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -18,15 +19,16 @@ vi.mock('@/features/badges/api', () => ({
 const MOBILE = 390;
 
 beforeEach(() => {
-  // Som i en riktig webbläsare där sidan har en post bakom sig: Back är då ett steg bakåt (`useCloseRunner` läser window.history, inte MemoryRouter).
-  window.history.replaceState({ idx: 1 }, '');
   resetFakeBackend();
   handlers.getUsersWithRuns = () => ({ success: true, data: [ME, OTHER] });
   handlers.getUserTitles = () => ({ success: true, data: [] });
   handlers.getTitleLeaderboard = () => ({ success: true, data: [] });
 });
 
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => {
+  vi.restoreAllMocks();
+  resetHistoryIdx();
+});
 
 const location = () => screen.getByTestId('location').textContent;
 const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
@@ -34,7 +36,7 @@ const backLink = () => screen.findByRole('link', { name: /Standings/ });
 
 describe('Back from the runner page on a phone', () => {
   it('puts the focus on the runner row of the page before, not on the body', async () => {
-    renderWithApp(<AppRoutes />, { entry: ['/board?view=week', `/runner/${OTHER.id}`], width: MOBILE });
+    renderWithApp(<AppRoutes />, { entry: ['/board?view=week', `/runner/${OTHER.id}`], width: MOBILE, history: true });
 
     fireEvent.click(await backLink());
 
@@ -44,7 +46,7 @@ describe('Back from the runner page on a phone', () => {
   });
 
   it('falls back on the main heading when the page before has no row for the runner', async () => {
-    renderWithApp(<AppRoutes />, { entry: ['/titles', `/runner/${OTHER.id}`], width: MOBILE });
+    renderWithApp(<AppRoutes />, { entry: ['/titles', `/runner/${OTHER.id}`], width: MOBILE, history: true });
 
     fireEvent.click(await backLink());
 
@@ -54,7 +56,7 @@ describe('Back from the runner page on a phone', () => {
   });
 
   it('does not take the focus when the page is left by a link instead of Back', async () => {
-    renderWithApp(<AppRoutes />, { entry: ['/board', `/runner/${OTHER.id}`], width: MOBILE });
+    renderWithApp(<AppRoutes />, { entry: ['/board', `/runner/${OTHER.id}`], width: MOBILE, history: true });
     await backLink();
 
     fireEvent.click(screen.getByRole('link', { name: /Challenges|Duels/ }));
@@ -68,7 +70,7 @@ describe('Back from the runner page on a phone', () => {
 describe('the runner page heading on entry', () => {
   it('scrolls into view: the focus call does not ask the browser to keep the scroll position', async () => {
     const focus = vi.spyOn(HTMLElement.prototype, 'focus');
-    renderWithApp(<AppRoutes />, { entry: ['/board', `/runner/${OTHER.id}`], width: MOBILE });
+    renderWithApp(<AppRoutes />, { entry: ['/board', `/runner/${OTHER.id}`], width: MOBILE, history: true });
 
     const heading = await screen.findByRole('heading', { level: 1, name: OTHER.name });
     await waitFor(() => expect(heading).toHaveFocus());

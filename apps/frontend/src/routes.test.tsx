@@ -1,7 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
 import { ME, OTHER, RANK_DELTA, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { resetHistoryIdx } from '@/test/HistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
 import { warmLanding } from '@/test/warmLazy';
 
@@ -364,12 +365,11 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
   });
   describe('the error card is a dialog that gives the focus back', () => {
     const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
+    afterEach(() => { resetHistoryIdx(); });
 
     async function openBrokenPopup() {
-      // Som i en riktig webbläsare där popupen har en post bakom sig: Esc och Close är då ett steg bakåt (`useCloseRunner` läser window.history, inte MemoryRouter).
-      window.history.replaceState({ idx: 1 }, '');
       crash.runnerPopup = true;
-      renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
+      renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP, history: true });
       const dialog = await screen.findByRole('dialog', { name: 'Something broke' });
       await waitFor(() => expect(karlRow()).not.toBeNull());
       crash.runnerPopup = false;

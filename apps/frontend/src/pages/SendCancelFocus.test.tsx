@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -6,6 +6,7 @@ import type { MyChallengesData } from '@runquest/shared';
 import { AppRoutes } from '@/routes';
 import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { resetHistoryIdx } from '@/test/HistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -19,6 +20,11 @@ vi.mock('@/features/badges/api', () => ({
 
 // Avbryt i send-flödet som öppnades från löparens popup (ADR 006 punkt 5): tillbaka till sidan under popupen, med fokus på löparens rad.
 
+// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden, så den värms här.
+beforeAll(async () => {
+  await import('@/features/runner/components/RunnerPopup');
+});
+
 const DESKTOP = 1280;
 const KARL = OTHER.id;
 const BOARD = '/board?view=week';
@@ -29,6 +35,8 @@ const popupOver = (pathname: string, search: string) => [`${pathname}${search}`,
 const mine = (over: Partial<MyChallengesData> = {}): MyChallengesData => ({
   tokens: [token({ id: 't1' })], sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [], ...over,
 });
+
+afterEach(() => { resetHistoryIdx(); });
 
 beforeEach(() => {
   resetFakeBackend();
@@ -59,8 +67,8 @@ function Probes() {
 }
 
 /** Öppnar popupen över bakgrundssidan och följer Challenge in i send-arket. */
-async function openSendFromPopup(entry: unknown[]) {
-  renderWithApp(<><AppRoutes /><Probes /></>, { entry: entry as never, width: DESKTOP });
+async function openSendFromPopup(entry: unknown[], history = false) {
+  renderWithApp(<><AppRoutes /><Probes /></>, { entry: entry as never, width: DESKTOP, history });
   const dialog = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
   fireEvent.click(await within(dialog).findByRole('link', { name: 'Challenge' }));
   await screen.findByRole('dialog', { name: 'Send a challenge' });
@@ -273,6 +281,70 @@ describe('keeping the duels tab through the send flow', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
 
     expect(await within(dialog).findByRole('link', { name: 'Challenge' })).toHaveAttribute('href', `/duels?send=1&opponent=${KARL}`);
+  });
+});
+
+describe('cancelling steps back when the page under the popup is the previous history entry', () => {
+  it.each(closers)('closing with %s goes back one entry: the board is not duplicated and focus is on the runner row', async (_how, close) => {
+    const user = userEvent.setup();
+    await openSendFromPopup(['/titles', ...popupOver('/board', '?view=week')], true);
+
+    await close(user);
+
+    await waitFor(() => expect(location()).toBe(BOARD));
+    await waitFor(() => expect(karlRow()).toHaveFocus());
+    expect(screen.getByTestId('state')).toHaveTextContent('null');
+    // En enda Back lämnar Board för sidan före: ingen extra Board-post lades till.
+    fireEvent.click(screen.getByText('Browser back'));
+    await waitFor(() => expect(location()).toBe('/titles'));
+  });
+
+  it('three rounds of popup, Challenge and cancel leave the history as one round does', async () => {
+    const user = userEvent.setup();
+    await openSendFromPopup(['/titles', ...popupOver('/board', '?view=week')], true);
+    await user.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(karlRow()).toHaveFocus());
+
+    for (let round = 2; round <= 3; round += 1) {
+      fireEvent.click(karlRow());
+      const dialog = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
+      fireEvent.click(await within(dialog).findByRole('link', { name: 'Challenge' }));
+      await screen.findByRole('dialog', { name: 'Send a challenge' });
+      await user.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(location()).toBe(BOARD));
+      await waitFor(() => expect(karlRow()).toHaveFocus());
+    }
+
+    fireEvent.click(screen.getByText('Browser back'));
+    await waitFor(() => expect(location()).toBe('/titles'));
+  });
+
+  it('a cancel does not leave the focus request behind: a later Back to the board does not move the focus', async () => {
+    const user = userEvent.setup();
+    await openSendFromPopup(['/titles', ...popupOver('/board', '?view=week')], true);
+    await user.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(karlRow()).toHaveFocus());
+    (document.activeElement as HTMLElement).blur();
+
+    fireEvent.click(screen.getByText('Browser back'));
+    await waitFor(() => expect(location()).toBe('/titles'));
+
+    expect(document.activeElement === document.body || !(document.activeElement as HTMLElement).hasAttribute('data-runner-id')).toBe(true);
+  });
+
+  it('when the history position does not show the page under the popup as the previous entry, it replaces the entry instead', async () => {
+    const user = userEvent.setup();
+    // Ett index som inte hör ihop med send-flödets post (en ny flik, en djuplänk): popupen skickar inget index, så avbrottet ersätter posten.
+    const sheetEntry = { pathname: '/duels', search: `?send=1&opponent=${KARL}`, state: { sendOrigin: { returnTo: BOARD, runnerId: KARL, returnIdx: 7 } } };
+    renderWithApp(<><AppRoutes /><Probes /></>, { entry: ['/titles', sheetEntry] as never, width: DESKTOP, history: true });
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+    await user.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(location()).toBe(BOARD));
+    await waitFor(() => expect(karlRow()).toHaveFocus());
+    fireEvent.click(screen.getByText('Browser back'));
+    await waitFor(() => expect(location()).toBe('/titles'));
   });
 });
 
