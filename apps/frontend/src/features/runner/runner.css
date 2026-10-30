@@ -37,6 +37,21 @@
 }
 .rq-runner-popup-panel { height: var(--rq-runner-popup-panel-h); overflow-y: auto; padding-top: var(--rq-sp-14); }
 .rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
+
+/* ── Profil-popupen: Overview ─────────────────────────────────────────────────
+   Växlingen (SegmentedControl, .rq-filter-chips) ligger över ett kort med profilens statistikinnehåll (rader eller aktivitetskartan). Höjden är panelytans, inte innehållets: panelen scrollar för sig. */
+.rq-runner-overview { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
+/* Texten i Overview ska hålla 4,5:1 i båda teman (kravet för läsbar text). Ersättningen är --rq-text-4, tokenen som är satt till AA mot kortets yta i båda teman (stylelint tillåter inga egna custom properties, så ingen ny token införs).
+   Veckodagsbokstäverna (M, W, F, S) är profilens --rq-text-5 (2,53:1 mörkt, 1,79:1 ljust) och är läsbar text: de byter token i båda teman. Övriga överstyrningar gäller bara ljust tema,
+   där profilens --rq-text-3 ger 3,95:1 (radetiketter och rader med ton muted) och receptets vilande knapp 4,22:1; i mörkt tema är Overview identisk med profilen och det delade receptet.
+   Profilsidans egna rader och profile.css är oförändrade. */
+.rq-runner-overview .rq-profile-heat__day { color: var(--rq-text-4); }
+[data-theme="light"] .rq-runner-overview__switch > .rq-filter:not([aria-pressed="true"]) { color: var(--rq-text-2); }
+[data-theme="light"] .rq-runner-overview .rq-profile-row dt,
+[data-theme="light"] .rq-runner-overview .rq-profile-row dd[data-tone="muted"] { color: var(--rq-text-4); }
+/* Fun facts har fem rader (fyra plus utmaningsrekordet) och ska rymmas i panelytans fasta höjd utan att kortet scrollar: raderna bär egen vertikal luft, så kortet har bara en smal marginal. */
+.rq-card.rq-runner-overview__content { padding: var(--rq-sp-4) var(--rq-pad-card); }
+.rq-runner-overview__content > .rq-profile-heat { padding-block: var(--rq-sp-10); }
 .rq-runner__split > .rq-runner-h2h { align-self: stretch; }
 
 /* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────
