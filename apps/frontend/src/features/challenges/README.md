@@ -11,10 +11,10 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `DuelsScreen` — all datakoppling, handlingar, send-sheetens URL-tillstånd, tour. Ritar `DuelsLayout`.
   - `DuelsLayout` — ren presentation av färdiga vymodeller (rubrik, flikar, aktiv vy, sidokolumn). Preview-sidan återanvänder den.
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
-    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `TokenChoice` (send-flödets steg 2: tokenkorten som en radiogrupp med roving tabindex, bock och "Selected"), `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1), `TokenCard` (ett tokenkort: vimpel utan siffra, mått och längd i versaler på första raden, tokenets egen insats på andra; handlingen sätts in som barn, i Your tokens är det Send)
+    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `TokenChoice` (send-flödets steg 2: tokenkorten som en radiogrupp med roving tabindex, bock och "Selected"), `OpponentChoice` (steg 3: motståndarna som en radiogrupp; en motståndare i en duell eller med väntande utmaning är `aria-disabled` med orsaken synlig, och pilarna hoppar över dem), `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1), `TokenCard` (ett tokenkort: vimpel utan siffra, mått och längd i versaler på första raden, tokenets egen insats på andra; handlingen sätts in som barn, i Your tokens är det Send)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
 - **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper (alltid tre nivåer med `count`/`empty`/`selectable`, ett kort per token — identiska tokens slås inte ihop), standings, historikrader, boosts, rekord, rubrikrad
-- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`)
+- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`), "The bet" (`betSummary`, `startRuleText`: "Starts" byggs ur samma `LEGENDARY_AUTO_START_DAYS` som schemaläggaren) och head-to-head-tipsets text (`h2hHint`)
 - **rulesModel.ts** — insatser per nivå (verkliga data först, seed som reserv) och "How it works"
 - **hooks/** — `useDuelsQueries` (`useMyChallenges`, `useGroupStats`, `useLiveProgress`, `useGroupHistory`, `useOpponentRecords`),
   `useChallengeActions` (send/accept/decline/withdraw som mutationer som kastar vid fel)
@@ -30,6 +30,10 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **Förval i send-flödet** är komponenttillstånd i `DuelsScreen` (`SendPreselection | null`), aldrig adress: Send på ett tokenkort → nivå och kort, en nivåchip → bara nivån,
   Challenge från popupen → bara motståndaren (`?opponent=`). Ett ensamt kort på nivån är förvalt. Sheeten monteras per öppning och `closeSend` nollställer förvalet,
   så förra valet följer aldrig med.
+- **"The bet" och fokus.** "The bet" är en permanent `aria-live="polite"`-region med `aria-atomic`: bara texten ändras, så en ändring läses upp en gång och ett oförändrat val ingen gång.
+  "Starts" kommer ur `startRuleText` (midnatten efter accepten; legendary också efter `LEGENDARY_AUTO_START_DAYS` dagar utan svar, samma konstant som `challengeScheduler`), aldrig
+  prototypens "when accepted". Cancel syns på mobil och desktop. Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt: fokus går till bekräftelsen
+  (`.rq-duels-notice`, `tabIndex -1`); annars till öppnaren, rubrikens Send eller sidans rubrik. Vinst- och förlusttext på en tonad yta använder `--rq-up-text`/`--rq-down-text`.
 - **Backend avvisar `/send` om jag har en aktiv ELLER väntande utmaning (som utmanare eller motståndare).** `sendBlocker` speglar det: live-duell, skickad,
   inkommande, inga tokens. En motståndare som är upptagen som *mottagare* av en väntande utmaning syns inte i group-stats — då svarar servern 400
   och sheeten visar meddelandet inline.

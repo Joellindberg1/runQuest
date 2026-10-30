@@ -95,7 +95,7 @@ describe('Runner card ↔ Duels delar head-to-head-cachen', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Challenge' }));
     const sheet = await screen.findByRole('dialog', { name: 'Send a challenge' });
     expect(await within(sheet).findByText('2–1 to you')).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: new RegExp(OTHER.name) })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(sheet).getByRole('radio', { name: new RegExp(OTHER.name) })).toHaveAttribute('aria-checked', 'true');
     expect(calls.length).toBe(callsAfterRunner); // färsk cache → ingen omhämtning
 
     // 3. Send → refresh() invaliderar head-to-head → tillbaka till Runner.
