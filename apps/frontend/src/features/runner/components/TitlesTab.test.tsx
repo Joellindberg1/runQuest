@@ -27,6 +27,7 @@ const runnerOf = (id: string, name: string): User => ({
 });
 const KARL = runnerOf('u-karl', 'Karl Persson');
 const ADAM = runnerOf('u-adam', 'Adam Einstein');
+const BEN = runnerOf('u-ben', 'Ben Holm');
 
 const ut = (over: Partial<UserTitleEntry> & Pick<UserTitleEntry, 'title_id' | 'title_name'>): UserTitleEntry => ({
   title_description: '', position: 1, value: 0, earned_at: '', is_current_holder: true, status: 'holder', ...over,
@@ -46,6 +47,7 @@ const KARL_TITLES: UserTitleEntry[] = [
   ut({ title_id: 't-kipchoge', title_name: 'The Kipchoge', value: 0, position: 3, is_current_holder: false, status: 'runner_up' }),
 ];
 const ADAM_TITLES: UserTitleEntry[] = [ut({ title_id: 't-park', title_name: 'The Park Runner', value: 61 })];
+const BEN_TITLES: UserTitleEntry[] = [ut({ title_id: 't-park', title_name: 'The Park Runner', value: 61 }), ut({ title_id: 't-long', title_name: 'The Longest Run', value: 40 })];
 const TITLE_BOARD: TitleLeaderboardEntry[] = [
   entry('t-goggins', 'longestStreak', { name: 'Karl Persson', value: 44 }),
   entry('t-long', 'longestRun', { name: 'Karl Persson', value: 32.8 }),
@@ -61,8 +63,8 @@ let karlTitles = KARL_TITLES;
 beforeEach(() => {
   resetFakeBackend();
   karlTitles = KARL_TITLES;
-  handlers.getUsersWithRuns = () => ({ success: true, data: [ME, KARL, ADAM] });
-  handlers.getUserTitles = (id: unknown) => ({ success: true, data: id === KARL.id ? karlTitles : ADAM_TITLES });
+  handlers.getUsersWithRuns = () => ({ success: true, data: [ME, KARL, ADAM, BEN] });
+  handlers.getUserTitles = (id: unknown) => ({ success: true, data: id === KARL.id ? karlTitles : id === BEN.id ? BEN_TITLES : ADAM_TITLES });
   handlers.getTitleLeaderboard = () => ({ success: true, data: TITLE_BOARD });
   handlers.getHeadToHead = () => ({
     success: true,
@@ -70,7 +72,7 @@ beforeEach(() => {
   });
 });
 
-const popup = (runner: User) => <RunnerPopup id={runner.id} runner={runner} users={[ME, KARL, ADAM]} failure={null} failed={false} onClose={noop} />;
+const popup = (runner: User) => <RunnerPopup id={runner.id} runner={runner} users={[ME, KARL, ADAM, BEN]} failure={null} failed={false} onClose={noop} />;
 
 /** Opens the popup for a runner and selects Titles held. */
 async function openTitles(runner = KARL) {
@@ -181,11 +183,12 @@ describe('the Titles held tab of the popup', () => {
     expect(within(section).queryByRole('list')).toBeNull();
   });
 
-  it('shows "All" and the category of a runner with titles in one category only', async () => {
+  it('hides the filter for a runner whose titles are all in one category, and keeps the list', async () => {
     const { section } = await openTitles(ADAM);
 
-    expect(filterLabels(section)).toEqual(['All', 'Time of day']);
-    expect(pressed(section)).toEqual(['All']);
+    expect(within(section).queryByRole('group', { name: 'Titles filter' })).toBeNull();
+    expect(await within(section).findByText('1 held')).toBeInTheDocument();
+    expect(heldNames(section)).toEqual(['The Park Runner']);
   });
 
   it('shows the loading and the error states as before, without a filter', async () => {
@@ -224,6 +227,14 @@ describe('the title panel when the chosen category has no title', () => {
     expect(pressed(section)).toEqual([]);
   });
 
+  it('keeps the filter when a choice is still made but only one category is left, so that the way back to "All" exists', async () => {
+    renderWithApp(<PopupTitlesPanel user={ADAM} filter="distance" onFilterChange={noop} />, { width: DESKTOP });
+
+    const section = await screen.findByRole('region', { name: 'Titles' });
+    expect(await within(section).findByText('No titles of this type.')).toBeInTheDocument();
+    expect(filterLabels(section)).toEqual(['All', 'Time of day']);
+  });
+
   it('reports the choice to the owner of the state', async () => {
     const onFilterChange = vi.fn();
     renderWithApp(<PopupTitlesPanel user={KARL} filter="all" onFilterChange={onFilterChange} />, { width: DESKTOP });
@@ -233,6 +244,18 @@ describe('the title panel when the chosen category has no title', () => {
     await choose(section, 'Consistency');
 
     expect(onFilterChange).toHaveBeenCalledWith('consistency');
+  });
+});
+
+describe('the tab panel of the popup', () => {
+  it('is the same single tab stop on Overview and on Titles held (the scrolling list adds its own only when it scrolls)', async () => {
+    const { section } = await openTitles();
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveAttribute('tabindex', '0');
+    expect(panel.contains(section)).toBe(true);
+
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Overview' }));
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0');
   });
 });
 
@@ -268,11 +291,11 @@ describe('the title filter across openings', () => {
     expect(pressed(section)).toEqual(['Consistency']);
     expect(heldNames(section)).toEqual(['The Daaaaaviiiiid Goggins']);
 
-    act(() => switchRunner(ADAM));
-    await screen.findByRole('heading', { level: 1, name: 'Adam Einstein' });
+    act(() => switchRunner(BEN));
+    await screen.findByRole('heading', { level: 1, name: 'Ben Holm' });
     await user.click(screen.getByRole('tab', { name: 'Titles held' }));
     section = await screen.findByRole('region', { name: 'Titles' });
-    expect(await within(section).findByText('1 held')).toBeInTheDocument();
+    expect(await within(section).findByText('2 held')).toBeInTheDocument();
     expect(pressed(section)).toEqual(['All']);
   });
 });
