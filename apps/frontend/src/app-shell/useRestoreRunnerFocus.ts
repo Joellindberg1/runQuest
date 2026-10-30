@@ -48,7 +48,9 @@ interface Trail {
 export function useRestoreRunnerFocus(): void {
   const location = useLocation();
   const navigate = useNavigate();
-  // Platsen före den nuvarande och vad som hör till bytet. Uppdateras idempotent, så att effektens dubbelkörning i StrictMode inte tappar den eller hämtar avsikten två gånger.
+  // Platsen före den nuvarande och vad som hör till bytet. Uppdateras bara när platsen har bytts: effekten kör också om på samma plats (`navigate` får ny identitet, t.ex. när routerns
+  // navigator byts), och då får avsikten inte hämtas en gång till (den är redan tagen och skulle vara borta) eller platsen före skrivas över med den nuvarande. Bevisat i useRestoreRunnerFocus.test.tsx.
+  // StrictModes dubbelkörning vid montering skiljer inte varianterna åt: spåret skapas då första gången, så båda gör samma sak.
   const trail = useRef<Trail | null>(null);
 
   useEffect(() => {
