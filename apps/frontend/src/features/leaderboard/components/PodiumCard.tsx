@@ -61,8 +61,8 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
       ) : (
         <span className="rq-board-podium__rank" role="img" aria-label={placeLabel(row.rank)}>#{row.rank}</span>
       )}
-      <div className="rq-board-podium__body">
-        <div className="rq-board-podium__head">
+      <div className={wide ? 'rq-board-podium__body' : 'rq-board-podium__body rq-board-podium__body--phone'}>
+        <div className={wide ? 'rq-board-podium__head' : 'rq-board-podium__head rq-board-podium__head--phone'} data-minis={(!wide && hasMinis) || undefined}>
           <RunnerAvatar initials={row.initials} pictureUrl={row.pictureUrl} />
           <div className="rq-board-podium__id">
             {wide ? (
@@ -78,14 +78,18 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                 </div>
               </>
             ) : (
-              <div className="rq-board-podium__nameline rq-board-podium__nameline--room rq-board-podium__nameline--stack" data-minis={hasMinis || undefined}>
+              <div className="rq-board-podium__nameline rq-board-podium__nameline--room rq-board-podium__nameline--stack">
                 <PodiumName userId={row.id} name={row.name} onOpen={open} />
                 <DeltaMark delta={row.delta} />
-                <BadgeMinis showcase={row.showcase} />
               </div>
             )}
             <TitleLine row={row} />
           </div>
+          {!wide && hasMinis && (
+            <span className="rq-board-podium__pyramid" data-count={row.showcase.length}>
+              <BadgeMinis showcase={row.showcase} />
+            </span>
+          )}
         </div>
 
         <div className="rq-board-xprow rq-label">

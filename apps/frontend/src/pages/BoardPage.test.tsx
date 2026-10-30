@@ -529,15 +529,18 @@ describe('visade badges i Season-raderna', () => {
   const KARL_LABEL = 'Badges: Rare Milestoner, Epic Climber';
   const NICK_LABEL = 'Badges: Common Night Owl, Uncommon Speedster, Heroic Climber';
 
-  it('mobil, podiet: minis på namnraden i ordningen namn, delta, minis — gruppen är ETT img med samlad etikett', async () => {
+  it('mobil, podiet: namnraden har namn och delta, och minis ligger som pyramid bredvid namnblocket — gruppen är ETT img med samlad etikett', async () => {
     serveStandardBadges();
     renderBoard();
 
     const karl = await screen.findByTestId('podium-1');
     const group = await within(karl).findByRole('img', { name: KARL_LABEL });
-    const nameline = group.parentElement as HTMLElement;
+    const pyramid = group.parentElement as HTMLElement;
+    expect(pyramid).toHaveClass('rq-board-podium__pyramid');
+    expect(pyramid.parentElement).toHaveClass('rq-board-podium__head');
+    const nameline = within(karl).getByRole('button', { name: 'Karl Persson' }).parentElement as HTMLElement;
     expect(nameline).toHaveClass('rq-board-podium__nameline');
-    expect([...nameline.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', 'Up 1 place', KARL_LABEL]);
+    expect([...nameline.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', 'Up 1 place']);
     // varje mini är dekorativ: inga egna img-element inuti gruppen
     expect(group.querySelectorAll('.rq-badge[aria-hidden="true"]')).toHaveLength(2);
     expect(within(group).queryAllByRole('img')).toHaveLength(0);
