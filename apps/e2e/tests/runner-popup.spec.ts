@@ -634,7 +634,12 @@ test.describe('the Overview of the profile popup', () => {
 
         await sample('rows: label', ['.rq-runner-overview__content .rq-profile-row dt']);
         await sample('rows: value', ['.rq-runner-overview__content .rq-profile-row dd']);
+        // Rader med ton muted: "Next tier at" i Streak (trappan laddad) och "Longest gap between runs" i Fun facts.
+        await overviewButton(dialog, 'Streak').click();
+        await expect(dialog.locator('.rq-runner-overview__content').getByLabel('Streak', { exact: true })).toBeVisible();
+        await sample('streak: muted value', ['.rq-runner-overview__content dd[data-tone="muted"]']);
         await overviewButton(dialog, 'Fun facts').click();
+        await sample('fun facts: muted value', ['.rq-runner-overview__content dd[data-tone="muted"]']);
         await sample('challenge record: label', ['.rq-runner-overview__content .rq-profile-row:last-child dt']);
         await sample('challenge record: value', ['.rq-runner-overview__content .rq-profile-row:last-child dd']);
         await overviewButton(dialog, 'Activity').click();
@@ -642,9 +647,11 @@ test.describe('the Overview of the profile popup', () => {
         await sample('map: month labels', ['.rq-profile-heat__month-label']);
         await sample('map: stat labels', ['.rq-profile-heat__stat-label']);
         await sample('map: legend', ['.rq-profile-heat__legend']);
+        // Veckodagsbokstäverna (M, W, F, S) är läsbar text, inte dekor: de räknas med.
+        await sample('map: weekday letters', ['.rq-profile-heat__day']);
         await sample('map: today line', ['.rq-profile-heat__today']);
         await sample('map: stat values', ['.rq-profile-heat__stat-value']);
-        for (const size of await sizeOf('.rq-profile-heat__unit, .rq-profile-heat__month-label, .rq-profile-heat__stat-label, .rq-profile-heat__legend')) expect(size, 'map label size').toBeGreaterThanOrEqual(MIN_LABEL_PX);
+        for (const size of await sizeOf('.rq-profile-heat__unit, .rq-profile-heat__month-label, .rq-profile-heat__stat-label, .rq-profile-heat__legend, .rq-profile-heat__day')) expect(size, 'map label size').toBeGreaterThanOrEqual(MIN_LABEL_PX);
 
         report[`${width}px`] = measured;
         const tooLow = Object.entries(measured).filter(([, ratio]) => ratio < MIN_LABEL_CONTRAST);
