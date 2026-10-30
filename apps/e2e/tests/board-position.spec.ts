@@ -424,6 +424,17 @@ test.describe('the Position tab on the board', () => {
     });
   }
 
+  for (const width of [320, 1440]) {
+    test(`draws a group of two, the smallest group with the tab, without moving the page, at ${width} px`, async ({ page }) => {
+      await openBoard(page, { members: 2, view: 'position', width, positions: history({ runners: 2, weeks: 8 }) });
+
+      await expect(page.getByRole('tab')).toHaveText(TABS);
+      await expect(chartOf(page)).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Current order' }).getByRole('button')).toHaveCount(2);
+      await pageDoesNotScrollSideways(page);
+    });
+  }
+
   test('with one member the tab is hidden, ?view=position falls back to All-time and no position request is made', async ({ page }) => {
     const group = await openBoard(page, { members: 1, view: 'position', width: 375 });
 
