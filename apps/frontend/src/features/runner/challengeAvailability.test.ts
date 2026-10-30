@@ -82,7 +82,7 @@ describe('challengeAvailability', () => {
   });
 
   it('only looks at the runner of the popup, not at other busy members', () => {
-    const busyElsewhere = [stat(ME), stat(KARL), stat(ADAM, { challenge_active: true }), stat(NICK, { has_pending_challenge: true })];
+    const busyElsewhere = [stat(ME), stat(ADAM, { challenge_active: true }), stat(NICK, { has_pending_challenge: true }), stat(KARL)];
     expect(challengeAvailability({ ...ready, groupStats: busyElsewhere })).toEqual({ status: 'ready' });
   });
 });
