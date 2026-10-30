@@ -1,6 +1,7 @@
 import type { Run, User } from '@runquest/types';
 import { daysBetween, stockholmClock } from '@runquest/shared';
 import { buildDistanceRows, buildStreakRows, favouriteWeekday, marathonEquivalents, type StatRow } from '@/features/runner/runnerModel';
+import { showPositionTab } from '@/features/leaderboard/positionTab';
 import { formatDays } from './profileFormat';
 
 // Statflikarna Distance · Streak · Fun facts (Consistency har heatmapModel). Distance och Streak är samma rader som
@@ -16,17 +17,6 @@ export const POSITION_VIEW = 'position';
 /** `?view=` på /profile (ADR 006 beslut 2). */
 export type StatView = (typeof STAT_VIEWS)[number] | typeof POSITION_VIEW;
 export const DEFAULT_STAT_VIEW: StatView = 'distance';
-
-/** Under två medlemmar finns inget att jämföra sig mot (ADR 007 addendum 2026-10-26: klienten döljer fliken). */
-export const MIN_MEMBERS_FOR_POSITION = 2;
-
-/**
- * Om Position-fliken visas. Antalet kommer ur `users-with-runs`, som profilen väntar på ändå, så fliken kan döljas utan att positionssvaret
- * hämtas för den skull.
- */
-export function showPositionTab(memberCount: number): boolean {
-  return memberCount >= MIN_MEMBERS_FOR_POSITION;
-}
 
 /** De värden `?view=` får anta för en grupp av den här storleken: övriga (också `position` i en grupp på en) faller tillbaka på standardfliken. */
 export function statViewsFor(memberCount: number): readonly StatView[] {

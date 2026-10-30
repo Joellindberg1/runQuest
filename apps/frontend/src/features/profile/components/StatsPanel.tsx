@@ -5,8 +5,8 @@ import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import { usePositionHistory } from '@/features/leaderboard/hooks/usePositionHistory';
+import { useTabRowFade } from '@/shared/hooks/useTabRowFade';
 import { useXpConfig } from '@/shared/hooks/useXpConfig';
-import { useTabRowFade } from '../hooks/useTabRowFade';
 import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
 import { Heatmap } from './Heatmap';
 import { PanelLoading } from './ProfileParts';
@@ -80,7 +80,8 @@ export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTo
   const distanceRows = useMemo(() => buildDistanceRows(user, now), [user, now]);
   const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
   const tabRowRef = useRef<HTMLDivElement>(null);
-  const fade = useTabRowFade(tabRowRef, view);
+  const tabs = showPosition ? STAT_TABS_WITH_POSITION : STAT_TABS;
+  const fade = useTabRowFade(tabRowRef, view, tabs.length);
   // Positionssvaret begärs här, så att det hämtas samtidigt med panelens chunk och inte efter den. Panelen läser samma fråga ur cachen (en begäran), och på övriga flikar är den avstängd.
   usePositionHistory(POSITION_WEEKS_DEFAULT, view === 'position');
 
@@ -102,7 +103,7 @@ export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTo
       >
         <ViewTabs
           label={label}
-          tabs={showPosition ? STAT_TABS_WITH_POSITION : STAT_TABS}
+          tabs={tabs}
           value={view}
           onChange={onChange}
           idPrefix={ID_PREFIX}

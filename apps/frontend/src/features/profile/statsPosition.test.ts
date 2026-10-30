@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { POSITION_VIEW, showPositionTab, statViewsFor, STAT_VIEWS } from './statsModel';
+import { showPositionTab } from '@/features/leaderboard/positionTab';
+import { POSITION_VIEW, statViewsFor, STAT_VIEWS } from './statsModel';
 
 // Position-fliken (femte fliken) hör till profilens statistikpanel men visas bara för en grupp på minst två: antalet kommer ur users-with-runs,
 // aldrig ur positionssvaret (ADR 007 addendum 2026-10-26), så att fliken kan döljas utan en extra hämtning.
