@@ -3,28 +3,37 @@
 
 /* Mobilens podium: namnraden är ett rutnät, inte en flexrad, så korten blir lika höga och namnet lika brett för alla tre platserna vid lika många badges, hur långa namnen än är.
    Grundläget (det som ritas i en webbläsare utan subgrid eller container queries) är läsbart: namnknappen med förnamn och efternamn (efternamnet högst två rader med ellips), pilen på en rad under namnet
-   och badgegruppen på en egen rad under det, till höger. Inget överlappar.
+   och badgegruppen på en egen rad under namnblocket, till höger, som en rad. Inget överlappar.
    Med subgrid ligger pilen vid förnamnet: namnknappen spänner över de tre första kolumnerna (förnamn | pil | luft) och är ett delrutnät, så förnamnet ligger i kolumn 1, pilen (ett syskon utanför knappen) i kolumn 2
-   på samma rad och efternamnet på en egen rad under. Pilen kan då aldrig hamna ensam på en rad.
-   Badgegruppen flyttar upp bredvid namnet först när raden är så bred (260 px) att ett förnamn på ca 13 tecken, pilen och tre badges ryms utan att ordet bryts mitt i. Gränsen gäller radens
-   bredd och inte namnets längd, så alla tre korten gör samma sak. Namnet krymper alltså aldrig under sitt längsta ord (utom ett ord som är bredare än kortet): smalare rad betyder badgesen under namnet. */
-.rq-board-podium__nameline.rq-board-podium__nameline--stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding-right: var(--rq-board-minis-inset); container-type: inline-size; }
+   på samma rad och efternamnet på en egen rad under. Pilen kan då aldrig hamna ensam på en rad. */
+.rq-board-podium__nameline.rq-board-podium__nameline--stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding-right: var(--rq-board-minis-inset); }
 .rq-board-podium__nameline--stack .rq-board-namebtn { grid-column: 1; grid-row: 1; display: block; }
 .rq-board-podium__given { display: block; min-width: 0; }
 .rq-board-podium__surname { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .rq-board-podium__nameline--stack .rq-board-delta { grid-column: 1; grid-row: 2; justify-self: start; margin-top: var(--rq-sp-4); }
-.rq-board-podium__nameline--stack .rq-badge-minis { grid-column: 1; grid-row: 3; justify-self: end; margin: var(--rq-sp-4) 0 0; }
 @supports (grid-template-columns: subgrid) {
   .rq-board-podium__nameline.rq-board-podium__nameline--stack { grid-template-columns: minmax(0, max-content) max-content minmax(0, 1fr); }
   .rq-board-podium__nameline--stack .rq-board-namebtn { grid-column: 1 / 4; grid-row: 1 / 3; display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; align-content: start; }
   .rq-board-podium__given { grid-column: 1; grid-row: 1; }
   .rq-board-podium__surname { grid-column: 1 / -1; grid-row: 2; }
   .rq-board-podium__nameline--stack .rq-board-delta { grid-column: 2; grid-row: 1; margin: 0 0 0 var(--rq-sp-8); }
-  .rq-board-podium__nameline--stack .rq-badge-minis { grid-column: 1 / -1; grid-row: 3; }
-  @container (min-width: 260px) {
-    .rq-board-podium__nameline.rq-board-podium__nameline--stack { grid-template-columns: minmax(0, max-content) max-content minmax(0, 1fr) max-content; }
-    .rq-board-podium__nameline--stack .rq-badge-minis { grid-column: 4; grid-row: 1 / 3; margin: 0 0 0 var(--rq-sp-8); }
-  }
+}
+/* Badgepyramiden (mobilens topp 3): gruppen är ett syskon till namnblocket i huvudraden, inte en del av namnraden, och ritas bara när det finns badges (ingen yta, ingen platshållare annars).
+   Grundläget är en rad under namnblocket, till höger (marginalen åt höger kommer från board.css). Bredvid namnblocket hamnar gruppen först när kortets innanbredd (behållaren är kortets kropp) rymmer det den behöver:
+   293 px = avatar 36 + luft 10 + namnblocket 145 (ett förnamn på 14 tecken med pilen ryms, uppmätt) + luft 10 + pyramiden 64 + marginalen åt höger 28 (--rq-board-minis-inset, fri från placeringen).
+   Gränsen gäller kortets bredd och inte namnets längd, så alla tre korten gör samma sak, och namnet krymper aldrig under sitt längsta ord; smalare kort (telefoner under 360 px) får raden under namnblocket.
+   Tre badges ritas som en överst och två under (64 x 62 px: samma steg mellan emblemen som i raden, ingen radglugg, och sköldarnas spetsar går ned mellan de två undre). Ett eller två emblem är en centrerad rad. */
+.rq-board-podium__body--phone { container-type: inline-size; }
+.rq-board-podium__head--phone { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 var(--rq-sp-10); }
+.rq-board-podium__head--phone > .rq-board-avatar { grid-column: 1; grid-row: 1 / 3; }
+.rq-board-podium__head--phone > .rq-board-podium__id { grid-column: 2; grid-row: 1; }
+.rq-board-podium__pyramid { grid-column: 2; grid-row: 2; justify-self: end; display: flex; margin-top: var(--rq-sp-4); }
+@container (min-width: 293px) {
+  .rq-board-podium__head--phone[data-minis] { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .rq-board-podium__head--phone[data-minis] .rq-board-podium__nameline--stack { padding-right: 0; }
+  .rq-board-podium__head--phone .rq-board-podium__pyramid { grid-column: 3; grid-row: 1 / 3; justify-self: center; align-self: center; margin-top: 0; }
+  .rq-board-podium__pyramid[data-count="3"] .rq-badge-minis { display: grid; grid-template-columns: repeat(2, max-content); justify-items: center; row-gap: 0; }
+  .rq-board-podium__pyramid[data-count="3"] .rq-badge:first-child { grid-column: 1 / -1; }
 }
 @supports (align-self: last baseline) {
   .rq-board-podium__given, .rq-board-podium__nameline--stack .rq-board-delta { align-self: last baseline; }

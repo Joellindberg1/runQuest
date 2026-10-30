@@ -78,10 +78,15 @@ test.describe('the badges in the leaderboard rows', () => {
           const host = group.closest('[role="row"], .rq-board-podium')!;
           const hostBox = host.getBoundingClientRect();
           const box = group.getBoundingClientRect();
+          // Emblems on the same row, left to right; a podium pyramid has one over two, every other group one row of three.
+          const rows = new Map<number, DOMRect[]>();
+          for (const mini of boxes) rows.set(Math.round(mini.top), [...(rows.get(Math.round(mini.top)) ?? []), mini]);
+          const lines = Array.from(rows.entries()).sort((a, b) => a[0] - b[0]).map((entry) => entry[1]);
           return {
             count: boxes.length,
-            gaps: boxes.slice(1).map((next, index) => next.left - boxes[index]!.right),
-            sameLine: boxes.every((mini) => Math.abs(mini.top - boxes[0]!.top) <= 1),
+            gaps: lines.flatMap((line) => line.slice(1).map((next, index) => next.left - line[index]!.right)),
+            rowSizes: lines.map((line) => line.length),
+            inPyramid: group.closest('.rq-board-podium__pyramid') !== null,
             insideHost: box.left >= hostBox.left - 1 && box.right <= hostBox.right + 1,
           };
         });
@@ -104,7 +109,8 @@ test.describe('the badges in the leaderboard rows', () => {
         for (const gap of group.gaps) {
           expect(gap, 'two badges are one spacing step apart').toBeGreaterThanOrEqual(measured.step - TOLERANCE_PX);
         }
-        expect(group.sameLine, 'the badges stay on one line').toBe(true);
+        // A podium card from the width where the pyramid fits draws one over two; below it, and everywhere else, the three stand in one row.
+        expect(group.inPyramid ? [[3], [1, 2]] : [[3]], 'the badges stand in one row, or as a pyramid on a podium card').toContainEqual(group.rowSizes);
         expect(group.insideHost, 'the badges stay inside their row').toBe(true);
       }
       expect(measured.restRows, 'the rest of the pack lists three runners').toBe(3);

@@ -198,7 +198,7 @@ describe('PodiumCard på mobil: badgepyramiden', () => {
     expect(button.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(button.textContent).toBe('Karl Persson');
     const names = within(card).getAllByRole('img').map((node) => node.getAttribute('aria-label'));
-    expect(names).toEqual(['1st place', 'Up 1 place', `Badges: ${BADGE_LABELS.join(', ')}`]);
+    expect(names).toEqual(['1st place', 'Up 1 place', `Badges: ${BADGE_LABELS.join(', ')}`, 'Challenges to send: 3 minor, 1 major']);
   });
 
   it('namnraden har bara namnet och pilen: gruppen delar inte behållare med dem', () => {
