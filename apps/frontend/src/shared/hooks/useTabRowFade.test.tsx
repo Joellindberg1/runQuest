@@ -7,7 +7,7 @@ import { useTabRowFade } from './useTabRowFade';
 // egen box ändras: då triggas varken scroll eller en observer på raden. Raden mäts därför om när typsnitten laddat, och när en flik byter storlek. jsdom har ingen layout och
 // inget `document.fonts`, så måtten och typsnittsobjektet lånas ut.
 
-const layout = { client: 282, scroll: 430 };
+const layout = { client: 282, scroll: 430, reads: 0 };
 
 class RecordingResizeObserver {
   static instances: RecordingResizeObserver[] = [];
@@ -97,7 +97,7 @@ beforeEach(() => {
   RecordingResizeObserver.instances = [];
   vi.stubGlobal('ResizeObserver', RecordingResizeObserver);
   const isRow = (element: Element) => element.getAttribute('role') === 'tablist';
-  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) { return isRow(this) ? layout.client : 0; } });
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) { if (isRow(this)) layout.reads += 1; return isRow(this) ? layout.client : 0; } });
   Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get(this: HTMLElement) { return isRow(this) ? layout.scroll : 0; } });
 });
 afterEach(() => {
@@ -178,10 +178,13 @@ describe('useTabRowFade: measuring again', () => {
     unmount();
     expect(fonts.listeners.get('loadingdone')?.size).toBe(0);
     expect(RecordingResizeObserver.instances).toHaveLength(0);
+    // Löftet löser sig först nu: ingen mätning (inga läsningar av radens mått) får ske på en rad som inte finns kvar.
+    const readsBefore = layout.reads;
     await act(async () => {
       fontsLoaded();
       await Promise.resolve();
     });
+    expect(layout.reads).toBe(readsBefore);
   });
 
   it('works where the browser has no font set to wait for', () => {
