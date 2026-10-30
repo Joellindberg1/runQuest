@@ -21,6 +21,7 @@ import type {
   ChallengeGroupHistoryApiResponse, ChallengeGroupStatsResponse, ChallengeProgressResponse, HeadToHeadApiResponse, MyChallengesResponse,
   RespondChallengeResponse, SendChallengeResponse, WithdrawChallengeResponse,
 } from '@runquest/shared';
+import { BUSY_CHALLENGE_STATUSES, isRunnerBusy } from '../services/challengeBusy.js';
 import { errorCode } from '../utils/errorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { fail, ok, okWithLegacy } from '../utils/respond.js';
@@ -227,17 +228,11 @@ router.post('/send', authenticateJWT, async (req, res): Promise<void> => {
     const { data: existingChallenges } = await supabase
       .from('challenges')
       .select('id, challenger_id, opponent_id')
-      .in('status', ['pending', 'active'])
+      .in('status', BUSY_CHALLENGE_STATUSES)
       .or(`challenger_id.eq.${userId},opponent_id.eq.${userId},challenger_id.eq.${opponent.id},opponent_id.eq.${opponent.id}`);
 
-    const userBusy = existingChallenges?.some(
-      (c: { id: string; challenger_id: string; opponent_id: string }) =>
-        c.challenger_id === userId || c.opponent_id === userId
-    );
-    const opponentBusy = existingChallenges?.some(
-      (c: { id: string; challenger_id: string; opponent_id: string }) =>
-        c.challenger_id === opponent.id || c.opponent_id === opponent.id
-    );
+    const userBusy = isRunnerBusy(userId, existingChallenges);
+    const opponentBusy = isRunnerBusy(opponent.id, existingChallenges);
 
     if (userBusy) {
       fail(res, 400, 'You already have an active or pending challenge'); return;
@@ -658,12 +653,6 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
       fail(res, 500, 'Failed to fetch group stats'); return;
     }
 
-    // Only flag the sender (challenger) — a receiver can still accept other challenges
-    const pendingChallengerIds = new Set<string>();
-    (pendingChallenges ?? []).forEach((c: any) => {
-      pendingChallengerIds.add(c.challenger_id);
-    });
-
     // Samma komparator som rank_passed (ADR 011 beslut 6, Ö8): tabellen och notiserna kan aldrig skilja sig åt. Sorteringen sker på
     // råa W/D/L (oavrundade poäng); den avrundade `points` i svaret är bara visning.
     const ordered = [...(users ?? [])].sort((a: any, b: any) =>
@@ -683,7 +672,8 @@ router.get('/group-stats', authenticateJWT, async (req, res): Promise<void> => {
         total,
         points: Math.round(challengeScore(u.wins, u.draws, u.losses) * 1000) / 1000,
         challenge_active: u.challenge_active,
-        has_pending_challenge: pendingChallengerIds.has(u.id),
+        // Samma regel som POST /send avvisar på. Aktiva dueller flaggas redan av challenge_active, som sätts för båda sidor vid accept.
+        has_pending_challenge: isRunnerBusy(u.id, pendingChallenges),
         current_level: u.current_level,
         profile_picture: u.profile_picture ?? null,
       };

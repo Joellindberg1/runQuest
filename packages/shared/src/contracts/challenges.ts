@@ -218,7 +218,7 @@ export interface ChallengeGroupStat {
   total: number;
   points: number;
   challenge_active: boolean;
-  /** Medlemmen har skickat en väntande utmaning (mottagare räknas inte). */
+  /** Medlemmen är part i en väntande utmaning, som utmanare eller mottagare (aktiva dueller visas av `challenge_active`). */
   has_pending_challenge: boolean;
   current_level: number;
   profile_picture: string | null;
