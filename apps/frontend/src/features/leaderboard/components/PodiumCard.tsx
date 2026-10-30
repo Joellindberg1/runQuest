@@ -3,6 +3,7 @@ import { type SeasonRow } from '../seasonModel';
 import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName, TitleLine } from './BoardParts';
 import { PodiumName } from './PodiumName';
 import { cssVars } from '../cssVars';
+import '../podiumCard.css';
 import { placeLabel } from '../podiumName';
 
 const RANK_STAGGER_SECONDS = 0.1;
