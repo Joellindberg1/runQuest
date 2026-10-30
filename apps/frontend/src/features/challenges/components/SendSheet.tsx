@@ -121,7 +121,8 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     // Ett skick som är på väg går inte att avbryta härifrån (utmaningen går iväg ändå): Cancel och ✕ är avstängda, och Escape och tryck på skrimmen ger inget stängt ark.
     <Dialog.Root open onOpenChange={(open) => { if (!open && !sending) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="rq-scrim" />
+        {/* Ett tryck på en yta som inte kan ta fokus (skrimmen) lägger annars fokus på <body>; medan skicket pågår hålls det kvar i arket. */}
+        <Dialog.Overlay className="rq-scrim" onMouseDown={(event) => { if (sending) event.preventDefault(); }} />
         {/* Radix sätter role="dialog" men inte aria-modal; skalets övriga dialoger sätter det uttryckligen. */}
         <Dialog.Content ref={contentRef} className="rq-duels-sheet" aria-modal="true" aria-describedby={undefined} onCloseAutoFocus={returnFocus}>
           <header className="rq-duels-sheet__head">
@@ -177,7 +178,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
                       <dt>If you lose</dt>
                       <dd>{card?.stake.loseFor ?? '—'}</dd>
                     </div>
-                    <div data-tone="muted">
+                    <div data-tone="muted" className="rq-duels-bet__starts">
                       <dt>Starts</dt>
                       <dd>{startRuleText(group.tier)}</dd>
                     </div>

@@ -247,7 +247,9 @@
 .rq-duels-sheet__blocked { border-left: var(--rq-edge-w) solid var(--rq-duel-base); color: var(--rq-text-2); }
 .rq-duels-sheet__error { border-left: var(--rq-edge-w) solid var(--rq-down); color: var(--rq-down); }
 .rq-duels-sheet__error:empty { padding: 0; border: 0; height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
-.rq-duels-sheet__actions { display: flex; flex-direction: var(--rq-duels-sheet-actions-dir); gap: var(--rq-sp-10); }
+/* Knapprad: Send och Cancel på en rad på mobil och desktop (skiss S3). Raden ligger utanför det scrollande mellanstycket, så stegrubrikerna kan aldrig hamna under den; på mobil sitter
+   den ovanför hemindikatorn via --rq-tabbar-pb (max av luften och env(safe-area-inset-bottom)). */
+.rq-duels-sheet__actions { display: flex; gap: var(--rq-sp-10); }
 .rq-duels-sheet__actions .rq-btn--block { flex: 1; }
 /* Cancel (och Close när arket bara visar en orsak) är den globala .rq-btn--ghost, vars --rq-text-3 ger 4,22:1 i ljust tema. I arket tar texten --rq-text-2; den globala klassen rörs inte. */
 .rq-duels-sheet .rq-btn--ghost { color: var(--rq-text-2); }
@@ -304,8 +306,9 @@
 .rq-duels-bet { padding: var(--rq-sp-10) var(--rq-sp-12); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
 .rq-duels-bet__label { margin: 0 0 var(--rq-sp-4); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
 .rq-duels-bet__summary { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
-.rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rq-sp-10); }
+.rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: var(--rq-duels-bet-cols); gap: var(--rq-sp-10); }
 .rq-duels-bet__stakes > div { min-width: 0; text-align: start; }
+.rq-duels-bet__stakes > .rq-duels-bet__starts { grid-column: var(--rq-duels-bet-starts-span); }
 .rq-duels-bet__stakes dt { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
 .rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up-text); }
