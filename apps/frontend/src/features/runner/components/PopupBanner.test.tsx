@@ -4,6 +4,7 @@ import type { Run, User } from '@runquest/types';
 import type { BadgeUserItem, BadgeUserResponse, HeadToHeadResponse } from '@runquest/shared';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
+import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { RunnerCard } from './RunnerCard';
@@ -184,12 +185,15 @@ describe('Head to head in its own panel in the banner', () => {
     let fail = true;
     const spy = vi.fn(() => (fail ? { success: false, error: 'boom' } : { success: true, data: record(2, 0, 1) }));
     handlers.getHeadToHead = spy;
+    // Challenge is on when I can send and Karl is free, whatever Head to head did.
+    handlers.getMyChallenges = () => ({ success: true, data: { tokens: [token({ id: 't1' })], sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [] } });
+    handlers.getChallengeGroupStats = () => ({ success: true, data: [stat(ME.id), stat(KARL.id)] });
     renderPopup();
     await heroName();
 
     const panel = document.querySelector('.rq-runner-h2h-banner') as HTMLElement;
     expect(await within(panel).findByText("Couldn't load head to head", undefined, SLOW)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Challenge' })).toBeInTheDocument();
 
     fail = false;
     fireEvent.click(within(panel).getByRole('button', { name: 'Retry' }));

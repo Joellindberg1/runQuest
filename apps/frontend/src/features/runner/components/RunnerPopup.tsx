@@ -1,13 +1,19 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { User } from '@runquest/types';
+import { useGroupStats, useMyChallenges } from '@/features/challenges/hooks/useDuelsQueries';
 import type { StatView } from '@/features/profile/statsModel';
+import { useAuth } from '@/providers/authContext';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { readBackground } from '@/shared/hooks/useOpenRunner';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
+import { challengeAvailability } from '../challengeAvailability';
 import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
 import { DEFAULT_OVERVIEW_VIEW, DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
 import { ChallengeButton } from './ChallengeButton';
+import { ChallengeOff } from './ChallengeOff';
 import { PopupBanner } from './PopupBanner';
 import { PopupSections } from './PopupSections';
 import '../runner.css';
@@ -26,19 +32,42 @@ interface RunnerPopupProps {
 }
 
 /**
- * Challenge i huvudytan: head-to-head avgör om knappen blir en statuschip (samma fråga som panelen, så den delas i cachen). Följs länken på vanligt sätt (inte Ctrl/Cmd/Shift/Alt-klick,
+ * Challenge i huvudytan: head-to-head avgör om knappen blir en statuschip (samma fråga som panelen, så den delas i cachen). Annars avgör mina utmaningar och gruppens ställning (samma
+ * frågor som Duels, delade i cachen) om den går att använda och varför inte (`challengeAvailability`). Följs länken på vanligt sätt (inte Ctrl/Cmd/Shift/Alt-klick,
  * som öppnar en annan flik och lämnar popupen kvar) anropas `onLeave`: popupen lämnas då genom navigering och inte genom Esc, ✕ eller skrimman.
+ * Länken bär sidan under popupen som `sendOrigin` (finns ingen bakgrund, som vid en direktladdad adress, finns heller ingen popup att återvända till).
  */
 function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () => void }) {
+  const { user } = useAuth();
+  const location = useLocation();
   const headToHead = useHeadToHead(runnerId);
+  const mine = useMyChallenges(!!user);
+  const groupStats = useGroupStats(!!user);
+
+  const active = headToHead.data?.active?.status ?? null;
+  const background = readBackground(location);
+  const state = background ? { sendOrigin: { returnTo: `${background.pathname}${background.search}`, runnerId } } : undefined;
+  const availability = challengeAvailability({
+    meId: user?.id ?? '',
+    runnerId,
+    my: mine.data,
+    groupStats: groupStats.data,
+    loading: mine.isPending || groupStats.isPending,
+  });
+
   return (
     <span
+      className="rq-runner-popup__challenge"
       onClick={(event) => {
         const plainLeftClick = event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
         if (plainLeftClick && (event.target as Element).closest('a')) onLeave();
       }}
     >
-      <ChallengeButton opponentId={runnerId} active={headToHead.data?.active?.status ?? null} />
+      {active || availability.status === 'ready' ? (
+        <ChallengeButton opponentId={runnerId} active={active} replace state={state} />
+      ) : (
+        <ChallengeOff reason={availability.status === 'blocked' ? availability.reason : null} />
+      )}
     </span>
   );
 }

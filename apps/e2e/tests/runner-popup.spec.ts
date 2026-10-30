@@ -3,6 +3,7 @@ import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
 import { contrastOf } from '../support/contrast';
 import { waitForStylesApplied } from '../support/stylesApplied';
+import { stubRunnerChallenge, type RunnerChallengeScenario } from '../support/runnerChallengeStub';
 import { targets } from '../support/targets';
 
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
@@ -22,6 +23,8 @@ const MIN_LABEL_CONTRAST = 4.5;
 const SCROLLBAR_ALLOWANCE_PX = 20;
 
 const RUNNER = { id: 'popup-2', name: 'Bo Two' };
+/** En annan medlem av gruppen: mottagaren av min skickade utmaning i Challenge-proven. */
+const OTHER_MEMBER = { id: 'popup-3', name: 'Cy Three' };
 
 /** Rundor med datum så många dagar bakåt som listan anger, så att de ligger i aktivitetskartans 12 månader oavsett när provet körs. */
 function runsDaysAgo(userId: string, daysAgo: number[]) {
@@ -84,7 +87,8 @@ type HeadToHeadStub = 'record' | 'win' | 'none' | 'loading' | 'error';
 const HEAD_TO_HEAD_RECORDS = { record: { wins: 1, draws: 0, losses: 1 }, win: { wins: 2, draws: 0, losses: 1 }, none: { wins: 0, draws: 0, losses: 0 } } as const;
 
 /** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. `badges` = antal serier löparen har intjänade (0-8). */
-async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record'): Promise<void> {
+async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record', challenge: RunnerChallengeScenario = 'ready'): Promise<void> {
+  await stubRunnerChallenge(page, { scenario: challenge, runner: RUNNER, other: OTHER_MEMBER });
   await answerWith(page, '/auth/users-with-runs', { success: true, data: GROUP });
   await answerWith(page, '/titles/user/', {
     success: true,
@@ -119,12 +123,14 @@ async function stubGroup(page: Page, titles: number, badges = 0, headToHead: Hea
 
 interface OpenOptions {
   headToHead?: HeadToHeadStub;
+  /** Vad kontot och löparen kan i Challenge-knappen; standard `ready` (länk). */
+  challenge?: RunnerChallengeScenario;
   /** Temat sätts som next-themes gör: `localStorage.theme` före sidans skript, som ger `data-theme` på <html>. */
   theme?: 'dark' | 'light';
 }
 
-async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', theme }: OpenOptions = {}): Promise<void> {
-  await stubGroup(page, titles, badges, headToHead);
+async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', challenge = 'ready', theme }: OpenOptions = {}): Promise<void> {
+  await stubGroup(page, titles, badges, headToHead, challenge);
   if (theme) await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize({ width, height });
   await page.goto('/board');
@@ -865,6 +871,175 @@ test.describe('the profile popup while its chunk loads', () => {
     release();
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
+});
+
+test.describe('Challenge in the heading row of the profile popup', () => {
+  const challengeLink = (dialog: Locator): Locator => dialog.getByRole('link', { name: 'Challenge' });
+  const challengeButton = (dialog: Locator): Locator => dialog.getByRole('button', { name: 'Challenge', exact: true });
+  const sendSheet = (page: Page): Locator => page.getByRole('dialog', { name: 'Send a challenge' });
+
+  /** Skälen som står bredvid knappen (ur sendBlocker och löparens upptagenhet), för de lägen som stänger av den. */
+  const REASONS = {
+    'no-tokens': 'You have no tokens to send. You earn them by levelling up.',
+    sent: 'Your challenge to Cy is waiting for an answer. Withdraw it or wait for the reply before sending another.',
+    incoming: 'A challenge is waiting on you. Answer it before you send one of your own.',
+    'runner-busy': 'Bo is in a live duel right now.',
+  } as const;
+  const OFF_SCENARIOS = Object.keys(REASONS) as Array<keyof typeof REASONS>;
+
+  test('Challenge opens the send flow with the runner selected, and Back goes to the page under the popup: no popup and no send sheet', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+
+    await challengeLink(dialog).click();
+
+    await expect(sendSheet(page)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/duels\\?send=1&opponent=${RUNNER.id}$`));
+    await expect(sendSheet(page).getByRole('radio', { name: new RegExp(RUNNER.name) })).toHaveAttribute('aria-checked', 'true');
+    await expect(popup(page)).toHaveCount(0);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/board$/);
+    await expect(runnerRow(page)).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('a Ctrl-click leaves the link to the browser: the popup stays where it is and the link opens in a new tab', async ({ page, context }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+
+    const [opened] = await Promise.all([context.waitForEvent('page'), challengeLink(dialog).click({ modifiers: ['Control'] })]);
+    await opened.close();
+
+    await expect(page).toHaveURL(new RegExp(`/runner/${RUNNER.id}$`));
+    await expect(popup(page)).toBeVisible();
+    await expect(sendSheet(page)).toHaveCount(0);
+  });
+
+  for (const scenario of OFF_SCENARIOS) {
+    test(`when ${scenario} is the case the button is aria-disabled and focusable, the reason is visible text that describes it, and Enter does nothing`, async ({ page }) => {
+      await openBoard(page, 1280, 900, 3, 0, { challenge: scenario });
+      const dialog = await openPopup(page);
+
+      const button = challengeButton(dialog);
+      await expect(button).toBeVisible();
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(button).not.toHaveAttribute('disabled', /.*/);
+      await expect(challengeLink(dialog)).toHaveCount(0);
+      await expect(dialog.getByText(REASONS[scenario], { exact: true })).toBeVisible();
+      await expect(button).toHaveAccessibleDescription(REASONS[scenario]);
+
+      await button.focus();
+      await expect(button).toBeFocused();
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Space');
+
+      await expect(page).toHaveURL(new RegExp(`/runner/${RUNNER.id}$`));
+      await expect(popup(page)).toBeVisible();
+    });
+  }
+
+  test('while my challenges load the button is off and says nothing; when they fail it is on', async ({ page }) => {
+    await openBoard(page, 1280, 900, 3, 0, { challenge: 'loading' });
+    const dialog = await openPopup(page);
+    const button = challengeButton(dialog);
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).not.toHaveAttribute('aria-describedby', /.*/);
+    await expect(dialog.locator('.rq-runner-popup__reason')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    await openBoard(page, 1280, 900, 3, 0, { challenge: 'error' });
+    const failing = await openPopup(page);
+    await expect(challengeLink(failing)).toBeVisible({ timeout: 10_000 });
+    await expect(challengeButton(failing)).toHaveCount(0);
+  });
+
+  // Stabil höjd: den avstängda knappen och skälet får inte göra rubrikraden eller dialogen högre än med en påslagen knapp.
+  for (const [width, height] of [[1440, 900], [1280, 768]] as const) {
+    test(`the heading row and the dialog keep their height (${DIALOG_HEIGHT_PX} px) whether Challenge is on, loading, failing or off with any reason, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
+      const measured: Record<string, { bar: number; dialog: number }> = {};
+      for (const scenario of ['ready', 'loading', 'error', ...OFF_SCENARIOS] as const) {
+        await openBoard(page, width, height, 3, 3, { challenge: scenario });
+        const dialog = await openPopup(page);
+        if (scenario === 'error') await expect(challengeLink(dialog)).toBeVisible({ timeout: 10_000 });
+        if (scenario in REASONS) await expect(dialog.getByText(REASONS[scenario as keyof typeof REASONS], { exact: true })).toBeVisible();
+        await waitForStylesApplied(page);
+        measured[scenario] = { bar: (await dialog.locator('.rq-runner-popup__bar').boundingBox())!.height, dialog: (await dialog.boundingBox())!.height };
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+      }
+      testInfo.annotations.push({ type: 'heading row and dialog heights', description: JSON.stringify(measured) });
+
+      const bars = Object.values(measured).map((entry) => entry.bar);
+      expect(Math.max(...bars) - Math.min(...bars), `the heading row height varies: ${JSON.stringify(measured)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+      for (const [state, { dialog }] of Object.entries(measured)) {
+        expect(Math.abs(dialog - DIALOG_HEIGHT_PX), `the dialog is ${DIALOG_HEIGHT_PX} px with Challenge ${state}`).toBeLessThanOrEqual(TOLERANCE_PX);
+      }
+    });
+  }
+
+  // Förnamnet i skälet kommer ur gruppens svar och kan vara långt, och en text som inte ryms på en rad ska radbrytas i sin plats: inte löpa in under rubriken eller ✕, och inte göra raden högre.
+  const REASON_CASES: Array<{ name: string; scenario: RunnerChallengeScenario; text?: string; wraps?: boolean }> = [
+    { name: 'sent', scenario: 'sent' },
+    { name: 'runner-busy with a long first name', scenario: 'runner-busy', text: 'Bartholomeus-Maximilian is in a live duel right now.' },
+    {
+      name: 'a reason of two lines',
+      scenario: 'sent',
+      text: 'Your challenge to Bartholomeus-Maximilian Lindblad-Lüthje is waiting for an answer. Withdraw it or wait for the reply before sending another, and then send the next one with a new token.',
+      wraps: true,
+    },
+  ];
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the reason overlaps neither the heading, the button nor the close button, with a long name too, and is at least ${MIN_LABEL_PX} px with ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px`, async ({ page }, testInfo) => {
+      const results: Record<string, { ratio: number; size: number; lines: number }> = {};
+      for (const width of [1024, 1280, 1440]) {
+        for (const { name, scenario, text, wraps } of REASON_CASES) {
+          await openBoard(page, width, 900, 3, 3, { theme, challenge: scenario });
+          const dialog = await openPopup(page);
+          await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+          const reason = dialog.locator('.rq-runner-popup__reason');
+          await expect(reason).toBeVisible();
+
+          if (text) await reason.evaluate((element, value) => { element.textContent = value; }, text);
+          const boxes = await dialog.evaluate((root) => {
+            const rect = (selector: string) => root.querySelector(selector)!.getBoundingClientRect();
+            const title = rect('.rq-runner-popup__title');
+            const reasonBox = rect('.rq-runner-popup__reason');
+            const button = rect('.rq-runner-popup__challenge > button');
+            const close = rect('.rq-modal__close');
+            const bar = rect('.rq-runner-popup__bar');
+            return { dialogHeight: root.getBoundingClientRect().height, titleRight: title.right, reasonLeft: reasonBox.left, reasonRight: reasonBox.right, reasonTop: reasonBox.top, reasonBottom: reasonBox.bottom, buttonLeft: button.left, buttonRight: button.right, closeLeft: close.left, barTop: bar.top, barBottom: bar.bottom };
+          });
+          const where = `${name} at ${width} px`;
+          expect(boxes.titleRight, `the heading ends before the reason (${where})`).toBeLessThanOrEqual(boxes.reasonLeft + TOLERANCE_PX);
+          expect(boxes.reasonRight, `the reason ends before the button (${where})`).toBeLessThanOrEqual(boxes.buttonLeft + TOLERANCE_PX);
+          expect(boxes.buttonRight, `the button ends before the close button (${where})`).toBeLessThanOrEqual(boxes.closeLeft + TOLERANCE_PX);
+          expect(boxes.reasonTop, `the reason stays inside the heading row (${where})`).toBeGreaterThanOrEqual(boxes.barTop - TOLERANCE_PX);
+          expect(boxes.reasonBottom, `the reason stays inside the heading row (${where})`).toBeLessThanOrEqual(boxes.barBottom + TOLERANCE_PX);
+
+          const style = await reason.evaluate((element) => {
+            const computed = getComputedStyle(element);
+            return { size: parseFloat(computed.fontSize), lineHeight: parseFloat(computed.lineHeight), height: element.getBoundingClientRect().height };
+          });
+          const [sample] = await page.evaluate(contrastOf, { selectors: ['.rq-runner-popup__reason'] });
+          const lines = Math.round(style.height / style.lineHeight);
+          results[where] = { ratio: sample!.ratio, size: style.size, lines };
+          expect(style.size, `the reason size (${where})`).toBeGreaterThanOrEqual(MIN_LABEL_PX);
+          expect(sample!.ratio, `the reason contrast (${where})`).toBeGreaterThanOrEqual(MIN_LABEL_CONTRAST);
+          expect(lines, `the reason takes at most two lines (${where})`).toBeLessThanOrEqual(2);
+          if (wraps) expect(lines, `the long reason wraps to two lines (${where})`).toBe(2);
+          expect(Math.abs(boxes.dialogHeight - DIALOG_HEIGHT_PX), `the dialog is ${DIALOG_HEIGHT_PX} px (${where})`).toBeLessThanOrEqual(TOLERANCE_PX);
+
+          await page.keyboard.press('Escape');
+          await expect(dialog).toBeHidden();
+        }
+      }
+      testInfo.annotations.push({ type: `reason contrast, size and lines (${theme})`, description: JSON.stringify(results) });
+    });
+  }
 });
 
 test.describe('the runner card as a page', () => {
