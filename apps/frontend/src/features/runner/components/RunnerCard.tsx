@@ -27,9 +27,10 @@ export function RunnerCard({ user, allUsers, onBack }: RunnerCardProps) {
   const [statView, setStatView] = useViewParam(STAT_VIEWS, DEFAULT_STAT_VIEW);
 
   // Skalet flyttar inte fokus vid sidbyte, så kortet gör det: till sidans enda h1 (hjältekortets namn, tabIndex -1), både vid direktladdning och när kortet nås inifrån appen.
+  // Utan `preventScroll`: sidbyte återställer inte alltid scrollen (en scrollad Board eller Log på en telefon), och rubriken ska synas i bild.
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    rootRef.current?.querySelector('h1')?.focus({ preventScroll: true });
+    rootRef.current?.querySelector('h1')?.focus();
   }, []);
 
   // Länkens vanliga klick är ett steg bakåt, inte en navigering till /board. Ctrl/Cmd/Shift/Alt-klick och mittenknappen lämnas åt webbläsaren (öppna /board i en ny flik eller ett nytt fönster).
