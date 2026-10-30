@@ -41,7 +41,13 @@
 /* ── Profil-popupen: Overview ─────────────────────────────────────────────────
    Växlingen (SegmentedControl, .rq-filter-chips) ligger över ett kort med profilens statistikinnehåll (rader eller aktivitetskartan). Höjden är panelytans, inte innehållets: panelen scrollar för sig. */
 .rq-runner-overview { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
-.rq-runner-overview__content { padding: var(--rq-sp-10) var(--rq-pad-card); }
+/* Vilande knappar i textfärgen --rq-text-2: receptets --rq-text-3 ger 4,22:1 i ljust tema (kravet för ny text är 4,5:1). Valet syns på kant och tint, inte på textens dämpning. */
+.rq-runner-overview__switch > .rq-filter:not([aria-pressed="true"]) { color: var(--rq-text-2); }
+/* Radetiketterna i Overview: profilens --rq-text-3 ger 3,95:1 i ljust tema; --rq-text-4 är tokenen som är satt till AA i båda teman. Profilsidans egna rader är oförändrade. */
+.rq-runner-overview .rq-profile-row dt { color: var(--rq-text-4); }
+/* Fun facts har fem rader (fyra plus utmaningsrekordet) och ska rymmas i panelytans fasta höjd utan att kortet scrollar: raderna bär egen vertikal luft, så kortet har bara en smal marginal. */
+.rq-card.rq-runner-overview__content { padding: var(--rq-sp-4) var(--rq-pad-card); }
+.rq-runner-overview__content > .rq-profile-heat { padding-block: var(--rq-sp-10); }
 .rq-runner__split > .rq-runner-h2h { align-self: stretch; }
 
 /* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────

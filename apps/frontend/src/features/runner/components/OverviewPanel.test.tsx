@@ -171,7 +171,6 @@ describe('the Overview panel of the popup', () => {
     await choose('Fun facts');
     const list = screen.getByLabelText('Fun facts', { selector: 'dl' });
     expect(rowsOf(list)['Challenges won–lost']).toBe('1–3');
-    expect(list.querySelector('dd[data-tone="down"]')).toHaveTextContent('1–3');
     unmount();
 
     // The profile builds its rows from its own model, with no challenge row in any of its views.
@@ -185,13 +184,19 @@ describe('the Overview panel of the popup', () => {
     }
   });
 
-  it('shows the record as a green row when the runner has won at least as many as lost', async () => {
-    renderWithApp(<Host runner={{ ...KARL, wins: 4, losses: 4 }} />, { width: 1280 });
+  it('shows the record in the neutral tone whether the runner leads or trails, so that it holds 4.5:1 in the light theme', async () => {
+    const leading = renderWithApp(<Host runner={{ ...KARL, wins: 4, losses: 1 }} />, { width: 1280 });
     await choose('Fun facts');
+    const lead = screen.getByLabelText('Fun facts', { selector: 'dl' });
+    expect(rowsOf(lead)['Challenges won–lost']).toBe('4–1');
+    expect([...lead.querySelectorAll('dd')].at(-1)).toHaveAttribute('data-tone', 'default');
+    leading.unmount();
 
-    const list = screen.getByLabelText('Fun facts', { selector: 'dl' });
-    expect(rowsOf(list)['Challenges won–lost']).toBe('4–4');
-    expect(list.querySelector('dd[data-tone="up"]')).toHaveTextContent('4–4');
+    renderWithApp(<Host />, { width: 1280 });
+    await choose('Fun facts');
+    const trail = screen.getByLabelText('Fun facts', { selector: 'dl' });
+    expect(rowsOf(trail)['Challenges won–lost']).toBe('1–3');
+    expect([...trail.querySelectorAll('dd')].at(-1)).toHaveAttribute('data-tone', 'default');
   });
 
   it('is built for the runner shown, not for the signed-in user', () => {
