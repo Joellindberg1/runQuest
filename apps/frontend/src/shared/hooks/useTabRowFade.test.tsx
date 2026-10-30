@@ -193,3 +193,65 @@ describe('useTabRowFade: measuring again', () => {
     expect(endFade()).toBe('true');
   });
 });
+
+// Efter ett flikbyte för ViewTabs den valda fliken i bild med `scrollLeft += delta`. `scrollLeft` är ett heltal, så en rest under en pixel kan bli kvar utanför kanten (flikens kant ligger några hundradels pixel förbi radens).
+// En sådan rest är inget skäl att låta fliken ligga kvar i fadens zon: fadefriheten ska läggas på ändå.
+describe('useTabRowFade: a selected tab that sits within a sub-pixel of the row edge', () => {
+  const ZONE_PX = 24;
+  const ROW = { left: 0, right: 282 };
+  const SELECTED_WIDTH = 80;
+  const tabBox = (left: number) => ({ left, right: left + SELECTED_WIDTH, width: SELECTED_WIDTH, top: 0, bottom: 44, height: 44, x: left, y: 0, toJSON: () => ({}) });
+  const state = { scrollLeft: 0, tabLeft: 0 };
+  const writes: number[] = [];
+
+  beforeEach(() => {
+    state.scrollLeft = 0;
+    writes.length = 0;
+    installFonts(Promise.resolve());
+    const isRow = (element: Element) => element.getAttribute('role') === 'tablist';
+    Object.defineProperty(HTMLElement.prototype, 'scrollLeft', {
+      configurable: true,
+      get(this: HTMLElement) { return isRow(this) ? state.scrollLeft : 0; },
+      set(this: HTMLElement, value: number) { if (isRow(this)) { state.scrollLeft = value; writes.push(value); } },
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (isRow(this)) return { ...tabBox(ROW.left), right: ROW.right, width: ROW.right - ROW.left };
+      return this.getAttribute('aria-selected') === 'true' ? tabBox(state.tabLeft) : tabBox(0);
+    });
+    const original = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element, pseudo?: string | null) =>
+      element.getAttribute('role') === 'tablist' ? ({ scrollPaddingLeft: `${ZONE_PX}px` } as CSSStyleDeclaration) : original(element, pseudo),
+    );
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollLeft');
+  });
+
+  it('moves the row clear of the end fade when the tab lies 0.0156 px past the end of the row', () => {
+    // Raden är scrollad en bit och har mer innehåll åt höger: slutfaden ritas. Fliken ligger 0,0156 px förbi radens högerkant.
+    state.scrollLeft = 100;
+    state.tabLeft = ROW.right - SELECTED_WIDTH + 0.0156;
+    render(<Row selected="b" count={3} />);
+
+    expect(endFade()).toBe('true');
+    expect(state.scrollLeft, 'the row is scrolled on to give the tab the width of the fade zone').toBeGreaterThanOrEqual(100 + ZONE_PX - 1);
+  });
+
+  it('moves the row clear of the start fade when the tab lies 0.0156 px before the start of the row', () => {
+    state.scrollLeft = 100;
+    state.tabLeft = ROW.left - 0.0156;
+    render(<Row selected="b" count={3} />);
+
+    expect(screen.getByTestId('wrap').getAttribute('data-fade-start')).toBe('true');
+    expect(state.scrollLeft, 'the row is scrolled back to give the tab the width of the fade zone').toBeLessThanOrEqual(100 - ZONE_PX + 1);
+  });
+
+  it('leaves a tab that is not in view to the reveal, which ViewTabs owns', () => {
+    state.scrollLeft = 100;
+    state.tabLeft = ROW.right + 30;
+    render(<Row selected="b" count={3} />);
+
+    expect(writes).toEqual([]);
+  });
+});
