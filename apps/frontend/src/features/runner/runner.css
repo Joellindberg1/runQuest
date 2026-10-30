@@ -6,7 +6,7 @@
 /* ── Ram: sida (mobil/direktladdning) ─────────────────────────────────────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .rq-runner__bar { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-12); }
-.rq-runner__bar .rq-back { margin-bottom: 0; }
+.rq-runner__bar .rq-back { margin-bottom: 0; min-height: var(--rq-control-hit); }
 .rq-runner__spacer { flex: 1; }
 .rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }

@@ -30,7 +30,7 @@ export function HeroCard({ hero, cells, showcase = [] }: HeroCardProps) {
         <LevelRing hero={hero} />
         <div className="rq-runner-hero__who">
           <div className="rq-runner-hero__nameline">
-            <h1 className="rq-display rq-runner-hero__name">{hero.name}</h1>
+            <h1 className="rq-display rq-runner-hero__name" tabIndex={-1}>{hero.name}</h1>
             <BadgeMinis showcase={showcase} />
           </div>
           <p className="rq-runner-hero__meta">{standing}</p>
