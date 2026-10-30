@@ -675,7 +675,7 @@ describe('Send flow: the dialog pattern', () => {
       await user.tab({ shift: true });
       expect(inside(), `Shift+Tab ${press + 1}`).toBe(true);
     }
-  });
+  }, 15_000); // 60 tangenttryck tar runt 5 s när hela sviten körs samtidigt
 
   it('Escape closes the sheet', async () => {
     const user = userEvent.setup();
