@@ -3,6 +3,7 @@ import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
+import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
 import { targets } from '../support/targets';
 
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
@@ -14,6 +15,15 @@ const MIN_RING_WIDTH_PX = 2;
 
 const TABS = ['Distance', 'Streak', 'Fun facts', 'Consistency', 'Position'];
 const PHONE_WIDTHS = [320, 375];
+/** Bredderna där flikraden skrollar och en flik kan hamna en bråkdel av en pixel förbi kanten efter ett heltals-`scrollLeft`. */
+const NARROW_PHONE_WIDTHS = [320, 340, 360];
+const PROFILE_VIEWS = [
+  { view: 'distance', name: 'Distance' },
+  { view: 'streak', name: 'Streak' },
+  { view: 'fun', name: 'Fun facts' },
+  { view: 'consistency', name: 'Consistency' },
+  { view: 'position', name: 'Position' },
+];
 const ROW_WIDTHS = [
   { width: 320, height: 740 },
   { width: 375, height: 740 },
@@ -279,6 +289,29 @@ test.describe('the five-tab row of the profile', () => {
         expect(mask).toBe('none');
         const widths = await page.getByRole('tab').evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().width));
         expect(Math.max(...widths) - Math.min(...widths), 'the five tabs are equally wide').toBeLessThanOrEqual(TOLERANCE_PX);
+      }
+    });
+  }
+
+  // Webbläsaren ger `scrollLeft` som heltal, så en flik som förs i bild kan hamna en bråkdel av en pixel förbi kanten (Consistency mot högerkanten vid 320 till 360 px): fadens 24 px frihet ska ändå läggas på.
+  // Typsnittet är laddat före varje byte (det är så en användare byter flik efter första ritningen).
+  for (const width of NARROW_PHONE_WIDTHS) {
+    test(`keeps the selected tab clear of the fade for each of the five tabs, from the address and from the keyboard, at ${width} px`, async ({ page }) => {
+      await openProfile(page, { members: 6, view: PROFILE_VIEWS[0]!.view, width });
+      await waitForFontsAndLayout(page);
+      const tablist = page.getByRole('tablist', { name: 'Your stats' });
+
+      for (const { view, name } of PROFILE_VIEWS) {
+        await changeViewInTheAddress(page, view);
+        await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+        await expectSelectedTabClearOfFade(tablist, `the "${name}" tab, opened from the address, is in the row and clear of the fade at ${width} px`);
+      }
+
+      await page.getByRole('tab', { name: PROFILE_VIEWS[0]!.name }).click();
+      for (const { name } of PROFILE_VIEWS.slice(1)) {
+        await page.keyboard.press('ArrowRight');
+        await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+        await expectSelectedTabClearOfFade(tablist, `the "${name}" tab, reached with ArrowRight, is in the row and clear of the fade at ${width} px`);
       }
     });
   }
