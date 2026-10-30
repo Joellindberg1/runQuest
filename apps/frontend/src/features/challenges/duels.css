@@ -236,6 +236,11 @@
 }
 /* Arket tar fokus självt medan ett skick pågår (programmatiskt, aldrig något man styr): ingen ring runt hela arket. */
 .rq-duels-sheet:focus-visible { outline: none; }
+/* ✕ är en tumknapp: träffytan är den större av ikonknappens mått och --rq-control-hit (44 px på mobil), centrerad kring tecknet. */
+.rq-duels-sheet .rq-sheet__close {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  min-width: max(var(--rq-icon-btn), var(--rq-control-hit)); min-height: max(var(--rq-icon-btn), var(--rq-control-hit));
+}
 .rq-duels-sheet .rq-sheet__close:disabled { color: var(--rq-text-5); cursor: not-allowed; }
 .rq-duels-sheet__head { display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-12) var(--rq-sp-16); border-bottom: var(--rq-hair) solid var(--rq-line-3); color: var(--rq-duel); }
 .rq-duels-sheet__id { flex: 1; }

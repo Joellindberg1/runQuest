@@ -8,6 +8,8 @@ import { waitForStylesApplied } from '../support/stylesApplied';
 
 /** Minsta träffyta på mobil (samma värde som --rq-control-hit). */
 const MIN_HIT_PX = 44;
+/** Minsta träffyta för muspekare (WCAG 2.5.8). */
+const MIN_POINTER_PX = 24;
 /** Minsta kontrast för text mot sin bakgrund (WCAG AA, normal text). */
 const MIN_TEXT_CONTRAST = 4.5;
 /** Några tiondels pixlar marginal för subpixelavrundning. */
@@ -134,6 +136,11 @@ test.describe('the send-a-challenge sheet: fixed head and button row', () => {
           expect(after.bet.top, `${where}: The bet is inside the middle`).toBeGreaterThanOrEqual(after.body.top - ROUNDING_PX);
           expect(after.bet.bottom, `${where}: The bet ends above the button row`).toBeLessThanOrEqual(after.foot.top + ROUNDING_PX);
 
+          // Stängknappen ✕ är en tillräckligt stor träffyta också för muspekaren (WCAG 2.5.8).
+          const cross = await sheet.getByRole('button', { name: 'Close' }).boundingBox();
+          expect(cross?.width ?? 0, `${where}: the close cross is at least ${MIN_POINTER_PX} px wide`).toBeGreaterThanOrEqual(MIN_POINTER_PX - ROUNDING_PX);
+          expect(cross?.height ?? 0, `${where}: the close cross is at least ${MIN_POINTER_PX} px tall`).toBeGreaterThanOrEqual(MIN_POINTER_PX - ROUNDING_PX);
+
           // Knapparna går att trycka på: ingenting ligger ovanpå dem.
           await sheet.getByRole('button', { name: 'Cancel' }).click({ trial: true });
           await expect(sheet.getByRole('button', { name: 'Send challenge' })).toBeVisible();
@@ -162,6 +169,10 @@ test.describe('the send-a-challenge sheet on a phone', () => {
         expect(measured.send.bottom, `${where}: Send is in view`).toBeLessThanOrEqual(measured.viewport.height);
         expect(measured.cancel.right, `${where}: Cancel is in view`).toBeLessThanOrEqual(measured.viewport.width);
         expect(measured.sheet.bottom, `${where}: the sheet sits on the bottom edge`).toBeCloseTo(measured.viewport.height, 0);
+        // Stängknappen ✕ i huvudet är en tumknapp som de andra: minst 44 px i båda riktningarna.
+        const cross = await sheet.getByRole('button', { name: 'Close' }).boundingBox();
+        expect(cross?.width ?? 0, `${where}: the close cross is at least ${MIN_HIT_PX} px wide`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
+        expect(cross?.height ?? 0, `${where}: the close cross is at least ${MIN_HIT_PX} px tall`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
         // En tätare knapprad lämnar mer åt mitten: raden är en knapp hög plus luft, aldrig två staplade.
         expect(measured.foot.height, `${where}: the button row is one button high`).toBeLessThan(measured.send.height * 2);
         await sheet.getByRole('button', { name: 'Send challenge' }).click({ trial: true, force: true });
