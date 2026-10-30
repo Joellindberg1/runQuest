@@ -68,7 +68,7 @@ export function Heatmap({ user, today, now, isDesktop, introPlayed }: HeatmapPro
   }, [introPlayed]);
 
   return (
-    <div className="rq-profile-heat" data-intro={growsIn}>
+    <div className="rq-profile-heat" data-intro={introPlayed ? growsIn : undefined}>
       <div className="rq-profile-heat__top">
         <span className="rq-profile-heat__total">{formatInt(heat.runs)}</span>
         <span className="rq-profile-heat__unit">{isDesktop ? `runs in the last ${monthsLabel}` : `runs · ${monthsLabel}`}</span>

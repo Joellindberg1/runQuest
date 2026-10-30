@@ -804,6 +804,19 @@ test.describe('the activity map of the Overview of the profile popup', () => {
     expect(await firstWeekAnimation(dialog), 'a new opening').toBe('rqGrowY');
   });
 
+  test('the activity map on the profile page carries no data-intro and still grows in', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/profile?view=consistency');
+    await dismissOverlays(page);
+    const region = page.getByRole('region', { name: /^Run heatmap: / });
+    await expect(region).toBeVisible();
+    await waitForStylesApplied(page);
+
+    await expect(page.locator('.rq-profile-heat')).not.toHaveAttribute('data-intro', /.*/);
+    const animation = await page.locator('.rq-profile-heat__week').first().evaluate((element) => getComputedStyle(element).animationName);
+    expect(animation, 'the profile map has its intro').toBe('rqGrowY');
+  });
+
   test('the Overview switch has a name of its own, apart from the Overview panel that holds it', async ({ page }) => {
     await openBoard(page, 1280, 900);
     const dialog = await openPopup(page);

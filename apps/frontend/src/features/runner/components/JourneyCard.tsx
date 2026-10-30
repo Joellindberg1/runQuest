@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
-import { JOURNEY_END_KM, journeyPercent, journeyProgressLabel, journeyValueText, lastCheckpoint, nextZoom, type ZoomLevel } from '@/features/profile/frodoModel';
+import { JOURNEY_END_KM, journeyPercent, journeyPercentText, journeyPercentWhole, journeyProgressLabel, journeyValueText, lastCheckpoint, nextZoom, type ZoomLevel } from '@/features/profile/frodoModel';
 import { FrodoRoad, ZoomButton } from '@/features/profile/components/FrodoRoad';
 import { PanelHead } from './RunnerParts';
 
@@ -15,7 +15,7 @@ function SimpleRoad({ totalKm, percent }: { totalKm: number; percent: number }) 
         aria-label="Progress to Mount Doom"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(percent)}
+        aria-valuenow={journeyPercentWhole(totalKm)}
         aria-valuetext={journeyValueText(totalKm)}
         style={cssVars({ '--w': `${percent}%` })}
       >
@@ -39,7 +39,7 @@ export function JourneyCard({ totalKm }: { totalKm: number }) {
   const checkpoint = lastCheckpoint(totalKm);
   const done = totalKm >= JOURNEY_END_KM;
   const canZoom = isDesktop && !done && totalKm > 0;
-  const percentText = `${percent.toFixed(1)}%`;
+  const percentText = journeyPercentText(totalKm);
   // Desktop: zoomknappen. Mobil: bara procenten (App Prototype). Desktop utan något att zooma (0 km / framme): ingenting.
   const zoomButton = <ZoomButton zoom={zoom} onCycle={() => setZoom(nextZoom)} />;
   const aside = isDesktop ? (canZoom ? zoomButton : undefined) : percentText;

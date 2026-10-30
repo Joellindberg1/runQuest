@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { RQIcon } from '@/shared/components/icons';
 import {
-  JOURNEY_END_KM, ZOOM_LABELS, getViewport, journeyPercent, journeyValueText, layoutWaypoints, nextCheckpointInfo, pctInView, type ZoomLevel,
+  JOURNEY_END_KM, ZOOM_LABELS, getViewport, journeyPercentWhole, journeyValueText, layoutWaypoints, nextCheckpointInfo, pctInView, type ZoomLevel,
 } from '../frodoModel';
 import { formatInt } from '@/shared/utils/format';
 
@@ -70,7 +70,7 @@ export function FrodoRoad({ prefix, totalKm, zoom, showNext = false }: FrodoRoad
         aria-label="Progress to Mount Doom"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(journeyPercent(totalKm))}
+        aria-valuenow={journeyPercentWhole(totalKm)}
         aria-valuetext={journeyValueText(totalKm)}
         style={cssVars({ '--w': `${fill}%` })}
       >

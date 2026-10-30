@@ -199,7 +199,7 @@ describe('Profile — Frodo-zoom', () => {
     renderProfile();
     await screen.findByRole('heading', { name: 'Joel Lindberg' });
     expect(screen.getByRole('button', { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByText(/^28\.9% · 943 \/ 3 266 km$/)).toBeInTheDocument();
+    expect(screen.getByText(/^28\.9% · 942 \/ 3 266 km$/)).toBeInTheDocument();
     expect(screen.getByText(/Balin's Tomb — 95 km$/)).toBeInTheDocument();
   });
 

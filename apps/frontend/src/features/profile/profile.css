@@ -127,8 +127,8 @@
 .rq-profile-heat__month[data-current="true"] .rq-profile-heat__month-label { color: var(--rq-gold-text); }
 .rq-profile-heat__weeks { display: flex; gap: var(--rq-profile-heat-gap); margin-top: var(--rq-sp-4); }
 .rq-profile-heat__week { display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom; }
-/* Rutorna växer in bara när Heatmap har valt att spela introt vid monteringen (`data-intro`). */
-.rq-profile-heat[data-intro="true"] .rq-profile-heat__week {
+/* Rutorna växer in vid monteringen, utom när en värd som delar en introflagga redan har spelat den (`data-intro="false"`, bara popupen). Profilen har inget attribut. */
+.rq-profile-heat:not([data-intro="false"]) .rq-profile-heat__week {
   animation: rqGrowY var(--rq-dur-grow) var(--rq-ease-bar) both; animation-delay: calc(var(--i) * var(--rq-profile-heat-stagger));
 }
 .rq-profile-heat__cell, .rq-profile-heat__swatch { box-sizing: border-box; flex: 0 0 auto; width: var(--rq-profile-heat-cell); height: var(--rq-profile-heat-cell); background: var(--rq-heat-0); border: var(--rq-hair) solid var(--rq-line-2); }
