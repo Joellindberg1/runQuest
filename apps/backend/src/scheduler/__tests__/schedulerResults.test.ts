@@ -120,6 +120,28 @@ describe('challengeScheduler', () => {
     expect(h.retractChallengeReceived).not.toHaveBeenCalled();
   });
 
+  it('autoDeclinePendingChallenges: en obesvarad minor nollställer båda parternas challenge_active och återställer token, en legendary rörs inte', async () => {
+    const old = new Date(Date.now() - 4 * 86400000).toISOString();
+    const tables: Record<string, Row[]> = {
+      challenges: [
+        { id: 'old1', status: 'pending', tier: 'minor', challenger_id: 'a', opponent_id: 'b', created_at: old },
+        { id: 'leg1', status: 'pending', tier: 'legendary', challenger_id: 'c', opponent_id: 'd', created_at: old },
+      ],
+      user_challenge_tokens: [{ id: 't1', challenge_id: 'old1', sent_at: old }],
+      users: [
+        { id: 'a', challenge_active: true }, { id: 'b', challenge_active: true },
+        { id: 'c', challenge_active: true }, { id: 'd', challenge_active: true },
+      ],
+    };
+    use(tables);
+
+    await autoDeclinePendingChallenges();
+
+    expect(tables.challenges.map((c) => c.id)).toEqual(['leg1']);
+    expect(tables.user_challenge_tokens[0]).toMatchObject({ sent_at: null, challenge_id: null });
+    expect(tables.users.map((u) => [u.id, u.challenge_active])).toEqual([['a', false], ['b', false], ['c', true], ['d', true]]);
+  });
+
   it('auto-manage-tick: ett fel i auto-decline loggas med antal', async () => {
     const old = new Date(Date.now() - 4 * 86400000).toISOString();
     use(

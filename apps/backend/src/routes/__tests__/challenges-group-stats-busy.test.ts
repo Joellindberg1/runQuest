@@ -8,6 +8,10 @@ process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
 process.env.SUPABASE_URL = 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
+const cron = vi.hoisted(() => ({ jobs: new Map<string, () => Promise<void>>() }));
+vi.mock('node-cron', () => ({
+  default: { schedule: (expression: string, job: () => Promise<void>) => { cron.jobs.set(expression, job); } },
+}));
 vi.mock('../../config/database.js', () => ({
   default: {},
   supabase: { client: {} },
@@ -19,6 +23,7 @@ import { logger } from '../../utils/logger.js';
 import app from '../../app.js';
 import { createFakeDb, type Row } from './helpers/fakeDb.js';
 import { mintToken, startServer, type TestServer } from './helpers/http.js';
+import { startChallengeScheduler } from '../../scheduler/challengeScheduler.js';
 
 let server: TestServer;
 beforeAll(async () => { server = await startServer(app); });
@@ -43,6 +48,8 @@ const IDLE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'; // inte inblandad i något
 const DUELIST_ONE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'; // aktiv duell, utmanare
 const DUELIST_TWO = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'; // aktiv duell, mottagare
 const NEWCOMER = 'ffffffff-ffff-4fff-8fff-ffffffffffff'; // har en oskickad token och försöker utmana
+const LEGEND_ONE = '11111111-1111-4111-8111-111111111111'; // legendary utan svar, utmanare
+const LEGEND_TWO = '22222222-2222-4222-8222-222222222222'; // legendary utan svar, mottagare
 
 const member = (id: string, challengeActive = false): Row => ({
   id, name: `Runner ${id.slice(0, 1)}`, group_id: GROUP, wins: 0, draws: 0, losses: 0,
@@ -131,5 +138,40 @@ describe('GET /api/challenges/group-stats — busy runners', () => {
 
     expect(res.status).toBe(200);
     expect(db.queries.map((q) => q.table).sort()).toEqual(['challenges', 'users']);
+  });
+
+  it('after the scheduler auto-starts a legendary challenge both sides are busy in group-stats, exactly as /send refuses them', async () => {
+    const withLegendary = () => {
+      const t = tables();
+      t.users.push(member(LEGEND_ONE), member(LEGEND_TWO));
+      t.challenges.push({
+        id: 'c-legendary', group_id: GROUP, status: 'pending', tier: 'legendary', metric: 'km', duration_days: 3,
+        challenger_id: LEGEND_ONE, opponent_id: LEGEND_TWO, legendary_sent_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      });
+      return t;
+    };
+    const candidates = [LEGEND_ONE, LEGEND_TWO, IDLE];
+
+    const world = withLegendary();
+    use(world);
+    startChallengeScheduler();
+    await cron.jobs.get('10 */6 * * *')!();
+    expect(world.challenges.find((c) => c.id === 'c-legendary')?.status).toBe('active');
+
+    const stats = await groupStats(world);
+    const shownBusy = candidates.filter((id) => stats[id].challenge_active || stats[id].has_pending_challenge);
+
+    const refused: string[] = [];
+    for (const id of candidates) {
+      const fresh = withLegendary();
+      fresh.challenges.find((c) => c.id === 'c-legendary')!.status = 'active';
+      fresh.users.filter((u) => u.id === LEGEND_ONE || u.id === LEGEND_TWO).forEach((u) => { u.challenge_active = world.users.find((w) => w.id === u.id)!.challenge_active; });
+      use(fresh);
+      const sent = await server.request('POST', '/api/challenges/send', { token: as(NEWCOMER), body: { token_id: 't1', opponent_id: id } });
+      if (sent.status === 400 && /Opponent already has an active or pending challenge/.test(sent.body.error)) refused.push(id);
+    }
+
+    expect(refused).toEqual([LEGEND_ONE, LEGEND_TWO]);
+    expect(shownBusy).toEqual(refused);
   });
 });
