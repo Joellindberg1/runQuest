@@ -4,6 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { User } from '@runquest/types';
 import { useGroupStats, useMyChallenges } from '@/features/challenges/hooks/useDuelsQueries';
 import type { StatView } from '@/features/profile/statsModel';
+import { paths } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { readBackground } from '@/shared/hooks/useOpenRunner';
@@ -47,6 +48,8 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
   const active = headToHead.data?.active?.status ?? null;
   const background = readBackground(location);
   const state = background ? { sendOrigin: { returnTo: `${background.pathname}${background.search}`, runnerId } } : undefined;
+  // Ligger popupen över /duels följer fliken med in i send-flödet.
+  const duelsView = background?.pathname === paths.duels ? new URLSearchParams(background.search).get('view') : null;
   const availability = challengeAvailability({
     meId: user?.id ?? '',
     runnerId,
@@ -64,7 +67,7 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
       }}
     >
       {active || availability.status === 'ready' ? (
-        <ChallengeButton opponentId={runnerId} active={active} replace state={state} />
+        <ChallengeButton opponentId={runnerId} active={active} replace state={state} view={duelsView ?? undefined} />
       ) : (
         <ChallengeOff reason={availability.status === 'blocked' ? availability.reason : null} />
       )}

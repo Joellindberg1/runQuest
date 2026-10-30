@@ -72,7 +72,7 @@ export function LiveSection({ cards, onOpenRunner }: LiveSectionProps) {
           title="No duels are live"
           text="Spend a token on someone in the pack to start one."
           actionLabel="Send a challenge"
-          actionTo={duelsSendPath()}
+          actionTo={duelsSendPath(undefined, 'live')}
           headingLevel="h2"
         />
       ) : (

@@ -44,10 +44,15 @@ export const SEND_PARAM = 'send';
  */
 export const OPPONENT_PARAM = 'opponent';
 
-/** /duels med send-sheeten öppen och (valfritt) en förvald motståndare. */
-export const duelsSendPath = (opponentId?: string): string => {
+/**
+ * /duels med send-sheeten öppen och (valfritt) en förvald motståndare och den flik (`?view=`) som ska finnas kvar när sheeten stängs. Utan `view` hamnar man på
+ * flikens standardval; en ingång som kommer från en bestämd flik bär den med sig.
+ */
+export const duelsSendPath = (opponentId?: string, view?: string): string => {
   const params = new URLSearchParams({ [SEND_PARAM]: '1' });
   if (opponentId) params.set(OPPONENT_PARAM, opponentId);
+  // Samma parameter som `VIEW_PARAM` i useViewParam; paths.ts importerar inga hooks (landningens graf).
+  if (view) params.set('view', view);
   return `${paths.duels}?${params.toString()}`;
 };
 

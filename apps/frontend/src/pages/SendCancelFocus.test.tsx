@@ -81,15 +81,15 @@ const closers: Array<[string, (user: ReturnType<typeof userEvent.setup>) => Prom
 
 describe('cancelling the send flow that the profile popup opened', () => {
   describe.each([
-    ['the board', BOARD, 'The standings'],
-    ['the duels page', DUELS_STANDINGS, 'Challenges'],
-  ])('with %s under the popup', (_name, entryUrl, heading) => {
+    ['the board', BOARD, 'The standings', `/duels?send=1&opponent=${KARL}`],
+    ['the duels page', DUELS_STANDINGS, 'Challenges', `/duels?send=1&opponent=${KARL}&view=standings`],
+  ])('with %s under the popup', (_name, entryUrl, heading, sheetUrl) => {
     const [pathname, search] = entryUrl.split(/(?=\?)/);
 
     it.each(closers)('cancel returns to the background page and focuses the runner row, closing with %s', async (_how, close) => {
       const user = userEvent.setup();
       await openSendFromPopup(popupOver(pathname, search));
-      expect(location()).toBe(`/duels?send=1&opponent=${KARL}`);
+      expect(location()).toBe(sheetUrl);
 
       await close(user);
 
@@ -131,15 +131,17 @@ describe('cancelling the send flow that the profile popup opened', () => {
     const errors: unknown[] = [];
     const onError = (event: ErrorEvent) => errors.push(event.error);
     window.addEventListener('error', onError);
-    await openSendFromPopup(popupOver('/board', '?view=week'));
-    // Löparen finns inte längre i bakgrundssidans lista när arket stängs.
-    handlers.getUsersWithRuns = () => ({ success: true, data: [ME] });
+    // Löparen finns inte i bakgrundssidans lista (raden är borta när arket stängs).
+    const sheetEntry = { pathname: '/duels', search: '?send=1', state: { sendOrigin: { returnTo: BOARD, runnerId: 'u-ghost' } } };
+    renderWithApp(<><AppRoutes /><Probes /></>, { entry: [BOARD, sheetEntry] as never, width: DESKTOP });
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
 
     await closeWith(user, 'Cancel');
 
     await waitFor(() => expect(location()).toBe(BOARD));
     const heading = await screen.findByRole('heading', { level: 1, name: 'The standings' });
-    await waitFor(() => expect(heading).toHaveFocus());
+    await waitFor(() => expect(heading).toHaveFocus(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('null'));
     window.removeEventListener('error', onError);
     expect(errors).toEqual([]);
   });

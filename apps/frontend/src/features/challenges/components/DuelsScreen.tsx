@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
@@ -9,7 +9,7 @@ import { OPPONENT_PARAM, SEND_PARAM } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
-import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
+import { readSendOrigin, useOpenRunner, withoutSendOrigin, type FocusRunnerState } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
 import { firstName } from '@/shared/utils/format';
@@ -38,6 +38,7 @@ export function DuelsScreen() {
   const isDesktop = useIsDesktop();
   const now = useNow();
   const openRunner = useOpenRunner();
+  const navigate = useNavigate();
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useViewParam(DUELS_VIEWS, DEFAULT_DUELS_VIEW);
@@ -111,6 +112,10 @@ export function DuelsScreen() {
   // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
   // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
   if (!sendOpen && preselection !== null) setPreselection(null);
+  // Ursprunget (sidan under löparens popup) gäller bara flödet som popupens Challenge öppnade. Det följer aldrig med in i ett nytt flöde eller ligger kvar efter ett skick:
+  // annars skulle ett senare Cancel hoppa till en gammal bakgrundssida.
+  const origin = readSendOrigin(state);
+  const stateWithoutOrigin = withoutSendOrigin(state);
   // Öppna med en ny historikpost (back stänger sheeten); stäng med replace så back inte öppnar den igen.
   const openSend = (next?: SendPreselection) => {
     setPreselection(next ?? null);
@@ -121,9 +126,10 @@ export function DuelsScreen() {
         next.set(SEND_PARAM, '1');
         return next;
       },
-      { state },
+      { state: stateWithoutOrigin },
     );
   };
+  // Stängning utan att gå till en annan sida: efter ett skick och för flöden utan ursprung.
   const closeSend = () => {
     setParams(
       (previous) => {
@@ -132,8 +138,16 @@ export function DuelsScreen() {
         next.delete(OPPONENT_PARAM);
         return next;
       },
-      { replace: true, state },
+      { replace: true, state: stateWithoutOrigin },
     );
+  };
+  // Avbrutet (Cancel, ✕, Esc, skrim, Close i det blockerade läget). Med ursprung ersätter sidan under popupen send-flödets post och skalet fokuserar löparens rad; historiken får ingen ny post.
+  const cancelSend = () => {
+    if (!origin) {
+      closeSend();
+      return;
+    }
+    navigate(origin.returnTo, { replace: true, state: { focusRunnerId: origin.runnerId } satisfies FocusRunnerState });
   };
 
   const respond = async (run: () => Promise<unknown>, success: string, failure: string) => {
@@ -211,7 +225,8 @@ export function DuelsScreen() {
           meId={meId}
           preselection={preselection}
           initialOpponent={params.get(OPPONENT_PARAM)}
-          onClose={closeSend}
+          cancelFocus={origin ? 'page' : 'opener'}
+          onClose={cancelSend}
           onSend={sendChallenge}
         />
       )}
