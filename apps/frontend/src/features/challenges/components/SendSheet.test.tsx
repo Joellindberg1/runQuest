@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LEGENDARY_AUTO_START_DAYS, type MyChallengeToken } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -641,5 +641,17 @@ describe('Send flow: sending and cancelling', () => {
     expect(await within(sheet()).findByRole('alert')).toHaveTextContent('Opponent already has an active or pending challenge');
     expect(sendButton()).toHaveTextContent('Send challenge');
     expect(sendButton()).toBeEnabled();
+  });
+
+  it('after a refused send the focus is back on Send, not on the page body, and a second refusal does the same', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(async () => { throw new Error('Opponent already has an active or pending challenge'); });
+    renderSheet({ members: PACK, initialOpponent: KARL, preselection: { tier: 'minor', tokenKey: 'a' }, onSend });
+    for (const attempt of [1, 2]) {
+      await user.click(sendButton());
+      await within(sheet()).findByRole('alert');
+      await waitFor(() => expect(sendButton()).toHaveFocus());
+      expect(onSend, `attempt ${attempt}`).toHaveBeenCalledTimes(attempt);
+    }
   });
 });

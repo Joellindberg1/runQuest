@@ -657,10 +657,11 @@ test.describe('the send-a-challenge sheet: opponents, the bet and Cancel', () =>
     await expect.poll(changes).toBe(3);
   });
 
-  for (const { width, height, mobile } of VIEWPORTS.filter((viewport) => viewport.width === 375 || viewport.width === 1280)) {
-    test(`Cancel is visible at ${width} px, closes the flow without sending, and the focus goes back to the SEND button that opened it`, async ({ page }) => {
+  for (const { width, height, mobile } of VIEWPORTS) {
+   for (const theme of THEMES) {
+    test(`Cancel is visible and readable in the ${theme} theme at ${width} px, closes the flow without sending, and the focus goes back to the SEND button that opened it`, async ({ page }) => {
       const sent: string[] = [];
-      await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'));
+      await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
       await stubChallengeApi(page, 'full', sent);
       await page.setViewportSize({ width, height });
       await page.goto('/duels');
@@ -681,8 +682,8 @@ test.describe('the send-a-challenge sheet: opponents, the bet and Cancel', () =>
       expect(box.y, 'Cancel is inside the window').toBeGreaterThanOrEqual(0);
       if (mobile) expect(box.height, `Cancel is at least ${MIN_HIT_PX} px tall`).toBeGreaterThanOrEqual(MIN_HIT_PX - ROUNDING_PX);
       const [ratio] = await page.evaluate(contrastOf, { selectors: ['.rq-duels-sheet__actions .rq-btn--ghost'] });
-      test.info().annotations.push({ type: 'contrast', description: `Cancel text ${ratio?.ratio}` });
-      expect(ratio?.ratio, 'Cancel is readable').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
+      test.info().annotations.push({ type: 'contrast', description: `Cancel text in the ${theme} theme at ${width} px: ${ratio?.ratio}` });
+      expect(ratio?.ratio, `Cancel is readable in the ${theme} theme`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
 
       await cancel.click();
       await expect(sheet).toHaveCount(0);
@@ -690,6 +691,7 @@ test.describe('the send-a-challenge sheet: opponents, the bet and Cancel', () =>
       await expect(opener).toBeFocused();
       expect(new URL(page.url()).pathname).toBe('/duels');
     });
+   }
   }
 
   test('Send challenge waits for tier, token and opponent, shows Sending… on its way, and the confirmation gets the focus afterwards', async ({ page }) => {
@@ -739,6 +741,8 @@ test.describe('the send-a-challenge sheet: opponents, the bet and Cancel', () =>
     await sheet.getByRole('button', { name: 'Send challenge' }).click();
     await expect(sheet.getByRole('alert')).toHaveText('Opponent already has an active or pending challenge');
     await expect(sheet.getByRole('button', { name: 'Send challenge' })).toBeEnabled();
+    // Send var avstängd under "Sending…" och tappade fokus; när den är påslagen igen får den det tillbaka, så fokus aldrig ligger på body medan arket är öppet.
+    await expect(sheet.getByRole('button', { name: 'Send challenge' })).toBeFocused();
     await expect(sheet).toBeVisible();
   });
 });
