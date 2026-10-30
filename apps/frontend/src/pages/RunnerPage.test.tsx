@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes } from 'react-router-dom';
@@ -10,6 +10,7 @@ import RunnerRoute from './RunnerPage';
 import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { warmRunnerPopup } from '@/test/warmLazy';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -102,6 +103,9 @@ function renderRunner(entry: string | string[] = '/runner/u-karl', width = MOBIL
     { entry, width },
   );
 }
+
+// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden under last.
+beforeAll(warmRunnerPopup);
 
 beforeEach(() => {
   resetFakeBackend();
@@ -593,7 +597,7 @@ describe('the profile popup (background location)', () => {
     const atFirst = backward.indexOf(first);
     expect(atFirst, 'Shift+Tab reaches the first tab stop').toBeGreaterThanOrEqual(0);
     expect(backward[atFirst + 1], 'Shift+Tab from the first tab stop wraps to the last').toBe(last);
-  });
+  }, 15_000); // tangenttrycken i jsdom tar flera sekunder när hela sviten körs samtidigt
 
   it('closes with Escape', async () => {
     const dialog = await openPopup();
