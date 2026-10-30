@@ -21,6 +21,8 @@ const MIN_RING_CONTRAST = 3;
 /** Golvet för de ovala chipsen: dagens värde (4,04:1 i det ljusa temat) får inte bli sämre. */
 const MIN_CHIP_TEXT_CONTRAST = 4;
 const THEMES = ['dark', 'light'] as const;
+/** Hur länge typsnittsfilerna hålls tillbaka i provet av kallt typsnitt: längre än `openBoard` väntar (overlays och stil), så raden ritas och mäts med kallt typsnitt. */
+const FONT_DELAY_MS = 9_000;
 
 const TABS = ['All-time', 'Week', 'Streaks', 'Position'];
 const ROW_WIDTHS = [
@@ -265,6 +267,44 @@ test.describe('the Position tab on the board', () => {
         }
       });
     }
+  }
+
+  // Typsnittet förladdas inte och reservtypsnittet är bredare: med ett kallt typsnitt är raden bredare än sin box tills Barlow laddat, och krymper sedan utan att boxen ändras. Kantfaden ska
+  // mätas om då, annars sitter den kvar fast inget ligger bortom raden.
+  for (const width of [320, 360, 375, 390]) {
+    test(`measures the fade of the tab row again once the fonts have loaded, with the fonts held back, at ${width} px`, async ({ page }) => {
+      await page.route('**/fonts/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, FONT_DELAY_MS));
+        await route.continue();
+      });
+      // Typsnittets läge i samma stund som flikraden först finns i DOM:en (innan ritning och mätning).
+      await page.addInitScript(() => {
+        const note = () => {
+          if (document.querySelector('[role="tablist"][aria-label="Standings view"]')) {
+            (window as unknown as { __fontsAtTabs?: string }).__fontsAtTabs = document.fonts.status;
+            observer.disconnect();
+          }
+        };
+        const observer = new MutationObserver(note);
+        observer.observe(document, { childList: true, subtree: true });
+      });
+      await openBoard(page, { members: 6, width });
+      const tablist = page.getByRole('tablist', { name: 'Standings view' });
+      const wrap = tablist.locator('xpath=..');
+      expect(await page.evaluate(() => (window as unknown as { __fontsAtTabs?: string }).__fontsAtTabs), 'the fonts are still loading when the row is first drawn').toBe('loading');
+
+      await page.evaluate(() => document.fonts.ready);
+      const measured = await tablist.evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+      test.info().annotations.push({ type: 'measure', description: `${width} px: scrollWidth ${measured.scrollWidth} / clientWidth ${measured.clientWidth}` });
+      const overflows = measured.scrollWidth > measured.clientWidth + TOLERANCE_PX;
+      // Hela raden ryms: ingen fade och ingen mask. Ryms den inte (320 px): faden åt slutet.
+      await expect(wrap).toHaveAttribute('data-fade-end', String(overflows));
+      await expect(wrap).toHaveAttribute('data-fade-start', 'false');
+      const mask = await tablist.evaluate((element) => getComputedStyle(element).maskImage);
+      if (overflows) expect(mask, 'the end of the row is faded').not.toBe('none');
+      else expect(mask, 'a row that fits has no fade').toBe('none');
+      if (width === 320) expect(overflows, 'four tabs do not fit on 320 px').toBe(true);
+    });
   }
 
   test('fades the start and keeps the selected tab clear of the fade once the row has been scrolled, at 320 px', async ({ page }) => {

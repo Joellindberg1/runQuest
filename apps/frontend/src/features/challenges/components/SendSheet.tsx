@@ -1,18 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat } from '@runquest/shared';
+import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
 import type { TierGroup } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
-import { buildOpponents, resolveOpponentParam, startingChoice, type OpponentOption, type SendBlocker, type SendPreselection } from '../sendModel';
+import { betSummary, buildOpponents, resolveOpponentParam, startingChoice, startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
+import { OpponentChoice } from './OpponentChoice';
 import { TierChip } from './TierChip';
 import { TokenChoice } from './TokenChoice';
 
 const ICON_HEAD = 21;
 const HEADER_SEND_SELECTOR = '[data-tour="duels-send"]';
 const PAGE_HEADING_SELECTOR = '.rq-duels__title';
+/** Bekräftelsen efter en skickad utmaning (DuelsLayout): dit går fokus när kortet som öppnade arket inte finns kvar. */
+const CONFIRMATION_SELECTOR = '.rq-duels-notice';
 
 interface SendSheetProps {
   groups: TierGroup[];
@@ -28,25 +31,6 @@ interface SendSheetProps {
   onClose: () => void;
   /** Kastar vid fel; sheeten visar då meddelandet och stannar kvar. */
   onSend: (tokenKey: string, opponentId: string) => Promise<void>;
-}
-
-function OpponentRow({ option, selected, onSelect }: { option: OpponentOption; selected: boolean; onSelect: () => void }) {
-  return (
-    <button type="button" className="rq-duels-option rq-duels-option--opponent" aria-pressed={selected} disabled={option.disabled} onClick={onSelect}>
-      <span className="rq-avatar rq-duels-avatar">
-        {option.pictureUrl ? <img src={option.pictureUrl} alt="" /> : option.initials}
-      </span>
-      <span className="rq-duels-option__text">
-        <span className="rq-name">{option.name}</span>
-        <span className="rq-duels-option__note">{option.note}</span>
-      </span>
-      {option.disabledReason ? (
-        <span className="rq-duels-option__h2h" data-tone="muted">{option.disabledReason}</span>
-      ) : (
-        option.h2h && <span className="rq-duels-option__h2h" data-tone={option.h2h.tone}>{option.h2h.text}</span>
-      )}
-    </button>
-  );
 }
 
 /**
@@ -80,9 +64,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   const opponent = options.find((option) => option.userId === opponentId && !option.disabled) ?? null;
   const ready = !!card && !!opponent && !sending;
 
-  const summary = card
-    ? `${card.metricLabel}${opponent ? ` vs ${firstName(opponent.name)}` : ''} · ${card.durationLabel}`
-    : 'Pick a challenge';
+  const summary = betSummary(card, opponent ? firstName(opponent.name) : null);
 
   const pickTier = (picked: TierGroup) => {
     if (!picked.selectable) {
@@ -93,12 +75,25 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (picked.tier !== group?.tier) setChoice(startingChoice(groups, { tier: picked.tier, tokenKey: null }));
   };
 
-  // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>). Avstängd knapp (efter en skickad utmaning) tar inte emot fokus; det är fortfarande rätt.
-  // Saknas öppnaren (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
+  // Sant från det att skicket går iväg tills det misslyckas: stänger föräldern arket under tiden är det för att utmaningen gick iväg. Ett ref och inte state, eftersom
+  // Radix läser det först när arket redan har avmonterats.
+  const sentRef = useRef(false);
+
+  // Send är avstängd medan skicket pågår, och en avstängd knapp som hade fokus lämnar det på <body>. Efter ett avvisat skick (felet visas, Send är påslagen igen) får Send fokus tillbaka,
+  // så ett nytt försök går att göra med tangentbordet; felet annonseras av sin alert.
+  const sendRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (error) sendRef.current?.focus();
+  }, [error]);
+
+  // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
+  // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
+  // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
-    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected;
-    const target = usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR));
+    const confirmation = sentRef.current ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
+    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
+    const target = confirmation ?? (usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR)));
     target?.focus();
   };
 
@@ -106,9 +101,11 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (!card || !opponent) return;
     setError(null);
     setSending(true);
+    sentRef.current = true;
     try {
       await onSend(card.tokenKey, opponent.userId);
     } catch (failure) {
+      sentRef.current = false;
       setError(failure instanceof Error ? failure.message : 'Could not send the challenge');
       setSending(false);
     }
@@ -156,14 +153,11 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
                 <section aria-labelledby="duels-send-opponent">
                   <h3 id="duels-send-opponent" className="rq-duels-step">3 · Pick an opponent</h3>
-                  <div className="rq-hairgrid rq-duels-opponents" role="group" aria-labelledby="duels-send-opponent">
-                    {options.map((option) => (
-                      <OpponentRow key={option.userId} option={option} selected={option.userId === opponent?.userId} onSelect={() => setOpponentId(option.userId)} />
-                    ))}
-                  </div>
+                  <OpponentChoice options={options} selectedId={opponent?.userId ?? null} labelledBy="duels-send-opponent" onSelect={setOpponentId} />
                 </section>
 
-                <section className="rq-duels-bet" aria-labelledby="duels-send-bet">
+                {/* Hela vadet läses upp som en enhet (aria-atomic) när valet ändras. Regionen är permanent och bara texten ändras, så en oförändrad text läses inte om. */}
+                <section className="rq-duels-bet" aria-labelledby="duels-send-bet" aria-live="polite" aria-atomic="true">
                   <h3 id="duels-send-bet" className="rq-duels-bet__label">The bet</h3>
                   <p className="rq-duels-bet__summary">{summary}</p>
                   <dl className="rq-duels-bet__stakes">
@@ -177,7 +171,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
                     </div>
                     <div data-tone="muted">
                       <dt>Starts</dt>
-                      <dd>{card?.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
+                      <dd>{startRuleText(group.tier)}</dd>
                     </div>
                   </dl>
                 </section>
@@ -189,10 +183,10 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
           </div>
           {blocker || group === null ? null : (
             <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
-              <button type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
+              <button ref={sendRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}
               </button>
-              <Dialog.Close className="rq-btn rq-btn--ghost rq-duels-sheet__cancel">Cancel</Dialog.Close>
+              <Dialog.Close className="rq-btn rq-btn--ghost">Cancel</Dialog.Close>
             </footer>
           )}
         </Dialog.Content>
