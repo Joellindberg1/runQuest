@@ -20,7 +20,7 @@ import {
 import { useChallengeActions } from '../hooks/useChallengeActions';
 import { useGroupHistory, useGroupStats, useLiveProgress, useMyChallenges } from '../hooks/useDuelsQueries';
 import { buildTierRules, observedStakes, sampleFromHistory, type StakeSample } from '../rulesModel';
-import { sendBlocker, type SendPreselection } from '../sendModel';
+import { sendBlocker, startRuleSentence, type SendPreselection } from '../sendModel';
 import { DuelsLayout, type Notice } from './DuelsLayout';
 import { SendSheet } from './SendSheet';
 
@@ -149,7 +149,9 @@ export function DuelsScreen() {
   const sendChallenge = async (tokenKey: string, opponentId: string) => {
     await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
     const opponent = names[opponentId];
-    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts at midnight after they accept.` });
+    // Nivån läses ur tokengrupperna från före skicket (tokenet är borta efter omhämtningen); bekräftelsen säger samma startregel som "The bet".
+    const tier = tokenGroups.find((group) => group.cards.some((card) => card.tokenKey === tokenKey))?.tier ?? 'minor';
+    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. ${startRuleSentence(tier)}` });
     closeSend();
   };
 
