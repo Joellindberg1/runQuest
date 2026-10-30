@@ -1,6 +1,7 @@
 import type { Run, User } from '@runquest/types';
 import { daysBetween, stockholmClock } from '@runquest/shared';
 import { buildDistanceRows, buildStreakRows, favouriteWeekday, marathonEquivalents, type StatRow } from '@/features/runner/runnerModel';
+import { showPositionTab } from '@/features/leaderboard/positionTab';
 import { formatDays } from './profileFormat';
 
 // Statflikarna Distance · Streak · Fun facts (Consistency har heatmapModel). Distance och Streak är samma rader som
@@ -10,10 +11,19 @@ import { formatDays } from './profileFormat';
 export type { StatRow };
 export { buildDistanceRows, buildStreakRows };
 
-/** `?view=` på /profile (ADR 006 beslut 2). */
+/** De fyra flikarna som alla ser, i designens ordning. Position kommer efter dem och finns bara i en grupp på minst två (`statViewsFor`). */
 export const STAT_VIEWS = ['distance', 'streak', 'fun', 'consistency'] as const;
+export const POSITION_VIEW = 'position';
+/** `?view=` på /profile (ADR 006 beslut 2). */
 export type StatView = (typeof STAT_VIEWS)[number];
+/** Profilens flikrad: de fyra vyerna plus Position. Runner card och popupens Overview känner bara `StatView`. */
+export type ProfileStatView = StatView | typeof POSITION_VIEW;
 export const DEFAULT_STAT_VIEW: StatView = 'distance';
+
+/** De värden `?view=` får anta för en grupp av den här storleken: övriga (också `position` i en grupp på en) faller tillbaka på standardfliken. */
+export function statViewsFor(memberCount: number): readonly ProfileStatView[] {
+  return showPositionTab(memberCount) ? [...STAT_VIEWS, POSITION_VIEW] : STAT_VIEWS;
+}
 
 const dayOf = (run: Pick<Run, 'date'>): string => run.date.slice(0, 10);
 
