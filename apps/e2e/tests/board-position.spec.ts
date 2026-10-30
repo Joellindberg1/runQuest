@@ -4,6 +4,7 @@ import { contrastOf } from '../support/contrast';
 import { dismissOverlays } from '../support/overlays';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
+import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
 import { targets } from '../support/targets';
 
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
@@ -25,6 +26,13 @@ const THEMES = ['dark', 'light'] as const;
 const FONT_DELAY_MS = 9_000;
 
 const TABS = ['All-time', 'Week', 'Streaks', 'Position'];
+const NARROW_WIDTHS = [300, 320, 340, 360];
+const BOARD_VIEWS = [
+  { view: 'season', name: 'All-time' },
+  { view: 'week', name: 'Week' },
+  { view: 'streaks', name: 'Streaks' },
+  { view: 'position', name: 'Position' },
+];
 const ROW_WIDTHS = [
   { width: 320, height: 740 },
   { width: 375, height: 740 },
@@ -304,6 +312,29 @@ test.describe('the Position tab on the board', () => {
       if (overflows) expect(mask, 'the end of the row is faded').not.toBe('none');
       else expect(mask, 'a row that fits has no fade').toBe('none');
       if (width === 320) expect(overflows, 'four tabs do not fit on 320 px').toBe(true);
+    });
+  }
+
+  // Skyddet mot regression: webbläsaren ger `scrollLeft` som heltal, och en flik kan hamna en bråkdel av en pixel förbi kanten. Fadens zon ska ändå vara fri för varje flik vid de bredder där raden skrollar.
+  // Typsnittet är laddat före varje byte (det är så en användare byter flik efter första ritningen).
+  for (const width of NARROW_WIDTHS) {
+    test(`keeps the selected tab clear of the fade for each of the four tabs, from the address and from the keyboard, at ${width} px`, async ({ page }) => {
+      await openBoard(page, { members: 6, view: BOARD_VIEWS[0]!.view, width });
+      await waitForFontsAndLayout(page);
+      const tablist = page.getByRole('tablist', { name: 'Standings view' });
+
+      for (const { view, name } of BOARD_VIEWS) {
+        await changeViewInTheAddress(page, view);
+        await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+        await expectSelectedTabClearOfFade(tablist, `the "${name}" tab, opened from the address, is in the row and clear of the fade at ${width} px`);
+      }
+
+      await page.getByRole('tab', { name: BOARD_VIEWS[0]!.name }).click();
+      for (const { name } of BOARD_VIEWS.slice(1)) {
+        await page.keyboard.press('ArrowRight');
+        await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+        await expectSelectedTabClearOfFade(tablist, `the "${name}" tab, reached with ArrowRight, is in the row and clear of the fade at ${width} px`);
+      }
     });
   }
 
