@@ -6,8 +6,9 @@ import type { MyChallengesData } from '@runquest/shared';
 import { AppRoutes } from '@/routes';
 import { stat, token } from '@/features/challenges/duels.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
-import { resetHistoryIdx } from '@/test/HistoryIdx';
+import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
+import { warmRunnerPopup } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
@@ -20,10 +21,7 @@ vi.mock('@/features/badges/api', () => ({
 
 // Avbryt i send-flödet som öppnades från löparens popup (ADR 006 punkt 5): tillbaka till sidan under popupen, med fokus på löparens rad.
 
-// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden, så den värms här.
-beforeAll(async () => {
-  await import('@/features/runner/components/RunnerPopup');
-});
+beforeAll(warmRunnerPopup);
 
 const DESKTOP = 1280;
 const KARL = OTHER.id;

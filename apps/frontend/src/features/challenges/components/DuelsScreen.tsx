@@ -13,6 +13,8 @@ import { readSendOrigin, withoutSendOrigin, type FocusRunnerState } from '@/shar
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
+import { historyIdx } from '@/shared/utils/historyIdx';
+import { requestRunnerFocus } from '@/shared/utils/runnerFocusIntent';
 import { firstName } from '@/shared/utils/format';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
@@ -113,7 +115,7 @@ export function DuelsScreen() {
   // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
   // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
   if (!sendOpen && preselection !== null) setPreselection(null);
-  // Ursprunget (sidan under löparens popup) gäller bara flödet som popupens Challenge öppnade. Det följer aldrig med in i ett nytt flöde eller ligger kvar efter ett skick:
+  // Ursprunget (sidan under löparens popup) gäller bara flödet som popupens Challenge öppnade. Det får inte ligga kvar efter ett skick (`closeSend` tömmer det):
   // annars skulle ett senare Cancel hoppa till en gammal bakgrundssida.
   const origin = readSendOrigin(state);
   const stateWithoutOrigin = withoutSendOrigin(state);
@@ -127,7 +129,7 @@ export function DuelsScreen() {
         next.set(SEND_PARAM, '1');
         return next;
       },
-      { state: stateWithoutOrigin },
+      { state },
     );
   };
   // Stängning utan att gå till en annan sida: efter ett skick och för flöden utan ursprung.
@@ -142,10 +144,17 @@ export function DuelsScreen() {
       { replace: true, state: stateWithoutOrigin },
     );
   };
-  // Avbrutet (Cancel, ✕, Esc, skrim, Close i det blockerade läget). Med ursprung ersätter sidan under popupen send-flödets post och skalet fokuserar löparens rad; historiken får ingen ny post.
+  // Avbrutet (Cancel, ✕, Esc, skrim, Close i det blockerade läget). Med ursprung går vi tillbaka till sidan under popupen och skalet fokuserar löparens rad.
+  // Ligger den en post bakåt (indexet som popupen skickade stämmer med var vi är) går vi ett steg bakåt: historiken får ingen ny post, och fokusavsikten bärs i minnet eftersom
+  // `navigate(-1)` inte kan bära route-state. Går det inte att avgöra (djuplänk, ny flik, historiken ändrad) ersätter vi send-flödets post med sidan, och avsikten bärs av route-state.
   const cancelSend = () => {
     if (!origin) {
       closeSend();
+      return;
+    }
+    if (origin.returnIdx !== undefined && historyIdx() === origin.returnIdx + 1) {
+      requestRunnerFocus(origin.runnerId);
+      navigate(-1);
       return;
     }
     navigate(origin.returnTo, { replace: true, state: { focusRunnerId: origin.runnerId } satisfies FocusRunnerState });

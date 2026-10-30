@@ -7,6 +7,7 @@ import { AppRoutes } from '@/routes';
 import { challenge, stat, token } from '@/features/challenges/duels.fixture';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { warmRunnerPopup } from '@/test/warmLazy';
 import type { SendOriginState } from '@/shared/hooks/useOpenRunner';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -20,10 +21,7 @@ vi.mock('@/features/badges/api', () => ({
 
 // Challenge i profil-popupen (ADR 006 punkt 5): länken som stänger popupen och öppnar send-flödet, och den avstängda knappen med synligt skäl.
 
-// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden, så den värms här.
-beforeAll(async () => {
-  await import('@/features/runner/components/RunnerPopup');
-});
+beforeAll(warmRunnerPopup);
 
 const DESKTOP = 1280;
 const MOBILE = 390;

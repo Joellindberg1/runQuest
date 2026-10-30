@@ -15,7 +15,8 @@ const asRecord = (state: unknown): Record<string, unknown> | null => (typeof sta
 export function readSendOrigin(state: unknown): SendOriginState | null {
   const origin = asRecord(asRecord(state)?.sendOrigin);
   if (!origin || !isInternalPath(origin.returnTo) || typeof origin.runnerId !== 'string' || origin.runnerId === '') return null;
-  return { returnTo: origin.returnTo, runnerId: origin.runnerId };
+  const returnIdx = typeof origin.returnIdx === 'number' && Number.isInteger(origin.returnIdx) && origin.returnIdx >= 0 ? origin.returnIdx : undefined;
+  return returnIdx === undefined ? { returnTo: origin.returnTo, runnerId: origin.runnerId } : { returnTo: origin.returnTo, runnerId: origin.runnerId, returnIdx };
 }
 
 /** Router-state utan `sendOrigin`; övrigt (t.ex. `background`) följer med. Ursprunget gäller bara flödet det skickades för och får inte ligga kvar på /duels efter ett skick. */

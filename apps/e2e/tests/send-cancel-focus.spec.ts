@@ -129,10 +129,10 @@ const backgrounds: Array<[string, string, RegExp]> = [
 test.describe('cancelling the send flow that the popup opened (desktop)', () => {
   for (const [background, path, urlAfter] of backgrounds) {
     for (const [how, close] of closers) {
-      test(`cancel with ${how} returns to ${background} with the focus on the runner row and adds no history entry`, async ({ page }) => {
+      test(`cancel with ${how} returns to ${background} with the focus on the runner row and no extra history entry`, async ({ page }) => {
         await open(page, path, DESKTOP);
+        const beforePopup = await historyOf(page);
         await openSendFromPopup(page);
-        const atSheet = await historyOf(page);
 
         await close(page);
 
@@ -140,11 +140,37 @@ test.describe('cancelling the send flow that the popup opened (desktop)', () => 
         await expect(sheet(page)).toHaveCount(0);
         await expect.poll(() => runnerRowHasFocus(page)).toBe(true);
         expect(await isInViewport(page, runnerRow(page)), 'the focused row is in view').toBe(true);
-        // Posten ersattes (replace): varken längden eller platsen i historiken ändras av avbrottet.
-        expect(await historyOf(page)).toEqual(atSheet);
+        // Avbrottet går ett steg bakåt till sidan under popupen: platsen i historiken är den från före popupen, och inget nytt lades till. Posten framåt (send-flödet)
+        // ligger kvar i webbläsarens stack tills nästa ny post skriver över den, så längden är högst en över.
+        const after = await historyOf(page);
+        expect(after.idx).toBe(beforePopup.idx);
+        expect(after.length).toBeLessThanOrEqual(beforePopup.length + 1);
       });
     }
   }
+
+  test('one and three rounds of popup, Challenge and cancel leave the same history, and Back from the board leaves the app as it did before the popup', async ({ page }) => {
+    await open(page, '/board', DESKTOP);
+    const beforePopup = await historyOf(page);
+    const afterRounds: Array<{ length: number; idx: number | null }> = [];
+
+    for (const round of [1, 2, 3]) {
+      await openSendFromPopup(page);
+      await sheet(page).getByRole('button', { name: 'Cancel' }).click();
+      await expect(page).toHaveURL(/\/board$/);
+      await expect.poll(() => runnerRowHasFocus(page), { message: `round ${round}: the runner row has the focus` }).toBe(true);
+      expect(await isInViewport(page, runnerRow(page)), `round ${round}: the focused row is in view`).toBe(true);
+      afterRounds.push(await historyOf(page));
+    }
+
+    expect(afterRounds[0]?.idx).toBe(beforePopup.idx);
+    expect(afterRounds[1]).toEqual(afterRounds[0]);
+    expect(afterRounds[2]).toEqual(afterRounds[0]);
+    expect(afterRounds[2]!.length).toBeLessThanOrEqual(beforePopup.length + 1);
+    // Ett enda Back lämnar Board (posten före är sidan som öppnade appen), som före popupen.
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/(board|duels)/);
+  });
 
   test('Back after a cancel never returns into the send sheet', async ({ page }) => {
     await open(page, '/board', DESKTOP);

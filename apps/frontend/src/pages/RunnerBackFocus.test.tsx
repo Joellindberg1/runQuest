@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { AppRoutes } from '@/routes';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
-import { resetHistoryIdx } from '@/test/HistoryIdx';
+import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);

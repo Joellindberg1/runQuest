@@ -2,9 +2,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
 import { ME, OTHER, RANK_DELTA, handlers, resetFakeBackend } from '@/test/fakeBackend';
-import { resetHistoryIdx } from '@/test/HistoryIdx';
+import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
-import { warmLanding } from '@/test/warmLazy';
+import { warmLanding, warmRunnerPopup } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
@@ -44,6 +44,7 @@ beforeEach(() => {
 });
 
 beforeAll(warmLanding);
+beforeAll(warmRunnerPopup);
 
 describe('varje route renderar utan krasch inne i skalet', () => {
   it.each([
