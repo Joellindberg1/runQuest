@@ -92,7 +92,7 @@ describe('varje route renderar utan krasch inne i skalet', () => {
 
   it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
-    expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('button', { name: OTHER.name })).length).toBeGreaterThan(0);
   });
 });
 
@@ -333,7 +333,7 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
     handlers.getUsersWithRuns = () => ({ success: true, data: [ME, OTHER] });
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
 
-    fireEvent.click((await screen.findAllByText(OTHER.name))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: OTHER.name }))[0]);
     await waitFor(() => expect(location()).toBe(`/runner/${OTHER.id}`));
   });
 });
