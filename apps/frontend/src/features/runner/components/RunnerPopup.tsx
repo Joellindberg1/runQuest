@@ -13,6 +13,7 @@ import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
 import { DEFAULT_OVERVIEW_VIEW, DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
 import { ChallengeButton } from './ChallengeButton';
+import { ChallengeOff } from './ChallengeOff';
 import { PopupBanner } from './PopupBanner';
 import { PopupSections } from './PopupSections';
 import '../runner.css';
@@ -43,6 +44,7 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
   const mine = useMyChallenges(!!user);
   const groupStats = useGroupStats(!!user);
 
+  const active = headToHead.data?.active?.status ?? null;
   const background = readBackground(location);
   const state = background ? { sendOrigin: { returnTo: `${background.pathname}${background.search}`, runnerId } } : undefined;
   const availability = challengeAvailability({
@@ -61,7 +63,11 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
         if (plainLeftClick && (event.target as Element).closest('a')) onLeave();
       }}
     >
-      <ChallengeButton opponentId={runnerId} active={headToHead.data?.active?.status ?? null} inPopup={{ state, availability }} />
+      {active || availability.status === 'ready' ? (
+        <ChallengeButton opponentId={runnerId} active={active} replace state={state} />
+      ) : (
+        <ChallengeOff reason={availability.status === 'blocked' ? availability.reason : null} />
+      )}
     </span>
   );
 }
