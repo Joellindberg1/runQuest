@@ -120,20 +120,26 @@ describe('the Journey tab', () => {
   });
 
   describe('edge cases', () => {
-    const cases: ReadonlyArray<{ name: string; km: number; checkpoint: string; progress: string; valueNow: string }> = [
+    const cases: ReadonlyArray<{ name: string; km: number; checkpoint: string; progress: string; valueNow: string; spoken?: string }> = [
       { name: '0 km', km: 0, checkpoint: 'The Shire', progress: '0.0% · 0 / 3\u00a0266 km', valueNow: '0' },
       { name: 'between two milestones (Rivendell 457, Hollin 602)', km: 530, checkpoint: 'Rivendell', progress: '16.2% · 530 / 3\u00a0266 km', valueNow: '16' },
       { name: 'exactly on a milestone (Moria 1181)', km: 1181, checkpoint: 'Moria', progress: '36.2% · 1\u00a0181 / 3\u00a0266 km', valueNow: '36' },
       { name: 'late on the way (Gorgoroth 3031, Sammath Naur 3148)', km: 3100, checkpoint: 'Gorgoroth', progress: '94.9% · 3\u00a0100 / 3\u00a0266 km', valueNow: '95' },
+      // Rounding never claims more than has been reached: the km are cut, and the percent cannot read 100.0 before the end.
+      { name: 'just before Moria (1180.6 km)', km: 1180.6, checkpoint: "Balin's Tomb", progress: '36.1% · 1\u00a0180 / 3\u00a0266 km', valueNow: '36', spoken: "36.1% of the way to Mount Doom, 1\u00a0180 of 3\u00a0266 km, last checkpoint Balin's Tomb" },
+      { name: 'just before Moria (1180.99 km)', km: 1180.99, checkpoint: "Balin's Tomb", progress: '36.2% · 1\u00a0180 / 3\u00a0266 km', valueNow: '36', spoken: "36.2% of the way to Mount Doom, 1\u00a0180 of 3\u00a0266 km, last checkpoint Balin's Tomb" },
+      { name: 'just before Mount Doom (3265.7 km)', km: 3265.7, checkpoint: 'Sammath Naur', progress: '99.9% · 3\u00a0265 / 3\u00a0266 km', valueNow: '99', spoken: '99.9% of the way to Mount Doom, 3\u00a0265 of 3\u00a0266 km, last checkpoint Sammath Naur' },
+      { name: 'just before Mount Doom (3265.99 km)', km: 3265.99, checkpoint: 'Sammath Naur', progress: '99.9% · 3\u00a0265 / 3\u00a0266 km', valueNow: '99', spoken: '99.9% of the way to Mount Doom, 3\u00a0265 of 3\u00a0266 km, last checkpoint Sammath Naur' },
     ];
 
-    it.each(cases)('$name: checkpoint, progress line and bar agree, and no number is NaN or negative', async ({ km, checkpoint, progress, valueNow }) => {
+    it.each(cases)('$name: checkpoint, progress line and bar agree, and no number is NaN or negative', async ({ km, checkpoint, progress, valueNow, spoken }) => {
       const { journey } = await openJourney(km);
 
       const read = readJourney(journey);
       expect(read.checkpoint).toBe(`Last checkpoint ${checkpoint}`);
       expect(read.progress).toBe(progress);
       expect(read.valueNow).toBe(valueNow);
+      if (spoken) expect(read.valueText).toBe(spoken);
       const bar = within(journey).getByRole('progressbar');
       const fill = (bar as HTMLElement).style.getPropertyValue('--w');
       expect(Number.parseFloat(fill)).toBeGreaterThanOrEqual(0);

@@ -311,6 +311,13 @@ describe('Profile — statflikar (?view=)', () => {
     }
   });
 
+  it('profilens karta bär inget data-intro: attributet hör bara till en värd som delar en introflagga (popupen)', async () => {
+    renderProfile('/profile?view=consistency', DESKTOP);
+    await screen.findByRole('region', { name: /Run heatmap/ });
+    expect(document.querySelector('.rq-profile-heat')).not.toBeNull();
+    expect(document.querySelector('[data-intro]')).toBeNull();
+  });
+
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {
     renderProfile('/profile?view=consistency');
     await screen.findByRole('region', { name: /Run heatmap/ });

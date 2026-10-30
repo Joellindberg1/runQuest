@@ -78,10 +78,10 @@ describe('the scroll region of Heatmap', () => {
 describe('the growing-in of Heatmap', () => {
   const root = (container: HTMLElement) => container.querySelector('.rq-profile-heat');
 
-  it('plays on every mount when the host does not track it (the profile)', () => {
+  it('plays on every mount, and carries no data-intro, when the host does not track it (the profile)', () => {
     for (let mount = 0; mount < 2; mount += 1) {
       const { container, unmount } = renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop />);
-      expect(root(container)).toHaveAttribute('data-intro', 'true');
+      expect(root(container)).not.toHaveAttribute('data-intro');
       unmount();
     }
   });
