@@ -5,7 +5,6 @@ import { panelId, tabId } from '@/shared/components/viewTabIds';
 import type { RunnerPanelData } from '../hooks/useRunnerPanelData';
 import type { PopupSection } from '../popupSections';
 import type { StatView } from '../statViews';
-import { HeadToHeadSection } from './RunnerPanels';
 import { JourneyCard } from './JourneyCard';
 import { StatsPanel } from './StatsPanel';
 import { TitlesPanel } from './TitlesPanel';
@@ -48,12 +47,7 @@ export function PopupSections({ user, data, section, onSectionChange, statView, 
         className="rq-runner-popup-tabs"
       />
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, section)} tabIndex={0} className="rq-runner-popup-panel">
-        {section === 'overview' && (
-          <div className="rq-runner__split">
-            <StatsPanel user={user} now={data.now} view={statView} onChange={onStatViewChange} />
-            <HeadToHeadSection user={user} />
-          </div>
-        )}
+        {section === 'overview' && <StatsPanel user={user} now={data.now} view={statView} onChange={onStatViewChange} />}
         {section === 'journey' && <JourneyCard totalKm={user.total_km} />}
         {section === 'titles' && <TitlesPanel user={user} />}
         {section === 'badges' && <BadgePanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />}

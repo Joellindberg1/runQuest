@@ -1,7 +1,5 @@
 import type { User } from '@runquest/types';
 import { BadgePanel } from '@/features/badges/components/BadgePanel';
-import { useAuth } from '@/providers/authContext';
-import { useHeadToHead } from '../hooks/useRunnerQueries';
 import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import type { StatView } from '../statViews';
 import { HeadToHeadPanel } from './HeadToHeadPanel';
@@ -9,24 +7,6 @@ import { HeroCard } from './HeroCard';
 import { JourneyCard } from './JourneyCard';
 import { StatsPanel } from './StatsPanel';
 import { TitlesPanel } from './TitlesPanel';
-
-/** Head to head-panelen med sin fråga (delas i cachen med knappen i huvudytan), eller ingenting utan inloggad: bara en inloggad har något att jämföras med. */
-export function HeadToHeadSection({ user }: { user: User }) {
-  const { user: me } = useAuth();
-  const headToHead = useHeadToHead(user.id);
-  if (!me) return null;
-
-  return (
-    <HeadToHeadPanel
-      opponentName={user.name}
-      meId={me.id}
-      data={headToHead.data}
-      isError={headToHead.isError}
-      isFetching={headToHead.isFetching}
-      onRetry={() => void headToHead.refetch()}
-    />
-  );
-}
 
 interface RunnerPanelsProps {
   user: User;
@@ -38,7 +18,8 @@ interface RunnerPanelsProps {
 
 /**
  * Runner cards paneler på sidan (`RunnerCard`), i EN DOM-ordning för alla bredder: hero · journey · (statflikar | titlar) · (badges | head to head). Placeringen i
- * kolumner avgörs av `--rq-runner-split-cols` (CSS), inte av JS. Popupen (`RunnerPopup`) ritar samma paneler över samma data (`useRunnerPanelData`), men en i taget i sina flikar.
+ * kolumner avgörs av `--rq-runner-split-cols` (CSS), inte av JS. Popupen (`RunnerPopup`) ritar samma data (`useRunnerPanelData`) men med bannern och Head to head i en egen panel
+ * uppe till höger (`PopupBanner`), och de övriga panelerna en i taget i sina flikar. Head to head-kortet finns bara här, och bara med en inloggad att jämföras med.
  */
 export function RunnerPanels({ user, allUsers, statView, onStatViewChange }: RunnerPanelsProps) {
   const data = useRunnerPanelData(user, allUsers);
@@ -55,7 +36,7 @@ export function RunnerPanels({ user, allUsers, statView, onStatViewChange }: Run
       </div>
       <div className="rq-runner__lower">
         <BadgePanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />
-        <HeadToHeadSection user={user} />
+        {data.headToHead && <HeadToHeadPanel {...data.headToHead} />}
       </div>
     </>
   );

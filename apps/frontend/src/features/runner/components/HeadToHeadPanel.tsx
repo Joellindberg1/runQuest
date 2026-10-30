@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { firstName } from '@/shared/utils/format';
-import type { HeadToHeadResponse } from '@runquest/shared';
+import type { HeadToHeadSource } from '../hooks/useRunnerPanelData';
 import { buildHeadToHead, type Meeting, type MeetingResult } from '../runnerModel';
-import { PanelLoading } from './RunnerParts';
+import { CellGrid, PanelLoading } from './RunnerParts';
 
 const RESULT_CHIP: Record<MeetingResult, string> = {
   won: 'rq-chip rq-chip--status rq-chip--up',
@@ -24,20 +24,11 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
   );
 }
 
-interface HeadToHeadPanelProps {
-  opponentName: string;
-  meId: string;
-  data: HeadToHeadResponse | undefined;
-  isError: boolean;
-  isFetching: boolean;
-  onRetry: () => void;
-}
-
 /**
- * "Head to head": rekordet ur den inloggades perspektiv (you won · drawn · you lost) och de senaste mötena
- * kompakt. Visas aldrig på egen profil — /runner/<eget id> redirectas till /profile redan i routingen.
+ * "Head to head" som kort på sidan (mobil och direktladdning): rekordet ur den inloggades perspektiv (you won · drawn · you lost) och de senaste mötena
+ * kompakt. Popupen har samma uppgifter som en panel i bannern (`HeadToHeadBanner`). Visas aldrig på egen profil — /runner/<eget id> redirectas till /profile redan i routingen.
  */
-export function HeadToHeadPanel({ opponentName, meId, data, isError, isFetching, onRetry }: HeadToHeadPanelProps) {
+export function HeadToHeadPanel({ opponentName, meId, data, isError, isFetching, onRetry }: HeadToHeadSource) {
   const view = useMemo(() => (data ? buildHeadToHead(data, meId) : null), [data, meId]);
 
   let body;
@@ -48,14 +39,7 @@ export function HeadToHeadPanel({ opponentName, meId, data, isError, isFetching,
   } else {
     body = (
       <>
-        <dl className="rq-hairgrid rq-runner-record">
-          {view.cells.map((cell) => (
-            <div key={cell.key} className="rq-runner-cell" data-cell={cell.key}>
-              <dt className="rq-runner-cell__label">{cell.label}</dt>
-              <dd className="rq-runner-cell__value" data-tone={cell.tone}>{cell.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <CellGrid cells={view.cells} variant="record" />
         {view.meetings.length > 0 ? (
           <ol className="rq-hairgrid rq-runner-meetings" aria-label="Latest meetings">
             {view.meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} />)}

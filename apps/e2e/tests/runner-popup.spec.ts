@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
+import { contrastOf } from '../support/contrast';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { targets } from '../support/targets';
 
@@ -9,6 +10,16 @@ const TOLERANCE_PX = 1;
 
 /** Popupens bredd: `--rq-modal-w` (index.css), som krymper till 95 % av fönstret. */
 const MODAL_WIDTH_PX = 860;
+
+/** Dialogens höjd på 1440x900 och 1280x768 när innehållet ryms: bannern plus panelytans fasta höjd (`--rq-runner-popup-panel-h`). */
+const DIALOG_HEIGHT_PX = 669;
+
+/** Etiketter i bannern: minst 11 px och WCAG AA för text (4,5:1) i båda teman. */
+const MIN_LABEL_PX = 11;
+const MIN_LABEL_CONTRAST = 4.5;
+
+/** Panelytan scrollar för sig: en rullist tar upp till ca 20 px av bredden. */
+const SCROLLBAR_ALLOWANCE_PX = 20;
 
 const RUNNER = { id: 'popup-2', name: 'Bo Two' };
 
@@ -51,8 +62,12 @@ const holder = (index: number) => ({
 /** Serierna i BADGE_SERIES (packages/shared/src/badges.ts): löparens badges i proven som vill ha en full samling (en post per serie). */
 const BADGE_SERIES_KEYS = ['milestoner', 'earth_trotter', 'climber', 'streak_keeper', 'early_bird', 'night_owl', 'speedster', 'precisionist'];
 
+/** Läget för Head to head-svaret: `record` = 1-0-1 (lika), `none` = inga dueller, `loading` = svaret kommer aldrig, `error` = servern felar, `win` = 2-0-1 till den inloggade. */
+type HeadToHeadStub = 'record' | 'win' | 'none' | 'loading' | 'error';
+const HEAD_TO_HEAD_RECORDS = { record: { wins: 1, draws: 0, losses: 1 }, win: { wins: 2, draws: 0, losses: 1 }, none: { wins: 0, draws: 0, losses: 0 } } as const;
+
 /** Gruppen, och löparens titlar (så många som provet ber om): innehållet i popupen blir högre ju fler. `badges` = antal serier löparen har intjänade (0-8). */
-async function stubGroup(page: Page, titles: number, badges = 0): Promise<void> {
+async function stubGroup(page: Page, titles: number, badges = 0, headToHead: HeadToHeadStub = 'record'): Promise<void> {
   await answerWith(page, '/auth/users-with-runs', { success: true, data: GROUP });
   await answerWith(page, '/titles/user/', {
     success: true,
@@ -67,10 +82,17 @@ async function stubGroup(page: Page, titles: number, badges = 0): Promise<void> 
     })),
     meta: {},
   });
-  await answerWith(page, '/challenges/head-to-head/', {
-    success: true,
-    data: { opponent: { id: RUNNER.id, name: RUNNER.name, profile_picture: null }, record: { wins: 1, draws: 0, losses: 1, total: 2 }, history: [], active: null },
-  });
+  if (headToHead === 'loading') {
+    await page.route(apiPath('/challenges/head-to-head/'), () => {});
+  } else if (headToHead === 'error') {
+    await page.route(apiPath('/challenges/head-to-head/'), (route) => route.fulfill({ status: 500, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'stubbed failure' }) }));
+  } else {
+    const { wins, draws, losses } = HEAD_TO_HEAD_RECORDS[headToHead];
+    await answerWith(page, '/challenges/head-to-head/', {
+      success: true,
+      data: { opponent: { id: RUNNER.id, name: RUNNER.name, profile_picture: null }, record: { wins, draws, losses, total: wins + draws + losses }, history: [], active: null },
+    });
+  }
   const earned = BADGE_SERIES_KEYS.slice(0, badges);
   await answerWith(page, '/badges/user/', {
     success: true,
@@ -78,8 +100,15 @@ async function stubGroup(page: Page, titles: number, badges = 0): Promise<void> 
   });
 }
 
-async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0): Promise<void> {
-  await stubGroup(page, titles, badges);
+interface OpenOptions {
+  headToHead?: HeadToHeadStub;
+  /** Temat sätts som next-themes gör: `localStorage.theme` före sidans skript, som ger `data-theme` på <html>. */
+  theme?: 'dark' | 'light';
+}
+
+async function openBoard(page: Page, width: number, height: number, titles = 3, badges = 0, { headToHead = 'record', theme }: OpenOptions = {}): Promise<void> {
+  await stubGroup(page, titles, badges, headToHead);
+  if (theme) await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize({ width, height });
   await page.goto('/board');
   await dismissOverlays(page);
@@ -107,7 +136,11 @@ const sectionPanel = (dialog: Locator): Locator => dialog.locator('.rq-runner-po
 /** Väntar tills flikens egen panel är ritad med sitt innehåll (inte laddaren), så att höjden mäts i det läge användaren ser. */
 async function expectSectionLoaded(dialog: Locator, name: (typeof SECTIONS)[number]): Promise<void> {
   const panel = sectionPanel(dialog);
-  if (name === 'Overview') await expect(panel.getByRole('region', { name: 'Head to head' })).toBeVisible();
+  // Head to head ligger i bannern (ovanför flikarna), inte i Overview-panelen: Overview är klar när statflikarna ritats och bannern har fått sitt svar (meningen).
+  if (name === 'Overview') {
+    await expect(panel.getByRole('tablist', { name: 'Runner stats' })).toBeVisible();
+    await expect(dialog.getByText(/^Head to head: /)).toBeAttached();
+  }
   if (name === 'The Journey') await expect(panel.getByRole('region', { name: "Frodo's journey" })).toBeVisible();
   if (name === 'Titles held') await expect(panel.getByRole('list', { name: 'Titles held' })).toBeVisible();
   if (name === 'Badges') await expect(panel.getByRole('list', { name: 'Earned badges' })).toBeVisible();
@@ -268,6 +301,8 @@ test.describe('the profile popup on desktop', () => {
 
       const values = Object.values(heights);
       expect(Math.max(...values) - Math.min(...values), `the dialog height varies: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+      // Bannern är lägre än förut, och panelytan har växt lika mycket (`--rq-runner-popup-panel-h`): dialogen är kvar på sina 669 px.
+      expect(Math.abs((values[0] ?? 0) - DIALOG_HEIGHT_PX), `the dialog height is ${DIALOG_HEIGHT_PX} px: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(TOLERANCE_PX);
       const box = (await dialog.boundingBox())!;
       expect(box.y, 'the dialog starts inside the window').toBeGreaterThanOrEqual(-TOLERANCE_PX);
       expect(box.y + box.height, 'the dialog ends inside the window').toBeLessThanOrEqual(height + TOLERANCE_PX);
@@ -370,6 +405,144 @@ test.describe('the profile popup on desktop', () => {
     expect(measured.ringTop, 'the ring starts at or below the tab top').toBeGreaterThanOrEqual(measured.boxTop - TOLERANCE_PX);
     expect(measured.ringBottom, 'the ring ends at or above the tab bottom').toBeLessThanOrEqual(measured.boxBottom + TOLERANCE_PX);
   });
+});
+
+// Bannern och Head to head i sin egen panel uppe till höger (ADR 006 punkt 4): inga layoutsprång mellan lägena, ingen överlappning med namnet, läsbara etiketter och en mening för skärmläsaren.
+test.describe('the banner and the Head to head panel of the profile popup', () => {
+  const banner = (dialog: Locator): Locator => dialog.getByRole('region', { name: 'Runner', exact: true });
+  const panel = (dialog: Locator): Locator => dialog.locator('.rq-runner-h2h-banner');
+
+  test('the banner is equally tall while Head to head loads, fails, has no duels and has a record, and the dialog keeps its height', async ({ page }, testInfo) => {
+    const measured: Record<string, { banner: number; dialog: number }> = {};
+    for (const headToHead of ['loading', 'error', 'none', 'win'] as const) {
+      await openBoard(page, 1280, 768, 3, 3, { headToHead });
+      const dialog = await openPopup(page);
+      if (headToHead === 'loading') await expect(panel(dialog).getByText('Loading head to head')).toBeAttached();
+      if (headToHead === 'error') await expect(panel(dialog).getByText("Couldn't load head to head")).toBeVisible({ timeout: 10_000 });
+      if (headToHead === 'none') await expect(panel(dialog).getByText('No duels against Bo yet', { exact: true })).toBeVisible();
+      if (headToHead === 'win') await expect(dialog.getByText('Head to head: 2–0–1 to you')).toBeAttached();
+      await waitForStylesApplied(page);
+      measured[headToHead] = { banner: (await banner(dialog).boundingBox())!.height, dialog: (await dialog.boundingBox())!.height };
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+    testInfo.annotations.push({ type: 'banner and dialog heights', description: JSON.stringify(measured) });
+
+    const banners = Object.values(measured).map((entry) => entry.banner);
+    expect(Math.max(...banners) - Math.min(...banners), `the banner height varies: ${JSON.stringify(measured)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+    for (const [state, { dialog }] of Object.entries(measured)) {
+      expect(Math.abs(dialog - DIALOG_HEIGHT_PX), `the dialog is ${DIALOG_HEIGHT_PX} px with Head to head ${state}`).toBeLessThanOrEqual(TOLERANCE_PX);
+    }
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the panel does not overlap the name, also a long one, and its labels are at least ${MIN_LABEL_PX} px with ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px`, async ({ page }, testInfo) => {
+      const contrasts: Record<string, number[]> = {};
+      for (const width of [1024, 1280, 1440]) {
+        await openBoard(page, width, 900, 3, 3, { theme });
+        const dialog = await openPopup(page);
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expect(dialog.getByText('Head to head: 1–0–1 level')).toBeAttached();
+
+        // Namnet längre än raden rymmer: det ska radbrytas i sin kolumn, inte löpa in under panelen.
+        const names = ['Bo Two', 'Bartholomeus Nicklas Maximilian von Elling-Lindblad Lüthje'];
+        for (const name of names) {
+          await dialog.locator('.rq-runner-hero__name').evaluate((heading, value) => { heading.textContent = value; }, name);
+          const boxes = await dialog.evaluate((root) => {
+            const rect = (selector: string) => root.querySelector(selector)!.getBoundingClientRect();
+            const name = rect('.rq-runner-hero__name');
+            const minis = rect('.rq-badge-minis');
+            const side = rect('.rq-runner-h2h-banner');
+            return { nameRight: name.right, minisRight: minis.right, sideLeft: side.left };
+          });
+          expect(boxes.nameRight, `the name ends before the panel at ${width} px ("${name}")`).toBeLessThanOrEqual(boxes.sideLeft + TOLERANCE_PX);
+          expect(boxes.minisRight, `the badges end before the panel at ${width} px ("${name}")`).toBeLessThanOrEqual(boxes.sideLeft + TOLERANCE_PX);
+        }
+
+        const sizes = await dialog.locator('.rq-runner-h2h-banner__head span, .rq-runner-h2h-banner .rq-runner-cell__label').evaluateAll((labels) => labels.map((label) => parseFloat(getComputedStyle(label).fontSize)));
+        expect(sizes, 'the heading and the three labels are drawn').toHaveLength(4);
+        for (const size of sizes) expect(size, 'label size').toBeGreaterThanOrEqual(MIN_LABEL_PX);
+        const ratios = await page.evaluate(contrastOf, { selectors: ['.rq-runner-h2h-banner__head span', '.rq-runner-h2h-banner .rq-runner-cell__label'] });
+        contrasts[`${width}px`] = ratios.map((sample) => sample.ratio);
+        for (const sample of ratios) expect(sample.ratio, `contrast of "${sample.text}" at ${width} px`).toBeGreaterThanOrEqual(MIN_LABEL_CONTRAST);
+
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+      }
+      testInfo.annotations.push({ type: `label contrast (${theme})`, description: JSON.stringify(contrasts) });
+    });
+  }
+
+  test('a screen reader gets Head to head once, as one sentence, and the visible numbers are hidden', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    await expect(dialog.getByText('Head to head: 1–0–1 level')).toBeAttached();
+
+    const snapshot = await panel(dialog).ariaSnapshot();
+    expect(snapshot.match(/Head to head/g), `one reading in the accessibility tree: ${snapshot}`).toHaveLength(1);
+    expect(snapshot).toContain('Head to head: 1–0–1 level');
+    expect(snapshot, 'the numbers and labels in the boxes are hidden').not.toMatch(/won|drawn|lost/i);
+    await expect(dialog.getByRole('region', { name: 'Head to head' })).toHaveCount(0);
+  });
+
+  test('Head to head is not in the Overview panel, so the stats take the whole width', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    await expectSectionLoaded(dialog, 'Overview');
+
+    const overview = sectionPanel(dialog);
+    await expect(overview.getByText(/head to head/i)).toHaveCount(0);
+    const widths = await overview.evaluate((element) => ({ panel: element.clientWidth, stats: (element.querySelector('[role="tablist"]')!.parentElement as HTMLElement).getBoundingClientRect().width }));
+    expect(widths.stats, 'the stat panel fills the Overview panel').toBeGreaterThanOrEqual(widths.panel - SCROLLBAR_ALLOWANCE_PX);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the Retry button in the panel has a focus ring drawn inside the panel in the ${theme} theme`, async ({ page }, testInfo) => {
+      await openBoard(page, 1280, 900, 3, 0, { headToHead: 'error', theme });
+      const dialog = await openPopup(page);
+      const retry = panel(dialog).getByRole('button', { name: 'Retry' });
+      await expect(retry).toBeVisible({ timeout: 10_000 });
+
+      await retry.focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(retry).toBeFocused();
+      const ring = await retry.evaluate((button) => {
+        const style = getComputedStyle(button);
+        const box = button.getBoundingClientRect();
+        const side = button.closest('.rq-runner-h2h-banner')!.getBoundingClientRect();
+        const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+        const [r = 0, g = 0, b = 0] = (style.outlineColor.match(/[\d.]+/g) ?? []).map(Number);
+        const layers: number[][] = [];
+        for (let node: Element | null = button; node; node = node.parentElement) {
+          const layer = (getComputedStyle(node).backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+          if ((layer[3] ?? 1) > 0 && layer.length >= 3) layers.push(layer);
+          if ((layer[3] ?? 1) === 1) break;
+        }
+        const surface = layers.reduceRight<number[]>((below, [lr = 0, lg = 0, lb = 0, la = 1]) => [lr * la + (below[0] ?? 0) * (1 - la), lg * la + (below[1] ?? 0) * (1 - la), lb * la + (below[2] ?? 0) * (1 - la)], [0, 0, 0]);
+        return {
+          focusVisible: button.matches(':focus-visible'), style: style.outlineStyle, ringColor: [r, g, b], surface,
+          outer: { left: box.left - reach, top: box.top - reach, right: box.right + reach, bottom: box.bottom + reach },
+          side: { left: side.left, top: side.top, right: side.right, bottom: side.bottom },
+        };
+      });
+      expect(ring.focusVisible, 'the keyboard focus ring is drawn').toBe(true);
+      expect(ring.style).not.toBe('none');
+      expect(ring.outer.left, 'ring inside the panel, left').toBeGreaterThanOrEqual(ring.side.left - TOLERANCE_PX);
+      expect(ring.outer.top, 'ring inside the panel, top').toBeGreaterThanOrEqual(ring.side.top - TOLERANCE_PX);
+      expect(ring.outer.right, 'ring inside the panel, right').toBeLessThanOrEqual(ring.side.right + TOLERANCE_PX);
+      expect(ring.outer.bottom, 'ring inside the panel, bottom').toBeLessThanOrEqual(ring.side.bottom + TOLERANCE_PX);
+      const luminance = (rgb: number[]) => {
+        const channel = (value: number) => { const s = value / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+        return 0.2126 * channel(rgb[0] ?? 0) + 0.7152 * channel(rgb[1] ?? 0) + 0.0722 * channel(rgb[2] ?? 0);
+      };
+      const [lighter = 0, darker = 0] = [luminance(ring.ringColor), luminance(ring.surface)].sort((a, b) => b - a);
+      const contrast = (lighter + 0.05) / (darker + 0.05);
+      // Ringens kontrast mot de tonade ytorna i det ljusa temat är en egen story (fokusringen på tonade ytor): värdet loggas här, och kravet gäller bara det mörka temat.
+      testInfo.annotations.push({ type: `focus ring contrast (${theme})`, description: `${contrast.toFixed(2)}:1 (ring rgb(${ring.ringColor.join(',')}) on rgb(${ring.surface.map(Math.round).join(',')}))` });
+      if (theme === 'dark') expect(contrast, 'the ring has at least 3:1 against the panel').toBeGreaterThanOrEqual(3);
+    });
+  }
 });
 
 // Popupens chunk (RunnerPopup-*.js) hålls tillbaka tills provet släpper den: det kalla läget. Medan den hämtas visar sidan en upptagen dialog över skrimman.

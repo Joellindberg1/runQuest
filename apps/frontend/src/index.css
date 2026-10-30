@@ -455,7 +455,9 @@
   --rq-runner-journey-row-2: 46px;      /* … etikettrad 2 */
   --rq-runner-journey-label-h: 13px;    /* … etikettens höjd (ticken börjar under den) */
   --rq-runner-close-gutter: 44px;       /* popup: luft till modalens ✕ i toppraden */
-  --rq-runner-popup-panel-h: 300px;     /* popup: panelytans fasta höjd under flikraden, så att dialogen är lika hög på alla flikar (under .rq-modal max-height) */
+  --rq-runner-popup-panel-h: 338px;     /* popup: panelytans fasta höjd under flikraden, så att dialogen är lika hög på alla flikar (under .rq-modal max-height). 300 med den gamla bannern; den nya bannern är 38 px lägre, så panelen växte lika mycket och dialogen är kvar på 669 px */
+  --rq-runner-h2h-w: 212px;             /* popup: Head to head-panelens bredd i bannern (prototypen 212) */
+  --rq-runner-h2h-body-h: 76px;         /* popup: panelens innehållshöjd (rekordet, laddaren, felet, "inga dueller"): samma höjd i alla lägen, så bannern inte hoppar */
 
   /* ── 1.22 Titles-mått (inkrement 4) ────────────────────────────────────────
      Mått ur App-/Web-prototypens titles-skärm som saknade token. Endast mått —
