@@ -5,7 +5,7 @@ import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import DuelsPage from './DuelsPage';
 import { TOUR_DUELS_V2 } from '@/features/onboarding/featureTourSteps';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, historyItem, stat, token } from '@/features/challenges/duels.fixture';
-import type { MyChallengesData } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, type MyChallengesData } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
@@ -527,6 +527,30 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(location()).toBe('/duels?view=live');
   });
+
+  for (const [tier, chipName] of [['minor', 'Minor ×3'], ['legendary', 'Legendary ×1']] as const) {
+    it(`the confirmation after a ${tier} send says the same start rule as The bet`, async () => {
+      setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });
+      handlers.sendChallenge = () => ({ success: true, data: { challenge_id: 'new' } });
+      renderDuels('/duels?send=1');
+      await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+      fireEvent.click(within(sheet()).getByRole('button', { name: chipName }));
+      fireEvent.click(within(within(sheet()).getByRole('radiogroup', { name: /^2 · Pick a challenge/ })).getAllByRole('radio')[0]);
+      fireEvent.click(option('Adam Einstein'));
+      const starts = within(sheet()).getByText('Starts').closest('div')?.querySelector('dd')?.textContent ?? '';
+      expect(starts).toMatch(/^Midnight after it is accepted/);
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
+
+      const confirmation = (await screen.findByText(/^Challenge sent to Adam\./)).textContent ?? '';
+      expect(confirmation).toContain('midnight after they accept');
+      // Det som The bet säger om dagar utan svar säger bekräftelsen också, och för minor säger ingen av dem något.
+      const unanswered = /after (\d+) d unanswered/.exec(starts)?.[0] ?? null;
+      if (tier === 'legendary') expect(unanswered).toBe(`after ${LEGENDARY_AUTO_START_DAYS} d unanswered`);
+      if (unanswered) expect(confirmation).toContain(unanswered);
+      else expect(confirmation).not.toMatch(/unanswered|\bd\b/);
+    });
+  }
 
   it('serverfel (motståndaren upptagen) visas i sheeten, som stannar kvar', async () => {
     setup({ stats: STATS.map((s) => ({ ...s, challenge_active: false })), my: { group_active: [] } });

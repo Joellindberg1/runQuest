@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { User } from '@runquest/types';
 import { LEGENDARY_AUTO_START_DAYS } from '@runquest/shared';
 import { buildSent, buildTokenGroups } from './duelsModel';
-import { betSummary, buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice, startRuleText } from './sendModel';
+import { betSummary, buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice, startRuleSentence, startRuleText } from './sendModel';
 import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat, token } from './duels.fixture';
 
 const sent = buildSent(challenge({ id: 's1', challenger_id: ME, opponent_id: KARL }), NAMES);
@@ -63,6 +63,20 @@ describe('startRuleText', () => {
 
   it('never claims that it starts when it is accepted', () => {
     for (const tier of ['minor', 'major', 'legendary'] as const) expect(startRuleText(tier)).not.toMatch(/when accepted/i);
+  });
+});
+
+describe('startRuleSentence', () => {
+  it('is the same rule as startRuleText in a sentence for the confirmation: the same midnight, and the unanswered days for legendary only', () => {
+    expect(startRuleSentence('minor')).toBe('It starts at midnight after they accept.');
+    expect(startRuleSentence('major')).toBe('It starts at midnight after they accept.');
+    expect(startRuleSentence('legendary')).toBe(`It starts at midnight after they accept, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered.`);
+  });
+
+  it('names the unanswered days exactly when startRuleText does', () => {
+    for (const tier of ['minor', 'major', 'legendary'] as const) {
+      expect(startRuleSentence(tier).includes('unanswered')).toBe(startRuleText(tier).includes('unanswered'));
+    }
   });
 });
 
