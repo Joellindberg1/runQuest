@@ -30,5 +30,7 @@
   .rq-board-podium__given, .rq-board-podium__nameline--stack .rq-board-delta { align-self: last baseline; }
 }
 /* Placeringen som läsbar text i rankfärgen uppe till höger (mobil); desktop har kvar sin spöksiffra. Guldet läses i den mörkare textnyansen i ljust tema (--rq-rank-1 ger 3,3:1 mot vitt). */
-.rq-board-podium__rank { position: absolute; top: var(--rq-pad-card); right: var(--rq-pad-card); font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-rank-solid); }
+.rq-board-podium__rank { position: absolute; top: var(--rq-pad-card); right: var(--rq-pad-card); font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); }
 .rq-board-podium[data-rank="1"] .rq-board-podium__rank { color: var(--rq-gold-text); }
+.rq-board-podium[data-rank="2"] .rq-board-podium__rank { color: var(--rq-rank-2); }
+.rq-board-podium[data-rank="3"] .rq-board-podium__rank { color: var(--rq-rank-3); }
