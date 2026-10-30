@@ -37,6 +37,11 @@
 }
 .rq-runner-popup-panel { height: var(--rq-runner-popup-panel-h); overflow-y: auto; padding-top: var(--rq-sp-14); }
 .rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
+
+/* ── Profil-popupen: Overview ─────────────────────────────────────────────────
+   Växlingen (SegmentedControl, .rq-filter-chips) ligger över ett kort med profilens statistikinnehåll (rader eller aktivitetskartan). Höjden är panelytans, inte innehållets: panelen scrollar för sig. */
+.rq-runner-overview { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
+.rq-runner-overview__content { padding: var(--rq-sp-10) var(--rq-pad-card); }
 .rq-runner__split > .rq-runner-h2h { align-self: stretch; }
 
 /* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────

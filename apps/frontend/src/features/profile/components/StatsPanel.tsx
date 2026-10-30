@@ -1,13 +1,8 @@
-import { useMemo } from 'react';
-import { zoneDay } from '@runquest/shared';
 import type { User } from '@runquest/types';
-import { ErrorState } from '@/shared/components/ErrorState';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
-import { useXpConfig } from '@/shared/hooks/useXpConfig';
-import { buildDistanceRows, buildFunRows, buildStreakRows, type StatRow, type StatView } from '../statsModel';
-import { Heatmap } from './Heatmap';
-import { PanelLoading } from './ProfileParts';
+import type { StatView } from '../statsModel';
+import { StatsContent } from './StatsContent';
 
 const ID_PREFIX = 'profile-stats';
 
@@ -18,41 +13,11 @@ const STAT_TABS: readonly ViewTab<StatView>[] = [
   { key: 'consistency', label: 'Consistency', icon: 'calendar' },
 ];
 
-function Rows({ rows, label }: { rows: StatRow[]; label: string }) {
-  return (
-    <dl className="rq-hairgrid rq-profile-rows" aria-label={label}>
-      {rows.map((row) => (
-        <div key={row.label} className="rq-row rq-profile-row">
-          <dt>{row.label}</dt>
-          <dd data-tone={row.tone}>{row.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/** Streak-raden behöver trappan ur /api/config/xp, så den hämtas bara när fliken visas. */
-function StreakRows({ user, now }: { user: User; now: Date }) {
-  const configQuery = useXpConfig();
-
-  if (configQuery.isError) {
-    return (
-      <ErrorState
-        title="Couldn't load streak tiers"
-        retrying={configQuery.isFetching}
-        onRetry={() => void configQuery.refetch()}
-      />
-    );
-  }
-  if (!configQuery.data) return <PanelLoading label="Loading streak" />;
-  return <Rows rows={buildStreakRows(user, now, configQuery.data.streak_multipliers)} label="Streak" />;
-}
-
 interface StatsPanelProps {
   user: User;
   now: Date;
   isDesktop: boolean;
-  /** Vald flik. Värden äger tillståndet (profilen: `?view=`, popupen: lokalt tillstånd); panelen läser aldrig adressen. */
+  /** Vald flik. Värden äger tillståndet (profilen: `?view=`); panelen läser aldrig adressen. Popupens Overview delar `StatsContent`, inte den här panelen. */
   view: StatView;
   onChange: (view: StatView) => void;
   /** Regionens och flikradens namn: "Your stats" på profilen, "Runner stats" när en annan löpares panel visas. */
@@ -63,17 +28,11 @@ interface StatsPanelProps {
 
 /** Statflikarna Distance · Streak · Fun facts · Consistency, kontrollerade av värden (ADR 006 addendum 2026-10-26, punkt 3). */
 export function StatsPanel({ user, now, isDesktop, view, onChange, label, dataTour }: StatsPanelProps) {
-  const distanceRows = useMemo(() => buildDistanceRows(user, now), [user, now]);
-  const funRows = useMemo(() => buildFunRows(user, now), [user, now]);
-
   return (
     <section className="rq-card rq-profile-statcard" aria-label={label} data-tour={dataTour}>
       <ViewTabs label={label} tabs={STAT_TABS} value={view} onChange={onChange} idPrefix={ID_PREFIX} variant="underline" className="rq-profile-tabs" />
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, view)} className="rq-profile-panel">
-        {view === 'distance' && <Rows rows={distanceRows} label="Distance" />}
-        {view === 'streak' && <StreakRows user={user} now={now} />}
-        {view === 'fun' && <Rows rows={funRows} label="Fun facts" />}
-        {view === 'consistency' && <Heatmap user={user} today={zoneDay(now)} now={now} isDesktop={isDesktop} />}
+        <StatsContent user={user} now={now} isDesktop={isDesktop} view={view} />
       </div>
     </section>
   );

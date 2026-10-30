@@ -204,7 +204,7 @@ describe('Head to head in its own panel in the banner', () => {
 
     const overview = document.querySelector('.rq-runner-popup-panel') as HTMLElement;
     expect(within(overview).queryByText(/head to head/i)).toBeNull();
-    expect(within(overview).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
+    expect(within(overview).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
     expect(overview.querySelector('.rq-runner__split')).toBeNull();
   });
 

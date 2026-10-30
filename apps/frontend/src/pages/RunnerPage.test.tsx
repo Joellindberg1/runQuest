@@ -462,7 +462,7 @@ describe('the profile popup (background location)', () => {
     expect(within(dialog).getByText('Runner card')).toBeInTheDocument();
     expect(within(dialog).queryByText('Runner profile')).toBeNull();
     expect(within(dialog).getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
     // Head to head sits in the banner, read as one sentence, and not as a panel of its own.
     expect(await within(dialog).findByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
     expect(within(dialog).queryByRole('region', { name: 'Head to head' })).toBeNull();
@@ -639,11 +639,11 @@ describe('the profile popup (background location)', () => {
     expect(screen.getByRole('button', { name: 'Karl on the duels page' })).not.toHaveFocus();
   });
 
-  it('keeps the stat tab as popup state: switching it neither touches the address nor the page behind', async () => {
+  it('keeps the Overview choice as popup state: switching it neither touches the address nor the page behind', async () => {
     const dialog = await openPopup();
 
-    fireEvent.click(within(dialog).getByRole('tab', { name: 'Fun facts' }));
-    await waitFor(() => expect(within(dialog).getByRole('tab', { name: 'Fun facts' })).toHaveAttribute('aria-selected', 'true'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fun facts' }));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fun facts' })).toHaveAttribute('aria-pressed', 'true'));
 
     expect(location()).toBe('/runner/u-karl');
     expect(screen.getByRole('dialog')).toBe(dialog);
@@ -658,8 +658,8 @@ describe('the profile popup (background location)', () => {
 
     await user.click(boardRow());
     let dialog = await findPopup();
-    await user.click(await within(dialog).findByRole('tab', { name: 'Streak' }));
-    expect(within(dialog).getByRole('tab', { name: 'Streak' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(await within(dialog).findByRole('button', { name: 'Streak' }));
+    expect(within(dialog).getByRole('button', { name: 'Streak' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(within(dialog).getByRole('tab', { name: 'Titles held' }));
     expect(within(dialog).getByRole('tab', { name: 'Titles held' })).toHaveAttribute('aria-selected', 'true');
 
@@ -670,7 +670,8 @@ describe('the profile popup (background location)', () => {
     dialog = await findPopup();
     expect(await within(dialog).findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(within(dialog).getByRole('tab', { name: 'Titles held' })).toHaveAttribute('aria-selected', 'false');
-    expect(await within(dialog).findByRole('tab', { name: 'Distance' })).toHaveAttribute('aria-selected', 'true');
+    expect(await within(dialog).findByRole('button', { name: 'Activity' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Streak' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   describe('the popup tabs', () => {
@@ -690,11 +691,11 @@ describe('the profile popup (background location)', () => {
       const user = userEvent.setup();
       const dialog = await openPopup();
 
-      expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
 
       await user.click(tab(dialog, 'The Journey'));
       expect(within(dialog).getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
-      expect(within(dialog).queryByRole('tablist', { name: 'Runner stats' })).toBeNull();
+      expect(within(dialog).queryByRole('group', { name: 'Overview' })).toBeNull();
       // Head to head lives in the banner, so it stays on every tab.
       expect(within(dialog).getByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
 
@@ -707,7 +708,7 @@ describe('the profile popup (background location)', () => {
       expect(within(dialog).queryByRole('region', { name: 'Titles' })).toBeNull();
 
       await user.click(tab(dialog, 'Overview'));
-      expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
       expect(within(dialog).getAllByText('Head to head: 2–0–1 to you')).toHaveLength(1);
     });
 
@@ -743,7 +744,9 @@ describe('the profile popup (background location)', () => {
       const user = userEvent.setup();
       const dialog = await openPopup();
 
-      const panel = within(dialog).getAllByRole('tabpanel').find((element) => !element.closest('.rq-runner-statcard'))!;
+      // Overview draws no tabpanel of its own: the one panel is the popup's.
+      expect(within(dialog).getAllByRole('tabpanel')).toHaveLength(1);
+      const panel = within(dialog).getByRole('tabpanel');
       for (const name of ['Overview', 'The Journey', 'Titles held', 'Badges']) {
         await user.click(tab(dialog, name));
         expect(tab(dialog, name).getAttribute('aria-controls')).toBe(panel.id);
@@ -761,6 +764,25 @@ describe('the profile popup (background location)', () => {
         expect(ids.filter((id, index) => ids.indexOf(id) !== index), `duplicate ids on the ${name} tab`).toEqual([]);
       }
       expect(tab(dialog, 'Badges').id).not.toMatch(/^runner-stats/);
+    });
+
+    it('use unique ids in every Overview view, and the shared stats content brings none from the profile', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      for (const name of ['Activity', 'Distance', 'Streak', 'Fun facts']) {
+        await user.click(within(dialog).getByRole('button', { name }));
+        if (name === 'Streak') await within(dialog).findByLabelText('Streak', { selector: 'dl' }, SLOW);
+        const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
+        expect(ids.filter((id, index) => ids.indexOf(id) !== index), `duplicate ids in the ${name} view`).toEqual([]);
+        expect(ids.filter((id) => id.startsWith('profile-stats')), `profile ids in the ${name} view`).toEqual([]);
+        // Radix' own trigger ids (badge popovers) point at content that is only mounted when opened; the ids that matter here are the popup's and the profile's.
+        for (const labelled of document.querySelectorAll('[aria-labelledby], [aria-controls]')) {
+          for (const reference of (labelled.getAttribute('aria-labelledby') ?? labelled.getAttribute('aria-controls') ?? '').split(' ')) {
+            if (reference.startsWith('runner-')) expect(document.getElementById(reference), `${reference} exists in the ${name} view`).not.toBeNull();
+          }
+        }
+      }
     });
 
     it('write no search parameter and leave the page behind alone', async () => {
