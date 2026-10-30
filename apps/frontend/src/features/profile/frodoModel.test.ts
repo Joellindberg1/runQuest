@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_WAYPOINTS, JOURNEY_END_KM, MIN_LABEL_PX, getViewport, journeyPercent, lastCheckpoint, layoutWaypoints,
-  nextCheckpointInfo, pctInView, nextZoom } from './frodoModel';
+  nextCheckpointInfo, pctInView, nextZoom, journeyProgressLabel, journeyValueText } from './frodoModel';
 
 describe('waypoints', () => {
   it('är sorterade stigande och börjar i The Shire, slutar i Mount Doom', () => {
@@ -110,5 +110,30 @@ describe('layoutWaypoints', () => {
 describe('nextZoom', () => {
   it('stegar Overview → Zoomed → Close-up → Overview', () => {
     expect([0, 1, 2].map((zoom) => nextZoom(zoom as 0 | 1 | 2))).toEqual([1, 2, 0]);
+  });
+});
+
+describe('journeyProgressLabel / journeyValueText', () => {
+  // formatInt skriver tusental med hårt mellanslag (U+00A0).
+  const ALL = '3 266';
+
+  it('the progress line is "percent · km / 3 266 km", with km rounded to whole numbers', () => {
+    expect(journeyProgressLabel(988.4)).toBe(`30.3% · 988 / ${ALL} km`);
+    expect(journeyProgressLabel(0)).toBe(`0.0% · 0 / ${ALL} km`);
+  });
+
+  it('never shows more than the whole way', () => {
+    expect(journeyProgressLabel(JOURNEY_END_KM)).toBe(`100.0% · ${ALL} / ${ALL} km`);
+    expect(journeyProgressLabel(JOURNEY_END_KM + 50)).toBe(`100.0% · ${ALL} / ${ALL} km`);
+  });
+
+  it('the spoken value names the percent, the km and the last checkpoint', () => {
+    expect(journeyValueText(988.4)).toBe(`30.3% of the way to Mount Doom, 988 of ${ALL} km, last checkpoint Doors of Durin`);
+    expect(journeyValueText(0)).toBe(`0.0% of the way to Mount Doom, 0 of ${ALL} km, last checkpoint The Shire`);
+  });
+
+  it('says that Mount Doom is reached from the last kilometre on', () => {
+    expect(journeyValueText(JOURNEY_END_KM)).toBe('Mount Doom reached');
+    expect(journeyValueText(JOURNEY_END_KM + 50)).toBe('Mount Doom reached');
   });
 });

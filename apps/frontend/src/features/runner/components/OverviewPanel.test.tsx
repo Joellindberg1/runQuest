@@ -41,7 +41,7 @@ function Host({ runner = KARL }: { runner?: User }) {
   return <OverviewPanel user={runner} now={NOW} cells={buildStatCells(runner, 0)} view={view} onChange={setView} />;
 }
 
-const overview = () => screen.getByRole('group', { name: 'Overview' });
+const overview = () => screen.getByRole('group', { name: 'Overview view' });
 const choose = (name: string) => userEvent.click(within(overview()).getByRole('button', { name }));
 const pressed = () => within(overview()).getAllByRole('button').filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
 
