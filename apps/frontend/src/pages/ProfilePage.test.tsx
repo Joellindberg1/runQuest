@@ -199,7 +199,7 @@ describe('Profile — Frodo-zoom', () => {
     renderProfile();
     await screen.findByRole('heading', { name: 'Joel Lindberg' });
     expect(screen.getByRole('button', { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByText(/^28\.9% · 943 \/ 3 266 km$/)).toBeInTheDocument();
+    expect(screen.getByText(/^28\.9% · 942 \/ 3 266 km$/)).toBeInTheDocument();
     expect(screen.getByText(/Balin's Tomb — 95 km$/)).toBeInTheDocument();
   });
 
@@ -309,6 +309,13 @@ describe('Profile — statflikar (?view=)', () => {
     } finally {
       restore();
     }
+  });
+
+  it('profilens karta bär inget data-intro: attributet hör bara till en värd som delar en introflagga (popupen)', async () => {
+    renderProfile('/profile?view=consistency', DESKTOP);
+    await screen.findByRole('region', { name: /Run heatmap/ });
+    expect(document.querySelector('.rq-profile-heat')).not.toBeNull();
+    expect(document.querySelector('[data-intro]')).toBeNull();
   });
 
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {

@@ -517,7 +517,7 @@ describe('the profile popup (background location)', () => {
     expect(within(dialog).getByText('Runner card')).toBeInTheDocument();
     expect(within(dialog).queryByText('Runner profile')).toBeNull();
     expect(await within(dialog).findByRole('link', { name: 'Challenge' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
     // Head to head sits in the banner, read as one sentence, and not as a panel of its own.
     expect(await within(dialog).findByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
     expect(within(dialog).queryByRole('region', { name: 'Head to head' })).toBeNull();
@@ -746,11 +746,11 @@ describe('the profile popup (background location)', () => {
       const user = userEvent.setup();
       const dialog = await openPopup();
 
-      expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
 
       await user.click(tab(dialog, 'The Journey'));
       expect(within(dialog).getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
-      expect(within(dialog).queryByRole('group', { name: 'Overview' })).toBeNull();
+      expect(within(dialog).queryByRole('group', { name: 'Overview view' })).toBeNull();
       // Head to head lives in the banner, so it stays on every tab.
       expect(within(dialog).getByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
 
@@ -763,7 +763,7 @@ describe('the profile popup (background location)', () => {
       expect(within(dialog).queryByRole('region', { name: 'Titles' })).toBeNull();
 
       await user.click(tab(dialog, 'Overview'));
-      expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
       expect(within(dialog).getAllByText('Head to head: 2–0–1 to you')).toHaveLength(1);
     });
 
@@ -850,6 +850,42 @@ describe('the profile popup (background location)', () => {
 
       expect(location()).toBe('/runner/u-karl');
       expect(screen.getByRole('dialog')).toBe(dialog);
+    });
+
+    it('name the Overview switch differently from the Overview panel that holds it', async () => {
+      const dialog = await openPopup();
+
+      const panel = within(dialog).getByRole('tabpanel', { name: 'Overview' });
+      expect(within(panel).queryByRole('group', { name: 'Overview' })).toBeNull();
+      expect(within(panel).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+    });
+
+    it('play the activity map in only the first time it is shown in an opening, and again in the next opening', async () => {
+      const user = userEvent.setup();
+      renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+      await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
+      await user.click(boardRow());
+      let dialog = await findPopup();
+      const intro = () => dialog.querySelector('.rq-profile-heat')?.getAttribute('data-intro');
+
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro()).toBe('true');
+
+      await user.click(within(dialog).getByRole('button', { name: 'Distance' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Activity' }));
+      expect(intro(), 'Activity picked again').toBe('false');
+
+      await user.click(tab(dialog, 'The Journey'));
+      await user.click(tab(dialog, 'Overview'));
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro(), 'back from another tab').toBe('false');
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await user.click(boardRow());
+      dialog = await findPopup();
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro(), 'a new opening').toBe('true');
     });
   });
 

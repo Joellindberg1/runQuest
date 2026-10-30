@@ -237,7 +237,7 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
 
     // Overview är startfliken: hjälten (med head to head i bannern) och Overview-växlingen. Inget av de andra flikarnas innehåll ritas.
     expect(regionOrder(dialog)).toEqual(['Runner']);
-    expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Head to head' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Badges' })).toBeNull();
     expect(dialog.querySelector('.rq-runner__lower')).toBeNull();

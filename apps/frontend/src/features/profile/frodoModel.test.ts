@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_WAYPOINTS, JOURNEY_END_KM, MIN_LABEL_PX, getViewport, journeyPercent, lastCheckpoint, layoutWaypoints,
-  nextCheckpointInfo, pctInView, nextZoom } from './frodoModel';
+  nextCheckpointInfo, pctInView, nextZoom, journeyProgressLabel, journeyValueText, journeyPercentWhole } from './frodoModel';
 
 describe('waypoints', () => {
   it('är sorterade stigande och börjar i The Shire, slutar i Mount Doom', () => {
@@ -110,5 +110,50 @@ describe('layoutWaypoints', () => {
 describe('nextZoom', () => {
   it('stegar Overview → Zoomed → Close-up → Overview', () => {
     expect([0, 1, 2].map((zoom) => nextZoom(zoom as 0 | 1 | 2))).toEqual([1, 2, 0]);
+  });
+});
+
+describe('journeyProgressLabel / journeyValueText', () => {
+  // formatInt skriver tusental med hårt mellanslag (U+00A0).
+  const ALL = '3\u00a0266';
+
+  it('the progress line is "percent · km / 3 266 km", with km rounded to whole numbers', () => {
+    expect(journeyProgressLabel(988.4)).toBe(`30.3% · 988 / ${ALL} km`);
+    expect(journeyProgressLabel(0)).toBe(`0.0% · 0 / ${ALL} km`);
+  });
+
+  it('never shows more than the whole way', () => {
+    expect(journeyProgressLabel(JOURNEY_END_KM)).toBe(`100.0% · ${ALL} / ${ALL} km`);
+    expect(journeyProgressLabel(JOURNEY_END_KM + 50)).toBe(`100.0% · ${ALL} / ${ALL} km`);
+  });
+
+  it.each([1180.6, 1180.99])('never claims a milestone that is not reached: %s km is still 1 180 km, before Moria at 1 181', (km) => {
+    expect(journeyProgressLabel(km)).toMatch(new RegExp(`· 1\\u00a0180 / ${ALL} km$`));
+    expect(journeyValueText(km)).toBe(`${journeyProgressLabel(km).split(' ·')[0]} of the way to Mount Doom, 1\u00a0180 of ${ALL} km, last checkpoint Balin's Tomb`);
+    expect(journeyProgressLabel(1181)).toMatch(/· 1\u00a0181 \//);
+  });
+
+  it.each([3265.7, 3265.99])('never reads 100 before the end: %s km is 99.9% and 3 265 km', (km) => {
+    expect(journeyProgressLabel(km)).toBe(`99.9% · 3\u00a0265 / ${ALL} km`);
+    expect(journeyValueText(km)).toBe(`99.9% of the way to Mount Doom, 3\u00a0265 of ${ALL} km, last checkpoint Sammath Naur`);
+    expect(journeyPercentWhole(km)).toBe(99);
+  });
+
+  it('the whole percent for the bar rounds to nearest, is 100 only at the end, and is never negative', () => {
+    expect(journeyPercentWhole(988.4)).toBe(30);
+    expect(journeyPercentWhole(1700)).toBe(52);
+    expect(journeyPercentWhole(JOURNEY_END_KM)).toBe(100);
+    expect(journeyPercentWhole(JOURNEY_END_KM + 50)).toBe(100);
+    expect(journeyPercentWhole(0)).toBe(0);
+  });
+
+  it('the spoken value names the percent, the km and the last checkpoint', () => {
+    expect(journeyValueText(988.4)).toBe(`30.3% of the way to Mount Doom, 988 of ${ALL} km, last checkpoint Doors of Durin`);
+    expect(journeyValueText(0)).toBe(`0.0% of the way to Mount Doom, 0 of ${ALL} km, last checkpoint The Shire`);
+  });
+
+  it('says that Mount Doom is reached from the last kilometre on', () => {
+    expect(journeyValueText(JOURNEY_END_KM)).toBe('Mount Doom reached');
+    expect(journeyValueText(JOURNEY_END_KM + 50)).toBe('Mount Doom reached');
   });
 });

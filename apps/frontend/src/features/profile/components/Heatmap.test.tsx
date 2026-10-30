@@ -36,3 +36,64 @@ describe('Heatmap', () => {
     expect(screen.getByText('current streak').nextElementSibling).toHaveTextContent('2');
   });
 });
+
+// jsdom har ingen layout: bredderna sätts för hand (mätt i riktig webbläsare vid 1440 px: 681/681).
+function withWidths(scrollWidth: number, clientWidth: number) {
+  const sw = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollWidth');
+  const cw = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+  Object.defineProperty(Element.prototype, 'scrollWidth', { configurable: true, get: () => scrollWidth });
+  Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => clientWidth });
+  return () => {
+    if (sw) Object.defineProperty(Element.prototype, 'scrollWidth', sw); else delete (Element.prototype as unknown as Record<string, unknown>).scrollWidth;
+    if (cw) Object.defineProperty(Element.prototype, 'clientWidth', cw); else delete (Element.prototype as unknown as Record<string, unknown>).clientWidth;
+  };
+}
+
+describe('the scroll region of Heatmap', () => {
+  const region = () => screen.getByRole('region', { name: /^Run heatmap/ });
+
+  it('is no tab stop while the map fits, since there is nothing to pan', () => {
+    const restore = withWidths(686, 681);
+    try {
+      renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop />);
+      expect(region()).toHaveAttribute('data-fits', 'true');
+      expect(region()).not.toHaveAttribute('tabindex');
+    } finally {
+      restore();
+    }
+  });
+
+  it('is a tab stop when the map really scrolls, so that it can be panned with the keyboard', () => {
+    const restore = withWidths(666, 521);
+    try {
+      renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop />);
+      expect(region()).toHaveAttribute('data-fits', 'false');
+      expect(region()).toHaveAttribute('tabindex', '0');
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe('the growing-in of Heatmap', () => {
+  const root = (container: HTMLElement) => container.querySelector('.rq-profile-heat');
+
+  it('plays on every mount, and carries no data-intro, when the host does not track it (the profile)', () => {
+    for (let mount = 0; mount < 2; mount += 1) {
+      const { container, unmount } = renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop />);
+      expect(root(container)).not.toHaveAttribute('data-intro');
+      unmount();
+    }
+  });
+
+  it('plays only the first time for a host that shares one flag between its mounts (the popup)', () => {
+    const played = { current: false };
+    const first = renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop introPlayed={played} />);
+    expect(root(first.container)).toHaveAttribute('data-intro', 'true');
+    expect(played.current).toBe(true);
+    first.unmount();
+
+    const second = renderWithApp(<Heatmap user={runner} today={zoneDay(NOW)} now={NOW} isDesktop introPlayed={played} />);
+    expect(root(second.container)).toHaveAttribute('data-intro', 'false');
+  });
+});
