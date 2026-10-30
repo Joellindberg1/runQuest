@@ -50,6 +50,9 @@ const NOT_AUTHENTICATED = 'Not authenticated';
 const NO_AUTHENTICATION_TOKEN = 'No authentication token';
 const UNEXPECTED_RESPONSE = 'Unexpected response from the server';
 const NETWORK_ERROR = 'Network error';
+const TIMED_OUT = 'The request timed out';
+/** Hur länge skicket av en utmaning väntar på ett svar innan det ger upp. Det är det enda anropet med en tidsgräns: se `timeoutMs` i RequestOptions. */
+export const SEND_CHALLENGE_TIMEOUT_MS = 15_000;
 
 /** Utfallet av login() hos klienten: token och användare (serverns `data`, eller den gamla toppnivån) eller ett fel. Aldrig serverns kropp rått. */
 export type LoginResult = { success: true; token: string; user: LoginUser } | { success: false; error: string };
@@ -59,12 +62,16 @@ export type LoginResult = { success: true; token: string; user: LoginUser } | { 
  * ("Not authenticated"), för ett fel från en backend före steg 1 och för en kod klienten inte känner (en nyare server): då gäller statusens klass.
  * `written` följer med när POST/PUT/DELETE /runs skrev ändringen men XP-omräkningen föll (500, koden `recalc_failed_after_write`, med eller utan fältet): cachen är
  * inaktuell och ett nytt försök kan dubblera. De frånvarande fälten är typade så att anroparen kan läsa `data` och `meta` utan att först avgöra utfallet.
+ * `reason` säger varför inget svar kom och sätts bara för ett anrop med tidsgräns (`timeoutMs`): `timeout` (inget svar inom gränsen, om servern tog emot anropet är okänt) eller `network` (anropet nådde aldrig fram).
  */
-export type ApiFailureResult = Omit<ApiError, 'code' | 'data'> & { code?: ApiErrorCode; data?: undefined; meta?: undefined; message?: undefined };
+export type ApiFailureResult = Omit<ApiError, 'code' | 'data'> & { code?: ApiErrorCode; data?: undefined; meta?: undefined; message?: undefined; reason?: NoAnswerReason };
+
+/** Varför ett anrop med tidsgräns inte fick något svar. */
+export type NoAnswerReason = 'timeout' | 'network';
 
 /** Det klienten lämnar till anroparen: shared:s `ApiSuccess` (med `meta` när metoden bär det) plus serverns text om den behövs, eller ett fel. */
 export type ApiResult<T = unknown, M = undefined> =
-  | (ApiSuccess<T, M> & { message?: string; error?: undefined; written?: undefined })
+  | (ApiSuccess<T, M> & { message?: string; error?: undefined; written?: undefined; reason?: undefined })
   | ApiFailureResult;
 
 /** En sida av gruppens rundor: `runs` och `meta` (paginering). Sidans form är densamma före och efter steg 1 av kuvertbytet. */
@@ -132,6 +139,8 @@ interface RequestOptions<T, M> {
   notFoundData?: T;
   /** Felet utan token, då inget anrop görs. Standard: "Not authenticated". */
   noTokenError?: string;
+  /** Tidsgräns i millisekunder för hela svaret (huvud och kropp). Bara de anrop som ber om den får en; standard: ingen. Löper den ut avbryts anropet och felet bär `reason: 'timeout'`. */
+  timeoutMs?: number;
 }
 
 /** Svaret på ett anrop: HTTP-utfallet och kroppen som objekt, eller `undefined` när kroppen inte var JSON (en HTML-felsida från en proxy, ett tomt svar). */
@@ -160,8 +169,26 @@ function errorCodeOf(body: JsonObject | undefined): ApiErrorCode | undefined {
   return isApiErrorCode(body?.code) ? body.code : undefined;
 }
 
-function failed(error: string, extra: { code?: ApiErrorCode; written?: true } = {}): ApiFailureResult {
-  return { success: false, error, ...(extra.code !== undefined && { code: extra.code }), ...(extra.written && { written: true as const }) };
+function failed(error: string, extra: { code?: ApiErrorCode; written?: true; reason?: NoAnswerReason } = {}): ApiFailureResult {
+  return { success: false, error, ...(extra.code !== undefined && { code: extra.code }), ...(extra.written && { written: true as const }), ...(extra.reason && { reason: extra.reason }) };
+}
+
+/** Ett anrop med tidsgräns som inte fick något svar: `reason` säger varför. Texten är den underliggande felets, så att loggraden och en anropare utan `reason` ser samma sak som förut. */
+class NoAnswerError extends Error {
+  constructor(readonly reason: NoAnswerReason, message: string) {
+    super(message);
+  }
+}
+
+/** En tidsgräns som avbryter anropet via `signal` när tiden är ute. `expired` skiljer ett avbrott av gränsen från ett fel av annat slag; `stop` rensar timern när svaret kommit. */
+function startTimeLimit(ms: number) {
+  const controller = new AbortController();
+  let expired = false;
+  const timer = setTimeout(() => {
+    expired = true;
+    controller.abort();
+  }, ms);
+  return { signal: controller.signal, expired: () => expired, stop: () => clearTimeout(timer) };
 }
 
 /**
@@ -199,14 +226,32 @@ class BackendApiService {
     this.onUnauthorized?.();
   }
 
-  /** Det enda anropet mot servern: bas-URL, metod, headers, body och en tålig läsning av svaret. Kastar bara vid nätverksfel. */
-  private async send(method: HttpMethod, path: string, init: { headers?: Record<string, string>; body?: BodyInit } = {}): Promise<Reply> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: init.headers ?? {},
-      ...(init.body !== undefined && { body: init.body }),
-    });
-    return { status: response.status, ok: response.ok, body: await readJsonObject(response) };
+  /**
+   * Det enda anropet mot servern: bas-URL, metod, headers, body och en tålig läsning av svaret. Kastar bara vid nätverksfel.
+   * Med `timeoutMs` (bara de anrop som ber om den) avbryts anropet när tiden är ute, och felet blir ett NoAnswerError: `timeout` när gränsen löpte ut, `network` när anropet inte nådde fram.
+   * Ett avbrutet anrop levererar inget svar i efterhand, så ett svar som kommer för sent når aldrig anroparen.
+   */
+  private async send(method: HttpMethod, path: string, init: { headers?: Record<string, string>; body?: BodyInit; timeoutMs?: number } = {}): Promise<Reply> {
+    const limit = init.timeoutMs === undefined ? undefined : startTimeLimit(init.timeoutMs);
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: init.headers ?? {},
+        ...(init.body !== undefined && { body: init.body }),
+        ...(limit && { signal: limit.signal }),
+      });
+      const body = await readJsonObject(response);
+      // Läsningen av kroppen sväljer fel: ett avbrott mitt i kroppen skulle annars se ut som ett svar som inte är JSON.
+      if (limit?.expired()) throw new NoAnswerError('timeout', TIMED_OUT);
+      return { status: response.status, ok: response.ok, body };
+    } catch (error) {
+      if (error instanceof NoAnswerError) throw error;
+      if (limit?.expired()) throw new NoAnswerError('timeout', TIMED_OUT);
+      if (limit && error instanceof TypeError) throw new NoAnswerError('network', error.message);
+      throw error;
+    } finally {
+      limit?.stop();
+    }
   }
 
   /**
@@ -214,7 +259,7 @@ class BackendApiService {
    * Kastar aldrig. Ett svar som inte är JSON ger ett fel med metodens reservtext, aldrig ett parsefel.
    */
   private async request<T, M = undefined>(method: HttpMethod, path: string, body?: unknown, options: RequestOptions<T, M> = {}): Promise<ApiResult<T, M>> {
-    const { failure = 'Request failed', read = readData as Reader<T, M>, auth = true, headers: extraHeaders, contentType, notFoundData, noTokenError = NOT_AUTHENTICATED } = options;
+    const { failure = 'Request failed', read = readData as Reader<T, M>, auth = true, headers: extraHeaders, contentType, notFoundData, noTokenError = NOT_AUTHENTICATED, timeoutMs } = options;
     try {
       const token = auth ? this.getToken() : null;
       if (auth && !token) return failed(noTokenError);
@@ -227,6 +272,7 @@ class BackendApiService {
       const reply = await this.send(method, path, {
         headers,
         ...(body !== undefined && { body: body instanceof Blob ? body : JSON.stringify(body) }),
+        ...(timeoutMs !== undefined && { timeoutMs }),
       });
 
       const code = errorCodeOf(reply.body);
@@ -257,7 +303,7 @@ class BackendApiService {
       return { success: true, ...read(reply.body) };
     } catch (error) {
       logger.error(`${failure}:`, error);
-      return failed(error instanceof Error ? error.message : NETWORK_ERROR);
+      return failed(error instanceof Error ? error.message : NETWORK_ERROR, error instanceof NoAnswerError ? { reason: error.reason } : {});
     }
   }
 
@@ -555,7 +601,7 @@ class BackendApiService {
 
   async sendChallenge(tokenId: string, opponentId: string): Promise<ApiResult<SendChallengeResponse['data']>> {
     const body: SendChallengeRequest = { token_id: tokenId, opponent_id: opponentId };
-    return this.request<SendChallengeResponse['data']>('POST', '/challenges/send', body, { failure: 'Failed to send challenge' });
+    return this.request<SendChallengeResponse['data']>('POST', '/challenges/send', body, { failure: 'Failed to send challenge', timeoutMs: SEND_CHALLENGE_TIMEOUT_MS });
   }
 
   async respondToChallenge(challengeId: string, action: ChallengeResponseAction): Promise<ApiResult<void>> {

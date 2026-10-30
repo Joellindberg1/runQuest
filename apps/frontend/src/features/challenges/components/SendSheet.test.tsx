@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LEGENDARY_AUTO_START_DAYS, type MyChallengeToken } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -8,7 +8,7 @@ import { renderWithApp } from '@/test/renderApp';
 import { ADAM, DAN, KARL, ME, NICK, stat, token } from '../duels.fixture';
 import { stakeOf } from '../duelsFormat';
 import { buildTokenGroups } from '../duelsModel';
-import { startRuleText, type SendPreselection } from '../sendModel';
+import { startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
 import { SendSheet } from './SendSheet';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -765,5 +765,42 @@ describe('Send flow: while the challenge is on its way', () => {
 
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Send flow: a send that got no answer, then a refetch shows that it went through', () => {
+  const UNCONFIRMED = "We couldn't confirm that your challenge was sent. Check your sent challenges before you try again.";
+  const SENT_BLOCKER: SendBlocker = { reason: 'sent', message: 'Your challenge to Karl is waiting for an answer. Withdraw it or wait for the reply before sending another.' };
+
+  /** Arket med en blocker som testet kan slå på, som när omhämtningen efter ett skick utan svar visar att utmaningen finns. */
+  function renderBlockable(onSend: () => Promise<void>) {
+    resetFakeBackend();
+    handlers.getHeadToHead = () => ({ success: false, error: 'not needed' });
+    const control: { block: () => void } = { block: () => {} };
+    function Harness() {
+      const [blocker, setBlocker] = useState<SendBlocker | null>(null);
+      control.block = () => setBlocker(SENT_BLOCKER);
+      return (
+        <SendSheet groups={buildTokenGroups(ALL_TIERS)} blocker={blocker} members={PACK} users={undefined} meId={ME} preselection={{ tier: 'minor', tokenKey: 'a' }} initialOpponent={KARL} onClose={() => {}} onSend={onSend} />
+      );
+    }
+    renderWithApp(<Harness />);
+    return control;
+  }
+
+  it('keeps the honest text in the alert and the focus inside the sheet when Send is replaced by the reason', async () => {
+    const user = userEvent.setup();
+    const control = renderBlockable(async () => { throw new Error(UNCONFIRMED); });
+    await user.click(sendButton());
+    expect(await within(sheet()).findByRole('alert')).toHaveTextContent(UNCONFIRMED);
+    await waitFor(() => expect(sendButton()).toHaveFocus());
+
+    act(() => control.block());
+
+    expect(within(sheet()).getByRole('status')).toHaveTextContent('is waiting for an answer');
+    expect(within(sheet()).getByRole('alert')).toHaveTextContent(UNCONFIRMED);
+    expect(within(sheet()).queryByRole('button', { name: /^Send/ })).toBeNull();
+    expect(sheet().contains(document.activeElement), 'the focus is in the sheet').toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

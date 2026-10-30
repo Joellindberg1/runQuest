@@ -59,12 +59,15 @@ test.describe('the send-a-challenge sheet: a send without an answer or without a
     await page.clock.fastForward(JUMP_PAST_TIME_LIMIT_MS);
 
     await expect(sheet.getByRole('alert')).toHaveText(UNCONFIRMED_TEXT);
-    await expect(sheet.getByRole('button', { name: 'Close' })).toBeEnabled();
-    // Omhämtningen visar att utmaningen finns: arket säger att den väntar på svar, och fokus har inte tappats till <body> när Send försvann.
+    // Omhämtningen visar att utmaningen finns: arket säger att den väntar på svar (orsaksvyn har två Close: ✕ och knappen i knappraden), och fokus har inte tappats till <body> när Send försvann.
     await expect(sheet.getByRole('status')).toContainText('is waiting for an answer');
+    const closeButtons = sheet.getByRole('button', { name: 'Close' });
+    await expect(closeButtons).toHaveCount(2);
+    await expect(closeButtons.first()).toBeEnabled();
+    await expect(closeButtons.last()).toBeEnabled();
     expect(await focusNow(page), 'the focus stays in the sheet').toMatchObject({ inside: true });
 
-    await sheet.getByRole('button', { name: 'Close' }).click();
+    await closeButtons.last().click();
     await expect(sheet).toHaveCount(0);
     await expect(page.getByText('Waiting for Anna to respond')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Your tokens' }).getByRole('button', { name: /^Send a minor challenge: Most runs/ })).toHaveCount(0);

@@ -94,6 +94,14 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (sending) contentRef.current?.focus();
   }, [sending]);
 
+  // En omhämtning efter ett skick utan svar kan visa att utmaningen gick iväg: arket blir då orsaksvyn och Send, som hade fokus, försvinner. Fokus får inte hamna på <body>.
+  const isBlocked = blocker !== null;
+  const wasBlocked = useRef(isBlocked);
+  useEffect(() => {
+    if (isBlocked && !wasBlocked.current && !contentRef.current?.contains(document.activeElement)) contentRef.current?.focus();
+    wasBlocked.current = isBlocked;
+  }, [isBlocked]);
+
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
@@ -185,10 +193,10 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
                   </dl>
                 </section>
 
-                <p role="alert" className="rq-duels-sheet__error">{error}</p>
-
               </>
             )}
+            {/* Utanför valet: efter ett skick utan svar visar omhämtningen kanske att utmaningen gick iväg, och arket blir då orsaksvyn. Felet ska stå kvar och regionen får inte avmonteras. */}
+            <p role="alert" className="rq-duels-sheet__error">{error}</p>
           </div>
           {/* Knappraden finns också när arket bara visar orsaken: Close ligger i samma fasta rad, med samma luft ovanför hemindikatorn. */}
           {blocker || group === null ? (
