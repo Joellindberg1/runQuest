@@ -234,6 +234,9 @@
   background: var(--rq-popover); box-shadow: var(--rq-shadow-modal);
   border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-top-width: var(--rq-duels-sheet-edge-w);
 }
+/* Arket tar fokus självt medan ett skick pågår (programmatiskt, aldrig något man styr): ingen ring runt hela arket. */
+.rq-duels-sheet:focus-visible { outline: none; }
+.rq-duels-sheet .rq-sheet__close:disabled { color: var(--rq-text-5); cursor: not-allowed; }
 .rq-duels-sheet__head { display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-12) var(--rq-sp-16); border-bottom: var(--rq-hair) solid var(--rq-line-3); color: var(--rq-duel); }
 .rq-duels-sheet__id { flex: 1; }
 .rq-duels-sheet__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }

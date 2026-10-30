@@ -86,6 +86,12 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (error) sendRef.current?.focus();
   }, [error]);
 
+  // Medan skicket pågår är Send avstängd och fokus hade annars gått till <body>, där Escape inte längre hör hemma i arket. Fokus flyttas till arket självt tills svaret kommer.
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (sending) contentRef.current?.focus();
+  }, [sending]);
+
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
@@ -112,17 +118,19 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+    // Ett skick som är på väg går inte att avbryta härifrån (utmaningen går iväg ändå): Cancel och ✕ är avstängda, och Escape och tryck på skrimmen ger inget stängt ark.
+    <Dialog.Root open onOpenChange={(open) => { if (!open && !sending) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="rq-scrim" />
-        <Dialog.Content className="rq-duels-sheet" aria-describedby={undefined} onCloseAutoFocus={returnFocus}>
+        {/* Radix sätter role="dialog" men inte aria-modal; skalets övriga dialoger sätter det uttryckligen. */}
+        <Dialog.Content ref={contentRef} className="rq-duels-sheet" aria-modal="true" aria-describedby={undefined} onCloseAutoFocus={returnFocus}>
           <header className="rq-duels-sheet__head">
             <RQIcon name="swords" size={ICON_HEAD} />
             <div className="rq-duels-sheet__id">
               <Dialog.Title className="rq-duels-sheet__title">Send a challenge</Dialog.Title>
               <p className="rq-duels-sheet__sub">One token, one opponent</p>
             </div>
-            <Dialog.Close className="rq-sheet__close" aria-label="Close">✕</Dialog.Close>
+            <Dialog.Close className="rq-sheet__close" aria-label="Close" disabled={sending}>✕</Dialog.Close>
           </header>
 
           <div className="rq-duels-sheet__body">
@@ -186,7 +194,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
               <button ref={sendRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}
               </button>
-              <Dialog.Close className="rq-btn rq-btn--ghost">Cancel</Dialog.Close>
+              <Dialog.Close className="rq-btn rq-btn--ghost" disabled={sending}>Cancel</Dialog.Close>
             </footer>
           )}
         </Dialog.Content>
