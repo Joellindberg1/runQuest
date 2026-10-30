@@ -6,7 +6,7 @@ const NO_EDGES: ScrollEdges = { start: false, end: false };
 
 /**
  * Kantfaden på en flikrad (`[role="tablist"]` inuti `wrapRef`) som scrollar i sidled: vilka kanter som har mer innehåll bortom sig, mätt vid montering, vid scroll och när raden byter
- * storlek. Efter ett flikbyte (`ViewTabs` har då fört den valda fliken i bild) flyttas raden precis så mycket att fliken också ligger utanför fadens zon, annars tonas dess text ut.
+ * storlek eller en flik gör det, och när typsnitten laddat. Efter ett flikbyte (`ViewTabs` har då fört den valda fliken i bild) flyttas raden precis så mycket att fliken också ligger utanför fadens zon, annars tonas dess text ut.
  * `tabCount` mäter om raden när en flik tillkommer eller försvinner (storleken på raden ändras då inte, bara det den scrollar över). Zonens bredd läses ur radens `scroll-padding-inline` i CSS (samma token som toningen), så måttet bor på ett ställe.
  */
 export function useTabRowFade(wrapRef: RefObject<HTMLElement | null>, selected: string, tabCount: number): ScrollEdges {
@@ -21,10 +21,21 @@ export function useTabRowFade(wrapRef: RefObject<HTMLElement | null>, selected: 
     };
     measure();
     list.addEventListener('scroll', measure, { passive: true });
+    // Raden själv ändrar inte storlek när innehållet gör det (ett typsnitt som laddar krymper flikarna, men radens box är densamma), så flikarna bevakas också.
     const observer = new ResizeObserver(measure);
     observer.observe(list);
+    for (const tab of Array.from(list.children)) observer.observe(tab);
+    // Typsnittet kan komma efter första mätningen (reservtypsnittet är bredare): mät om när det laddat, och när ytterligare en face blir klar.
+    let active = true;
+    const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+    void fonts?.ready.then(() => {
+      if (active) measure();
+    });
+    fonts?.addEventListener('loadingdone', measure);
     return () => {
+      active = false;
       list.removeEventListener('scroll', measure);
+      fonts?.removeEventListener('loadingdone', measure);
       observer.disconnect();
     };
   }, [wrapRef, tabCount]);

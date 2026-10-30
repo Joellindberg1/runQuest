@@ -17,7 +17,7 @@ interface BoardTabsProps {
 }
 
 /**
- * Standings flikrad. Fyra flikar ryms inte på 320 px: raden scrollar i sidled i sin egen yta (RUN-387-mönstret i boardTabs.css) och tonas ut mot den kant som har fler flikar bortom
+ * Standings flikrad. Fyra flikar ryms inte på 320 px: raden scrollar i sidled i sin egen yta (lika breda flikar och inåtriktad ring, i boardTabs.css) och tonas ut mot den kant som har fler flikar bortom
  * sig (`useTabRowFade`). Kantfaden är bara markup runt raden (data-attributen på omslaget); raden är fortfarande den enda tablisten. En komponent per plats i sidan (rubrikraden på
  * desktop, under rubriken på mobil), så att måtten följer raden när sidan byter läge.
  */

@@ -2,7 +2,7 @@
    Board-sidan, så den här filen följer med sidan och aldrig med landningen. Utseendet på själva flikarna (chip, vald guld, inåtriktad ring, 44 px på mobil) kommer ur view-controls.css och board.css. */
 
 /* Fyra flikar ryms inte på 320 px: lika breda flikar (flex: 1) som aldrig krymper under sin text, och rymms de inte scrollar raden i sidled i sin egen yta i stället för att göra sidan bredare
-   (RUN-387-mönstret, som profilens flikrad). overflow-x: auto gör också overflow-y till auto och klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset i view-controls.css). */
+   (lika breda flikar som scrollar i sin egen yta, som profilens flikrad). overflow-x: auto gör också overflow-y till auto och klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset i view-controls.css). */
 .rq-board__tabs-wrap { min-width: 0; }
 /* scroll-padding-inline är kantfadens zon: samma token som toningen nedan, och useTabRowFade läser måttet härifrån för att hålla den valda fliken utanför zonen. */
 .rq-board__tabs { overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: var(--rq-sp-24); }

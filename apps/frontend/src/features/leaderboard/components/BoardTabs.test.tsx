@@ -5,7 +5,7 @@ import type { ViewTab } from '@/shared/components/ViewTabs';
 import type { BoardView } from '../boardViews';
 import { BoardTabs } from './BoardTabs';
 
-// Flikraden på Board: fyra flikar som på 320 px inte ryms och därför scrollar i sidled (RUN-387-mönstret), med kantfade åt det håll det finns fler flikar, och med
+// Flikraden på Board: fyra flikar som på 320 px inte ryms och därför scrollar i sidled (lika breda flikar, scroll i raden), med kantfade åt det håll det finns fler flikar, och med
 // "på väg"-signalen (pekare eller fokus på en flik) som sidan använder för att förladda Position-vyns chunk. jsdom har ingen layout, så måtten lånas ut per element;
 // toningen (mask), zonens bredd, 44 px och fokusringen är CSS som mäts i webbläsaren (e2e).
 
