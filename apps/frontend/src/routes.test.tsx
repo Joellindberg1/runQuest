@@ -293,10 +293,10 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
     },
   ];
 
-  it('mobil: helskärmssida med bottenbar och Back-knapp, ingen overlay', async () => {
+  it('mobil: helskärmssida med bottenbar och tillbakalänk, ingen overlay', async () => {
     const { container } = renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: MOBILE });
 
-    expect(await screen.findByRole('button', { name: /Back/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Standings' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(container.querySelector('.rq-tabbar')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: OTHER.name })).toBeInTheDocument();
