@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
@@ -78,6 +78,13 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   // Sant från det att skicket går iväg tills det misslyckas: stänger föräldern arket under tiden är det för att utmaningen gick iväg. Ett ref och inte state, eftersom
   // Radix läser det först när arket redan har avmonterats.
   const sentRef = useRef(false);
+
+  // Send är avstängd medan skicket pågår, och en avstängd knapp som hade fokus lämnar det på <body>. Efter ett avvisat skick (felet visas, Send är påslagen igen) får Send fokus tillbaka,
+  // så ett nytt försök går att göra med tangentbordet; felet annonseras av sin alert.
+  const sendRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (error) sendRef.current?.focus();
+  }, [error]);
 
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
@@ -176,7 +183,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
           </div>
           {blocker || group === null ? null : (
             <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
-              <button type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
+              <button ref={sendRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}
               </button>
               <Dialog.Close className="rq-btn rq-btn--ghost">Cancel</Dialog.Close>
