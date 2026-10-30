@@ -6,7 +6,7 @@ import type { PositionHistoryResponse, PositionRunner, PositionWeek } from '@run
 import { handlers, ME, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { run, user } from '../profile.fixture';
-import type { StatView } from '../statsModel';
+import type { ProfileStatView } from '../statsModel';
 import { StatsPanel } from './StatsPanel';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -34,7 +34,7 @@ const historyOf = (mine: Array<number | null>, others = 1): PositionHistoryRespo
 const getPositionHistory = vi.fn();
 
 // Värden äger `view` (profilen: adressen); här ett lokalt tillstånd, så att flikklick faktiskt byter flik.
-function Host({ initial, showPosition, onChange }: { initial: StatView; showPosition: boolean; onChange: (view: StatView) => void }) {
+function Host({ initial, showPosition, onChange }: { initial: ProfileStatView; showPosition: boolean; onChange: (view: ProfileStatView) => void }) {
   const [view, setView] = useState(initial);
   return (
     <StatsPanel
@@ -52,7 +52,7 @@ function Host({ initial, showPosition, onChange }: { initial: StatView; showPosi
   );
 }
 
-function renderPanel(view: StatView, { showPosition = true }: { showPosition?: boolean } = {}) {
+function renderPanel(view: ProfileStatView, { showPosition = true }: { showPosition?: boolean } = {}) {
   const onChange = vi.fn();
   renderWithApp(<Host initial={view} showPosition={showPosition} onChange={onChange} />, { entry: '/profile' });
   return { onChange };

@@ -1,12 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { User } from '@runquest/types';
+import type { StatView } from '@/features/profile/statsModel';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
-import { DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
-import { DEFAULT_STAT_VIEW, type StatView } from '../statViews';
+import { DEFAULT_OVERVIEW_VIEW, DEFAULT_POPUP_SECTION, type PopupSection } from '../popupSections';
 import { ChallengeButton } from './ChallengeButton';
 import { PopupBanner } from './PopupBanner';
 import { PopupSections } from './PopupSections';
@@ -51,7 +51,7 @@ function PopupChallenge({ runnerId, onLeave }: { runnerId: string; onLeave: () =
  */
 function PopupContent({ user, allUsers }: { user: User; allUsers: User[] }) {
   const [section, setSection] = useState<PopupSection>(DEFAULT_POPUP_SECTION);
-  const [statView, setStatView] = useState<StatView>(DEFAULT_STAT_VIEW);
+  const [statView, setStatView] = useState<StatView>(DEFAULT_OVERVIEW_VIEW);
   const data = useRunnerPanelData(user, allUsers);
 
   return (

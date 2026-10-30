@@ -23,12 +23,29 @@ const SCROLLBAR_ALLOWANCE_PX = 20;
 
 const RUNNER = { id: 'popup-2', name: 'Bo Two' };
 
-function runner(id: string, name: string, totalXp: number) {
-  return { id, name, email: `${id}@example.test`, is_admin: false, total_xp: totalXp, current_level: 4, total_km: 40, current_streak: 3, longest_streak: 5, runs: [] };
+/** Rundor med datum så många dagar bakåt som listan anger, så att de ligger i aktivitetskartans 12 månader oavsett när provet körs. */
+function runsDaysAgo(userId: string, daysAgo: number[]) {
+  return daysAgo.map((days) => {
+    const day = new Date();
+    day.setDate(day.getDate() - days);
+    const date = day.toISOString().slice(0, 10);
+    return { id: `${userId}-run-${days}`, user_id: userId, date, distance: 5 + (days % 4), xp_gained: 60, multiplier: 1, streak_day: 1, base_xp: 15, km_xp: 10, distance_bonus: 5, streak_bonus: 0, is_treadmill: false };
+  });
+}
+
+function runner(id: string, name: string, totalXp: number, extra: Record<string, unknown> = {}) {
+  return { id, name, email: `${id}@example.test`, is_admin: false, total_xp: totalXp, current_level: 4, total_km: 40, current_streak: 3, longest_streak: 5, runs: [], ...extra };
 }
 
 // Podiet tar plats 1-3. Stub-kontot (inloggad) ligger sist: popupen öppnas för en annan löpare, och en egen profil har ingen popup.
-const GROUP = [runner('popup-1', 'Ada One', 3000), runner(RUNNER.id, RUNNER.name, 2800), runner('popup-3', 'Cy Three', 2600), runner('popup-4', 'Di Four', 2400)];
+const RUNNER_RUN_DAYS_AGO = [1, 2, 3, 9, 16, 30, 45, 61, 90, 120, 200, 300];
+const RUNNER_RECORD = { wins: 3, losses: 1 };
+const GROUP = [
+  runner('popup-1', 'Ada One', 3000),
+  runner(RUNNER.id, RUNNER.name, 2800, { runs: runsDaysAgo(RUNNER.id, RUNNER_RUN_DAYS_AGO), ...RUNNER_RECORD }),
+  runner('popup-3', 'Cy Three', 2600),
+  runner('popup-4', 'Di Four', 2400),
+];
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -132,13 +149,15 @@ async function openPopup(page: Page): Promise<Locator> {
 const SECTIONS = ['Overview', 'The Journey', 'Titles held', 'Badges'] as const;
 const sectionTab = (dialog: Locator, name: (typeof SECTIONS)[number]): Locator => dialog.getByRole('tablist', { name: 'Runner sections' }).getByRole('tab', { name });
 const sectionPanel = (dialog: Locator): Locator => dialog.locator('.rq-runner-popup-panel');
+const OVERVIEW_VIEWS = ['Activity', 'Distance', 'Streak', 'Fun facts'] as const;
+const overviewButton = (dialog: Locator, name: (typeof OVERVIEW_VIEWS)[number]): Locator => dialog.getByRole('group', { name: 'Overview' }).getByRole('button', { name });
 
 /** Väntar tills flikens egen panel är ritad med sitt innehåll (inte laddaren), så att höjden mäts i det läge användaren ser. */
 async function expectSectionLoaded(dialog: Locator, name: (typeof SECTIONS)[number]): Promise<void> {
   const panel = sectionPanel(dialog);
   // Head to head ligger i bannern (ovanför flikarna), inte i Overview-panelen: Overview är klar när statflikarna ritats och bannern har fått sitt svar (meningen).
   if (name === 'Overview') {
-    await expect(panel.getByRole('tablist', { name: 'Runner stats' })).toBeVisible();
+    await expect(panel.getByRole('group', { name: 'Overview' })).toBeVisible();
     await expect(dialog.getByText(/^Head to head: /)).toBeAttached();
   }
   if (name === 'The Journey') await expect(panel.getByRole('region', { name: "Frodo's journey" })).toBeVisible();
@@ -341,8 +360,8 @@ test.describe('the profile popup on desktop', () => {
   test('the tab state resets when the popup is opened again', async ({ page }) => {
     await openBoard(page, 1280, 900);
     let dialog = await openPopup(page);
-    await dialog.getByRole('tab', { name: 'Streak' }).click();
-    await expect(dialog.getByRole('tab', { name: 'Streak' })).toHaveAttribute('aria-selected', 'true');
+    await overviewButton(dialog, 'Streak').click();
+    await expect(overviewButton(dialog, 'Streak')).toHaveAttribute('aria-pressed', 'true');
     await sectionTab(dialog, 'Titles held').click();
     await expect(sectionTab(dialog, 'Titles held')).toHaveAttribute('aria-selected', 'true');
 
@@ -352,7 +371,8 @@ test.describe('the profile popup on desktop', () => {
 
     dialog = await openPopup(page);
     await expect(sectionTab(dialog, 'Overview')).toHaveAttribute('aria-selected', 'true');
-    await expect(dialog.getByRole('tab', { name: 'Distance' })).toHaveAttribute('aria-selected', 'true');
+    await expect(overviewButton(dialog, 'Activity')).toHaveAttribute('aria-pressed', 'true');
+    await expect(overviewButton(dialog, 'Streak')).toHaveAttribute('aria-pressed', 'false');
   });
 
   test('the selected tab has the selected tint and edge, and the focus ring of a tab is drawn inside it', async ({ page }) => {
@@ -385,13 +405,13 @@ test.describe('the profile popup on desktop', () => {
     expect(ring.bottom, 'the ring ends at or above the tab bottom').toBeLessThanOrEqual(ring.boxBottom + TOLERANCE_PX);
   });
 
-  test('the focus ring of a stat tab is drawn inside the tab, so the scroll area does not clip it', async ({ page }) => {
+  test('the focus ring of an Overview button is drawn inside the button, so the scroll area does not clip it', async ({ page }) => {
     await openBoard(page, 1280, 900);
     const dialog = await openPopup(page);
-    const tabs = dialog.getByRole('tablist', { name: 'Runner stats' }).getByRole('tab');
+    const tabs = dialog.getByRole('group', { name: 'Overview' }).getByRole('button');
 
     await tabs.first().focus();
-    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Tab');
     const measured = await tabs.nth(1).evaluate((tab) => {
       const style = getComputedStyle(tab);
       const box = tab.getBoundingClientRect();
@@ -401,10 +421,247 @@ test.describe('the profile popup on desktop', () => {
       const reach = offset + width;
       return { focusVisible: tab.matches(':focus-visible'), ringTop: box.top - reach, ringBottom: box.bottom + reach, boxTop: box.top, boxBottom: box.bottom };
     });
-    expect(measured.focusVisible, 'the tab has a keyboard focus ring').toBe(true);
-    expect(measured.ringTop, 'the ring starts at or below the tab top').toBeGreaterThanOrEqual(measured.boxTop - TOLERANCE_PX);
-    expect(measured.ringBottom, 'the ring ends at or above the tab bottom').toBeLessThanOrEqual(measured.boxBottom + TOLERANCE_PX);
+    expect(measured.focusVisible, 'the button has a keyboard focus ring').toBe(true);
+    expect(measured.ringTop, 'the ring starts at or below the button top').toBeGreaterThanOrEqual(measured.boxTop - TOLERANCE_PX);
+    expect(measured.ringBottom, 'the ring ends at or above the button bottom').toBeLessThanOrEqual(measured.boxBottom + TOLERANCE_PX);
   });
+});
+
+// Overview-fliken (ADR 006 punkt 3): en segmentstyrd växling över profilens statistikinnehåll. Dialogen står på sina 669 px i alla vyer, också medan Streak-trappan laddar eller felar.
+test.describe('the Overview of the profile popup', () => {
+  const XP_CONFIG_PATH = '/config/xp';
+
+  /** Höjden på dialogen i varje vy, mätt både direkt efter valet och när vyn är klar (`ready` väntar in det som vyn ska visa). */
+  async function overviewHeights(dialog: Locator, ready: (view: (typeof OVERVIEW_VIEWS)[number]) => Promise<void>): Promise<Record<string, number>> {
+    const heights: Record<string, number> = {};
+    for (const view of OVERVIEW_VIEWS) {
+      await overviewButton(dialog, view).click();
+      heights[`${view} (just selected)`] = (await dialog.boundingBox())!.height;
+      await ready(view);
+      heights[`${view} (ready)`] = (await dialog.boundingBox())!.height;
+    }
+    return heights;
+  }
+
+  function expectStableHeight(heights: Record<string, number>): void {
+    const values = Object.values(heights);
+    expect(Math.max(...values) - Math.min(...values), `the dialog height varies: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+    expect(Math.abs((values[0] ?? 0) - DIALOG_HEIGHT_PX), `the dialog height is ${DIALOG_HEIGHT_PX} px: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(TOLERANCE_PX);
+  }
+
+  const viewReady = (dialog: Locator) => async (view: (typeof OVERVIEW_VIEWS)[number]): Promise<void> => {
+    const content = dialog.locator('.rq-runner-overview__content');
+    if (view === 'Activity') await expect(content.getByRole('region', { name: /^Run heatmap: / })).toBeVisible();
+    if (view === 'Distance') await expect(content.getByLabel('Distance', { exact: true })).toBeVisible();
+    if (view === 'Streak') await expect(content.getByLabel('Streak', { exact: true })).toBeVisible();
+    if (view === 'Fun facts') await expect(content.getByLabel('Fun facts', { exact: true })).toBeVisible();
+  };
+
+  test('starts on Activity with the four views in order, an activity map of the runner and no tab of its own', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    await expectSectionLoaded(dialog, 'Overview');
+
+    const group = dialog.getByRole('group', { name: 'Overview' });
+    await expect(group.getByRole('button')).toHaveText(['Activity', 'Distance', 'Streak', 'Fun facts']);
+    await expect(overviewButton(dialog, 'Activity')).toHaveAttribute('aria-pressed', 'true');
+    for (const view of OVERVIEW_VIEWS.slice(1)) await expect(overviewButton(dialog, view)).toHaveAttribute('aria-pressed', 'false');
+
+    const heat = sectionPanel(dialog).locator('.rq-profile-heat');
+    await expect(heat.locator('.rq-profile-heat__total')).toHaveText(String(RUNNER_RUN_DAYS_AGO.length));
+    await expect(heat.locator('.rq-profile-heat__unit')).toHaveText(/^runs in the last 12 months$/);
+    await expect(sectionPanel(dialog).getByRole('region', { name: new RegExp(`^Run heatmap: ${RUNNER_RUN_DAYS_AGO.length} runs on ${RUNNER_RUN_DAYS_AGO.length} of \\d+ days$`) })).toBeVisible();
+    await expect(sectionPanel(dialog).getByRole('tab')).toHaveCount(0);
+    await expect(dialog.getByRole('tabpanel')).toHaveCount(1);
+  });
+
+  test('a runner without any run gets an empty map with 0 runs, in the same height', async ({ page }) => {
+    await stubGroup(page, 3);
+    await answerWith(page, '/auth/users-with-runs', { success: true, data: GROUP.map((member) => (member.id === RUNNER.id ? { ...member, runs: [] } : member)) });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/board');
+    await dismissOverlays(page);
+    await expect(runnerRow(page)).toBeVisible();
+    await waitForStylesApplied(page);
+    const dialog = await openPopup(page);
+
+    await expect(sectionPanel(dialog).locator('.rq-profile-heat__total')).toHaveText('0');
+    await expect(sectionPanel(dialog).getByRole('region', { name: /^Run heatmap: 0 runs on 0 of \d+ days$/ })).toBeVisible();
+    expect(Math.abs((await dialog.boundingBox())!.height - DIALOG_HEIGHT_PX)).toBeLessThanOrEqual(TOLERANCE_PX);
+  });
+
+  for (const [width, height] of [[1440, 900], [1280, 768]] as const) {
+    test(`the dialog is ${DIALOG_HEIGHT_PX} px in every Overview view, with the tiers loaded, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
+      await openBoard(page, width, height, 15, BADGE_SERIES_KEYS.length);
+      const dialog = await openPopup(page);
+      await expectSectionLoaded(dialog, 'Overview');
+
+      const heights = await overviewHeights(dialog, viewReady(dialog));
+      testInfo.annotations.push({ type: 'dialog heights', description: JSON.stringify(heights) });
+      expectStableHeight(heights);
+      const box = (await dialog.boundingBox())!;
+      expect(box.y + box.height, 'the dialog ends inside the window').toBeLessThanOrEqual(height + TOLERANCE_PX);
+    });
+
+    test(`the dialog is ${DIALOG_HEIGHT_PX} px while the streak tiers load and when they fail, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
+      await openBoard(page, width, height, 15, BADGE_SERIES_KEYS.length);
+      // Svaret på trappan hålls: laddaren (role="status") står kvar i Streak-vyn.
+      await page.route(apiPath(XP_CONFIG_PATH), () => {});
+      const dialog = await openPopup(page);
+      await expectSectionLoaded(dialog, 'Overview');
+
+      const heights: Record<string, number> = { 'Activity (ready)': (await dialog.boundingBox())!.height };
+      await overviewButton(dialog, 'Streak').click();
+      await expect(dialog.getByRole('status').filter({ hasText: 'Loading streak' })).toBeAttached();
+      heights['Streak (loading)'] = (await dialog.boundingBox())!.height;
+      await overviewButton(dialog, 'Fun facts').click();
+      await overviewButton(dialog, 'Streak').click();
+      heights['Streak (loading, again)'] = (await dialog.boundingBox())!.height;
+      await page.unroute(apiPath(XP_CONFIG_PATH));
+
+      // Felet: servern svarar 500, och efter ett omförsök kommer felkortet med Retry.
+      await page.route(apiPath(XP_CONFIG_PATH), (route) => route.fulfill({ status: 500, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'stubbed failure' }) }));
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await page.reload();
+      await dismissOverlays(page);
+      await expect(runnerRow(page)).toBeVisible();
+      await waitForStylesApplied(page);
+      const again = await openPopup(page);
+      await overviewButton(again, 'Streak').click();
+      await expect(again.getByText("Couldn't load streak tiers")).toBeVisible();
+      heights['Streak (error)'] = (await again.boundingBox())!.height;
+      await expect(again.getByRole('button', { name: 'Retry' })).toBeVisible();
+
+      testInfo.annotations.push({ type: 'dialog heights', description: JSON.stringify(heights) });
+      expectStableHeight(heights);
+    });
+  }
+
+  test('the challenge record is a row in Fun facts and in no other view, and the banner no longer has it', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+
+    for (const view of ['Activity', 'Distance', 'Streak'] as const) {
+      await overviewButton(dialog, view).click();
+      await expect(dialog.getByText('Challenges won–lost')).toHaveCount(0);
+    }
+    await overviewButton(dialog, 'Fun facts').click();
+    const row = dialog.locator('.rq-profile-row').filter({ hasText: 'Challenges won–lost' });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('dd')).toHaveText(`${RUNNER_RECORD.wins}–${RUNNER_RECORD.losses}`);
+    // Bannern har inte längre CHALLENGES-rutan: rekordet bor bara här.
+    await expect(dialog.getByRole('region', { name: 'Runner', exact: true })).not.toContainText('Challenges');
+  });
+
+  test('no id is used twice, and every aria reference to a popup id has a target, in every Overview view', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+
+    for (const view of OVERVIEW_VIEWS) {
+      await overviewButton(dialog, view).click();
+      await viewReady(dialog)(view);
+      const report = await page.evaluate(() => {
+        const ids = Array.from(document.querySelectorAll('[id]')).map((element) => element.id);
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        const missing = Array.from(document.querySelectorAll('[aria-labelledby], [aria-controls]')).flatMap((element) =>
+          (element.getAttribute('aria-labelledby') ?? element.getAttribute('aria-controls') ?? '').split(' ').filter((id) => id.startsWith('runner-') && !document.getElementById(id)));
+        return { duplicates, missing, profileIds: ids.filter((id) => id.startsWith('profile-stats')) };
+      });
+      expect(report, `ids in the ${view} view`).toEqual({ duplicates: [], missing: [], profileIds: [] });
+    }
+  });
+
+  test('the switch is a group of buttons with a tab stop each, and Enter picks the focused one', async ({ page }) => {
+    await openBoard(page, 1280, 900);
+    const dialog = await openPopup(page);
+    await expectSectionLoaded(dialog, 'Overview');
+
+    await sectionPanel(dialog).focus();
+    for (const view of OVERVIEW_VIEWS) {
+      await page.keyboard.press('Tab');
+      await expect(overviewButton(dialog, view)).toBeFocused();
+    }
+    await page.keyboard.press('Enter');
+    await expect(overviewButton(dialog, 'Fun facts')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the focus ring of a resting Overview button is drawn inside it and is at least 3:1 against its surface in the ${theme} theme`, async ({ page }, testInfo) => {
+      await openBoard(page, 1280, 900, 3, 0, { theme });
+      const dialog = await openPopup(page);
+      await expectSectionLoaded(dialog, 'Overview');
+
+      await overviewButton(dialog, 'Activity').focus();
+      await page.keyboard.press('Tab');
+      const resting = overviewButton(dialog, 'Distance');
+      await expect(resting).toBeFocused();
+      const ring = await resting.evaluate((element) => {
+        const style = getComputedStyle(element);
+        element.setAttribute('data-ring-probe', '');
+        // Ringfärgen lånas som textfärg en stund: kontrastmätningen läser textfärgen mot den sammansatta bakgrunden.
+        (element as HTMLElement).style.color = style.outlineColor;
+        return { focusVisible: element.matches(':focus-visible'), pressed: element.getAttribute('aria-pressed'), offset: parseFloat(style.outlineOffset) };
+      });
+      const [measured] = await page.evaluate(contrastOf, { selectors: ['[data-ring-probe]'] });
+      await resting.evaluate((element) => { (element as HTMLElement).style.color = ''; element.removeAttribute('data-ring-probe'); });
+
+      expect(ring.focusVisible, 'the button has a keyboard focus ring').toBe(true);
+      expect(ring.pressed, 'the measured button is not the pressed one').toBe('false');
+      expect(ring.offset, 'the ring is drawn inside the button').toBeLessThan(0);
+      testInfo.annotations.push({ type: `ring contrast (${theme})`, description: String(measured?.ratio) });
+      expect(measured?.ratio, 'ring against its surface').toBeGreaterThanOrEqual(3);
+    });
+
+    test(`the labels are at least ${MIN_LABEL_PX} px and the new text is at least ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px`, async ({ page }, testInfo) => {
+      const report: Record<string, Record<string, number>> = {};
+      for (const width of [1024, 1280, 1440]) {
+        await openBoard(page, width, 900, 3, 3, { theme });
+        const dialog = await openPopup(page);
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expectSectionLoaded(dialog, 'Overview');
+
+        const measured: Record<string, number> = {};
+        const sample = async (label: string, selectors: string[]) => {
+          for (const found of await page.evaluate(contrastOf, { selectors })) measured[`${label}${found.index === 0 ? '' : ` #${found.index}`}`] = found.ratio;
+        };
+        const sizeOf = (selector: string) => dialog.locator(selector).evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+
+        await overviewButton(dialog, 'Distance').click();
+        await sample('switch: resting button', ['.rq-runner-overview__switch > .rq-filter[aria-pressed="false"]']);
+        await sample('switch: pressed button', ['.rq-runner-overview__switch > .rq-filter[aria-pressed="true"]']);
+        for (const size of await sizeOf('.rq-runner-overview__switch > .rq-filter')) expect(size, 'switch label size').toBeGreaterThanOrEqual(MIN_LABEL_PX);
+
+        await sample('rows: label', ['.rq-runner-overview__content .rq-profile-row dt']);
+        await sample('rows: value', ['.rq-runner-overview__content .rq-profile-row dd']);
+        // Rader med ton muted: "Next tier at" i Streak (trappan laddad) och "Longest gap between runs" i Fun facts.
+        await overviewButton(dialog, 'Streak').click();
+        await expect(dialog.locator('.rq-runner-overview__content').getByLabel('Streak', { exact: true })).toBeVisible();
+        await sample('streak: muted value', ['.rq-runner-overview__content dd[data-tone="muted"]']);
+        await overviewButton(dialog, 'Fun facts').click();
+        await sample('fun facts: muted value', ['.rq-runner-overview__content dd[data-tone="muted"]']);
+        await sample('challenge record: label', ['.rq-runner-overview__content .rq-profile-row:last-child dt']);
+        await sample('challenge record: value', ['.rq-runner-overview__content .rq-profile-row:last-child dd']);
+        await overviewButton(dialog, 'Activity').click();
+        await sample('map: runs in the last months', ['.rq-profile-heat__unit']);
+        await sample('map: month labels', ['.rq-profile-heat__month-label']);
+        await sample('map: stat labels', ['.rq-profile-heat__stat-label']);
+        await sample('map: legend', ['.rq-profile-heat__legend']);
+        // Veckodagsbokstäverna (M, W, F, S) är läsbar text, inte dekor: de räknas med.
+        await sample('map: weekday letters', ['.rq-profile-heat__day']);
+        await sample('map: today line', ['.rq-profile-heat__today']);
+        await sample('map: stat values', ['.rq-profile-heat__stat-value']);
+        for (const size of await sizeOf('.rq-profile-heat__unit, .rq-profile-heat__month-label, .rq-profile-heat__stat-label, .rq-profile-heat__legend, .rq-profile-heat__day')) expect(size, 'map label size').toBeGreaterThanOrEqual(MIN_LABEL_PX);
+
+        report[`${width}px`] = measured;
+        const tooLow = Object.entries(measured).filter(([, ratio]) => ratio < MIN_LABEL_CONTRAST);
+        expect(tooLow, `text below ${MIN_LABEL_CONTRAST}:1 at ${width} px: ${JSON.stringify(measured)}`).toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+      }
+      testInfo.annotations.push({ type: `contrast (${theme})`, description: JSON.stringify(report) });
+    });
+  }
 });
 
 // Bannern och Head to head i sin egen panel uppe till höger (ADR 006 punkt 4): inga layoutsprång mellan lägena, ingen överlappning med namnet, läsbara etiketter och en mening för skärmläsaren.
@@ -492,7 +749,7 @@ test.describe('the banner and the Head to head panel of the profile popup', () =
 
     const overview = sectionPanel(dialog);
     await expect(overview.getByText(/head to head/i)).toHaveCount(0);
-    const widths = await overview.evaluate((element) => ({ panel: element.clientWidth, stats: (element.querySelector('[role="tablist"]')!.parentElement as HTMLElement).getBoundingClientRect().width }));
+    const widths = await overview.evaluate((element) => ({ panel: element.clientWidth, stats: (element.querySelector('.rq-runner-overview') as HTMLElement).getBoundingClientRect().width }));
     expect(widths.stats, 'the stat panel fills the Overview panel').toBeGreaterThanOrEqual(widths.panel - SCROLLBAR_ALLOWANCE_PX);
   });
 

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { handlers, ME, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { run, user } from '../profile.fixture';
-import type { StatView } from '../statsModel';
+import type { ProfileStatView } from '../statsModel';
 import { StatsPanel } from './StatsPanel';
 import { loadPositionPanel } from './positionPanelLoader';
 
@@ -22,7 +22,7 @@ const { loadPositionPanel: realLoader } = await vi.importActual<typeof import('.
 const NOW = new Date('2026-10-04T10:00:00Z');
 const ME_ROW = user({ id: ME.id, name: ME.name, total_xp: 5243, runs: [run({ id: 'm1', date: '2026-10-03', distance: 12 })] });
 
-function renderPanel(view: StatView) {
+function renderPanel(view: ProfileStatView) {
   renderWithApp(<StatsPanel user={ME_ROW} now={NOW} isDesktop view={view} onChange={vi.fn()} label="Your stats" showPosition />, { entry: '/profile' });
 }
 

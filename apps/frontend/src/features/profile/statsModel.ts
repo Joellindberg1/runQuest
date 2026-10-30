@@ -15,11 +15,13 @@ export { buildDistanceRows, buildStreakRows };
 export const STAT_VIEWS = ['distance', 'streak', 'fun', 'consistency'] as const;
 export const POSITION_VIEW = 'position';
 /** `?view=` på /profile (ADR 006 beslut 2). */
-export type StatView = (typeof STAT_VIEWS)[number] | typeof POSITION_VIEW;
+export type StatView = (typeof STAT_VIEWS)[number];
+/** Profilens flikrad: de fyra vyerna plus Position. Runner card och popupens Overview känner bara `StatView`. */
+export type ProfileStatView = StatView | typeof POSITION_VIEW;
 export const DEFAULT_STAT_VIEW: StatView = 'distance';
 
 /** De värden `?view=` får anta för en grupp av den här storleken: övriga (också `position` i en grupp på en) faller tillbaka på standardfliken. */
-export function statViewsFor(memberCount: number): readonly StatView[] {
+export function statViewsFor(memberCount: number): readonly ProfileStatView[] {
   return showPositionTab(memberCount) ? [...STAT_VIEWS, POSITION_VIEW] : STAT_VIEWS;
 }
 

@@ -206,8 +206,9 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     const dialog = await screen.findByRole('dialog');
     await screen.findByText('Head to head: 2–0–1 to you');
 
-    // Overview är startfliken: hjälten (med head to head i bannern) och statflikarna. Inget av de andra flikarnas innehåll ritas.
-    expect(regionOrder(dialog)).toEqual(['Runner', 'Runner stats']);
+    // Overview är startfliken: hjälten (med head to head i bannern) och Overview-växlingen. Inget av de andra flikarnas innehåll ritas.
+    expect(regionOrder(dialog)).toEqual(['Runner']);
+    expect(within(dialog).getByRole('group', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Head to head' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Badges' })).toBeNull();
     expect(dialog.querySelector('.rq-runner__lower')).toBeNull();
