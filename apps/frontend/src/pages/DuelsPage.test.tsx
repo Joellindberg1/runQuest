@@ -626,6 +626,37 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     }
   });
 
+  describe('a sheet that cannot send is never a blank surface', () => {
+    const cases: Array<[string, Scenario, RegExp]> = [
+      ['no tokens', { my: { tokens: [] } }, /You have no tokens to send/],
+      ['a live duel', { my: { group_active: [MINE] } }, /You are in a live duel/],
+      ['a challenge already sent', { my: { sent_challenge: TO_DAN } }, /Your challenge to Daniel is waiting for an answer/],
+      ['a challenge waiting on me', { my: { received_challenges: [FROM_NICK] } }, /A challenge is waiting on you/],
+    ];
+
+    for (const [name, scenario, message] of cases) {
+      it(`${name}: the reason is in the sheet with a Close button, and Close puts the focus back on the header Send`, async () => {
+        const user = userEvent.setup();
+        setup(scenario);
+        renderDuels();
+        await screen.findByRole('region', { name: 'Your tokens' });
+        const header = screen.getByRole('button', { name: 'Send' });
+        await user.click(header);
+        await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+        expect(within(sheet()).getByRole('status')).toHaveTextContent(message);
+        const close = within(sheet()).getAllByRole('button', { name: 'Close' }).find((button) => button.textContent === 'Close');
+        expect(close).toBeDefined();
+        expect(within(sheet()).queryByRole('button', { name: 'Send challenge' })).toBeNull();
+
+        await user.click(close as HTMLElement);
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(header).toHaveFocus();
+        expect(location()).toBe('/duels');
+      });
+    }
+  });
+
   it('tokens-panelens Send är låst medan det inte går att skicka, med orsaken under listan', async () => {
     setup({ my: { sent_challenge: TO_DAN } });
     renderDuels();
