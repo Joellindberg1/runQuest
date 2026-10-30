@@ -316,6 +316,14 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **`?view=position` med en grupp på en och en `FirstBoardGate` som redan släppt:** gaten kollar bara adressens vy (Position väntar inte på titlar, pilar och minis), så Season som sidan faller tillbaka på hämtar dem själv och visar sin vanliga laddning. Gaten ändrades inte (kriterium 7).
 - **Prototypens mobil har "Current order · tap to show a line" i en eyebrow; implementationen har rubriken och hintet "Pick a runner to lift their line." (som prototypens webb).** Det är RUN-407:s val och rörs inte här.
 
+## Runner card: tillbakalänken (RUN-425, v0.8.3)
+
+- **Etiketten ändras medvetet från "‹ Back" till "← Standings".** Manifestet och ADR 006 punkt 1 utgår från att sidan redan har `← STANDINGS`; på basen var kontrollen en `<button class="rq-back">` med `‹` och texten "Back". Jira-kriteriet gäller bokstavligt (synlig text "← Standings", pilen `aria-hidden`, tillgängligt namn "Standings", `<a href>` till `/board`). Etiketten är densamma oavsett varifrån sidan nåtts (Board, Duels, Log). Beteendet är oförändrat: vanligt klick = ett steg bakåt (`useCloseRunner`), direktladdning går till `/board`.
+- **Länken är en react-router `Link` (renderar `<a href>`), inte en bar `<a>`.** Basnamnsregler och klientnavigering vid modifierarklick lämnas åt routern; vanligt vänsterklick förhindras av kortets egen hanterare.
+- **Länkens färg är `--rq-text-4` (scopat i `runner.css`), inte `.rq-back`s `--rq-text-3`.** `--rq-text-3` ger 4,04:1 i det ljusa temat; `--rq-text-4` ger 4,69:1 ljust och 5,33:1 mörkt (mörkt var 7,27:1). Delade `.rq-back` (badges-sidan) är orörd.
+- **Länkens tryckyta är minst 44 px (`--rq-control-hit`) på mobil, och toppraden blir därmed ca 11 px högre (Challenge-knappen satte höjden förut).** Hjältekortet och allt under flyttas lika mycket nedåt på mobil; på desktop är måttet 0 och inget flyttas.
+- **Rubrikens fokusring syns vid direktladdning och tangentbordsnavigering.** Skalet döljer inte fokus för programmatisk fokus och Duels-rubriken har samma beteende; webbläsarens `:focus-visible`-regel döljer ringen efter ett musklick (klientnavigering från en rad), men inte utan föregående mus.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).
