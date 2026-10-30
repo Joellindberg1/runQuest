@@ -22,7 +22,7 @@ Datahämtningen är gemensam (`hooks/useRunnerPanelData`) och panelerna är desa
   - `TitlesPanel` — "TITLES HELD · N held" + Runner-up (position 2–3, "held by X", avstånd)
   - `HeadToHeadPanel` — sidans kort: rekordet (you won · drawn · you lost) + senaste mötena; bor i `.rq-runner__lower` bredvid BADGES (popupen har `HeadToHeadBanner` i stället)
   - `RunnerParts` — delade småkomponenter: `LevelRing`, `CellGrid` (hårlinjegridens celler), `PanelLoading`, `PanelHead`
-  - `ChallengeButton` — den enda guldknappen; `/duels?send=1&opponent=<id>`
+  - `ChallengeButton` — den enda guldknappen; `/duels?send=1&opponent=<id>`. I popupen (`inPopup`) ersätter länken popupens historikpost (`replace`) och bär `state: { sendOrigin: SendOriginState }` (`shared/hooks/useOpenRunner.ts`, sidan under popupen och löparen); är den avstängd är den en `aria-disabled`-knapp (fokuserbar) med skälet som synlig text bredvid och som `aria-describedby`. Skälet och läget (`ready`/`loading`/`blocked`) kommer ur `challengeAvailability.ts`, som återanvänder `sendBlocker` och `opponentBusy` ur `features/challenges/sendModel.ts`
 - **runnerModel.ts** — rena, testade vymodeller (hjälte, celler, distans-/streak-/fun-rader, titlar, head-to-head)
 - **headToHeadSentence.ts** — ren funktion: Head to head som en mening ur den inloggades sida (testad)
 - **hooks/useRunnerQueries.ts** — `useHeadToHead`, `useRunnerTitles`

@@ -21,10 +21,10 @@
    huvudytan (rubrik, Challenge; ✕ är .rq-modal__close, positionerad mot modalen) och ytan som scrollar: innehållet får aldrig göra dialogen högre än fönstret. */
 .rq-runner-popup__bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
 .rq-runner-popup__title { flex-shrink: 0; margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-2); white-space: nowrap; }
-/* Challenge och, när den är avstängd, skälet bredvid: skälet tar den plats raden har kvar och radbryter (högst två rader) före titeln och ✕. */
+/* Challenge och, när den är avstängd, skälet bredvid: skälet tar den plats raden har kvar och radbryter före titeln och ✕. Radhöjden 1.2 gör att två rader av skälet inte blir högre än knappen, så rubrikraden (och dialogen, 669 px) har samma höjd med och utan skäl. */
 .rq-runner-popup__challenge { display: flex; flex: 0 1 auto; align-items: center; gap: var(--rq-sp-12); min-width: 0; }
 .rq-runner-popup__challenge > .rq-btn { flex-shrink: 0; white-space: nowrap; }
-.rq-runner-popup__reason { min-width: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); text-align: right; color: var(--rq-text-4); }
+.rq-runner-popup__reason { min-width: 0; font-size: var(--rq-fs-label); line-height: 1.2; text-align: right; color: var(--rq-text-4); }
 .rq-runner-popup__content { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
 
 /* ── Profil-popupen: flikraden och panelytan ──────────────────────────────────
