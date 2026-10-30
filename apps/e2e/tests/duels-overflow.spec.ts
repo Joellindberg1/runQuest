@@ -150,8 +150,13 @@ async function measureRows(page: Page, rowSelector: string, nameSelector: string
         name.scrollIntoView({ block: 'center' });
         const range = document.createRange();
         range.selectNodeContents(name);
-        const firstLine = range.getClientRects()[0]!;
-        const hit = document.elementFromPoint(firstLine.left + firstLine.width / 2, firstLine.top + firstLine.height / 2);
+        const text = range.getClientRects()[0]!;
+        // En text som klipps med ellips ritas bara inom knappens ruta: klicket tas mitt på den synliga delen.
+        const box = name.getBoundingClientRect();
+        const clipped = getComputedStyle(name).overflowX !== 'visible';
+        const left = clipped ? Math.max(text.left, box.left) : text.left;
+        const right = clipped ? Math.min(text.right, box.right) : text.right;
+        const hit = document.elementFromPoint((left + right) / 2, text.top + text.height / 2);
         if (!hit || !name.contains(hit)) misclicks.push(`${label(name)} hit ${hit ? label(hit) : 'nothing'}`);
       }
       return { rows: rows.length, overlaps, escapes, misclicks };
