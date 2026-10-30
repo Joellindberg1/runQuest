@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { JOURNEY_END_KM, journeyPercent, lastCheckpoint, nextCheckpointInfo, nextZoom, type ZoomLevel } from '../frodoModel';
+import { JOURNEY_END_KM, journeyProgressLabel, lastCheckpoint, nextCheckpointInfo, nextZoom, type ZoomLevel } from '../frodoModel';
 import { FrodoRoad, ZoomButton } from './FrodoRoad';
 import { formatInt } from '@/shared/utils/format';
 import { PanelHead } from './ProfileParts';
@@ -18,10 +18,9 @@ export function JourneyCard({ totalKm, isDesktop }: JourneyCardProps) {
   const [zoom, setZoom] = useState<ZoomLevel>(0);
   const done = totalKm >= JOURNEY_END_KM;
   const canZoom = !done && totalKm > 0;
-  const percentText = `${journeyPercent(totalKm).toFixed(1)}%`;
   const checkpoint = lastCheckpoint(totalKm);
   const next = nextCheckpointInfo(totalKm);
-  const progress = `${percentText} · ${formatInt(Math.min(totalKm, JOURNEY_END_KM))} / ${formatInt(JOURNEY_END_KM)} km`;
+  const progress = journeyProgressLabel(totalKm);
 
   const zoomButton = canZoom ? <ZoomButton zoom={zoom} onCycle={() => setZoom(nextZoom)} /> : undefined;
 

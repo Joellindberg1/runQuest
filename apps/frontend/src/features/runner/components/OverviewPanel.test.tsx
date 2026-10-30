@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -38,7 +38,8 @@ const KARL: User = user({
 /** Värden äger valet i popupen (nollställs med resten vid öppning): här en liten värd med samma form. */
 function Host({ runner = KARL }: { runner?: User }) {
   const [view, setView] = useState<StatView>(DEFAULT_OVERVIEW_VIEW);
-  return <OverviewPanel user={runner} now={NOW} cells={buildStatCells(runner, 0)} view={view} onChange={setView} />;
+  const heatIntroPlayed = useRef(false);
+  return <OverviewPanel user={runner} now={NOW} cells={buildStatCells(runner, 0)} view={view} onChange={setView} heatIntroPlayed={heatIntroPlayed} />;
 }
 
 const overview = () => screen.getByRole('group', { name: 'Overview view' });

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { cssVars } from '@/features/leaderboard/cssVars';
-import { formatInt } from '@/shared/utils/format';
-import { JOURNEY_END_KM, journeyPercent, lastCheckpoint, nextZoom, type ZoomLevel } from '@/features/profile/frodoModel';
+import { JOURNEY_END_KM, journeyPercent, journeyProgressLabel, journeyValueText, lastCheckpoint, nextZoom, type ZoomLevel } from '@/features/profile/frodoModel';
 import { FrodoRoad, ZoomButton } from '@/features/profile/components/FrodoRoad';
 import { PanelHead } from './RunnerParts';
 
 /** Mobil: en enkel stapel (App Prototype). Fylls från noll en gång, sedan stilla. */
-function SimpleRoad({ percent }: { percent: number }) {
+function SimpleRoad({ totalKm, percent }: { totalKm: number; percent: number }) {
   return (
     <>
       <div
@@ -17,6 +16,7 @@ function SimpleRoad({ percent }: { percent: number }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(percent)}
+        aria-valuetext={journeyValueText(totalKm)}
         style={cssVars({ '--w': `${percent}%` })}
       >
         <div className="rq-fill" />
@@ -52,14 +52,14 @@ export function JourneyCard({ totalKm }: { totalKm: number }) {
         aside={aside}
       />
 
-      {isDesktop ? <FrodoRoad prefix="runner" totalKm={totalKm} zoom={canZoom ? zoom : 0} /> : <SimpleRoad percent={percent} />}
+      {isDesktop ? <FrodoRoad prefix="runner" totalKm={totalKm} zoom={canZoom ? zoom : 0} /> : <SimpleRoad totalKm={totalKm} percent={percent} />}
 
       {done ? (
         <p className="rq-runner-journey__sum" data-done="true">Mount Doom reached — the Ring is destroyed.</p>
       ) : (
         <p className="rq-runner-journey__sum">
           <span>Last checkpoint <span className="rq-runner-journey__cp">{checkpoint.name}</span></span>
-          {isDesktop && <span>{percentText} · {formatInt(totalKm)} / {formatInt(JOURNEY_END_KM)} km</span>}
+          {isDesktop && <span>{journeyProgressLabel(totalKm)}</span>}
         </p>
       )}
     </section>

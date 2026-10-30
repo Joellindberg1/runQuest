@@ -1,3 +1,4 @@
+import type { MutableRefObject } from 'react';
 import { zoneDay } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
@@ -44,13 +45,15 @@ interface StatsContentProps {
   view: StatView;
   /** Rader som en värd lägger sist i Fun facts (popupens utmaningsrekord). Profilens modell får aldrig dem. */
   extraFunRows?: readonly StatRow[];
+  /** Värdens flagga för aktivitetskartans intro (se `Heatmap`). Profilen ger ingen: kartan växer in vid varje montering. */
+  heatIntroPlayed?: MutableRefObject<boolean>;
 }
 
 /**
  * Det profilens statistikpanel visar för en vy, utan skal: samma rader, samma Consistency-karta och samma Streak-hämtning (trappan bara när Streak visas) för profilen
  * (`StatsPanel`, med flikrad) och popupens Overview (`OverviewPanel`, med segmentstyrd växling). Bara den valda vyn ritas och bara den bygger sina rader.
  */
-export function StatsContent({ user, now, isDesktop, view, extraFunRows = [] }: StatsContentProps) {
+export function StatsContent({ user, now, isDesktop, view, extraFunRows = [], heatIntroPlayed }: StatsContentProps) {
   switch (view) {
     case 'distance':
       return <Rows rows={buildDistanceRows(user, now)} label="Distance" />;
@@ -59,6 +62,6 @@ export function StatsContent({ user, now, isDesktop, view, extraFunRows = [] }: 
     case 'fun':
       return <Rows rows={[...buildFunRows(user, now), ...extraFunRows]} label="Fun facts" />;
     case 'consistency':
-      return <Heatmap user={user} today={zoneDay(now)} now={now} isDesktop={isDesktop} />;
+      return <Heatmap user={user} today={zoneDay(now)} now={now} isDesktop={isDesktop} introPlayed={heatIntroPlayed} />;
   }
 }

@@ -1,6 +1,8 @@
 // Frodo's journey: ren waypoint-/viewport-matematik. Delas av Profile (components/JourneyCard) och Runner card
 // (features/runner/components/JourneyCard) — EN layoutalgoritm. Ingen DOM här.
 
+import { formatInt } from '@/shared/utils/format';
+
 export const JOURNEY_END_KM = 3266;
 
 export type ZoomLevel = 0 | 1 | 2;
@@ -105,6 +107,18 @@ export function nextCheckpointInfo(totalKm: number): { name: string; km: number;
 /** Andel av vägen till Mount Doom i procent (0–100, klampad). */
 export function journeyPercent(totalKm: number): number {
   return Math.max(0, Math.min(100, (totalKm / JOURNEY_END_KM) * 100));
+}
+
+/** Förloppsraden "30.3% · 988 / 3 266 km". Profilens Frodo-kort och popupens Journey skriver den med samma funktion, så siffrorna aldrig kan skilja sig åt. */
+export function journeyProgressLabel(totalKm: number): string {
+  return `${journeyPercent(totalKm).toFixed(1)}% · ${formatInt(Math.min(totalKm, JOURNEY_END_KM))} / ${formatInt(JOURNEY_END_KM)} km`;
+}
+
+/** Förloppet som en mening för skärmläsare (progressbarens `aria-valuetext`); framme: bara att målet är nått. */
+export function journeyValueText(totalKm: number): string {
+  if (totalKm >= JOURNEY_END_KM) return 'Mount Doom reached';
+  const kmText = `${formatInt(totalKm)} of ${formatInt(JOURNEY_END_KM)} km`;
+  return `${journeyPercent(totalKm).toFixed(1)}% of the way to Mount Doom, ${kmText}, last checkpoint ${lastCheckpoint(totalKm).name}`;
 }
 
 export interface PlacedWaypoint extends Waypoint {

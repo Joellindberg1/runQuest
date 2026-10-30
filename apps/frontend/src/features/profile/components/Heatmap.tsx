@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { User } from '@runquest/types';
 import { cssVars } from '@/features/leaderboard/cssVars';
 import { HEAT_MONTHS_DESKTOP, HEAT_MONTHS_MOBILE, buildHeatStats, buildHeatmap, type HeatCell, type HeatLevel } from '../heatmapModel';
@@ -22,14 +22,19 @@ interface HeatmapProps {
   today: string;
   now: Date;
   isDesktop: boolean;
+  /**
+   * En värd som monterar kartan flera gånger men bara vill att den växer in första gången (popupen: en gång per öppning) delar en flagga mellan monteringarna.
+   * Utan den växer kartan in vid varje montering (profilen, som monterar den en gång per sidbesök).
+   */
+  introPlayed?: MutableRefObject<boolean>;
 }
 
 /**
  * Consistency: en ruta per dag, veckor som kolumner grupperade per månad. Desktop 12 månader med veckodagsetiketter och
- * förklaring (Less → More), mobil 6 månader. Rutorna växer in EN gång (rqGrowY, stagger per vecka) och står sedan still.
- * Rutnätet är dekor för skärmläsare — sammanfattningen ligger i regionens namn.
+ * förklaring (Less → More), mobil 6 månader. Rutorna växer in när kartan monteras (rqGrowY, stagger per vecka) och står sedan still;
+ * en värd kan begränsa det till första monteringen med `introPlayed`. Rutnätet är dekor för skärmläsare — sammanfattningen ligger i regionens namn.
  */
-export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
+export function Heatmap({ user, today, now, isDesktop, introPlayed }: HeatmapProps) {
   const months = isDesktop ? HEAT_MONTHS_DESKTOP : HEAT_MONTHS_MOBILE;
   const heat = buildHeatmap(user.runs ?? [], today, months);
   const stats = buildHeatStats(user, heat, now);
@@ -40,14 +45,15 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
   // Är raden bredare än kortet visas den nyaste delen (innevarande månad), inte den äldsta. Ett överflöd under toleransen
   // (några pixlar från avrundning, högerpadding och månadsmellanrum) räknas som att den ryms: raden startar vid början, scrollar
   // inte alls och göms (annars hamnar första månaden några pixlar utanför kanten).
+  const [fits, setFits] = useState(false);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return undefined;
     const place = () => {
       const overflow = el.scrollWidth - el.clientWidth;
-      const fits = overflow <= FIT_TOLERANCE_PX;
-      el.dataset.fits = String(fits);
-      el.scrollLeft = fits ? 0 : overflow;
+      const rowFits = overflow <= FIT_TOLERANCE_PX;
+      setFits(rowFits);
+      el.scrollLeft = rowFits ? 0 : overflow;
     };
     place();
     const observer = new ResizeObserver(place);
@@ -55,8 +61,14 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
     return () => observer.disconnect();
   }, [months]);
 
+  // Valet tas vid monteringen och ändras aldrig under den: en omritning mitt i växandet får inte stänga av animationen.
+  const [growsIn] = useState(() => !introPlayed?.current);
+  useEffect(() => {
+    if (introPlayed) introPlayed.current = true;
+  }, [introPlayed]);
+
   return (
-    <div className="rq-profile-heat">
+    <div className="rq-profile-heat" data-intro={growsIn}>
       <div className="rq-profile-heat__top">
         <span className="rq-profile-heat__total">{formatInt(heat.runs)}</span>
         <span className="rq-profile-heat__unit">{isDesktop ? `runs in the last ${monthsLabel}` : `runs · ${monthsLabel}`}</span>
@@ -70,8 +82,8 @@ export function Heatmap({ user, today, now, isDesktop }: HeatmapProps) {
             ))}
           </div>
         )}
-        {/* Scrollbar region: tangentbordsfokus gör att den går att panorera utan mus. */}
-        <div ref={scrollRef} className="rq-profile-heat__scroll" role="region" aria-label={`Run heatmap: ${heat.summary}`} tabIndex={0}>
+        {/* Tabbstopp bara när raden faktiskt scrollar: tangentbordsfokus gör att den går att panorera utan mus, och en karta som ryms har inget att panorera. */}
+        <div ref={scrollRef} className="rq-profile-heat__scroll" role="region" aria-label={`Run heatmap: ${heat.summary}`} data-fits={fits} tabIndex={fits ? undefined : 0}>
           <div className="rq-profile-heat__months">
             {heat.months.map((month) => (
               <div key={month.key} className="rq-profile-heat__month" data-current={month.current}>

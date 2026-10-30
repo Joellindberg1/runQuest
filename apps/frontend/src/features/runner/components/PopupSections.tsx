@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { User } from '@runquest/types';
 import { BadgePanel } from '@/features/badges/components/BadgePanel';
 import type { StatView } from '@/features/profile/statsModel';
@@ -35,6 +36,9 @@ interface PopupSectionsProps {
  * komponenttillstånd hos anroparen, aldrig `?view=`.
  */
 export function PopupSections({ user, data, section, onSectionChange, statView, onStatViewChange }: PopupSectionsProps) {
+  // Lever lika länge som popupen är öppen (komponenten avmonteras när den stängs), så kartan växer in en gång per öppning.
+  const heatIntroPlayed = useRef(false);
+
   return (
     <div className="rq-runner-popup-sections">
       <ViewTabs
@@ -47,7 +51,7 @@ export function PopupSections({ user, data, section, onSectionChange, statView, 
         className="rq-runner-popup-tabs"
       />
       <div role="tabpanel" id={panelId(ID_PREFIX)} aria-labelledby={tabId(ID_PREFIX, section)} tabIndex={0} className="rq-runner-popup-panel">
-        {section === 'overview' && <OverviewPanel user={user} now={data.now} cells={data.cells} view={statView} onChange={onStatViewChange} />}
+        {section === 'overview' && <OverviewPanel user={user} now={data.now} cells={data.cells} view={statView} onChange={onStatViewChange} heatIntroPlayed={heatIntroPlayed} />}
         {section === 'journey' && <JourneyCard totalKm={user.total_km} />}
         {section === 'titles' && <TitlesPanel user={user} />}
         {section === 'badges' && <BadgePanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />}
