@@ -819,7 +819,8 @@ test.describe('the profile popup while its chunk loads', () => {
     });
     return release;
   }
-  const pendingDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Runner card', exact: true });
+  // Väntläget heter efter löparen när hen är känd (Board har gruppen i cachen), och skiljs så från den riktiga dialogen ("Runner card: <namn>").
+  const pendingDialog = (page: Page): Locator => page.getByRole('dialog', { name: `Loading ${RUNNER.name}'s runner card`, exact: true });
 
   test('a busy dialog holds focus, Tab and Shift+Tab never reach the page behind, and the real dialog takes over', async ({ page }) => {
     await openBoard(page, 1280, 900);
