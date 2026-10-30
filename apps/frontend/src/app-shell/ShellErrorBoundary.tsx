@@ -8,6 +8,8 @@ interface ShellErrorBoundaryProps {
   onClose?: () => void;
 }
 
+const OVERLAY_TITLE_ID = 'shell-error-title';
+
 interface ShellErrorBoundaryState {
   failed: boolean;
 }
@@ -34,7 +36,7 @@ export class ShellErrorBoundary extends Component<ShellErrorBoundaryProps, Shell
     const { onClose } = this.props;
     const card = (
       <section role="alert" className="rq-card rq-card--edge rq-error">
-        <h2 className="rq-error__title">Something broke</h2>
+        <h2 id={onClose ? OVERLAY_TITLE_ID : undefined} className="rq-error__title">Something broke</h2>
         <p className="rq-error__text">
           {onClose ? 'This card hit an unexpected error. Your data is safe — close it and try again.' : 'This page hit an unexpected error. Your data is safe — reload to try again.'}
         </p>
@@ -44,10 +46,28 @@ export class ShellErrorBoundary extends Component<ShellErrorBoundaryProps, Shell
       </section>
     );
     if (!onClose) return card;
+    // Overlayn är en modal dialog som popupen den ersätter: fokus flyttas in när kortet ritas (annars ligger det kvar på sidan bakom, eller hamnar på <body> när kortet stängs),
+    // Esc stänger, och Tab stannar på Close, kortets enda fokuserbara element. Fokus tillbaka till löparens rad ger skalet efter att Close har gått ett steg bakåt (`useRestoreRunnerFocus`).
     return (
       <>
         <div className="rq-scrim" />
-        <div className="rq-modal">{card}</div>
+        <div
+          ref={(dialog) => dialog?.focus()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={OVERLAY_TITLE_ID}
+          tabIndex={-1}
+          className="rq-modal"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') onClose();
+            else if (event.key === 'Tab') {
+              event.preventDefault();
+              event.currentTarget.querySelector('button')?.focus();
+            }
+          }}
+        >
+          {card}
+        </div>
       </>
     );
   }

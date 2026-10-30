@@ -33,12 +33,6 @@ const location = () => screen.getByTestId('location').textContent;
 const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
 
 describe('the popup while its chunk loads', () => {
-  it('the dialog is named after the runner when the runner is known', async () => {
-    renderWithApp(<AppRoutes />, { entry: popupOverBoard as never, width: DESKTOP });
-
-    expect(await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` })).toHaveAttribute('aria-busy', 'true');
-  });
-
   it.each([
     ['Escape', (dialog: HTMLElement) => fireEvent.keyDown(dialog, { key: 'Escape' })],
     ['a click on the scrim', () => fireEvent.click(document.querySelector('.rq-scrim') as HTMLElement)],

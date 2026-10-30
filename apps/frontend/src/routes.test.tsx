@@ -362,4 +362,45 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     spy.mockRestore();
   });
+  describe('the error card is a dialog that gives the focus back', () => {
+    const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
+
+    async function openBrokenPopup() {
+      // Som i en riktig webbläsare där popupen har en post bakom sig: Esc och Close är då ett steg bakåt (`useCloseRunner` läser window.history, inte MemoryRouter).
+      window.history.replaceState({ idx: 1 }, '');
+      crash.runnerPopup = true;
+      renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
+      const dialog = await screen.findByRole('dialog', { name: 'Something broke' });
+      await waitFor(() => expect(karlRow()).not.toBeNull());
+      crash.runnerPopup = false;
+      return dialog;
+    }
+
+    it('has dialog semantics and a name, and holds the focus', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+      spy.mockRestore();
+    });
+
+    it.each([
+      ['Escape', (dialog: HTMLElement) => fireEvent.keyDown(dialog, { key: 'Escape' })],
+      ['the Close button', (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))],
+    ])('%s closes it and puts the focus on the runner row, not on the page body', async (_how, close) => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+
+      close(dialog);
+
+      await waitFor(() => expect(location()).toBe('/board'));
+      await waitFor(() => expect(screen.queryByRole('dialog', { hidden: true })).toBeNull());
+      await waitFor(() => expect(karlRow()).toHaveFocus());
+      expect(document.body).not.toHaveFocus();
+      spy.mockRestore();
+    });
+  });
 });

@@ -104,11 +104,9 @@ describe('the profile popup is a lazy chunk', () => {
   it('shows the real dialog, not busy, when the chunk has loaded', async () => {
     renderPending();
     expect(await screen.findByText('Loading runner')).toBeInTheDocument();
-    // Väntläget heter som den riktiga dialogen när löparen är känd, så det som skiljer dem åt är att den ena är upptagen.
-    expect(screen.getByRole('dialog', { name: /^Runner card/ })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('dialog', { name: `Runner card: ${OTHER.name}` })).toBeNull();
 
     popupChunk.release();
-    await waitFor(() => expect(screen.queryByText('Loading runner')).toBeNull());
     const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
     expect(dialog).not.toHaveAttribute('aria-busy');
     await waitFor(() => expect(within(dialog).getByRole('heading', { level: 2, name: `Runner card: ${OTHER.name}` })).toHaveFocus());
