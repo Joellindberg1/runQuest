@@ -69,6 +69,16 @@ export function h2hHint(record: HeadToHeadRecord | undefined, opponentFirstName:
   return { text: record.wins === 0 ? `drawn ${record.draws}` : `${score} level`, tone: 'muted' };
 }
 
+/** Varför en medlem inte går att utmana just nu: i en live-duell, eller har skickat en utmaning som väntar på svar (mottagaren av en väntande utmaning flaggas inte av group-stats). */
+export type OpponentBusy = 'duel' | 'waiting';
+
+export function opponentBusy(member: Pick<ChallengeGroupStat, 'challenge_active' | 'has_pending_challenge'>): OpponentBusy | null {
+  if (member.challenge_active) return 'duel';
+  return member.has_pending_challenge ? 'waiting' : null;
+}
+
+const BUSY_LABEL: Record<OpponentBusy, string> = { duel: 'In a duel', waiting: 'Waiting on a reply' };
+
 export function buildOpponents(input: {
   members: readonly ChallengeGroupStat[];
   users: readonly User[] | undefined;
@@ -83,7 +93,7 @@ export function buildOpponents(input: {
       const user = userOf(member.user_id);
       const stats = user ? leaderboardUtils.calculateUserStats(user) : null;
       const rank = (user && input.users ? leaderboardUtils.rankOfUser(user, input.users) : null) ?? Number.MAX_SAFE_INTEGER;
-      const busy = member.challenge_active ? 'In a duel' : member.has_pending_challenge ? 'Waiting on a reply' : null;
+      const busy = opponentBusy(member);
       const option: OpponentOption = {
         userId: member.user_id,
         name: member.name,
@@ -94,7 +104,7 @@ export function buildOpponents(input: {
           : `Level ${member.current_level}`,
         h2h: h2hHint(input.headToHead[member.user_id], firstName(member.name)),
         disabled: busy !== null,
-        disabledReason: busy,
+        disabledReason: busy && BUSY_LABEL[busy],
       };
       return { option, rank };
     });
