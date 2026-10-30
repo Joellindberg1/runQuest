@@ -127,7 +127,7 @@ export function DuelsLayout(props: DuelsLayoutProps) {
     <div className="rq-duels">
       <header className="rq-duels__head">
         <div>
-          <h1 className="rq-display rq-duels__title">Challenges</h1>
+          <h1 className="rq-display rq-duels__title" tabIndex={-1}>Challenges</h1>
           <p className="rq-duels__sub">{props.summary}</p>
         </div>
         {isDesktop ? (

@@ -1,10 +1,10 @@
 import type { BadgeShowcaseEntry } from '@runquest/shared';
 import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
-import { cssVars } from '@/features/leaderboard/cssVars';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { formatInt } from '@/shared/utils/format';
 import type { RunnerHero, StatCell } from '../runnerModel';
 import { xpToNextText } from '../runnerModel';
+import { CellGrid, LevelRing } from './RunnerParts';
 
 interface HeroCardProps {
   hero: RunnerHero;
@@ -14,28 +14,20 @@ interface HeroCardProps {
 }
 
 /**
- * Hjältekortet (`.rq-card--hero`): nivåring, namn (+ badge-minis) · rank · rundor · XP kvar, och statcellerna i hårlinjegrid.
+ * Hjältekortet på sidan (`.rq-card--hero`): nivåring, namn (+ badge-minis) · rank · rundor · XP kvar, och statcellerna i hårlinjegrid.
  * Minisen är ett eget element efter h1:an, så rubriken förblir bara namnet; BadgeMinis bär själv role="img" och etiketten.
+ * Popupen har en egen banner (`PopupBanner`) med Head to head i en panel; det här är mobilens och direktladdningens kort, med CHALLENGES kvar.
  */
 export function HeroCard({ hero, cells, showcase = [] }: HeroCardProps) {
   // Web Prototype har fem celler, App Prototype tre: samma brytpunkt som skalet (ADR 006).
   const wide = useIsDesktop() === true;
   const visible = cells.filter((cell) => wide || !cell.wideOnly);
-  const percent = Math.round(hero.ringTurn * 100);
-  const ringLabel = hero.nextLevel === null
-    ? `Level ${hero.level}, max level`
-    : `Level ${hero.level}, ${percent}% of the way to level ${hero.nextLevel}`;
   const standing = [hero.rank === null ? null : `#${hero.rank} in the group`, `${formatInt(hero.runs)} ${hero.runs === 1 ? 'run' : 'runs'}`].filter(Boolean).join(' · ');
 
   return (
     <section className="rq-card rq-card--hero rq-runner-hero" aria-label="Runner">
       <div className="rq-runner-hero__id">
-        <div className="rq-ring rq-runner-ring" role="img" aria-label={ringLabel} style={cssVars({ '--rq-ring-p': `${hero.ringTurn}turn` })}>
-          <div className="rq-ring-hole">
-            <span className="rq-runner-ring__level">{hero.level}</span>
-            <span className="rq-runner-ring__caption">level</span>
-          </div>
-        </div>
+        <LevelRing hero={hero} />
         <div className="rq-runner-hero__who">
           <div className="rq-runner-hero__nameline">
             <h1 className="rq-display rq-runner-hero__name">{hero.name}</h1>
@@ -46,14 +38,7 @@ export function HeroCard({ hero, cells, showcase = [] }: HeroCardProps) {
         </div>
       </div>
 
-      <dl className="rq-hairgrid rq-runner-cells">
-        {visible.map((cell) => (
-          <div key={cell.key} className="rq-runner-cell" data-cell={cell.key}>
-            <dt className="rq-runner-cell__label">{cell.label}</dt>
-            <dd className="rq-runner-cell__value" data-tone={cell.tone}>{cell.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <CellGrid cells={visible} variant="cells" />
     </section>
   );
 }

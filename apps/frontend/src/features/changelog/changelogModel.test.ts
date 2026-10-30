@@ -143,7 +143,7 @@ describe('changelog: v0.6.0', () => {
       [/Signing in now opens as a popup over the start page/, 'pages/Index.tsx', '<LoginDialog'],
       [/pennants instead of shields, on the Board and in Duels/, 'features/leaderboard/components/BoardParts.tsx', 'PENNANT_PATH'],
       [/pennants instead of shields, on the Board and in Duels/, 'features/challenges/components/TierRibbon.tsx', 'PENNANT_PATH'],
-      [/next to Head to head/, 'features/runner/components/RunnerCard.tsx', 'HeadToHeadPanel'],
+      [/next to Head to head/, 'features/runner/components/RunnerPanels.tsx', 'HeadToHeadPanel'],
     ];
     for (const [claim, file, evidence] of claims) {
       expect({ claim: claim.source, written: claim.test(text), file, found: source(file).includes(evidence) }).toEqual({ claim: claim.source, written: true, file, found: true });

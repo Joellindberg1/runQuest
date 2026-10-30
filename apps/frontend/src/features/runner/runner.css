@@ -3,12 +3,11 @@
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
    Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
 
-/* ── Ram: sida (mobil/direktladdning) eller overlay (desktop-modalen) ─────── */
+/* ── Ram: sida (mobil/direktladdning) ─────────────────────────────────────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .rq-runner__bar { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-12); }
 .rq-runner__bar .rq-back { margin-bottom: 0; }
 .rq-runner__spacer { flex: 1; }
-.rq-runner__eyebrow { font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -16,8 +15,51 @@
    Head to head sträcks till radens höjd (designen: Web Prototype 1653); panelen utan head to head (ingen inloggad) tar första kolumnen ensam. */
 .rq-runner__lower { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__lower > .rq-runner-h2h { align-self: stretch; }
-.rq-runner[data-variant="overlay"] .rq-runner__bar { margin: 0; padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
-.rq-runner[data-variant="overlay"] .rq-runner__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
+
+/* ── Ram: profil-popupen (pages/RunnerPage.tsx) ───────────────────────────────
+   Lagret och bredden är skalets: .rq-scrim och .rq-modal (width min(--rq-modal-w, 95vw), max-height 88vh, flex-kolumn, overflow hidden). Här läggs bara den fasta
+   huvudytan (rubrik, Challenge; ✕ är .rq-modal__close, positionerad mot modalen) och ytan som scrollar: innehållet får aldrig göra dialogen högre än fönstret. */
+.rq-runner-popup__bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
+.rq-runner-popup__title { margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-2); }
+.rq-runner-popup__content { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
+
+/* ── Profil-popupen: flikraden och panelytan ──────────────────────────────────
+   Flikraden är ViewTabs (variant underline) med skalets .rq-tab; ringen, hit-ytan och typsnittet kommer från view-controls.css. Vald flik har samma tint och kant som övriga vald-ytor
+   (--rq-tint-selected / --rq-edge-selected, receptet .rq-filter) plus .rq-tabs guldlinje under. Alla flikar har en genomskinlig kant av samma bredd, så att raden inte rör sig när valet byts.
+   Panelytan har FAST höjd och scrollar för sig: dialogen blir då lika hög på alla flikar (och aldrig högre än .rq-modal tillåter, då scrollar innehållet i dialogen som förut). */
+.rq-runner-popup-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+.rq-runner-popup-tabs > .rq-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-8); margin-bottom: 0; padding: var(--rq-sp-12) var(--rq-sp-8);
+  font-weight: 600; white-space: nowrap; background: none; border: var(--rq-hair) solid transparent; border-bottom: var(--rq-edge-w-thin) solid transparent;
+}
+.rq-runner-popup-tabs > .rq-tab[aria-selected="true"] {
+  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); border-bottom-color: var(--rq-gold);
+}
+.rq-runner-popup-panel { height: var(--rq-runner-popup-panel-h); overflow-y: auto; padding-top: var(--rq-sp-14); }
+.rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-runner__split > .rq-runner-h2h { align-self: stretch; }
+
+/* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────
+   Tre kolumner: ring | namn, ställning och statrad | panelen uppe till höger (prototypen: 212 px, sträckt till bannerns höjd). Statraden har lika breda celler hur många de är (fyra: TOTAL XP, TOTAL KM,
+   RUNS, TITLES HELD). Bannerns höjd får aldrig bero på panelens läge: panelens innehåll har samma lägsta höjd (--rq-runner-h2h-body-h) i alla lägen (rekord, laddar, fel, inga dueller) och ryms
+   i vänsterkolumnens höjd (ringen, namnraden och statraden), som därmed bestämmer bannern. Panelen har ingen egen bakgrund: etiketterna i rutorna ligger då på samma lager som statradens
+   (hårlinjegridens och cellens), och kontrasten blir densamma som där (≥ 4,5:1 i båda teman). */
+.rq-runner-hero--popup { display: grid; grid-template-columns: auto minmax(0, 1fr) var(--rq-runner-h2h-w); gap: var(--rq-sp-20); align-items: start; }
+.rq-runner-hero--popup .rq-runner-hero__meta { margin-bottom: var(--rq-sp-12); }
+.rq-runner-hero--popup .rq-runner-cells { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.rq-runner-h2h-banner { align-self: stretch; display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-10) var(--rq-sp-12); border: var(--rq-hair) solid var(--rq-line-3); }
+.rq-runner-h2h-banner__head { display: flex; align-items: center; gap: var(--rq-sp-8); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-runner-h2h-banner__body { flex: 1; min-height: var(--rq-runner-h2h-body-h); display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.rq-runner-h2h-banner .rq-runner-record { margin: 0; }
+.rq-runner-h2h-banner .rq-runner-cell { padding: var(--rq-sp-6) var(--rq-sp-4); }
+.rq-runner-h2h-banner .rq-runner-cell__value[data-tone="muted"] { color: var(--rq-text-2); }
+.rq-runner-h2h-banner__body > :not(.rq-runner-record) { margin-block: auto; }
+.rq-runner-h2h-banner .rq-runner-note { padding: var(--rq-sp-6); }
+.rq-runner-h2h-banner .rq-runner-loading { padding: 0; }
+.rq-runner-h2h-banner .rq-error { gap: var(--rq-sp-4); padding: var(--rq-sp-4) var(--rq-sp-8); }
+.rq-runner-h2h-banner .rq-error .rq-btn { padding-block: var(--rq-sp-4); }
+.rq-runner-h2h-banner .rq-error__title { font-family: var(--rq-font-ui); font-size: var(--rq-fs-meta); font-weight: 600; }
+.rq-runner-h2h-banner .rq-error__text { font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
 
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
 .rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }

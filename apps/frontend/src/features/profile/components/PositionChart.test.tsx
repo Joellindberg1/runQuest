@@ -249,7 +249,7 @@ describe('PositionChart', () => {
       const { container } = render(<PositionChart model={readyOf(EIGHT)} />);
 
       expect(container.querySelector('.rq-profile-position__now')).toHaveTextContent(/^#2$/);
-      expect(screen.getByText('In the group · week 27–34')).toBeInTheDocument();
+      expect(screen.getByText('In the group · week 27-34')).toBeInTheDocument();
     });
   });
 
@@ -299,7 +299,7 @@ describe('PositionChart', () => {
       const labels = Array.from(container.querySelectorAll('.rq-profile-position__week')).map((node) => node.textContent);
       expect(labels).toEqual(['W51', 'W52', 'W53', 'W1']);
       expect(screen.getByRole('img', { name: /week 53, 2026/ })).toBeInTheDocument();
-      expect(screen.getByText('In the group · week 51, 2026 – week 1, 2027')).toBeInTheDocument();
+      expect(screen.getByText('In the group · week 51, 2026 - week 1, 2027')).toBeInTheDocument();
     });
   });
 

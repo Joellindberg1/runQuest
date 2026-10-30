@@ -1,0 +1,182 @@
+/* Position-fliken på Board: positionsgrafen för alla löpare och tabellen bakom "Show as table". ENDAST tokens (regel 1): måtten och färgrollerna
+   (--rq-board-position-*) bor i temafilen, sektion 1.20b (index.css + docs/design/temafil-forslag.css). Filen laddas tillsammans med den lazy-laddade
+   komponenten och ligger därför aldrig i landningens eller ingångens bunt. Ingen rörelse: linjen ritas en gång och inget animeras (inte heller under
+   prefers-reduced-motion). Ingen glöd. Dynamiska mått (--y, --x, --p och grafens --rq-board-position-h/-row/-pad/-n) sätts av komponenten via cssVars().
+
+   Grafen är ett rutnät: axeltal | fält | namn. Namnkolumnen är `auto` och består av en rad per placering, så ett långt förnamn gör kolumnen bredare (upp
+   till --rq-board-position-name-max, därefter bryts det) i stället för att klippas eller läggas över grafen. Veckoetiketterna ligger i fältets kolumn. */
+
+.rq-board-position__card { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
+.rq-board-position__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); }
+.rq-board-position__title { margin: 0; min-width: 0; font-weight: 400; }
+/* Träffytan är min-height; understrykningen är textens egen (inte kantlinjen på boxens botten), så den ligger tätt under orden. */
+.rq-btn.rq-board-position__toggle {
+  flex-shrink: 0; min-height: var(--rq-board-position-toggle-h); border-bottom: 0; color: var(--rq-board-position-label);
+  text-decoration: underline; text-decoration-color: var(--rq-line-6); text-underline-offset: var(--rq-sp-4);
+}
+.rq-btn.rq-board-position__toggle:hover { color: var(--rq-text-2); }
+.rq-board-position__eyebrow {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--rq-sp-2) var(--rq-sp-8); margin: 0;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-body); letter-spacing: var(--rq-ls-tab); text-transform: uppercase;
+  color: var(--rq-text-eyebrow);
+}
+@media (max-width: 1023px) { .rq-board-position__season { display: none; } }
+/* Ett skiljetecken hör till texten efter sig: delen bryts aldrig inuti, så en smal rad (320 px) bryts före "·" och slutar aldrig på ett ensamt. Mellanrummet inuti delen är radens eget. */
+.rq-board-position__part { display: inline-flex; align-items: baseline; gap: var(--rq-sp-8); white-space: nowrap; }
+.rq-board-position__message { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
+
+/* ── Grafen ───────────────────────────────────────────────────────────────── */
+.rq-board-position__chart {
+  display: grid; grid-template-columns: var(--rq-board-position-axis-w) minmax(0, 1fr) auto; grid-template-rows: var(--rq-board-position-h) auto; min-width: 0;
+}
+.rq-board-position__axis { position: relative; grid-column: 1; grid-row: 1; }
+.rq-board-position__axis-num {
+  position: absolute; right: var(--rq-sp-6); top: var(--y); transform: translateY(-50%);
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label);
+}
+.rq-board-position__field { position: relative; grid-column: 2; grid-row: 1; }
+.rq-board-position__grid { position: absolute; left: 0; right: 0; top: var(--y); height: var(--rq-hair); background: var(--rq-board-position-grid); }
+.rq-board-position__lines { position: absolute; inset: 0 0 0 var(--rq-board-position-pad-x); }
+
+/* En linje = en behållare över hela fältet; behållarens ordning i DOM:en är ritordningen (din och den valda sist, alltså överst). */
+.rq-board-position__line {
+  position: absolute; inset: 0; pointer-events: none;
+  stroke: var(--rq-board-position-line); stroke-width: var(--rq-board-position-line-w);
+}
+.rq-board-position__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rq-board-position__stroke, .rq-board-position__dash { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rq-board-position__dash { stroke-width: var(--rq-board-position-dash-w); stroke-dasharray: var(--rq-board-position-dash); }
+
+/* Vald löpare: tjockare linje och fetare namn (syns utan färg), alla andra till ca 25 %. Din linje är alltid guld och tjock; vald och din: tjockast. */
+.rq-board-position__line[data-selected="true"] { stroke: var(--rq-board-position-line-on); stroke-width: var(--rq-board-position-line-w-on); }
+.rq-board-position__line[data-me="true"] { stroke: var(--rq-board-position-line-me); stroke-width: var(--rq-board-position-line-w-me); }
+.rq-board-position__line[data-me="true"][data-selected="true"] { stroke-width: var(--rq-board-position-line-w-me-on); }
+.rq-board-position__line[data-dimmed="true"] { opacity: var(--rq-board-position-dim); }
+
+/* Punkter: enkla prickar för avslutade veckor, ihålig punkt för den pågående veckan, bilden eller initialerna vid den sista avslutade veckan. */
+.rq-board-position__dot, .rq-board-position__hollow, .rq-board-position__endpoint {
+  position: absolute; left: calc(var(--x) * 100%); top: var(--y); transform: translate(-50%, -50%); box-sizing: border-box; border-radius: var(--rq-radius-round);
+}
+.rq-board-position__dot { width: var(--rq-board-position-dot-size); height: var(--rq-board-position-dot-size); background: var(--rq-board-position-dot); }
+.rq-board-position__hollow {
+  width: var(--rq-board-position-hollow); height: var(--rq-board-position-hollow);
+  border: var(--rq-edge-w-thin) solid var(--rq-board-position-dot); background: var(--rq-board-position-core);
+}
+.rq-board-position__endpoint { display: flex; width: var(--rq-board-position-endpoint); height: var(--rq-board-position-endpoint); }
+.rq-board-position__line[data-selected="true"] .rq-board-position__dot { background: var(--rq-board-position-line-on); }
+.rq-board-position__line[data-selected="true"] .rq-board-position__hollow { border-color: var(--rq-board-position-line-on); }
+.rq-board-position__line[data-me="true"] .rq-board-position__dot { width: var(--rq-board-position-dot-size-me); height: var(--rq-board-position-dot-size-me); background: var(--rq-board-position-line-me); }
+.rq-board-position__line[data-me="true"] .rq-board-position__hollow { border-color: var(--rq-board-position-line-me); }
+
+/* Bild eller initialer: samma cirkel i grafen och i "Current order". Ringen följer data-me/data-selected på en förälder. */
+.rq-board-position-avatar {
+  box-sizing: border-box; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 100%; height: 100%; overflow: hidden;
+  border: var(--rq-hair) solid var(--rq-board-position-dot); border-radius: var(--rq-radius-round); background: var(--rq-board-position-core);
+  font-family: var(--rq-font-display); font-size: var(--rq-board-position-initials-fs); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-display); color: var(--rq-text-2);
+}
+.rq-board-position-avatar img { width: 100%; height: 100%; object-fit: cover; }
+[data-selected="true"] .rq-board-position-avatar { border: var(--rq-edge-w-thin) solid var(--rq-board-position-line-on); }
+[data-me="true"] .rq-board-position-avatar { border: var(--rq-edge-w-thin) solid var(--rq-board-position-line-me); color: var(--rq-gold-text); }
+
+/* Namnen vid linjeslutet: ett förnamn per rad, på radens höjd (grid-row = placeringen). Radmarginalen lyfter kolumnen så att första raden hamnar på första placeringen. */
+.rq-board-position__names {
+  grid-column: 3; grid-row: 1; display: grid; grid-template-rows: repeat(var(--rq-board-position-n), var(--rq-board-position-row)); align-content: start;
+  max-width: var(--rq-board-position-name-max); margin-top: calc(var(--rq-board-position-pad) - var(--rq-board-position-row) / 2); padding-left: var(--rq-board-position-name-gap);
+}
+.rq-board-position__name {
+  grid-row: var(--p); align-self: center; min-width: 0; overflow-wrap: anywhere;
+  font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-board-position-name-fs); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-name); text-transform: uppercase;
+  color: var(--rq-board-position-label);
+}
+.rq-board-position__name[data-selected="true"] { font-weight: 700; color: var(--rq-board-position-line-on); }
+.rq-board-position__name[data-me="true"] { color: var(--rq-gold-text); }
+.rq-board-position__name[data-dimmed="true"] { opacity: var(--rq-board-position-dim); }
+
+/* Veckoetiketter (W27…) under fältet; den pågående veckan lite starkare */
+.rq-board-position__weeks { position: relative; grid-column: 2; grid-row: 2; height: var(--rq-fs-eyebrow); margin-top: var(--rq-sp-8); }
+.rq-board-position__weeks-field { position: absolute; inset: 0 0 0 var(--rq-board-position-pad-x); }
+.rq-board-position__week {
+  position: absolute; left: calc(var(--x) * 100%); transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-name); color: var(--rq-board-position-label);
+}
+.rq-board-position__week[data-current="true"] { color: var(--rq-text-2); }
+
+/* Förklaringen till den ihåliga punkten */
+.rq-board-position__legend { display: flex; align-items: center; gap: var(--rq-sp-8); margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label); }
+.rq-board-position__swatch {
+  box-sizing: border-box; flex: 0 0 auto; width: var(--rq-board-position-hollow); height: var(--rq-board-position-hollow); border-radius: var(--rq-radius-round);
+  border: var(--rq-edge-w-thin) solid var(--rq-board-position-dot);
+}
+
+/* ── Tabellen ─────────────────────────────────────────────────────────────── */
+/* En period på upp till 26 veckor har 26 kolumner: tabellen scrollar i sin egen yta (fokusbar region med inåtriktad ring) i stället för att göra sidan bredare. */
+/* position: relative gör ytan till innehållsblock för de skärmläsarbara (sr-only, absolut placerade) cellerna, annars sticker de ut ur ytan och vidgar sidan. */
+.rq-board-position__table-slot { position: relative; min-width: 0; overflow-x: auto; }
+.rq-board-position__table-slot:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-board-position__table { width: 100%; border-collapse: collapse; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-variant-numeric: tabular-nums; }
+.rq-board-position__table th, .rq-board-position__table td {
+  padding: var(--rq-sp-6) var(--rq-sp-2); text-align: center; font-weight: 400; color: var(--rq-text-2); border-bottom: var(--rq-hair) solid var(--rq-line-2);
+}
+.rq-board-position__table thead th { font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-name); vertical-align: bottom; color: var(--rq-board-position-label); border-bottom-color: var(--rq-line-4); }
+.rq-board-position__table thead th[data-current="true"] { color: var(--rq-text-2); }
+.rq-board-position__table th[scope="row"], .rq-board-position__table thead th:first-child {
+  text-align: left; min-width: 9ch; overflow-wrap: normal; padding-right: var(--rq-sp-6);
+}
+.rq-board-position__table tbody th[scope="row"] { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-name); text-transform: uppercase; line-height: var(--rq-lh-tight); }
+.rq-board-position__table tbody th[data-me="true"] { color: var(--rq-gold-text); }
+.rq-board-position__table td[data-current="true"] { font-style: italic; }
+.rq-board-position__table td[data-empty="true"] { color: var(--rq-board-position-label); }
+.rq-board-position__table-sub { display: block; font-family: var(--rq-font-ui); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-name); text-transform: none; line-height: var(--rq-lh-tight); }
+.rq-board-position__footnote { margin: var(--rq-sp-8) 0 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
+
+/* ── Layout: grafen och "Current order" (EN komponent i DOM:en) ───────────────────────────────────────────────────────────────────────────
+   Mobil: ETT kort med grafen överst och legenden under den, åtskilda av en hårlinje. Desktop (≥ 1024 px, skalets brytpunkt): två kort sida vid sida,
+   legenden i sidokolumnen (--rq-board-side-w, samma som Week och Streaks). Samma element i båda lägena; bara CSS flyttar det. */
+.rq-board-position { display: flex; flex-direction: column; gap: var(--rq-sp-16); min-width: 0; }
+.rq-board-position-order { display: flex; flex-direction: column; min-width: 0; padding-top: var(--rq-sp-14); border-top: var(--rq-hair) solid var(--rq-line-2); }
+@media (min-width: 1024px) {
+  .rq-card.rq-board-position {
+    display: grid; grid-template-columns: minmax(0, 1fr) var(--rq-board-side-w); gap: var(--rq-sp-18); align-items: start;
+    padding: 0; border: 0; background: none; box-shadow: none;
+  }
+  .rq-board-position__card, .rq-board-position-order {
+    padding: var(--rq-pad-card); border: var(--rq-hair) solid var(--rq-panel-border); background: var(--rq-card-bg); box-shadow: var(--rq-card-shadow);
+  }
+}
+
+/* ── Current order ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.rq-board-position-order__title {
+  margin: 0; font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); font-weight: 400; line-height: var(--rq-lh-body); letter-spacing: var(--rq-ls-tab);
+  text-transform: uppercase; color: var(--rq-text-eyebrow);
+}
+.rq-board-position-order__hint { margin: var(--rq-sp-4) 0 var(--rq-sp-12); font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-board-position-label); }
+.rq-board-position-order__list { display: flex; flex-direction: column; gap: var(--rq-board-position-order-gap); margin: 0; padding: 0; list-style: none; }
+/* Utan hint (inget att välja) står listan direkt under rubriken: samma avstånd som hintets undre marginal. */
+.rq-board-position-order__title + .rq-board-position-order__list { margin-top: var(--rq-sp-12); }
+
+/* En rad är en knapp: minst 44 px på mobil (en rad som radbryter växer, den klipps aldrig), inåtriktad fokusring (en yttre skulle klippas av kortet). */
+.rq-board-position-order__row {
+  box-sizing: border-box; display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; min-height: var(--rq-board-position-order-h);
+  margin: 0; padding: var(--rq-sp-6) var(--rq-sp-10); border: var(--rq-hair) solid var(--rq-line-3); border-radius: var(--rq-radius); background: var(--rq-row-soft);
+  font-family: var(--rq-font-ui); text-align: left; color: var(--rq-text-2);
+}
+/* Pekaren och hovern hör till en rad som är en knapp. Utan en ritad graf är raden bara ordning (en vanlig div) och ska inte se klickbar ut. */
+button.rq-board-position-order__row { cursor: pointer; }
+button.rq-board-position-order__row:hover { background: var(--rq-row-hover); }
+.rq-board-position-order__row:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
+.rq-board-position-order__row[aria-pressed="true"] { border-color: var(--rq-board-position-line-on); background: var(--rq-fill-2); }
+.rq-board-position-order__row[aria-pressed="true"][data-me="true"] { border-color: var(--rq-board-position-line-me); }
+.rq-board-position-order__row .rq-board-position-avatar { width: var(--rq-board-position-order-avatar); height: var(--rq-board-position-order-avatar); }
+
+.rq-board-position-order__place { flex: 0 0 var(--rq-board-position-place-w); font-family: var(--rq-font-mono); font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label); }
+.rq-board-position-order__who { display: flex; flex: 1; flex-direction: column; gap: var(--rq-sp-2); min-width: 0; }
+.rq-board-position-order__name {
+  min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: var(--rq-fs-body); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-name); text-transform: uppercase;
+}
+.rq-board-position-order__row[data-me="true"] .rq-board-position-order__name { color: var(--rq-gold-text); }
+.rq-board-position-order__joined { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); color: var(--rq-board-position-label); }
+.rq-board-position-order__tag, .rq-board-position-order__shown {
+  flex-shrink: 0; padding: var(--rq-sp-2) var(--rq-sp-6); border: var(--rq-hair) solid var(--rq-board-position-line-on);
+  font-size: var(--rq-fs-eyebrow); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-2);
+}
+.rq-board-position-order__tag { border-color: var(--rq-board-position-line-me); color: var(--rq-gold-text); }

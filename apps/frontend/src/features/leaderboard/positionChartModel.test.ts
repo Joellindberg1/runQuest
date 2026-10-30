@@ -7,6 +7,7 @@ import {
   type PositionWeek,
 } from '@runquest/shared';
 import { buildPositionChart, chartHeight, rowSpacing, selectRunner } from './positionChartModel';
+import { NO_FINISHED_WEEK_MESSAGE } from './positionTexts';
 
 // Veckorna fyller på från 2026-10-26 (pågående) och bakåt; antalet styrs av testet, aldrig av en konstant i modellen.
 function weeksOf(count: number): PositionWeek[] {
@@ -300,7 +301,7 @@ describe('table', () => {
     expect(table.rows[0].cells.map((cell) => cell.position)).toEqual([null, 3, 1, 2]);
     expect(table.rows[0].cells.map((cell) => cell.isCurrent)).toEqual([false, false, false, true]);
     expect(table.hasEmptyCells).toBe(true);
-    expect(table.caption).toBe('Position per week, weeks 30 to 33. The last column is this week so far.');
+    expect(table.caption).toBe('Position per week, weeks 30 to 33. Week 33 is this week so far.');
   });
 
   it('a dash is spoken as "not in the group yet" and the footnote explains it', () => {
@@ -349,10 +350,10 @@ describe('role img text', () => {
     data.runners.forEach((r) => r.positions.unshift(r.positions[0]));
     const model = buildPositionChart(data, OPTIONS);
 
-    expect(model.range).toBe('week 52, 2026 – week 1, 2027');
+    expect(model.range).toBe('week 52, 2026 - week 1, 2027');
     expect(model.spokenRange).toBe('week 52, 2026 to week 1, 2027');
     expect(model.ariaLabel).toContain('week 52, 2026 to week 1, 2027');
-    expect(model.ariaLabel).not.toContain('–');
+    expect(model.ariaLabel).not.toContain(model.range);
     expect(model.ariaLabel).toContain('Week 1, 2027 is this week so far');
   });
 });
@@ -390,6 +391,12 @@ describe('modes', () => {
     expect(model.mode).toBe('no-finished-week');
     expect(model.lines).toEqual([]);
     expect(model.order.map((entry) => entry.id)).toEqual(['u-me', 'u-karl']);
+    expect(model.message).toBe(NO_FINISHED_WEEK_MESSAGE);
+  });
+
+  it('only no-finished-week carries a message; a chart and hidden have none', () => {
+    expect(buildPositionChart(trio(), OPTIONS).message).toBeNull();
+    expect(buildPositionChart(response(1, [runner('u-me', 'Me', [1])]), OPTIONS).message).toBeNull();
   });
 
   it('two runners with one finished week draw a chart', () => {
