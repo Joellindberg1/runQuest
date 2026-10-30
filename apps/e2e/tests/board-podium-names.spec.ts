@@ -203,6 +203,106 @@ test.describe('the podium cards on a phone', () => {
     }
   }
 
+  // Badgepyramiden: tre badges som en överst och två under, två som en rad, en ensam; 28 x 31 px-emblemen oförändrade. Gruppen står bredvid namnblocket, mitt i raden och fri från placeringen,
+  // och kortet blir inte högre av den (ett kort utan badges är lika högt som ett med tre) så länge raden är bred nog att rymma namnets längsta ord bredvid den.
+  const EMBLEM_WIDTH_PX = 28;
+  const EMBLEM_HEIGHT_PX = 31;
+  /** Pyramidens mått i prototypen: ca 62 x 60 px för tre emblem. */
+  const PYRAMID_SIZE_PX = 62;
+  const MAX_GROWTH_PX = 4;
+  for (const width of [375, 390, 402, 430]) {
+    for (const badges of [1, 2, 3]) {
+      test(`draws ${badges} badges as a pyramid beside the name, centred in the row and clear of the place, on a ${width} px phone`, async ({ page }) => {
+        await openBoard(page, { names: WORD_NAMES, badges, width });
+
+        const cards = await page.evaluate(() =>
+          Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => {
+            const box = (node: Element) => node.getBoundingClientRect();
+            const emblems = Array.from(card.querySelectorAll('.rq-board-podium__pyramid .rq-badge')).map((emblem) => box(emblem));
+            const group = card.querySelector('.rq-board-podium__pyramid .rq-badge-minis')!;
+            const range = document.createRange();
+            range.selectNodeContents(card.querySelector('.rq-board-namebtn')!);
+            const nameRight = Math.max(...Array.from(range.getClientRects()).filter((rect) => rect.width > 0).map((rect) => rect.right));
+            const head = box(card.querySelector('.rq-board-podium__head')!);
+            const groupBox = box(group);
+            const place = box(card.querySelector('.rq-board-podium__rank')!);
+            return {
+              emblems: emblems.map((rect) => ({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height })),
+              group: { left: groupBox.left, right: groupBox.right, top: groupBox.top, bottom: groupBox.bottom },
+              besideName: groupBox.left >= nameRight - 1,
+              centredInRow: Math.abs(groupBox.top + groupBox.height / 2 - (head.top + head.height / 2)),
+              clearOfPlace: groupBox.right <= place.left + 1 || groupBox.bottom <= place.top + 1,
+              insideCard: groupBox.right <= box(card).right,
+            };
+          }),
+        );
+
+        expect(cards).toHaveLength(3);
+        for (const card of cards) {
+          expect(card.emblems, `${badges} emblems`).toHaveLength(badges);
+          for (const emblem of card.emblems) {
+            expect(Math.abs(emblem.width - EMBLEM_WIDTH_PX), 'the emblem keeps its 28 px width').toBeLessThanOrEqual(TOLERANCE_PX);
+            expect(Math.abs(emblem.height - EMBLEM_HEIGHT_PX), 'the emblem keeps its 31 px height').toBeLessThanOrEqual(TOLERANCE_PX);
+          }
+          expect(card.besideName, 'the group is beside the name block, not under it').toBe(true);
+          expect(card.centredInRow, 'the group is centred in the row').toBeLessThanOrEqual(TOLERANCE_PX + 1);
+          expect(card.clearOfPlace, 'the group does not touch the place').toBe(true);
+          expect(card.insideCard, 'the group is inside the card').toBe(true);
+          const [top, left, right] = card.emblems;
+          if (badges === 3) {
+            expect(Math.abs((top!.left + top!.right) / 2 - (left!.left + right!.right) / 2), 'the top emblem is centred over the two below').toBeLessThanOrEqual(TOLERANCE_PX);
+            expect(Math.abs(left!.top - right!.top), 'the two lower emblems share a row').toBeLessThanOrEqual(TOLERANCE_PX);
+            expect(left!.top, 'the two lower emblems are below the top one').toBeGreaterThanOrEqual(top!.top + EMBLEM_HEIGHT_PX - TOLERANCE_PX - 1);
+            expect(Math.abs(right!.right - left!.left - PYRAMID_SIZE_PX), 'the pyramid is about 62 px wide').toBeLessThanOrEqual(4);
+            expect(Math.abs(Math.max(left!.bottom, right!.bottom) - top!.top - PYRAMID_SIZE_PX), 'the pyramid is about 62 px high').toBeLessThanOrEqual(4);
+          } else if (badges === 2) {
+            expect(Math.abs(top!.top - left!.top), 'two emblems share a row').toBeLessThanOrEqual(TOLERANCE_PX);
+          }
+        }
+
+        // The card is no taller with the badges than without them.
+        const heights = async (count: number) => {
+          const other = await page.context().newPage();
+          await openBoard(other, { names: WORD_NAMES, badges: count, width });
+          const measured = await other.evaluate(() => Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => card.getBoundingClientRect().height));
+          await other.close();
+          return measured;
+        };
+        const without = await heights(0);
+        const withBadges = await page.evaluate(() => Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => card.getBoundingClientRect().height));
+        test.info().annotations.push({ type: 'measure', description: `${width} px / ${badges} badges: heights ${withBadges.map((value) => value.toFixed(1)).join('/')} against ${without.map((value) => value.toFixed(1)).join('/')} without badges` });
+        withBadges.forEach((height, index) => expect(height - without[index]!, `card ${index + 1} grows by the badges`).toBeLessThanOrEqual(MAX_GROWTH_PX));
+      });
+    }
+  }
+
+  // Utan badges finns ingen yta och ingen platshållare, och namnet får raden för sig.
+  for (const width of PHONE_WIDTHS) {
+    test(`leaves no room and no text for badges when there are none on a ${width} px phone`, async ({ page }) => {
+      await openBoard(page, { names: WORD_NAMES, badges: 0, width });
+
+      const cards = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.rq-board-podium')).map((card) => {
+          const head = card.querySelector('.rq-board-podium__head')!;
+          const id = card.querySelector('.rq-board-podium__id')!.getBoundingClientRect();
+          const headBox = head.getBoundingClientRect();
+          return {
+            pyramids: card.querySelectorAll('.rq-board-podium__pyramid, .rq-badge-minis, .rq-badge').length,
+            nameBlockRight: id.right,
+            headRight: headBox.right,
+            headText: head.textContent ?? '',
+          };
+        }),
+      );
+
+      for (const card of cards) {
+        expect(card.pyramids, 'no badge element at all').toBe(0);
+        expect(card.headText, 'no placeholder text in the row').not.toMatch(/none|badge/i);
+        expect(Math.abs(card.nameBlockRight - card.headRight), 'the name block reaches the right edge of the row').toBeLessThanOrEqual(TOLERANCE_PX);
+      }
+    });
+  }
+
   // Långa efternamn bryter i podiet och i restraderna vid 320 px, utan att sidan blir bredare.
   test('keeps long surnames inside the podium cards and the rest rows on a 320 px phone', async ({ page }) => {
     const names = ['Ann Pneumonoultramicroscopicsilicovolcanoconiosis', 'Bo Wolfeschlegelsteinhausenbergerdorff', 'Cy Lundgren-Featherstonehaugh', 'Dan Montgomery-Featherstonehaugh', 'Eva Rest', 'Fia Rest'];
