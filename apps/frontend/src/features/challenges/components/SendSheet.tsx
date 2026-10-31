@@ -4,6 +4,7 @@ import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
+import { focusRunnerRowAfterBack } from '@/shared/utils/focusRowAfterBack';
 import type { TierGroup } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
 import { betSummary, buildOpponents, resolveOpponentParam, startingChoice, startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
@@ -30,6 +31,8 @@ interface SendSheetProps {
   initialOpponent: string | null;
   /** Vart fokus går när sheeten avbryts: `opener` = kortet/knappen som öppnade den, `page` = sidan som tar över (avbrutet flöde från löparens popup, där skalet fokuserar löparens rad). Efter ett skick gäller alltid bekräftelsen. */
   cancelFocus?: 'opener' | 'page';
+  /** Löparen vars popup öppnade flödet. Stänger webbläsarens Back arket medan skicket pågår körs ingen avbrytväg och skalet vet inget om det: arket fokuserar då löparens rad själv. */
+  originRunnerId?: string;
   onClose: () => void;
   /** Kastar vid fel; sheeten visar då meddelandet och stannar kvar. */
   onSend: (tokenKey: string, opponentId: string) => Promise<void>;
@@ -42,7 +45,7 @@ interface SendSheetProps {
  * Förvalet kommer ur `startingChoice` (förvald nivå/kort, annars det ensamma kortet, aldrig förra valet); byte av nivå börjar om därifrån.
  * Monteras bara medan den är öppen, så valen nollställs varje gång.
  */
-export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, cancelFocus = 'opener', onClose, onSend }: SendSheetProps) {
+export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, cancelFocus = 'opener', originRunnerId, onClose, onSend }: SendSheetProps) {
   const baseOptions = useMemo(() => buildOpponents({ members, users, meId, headToHead: {} }), [members, users, meId]);
 
   const [choice, setChoice] = useState<SendPreselection | null>(() => startingChoice(groups, preselection));
@@ -77,9 +80,10 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (picked.tier !== group?.tier) setChoice(startingChoice(groups, { tier: picked.tier, tokenKey: null }));
   };
 
-  // Sant från det att skicket går iväg tills det misslyckas: stänger föräldern arket under tiden är det för att utmaningen gick iväg. Ett ref och inte state, eftersom
-  // Radix läser det först när arket redan har avmonterats.
-  const sentRef = useRef(false);
+  // Var skicket är, för stängningen: `pending` från det att skicket går iväg tills det avgörs, `confirmed` när föräldern har fått ett lyckat svar (och stänger arket), tillbaka till `idle`
+  // om skicket avvisas. Arket som stängs medan det är `pending` har stängts av webbläsarens Back (Cancel, ✕, Esc och skrim är låsta): svaret finns inte än. Ett ref och inte state,
+  // eftersom Radix läser det först när arket redan har avmonterats (i en timer, efter att `submit` hunnit sätta `confirmed`).
+  const sendPhase = useRef<'idle' | 'pending' | 'confirmed'>('idle');
 
   // Send är avstängd medan skicket pågår, och en avstängd knapp som hade fokus lämnar det på <body>. Efter ett avvisat skick (felet visas, Send är påslagen igen) får Send fokus tillbaka,
   // så ett nytt försök går att göra med tangentbordet; felet annonseras av sin alert.
@@ -104,11 +108,16 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
+  // Back under skicket (`pending`) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål som Cancel, med samma väntan på att sidan ritats), och släpper sökningen om användaren går vidare eller flyttar fokus (`focusRunnerRowAfterBack`).
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
-    if (cancelFocus === 'page' && !sentRef.current) return;
-    const confirmation = sentRef.current ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
+    if (sendPhase.current === 'pending' && originRunnerId) {
+      focusRunnerRowAfterBack(originRunnerId);
+      return;
+    }
+    if (cancelFocus === 'page' && sendPhase.current === 'idle') return;
+    const confirmation = sendPhase.current === 'confirmed' ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
     const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
     const target = confirmation ?? (usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR)));
     target?.focus();
@@ -118,11 +127,12 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
     if (!card || !opponent) return;
     setError(null);
     setSending(true);
-    sentRef.current = true;
+    sendPhase.current = 'pending';
     try {
       await onSend(card.tokenKey, opponent.userId);
+      sendPhase.current = 'confirmed';
     } catch (failure) {
-      sentRef.current = false;
+      sendPhase.current = 'idle';
       setError(failure instanceof Error ? failure.message : 'Could not send the challenge');
       setSending(false);
     }
