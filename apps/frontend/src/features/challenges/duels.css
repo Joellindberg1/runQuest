@@ -306,6 +306,13 @@
 /* Raderna ligger på sheetens egen yta (som tokenkorten i steg 2), och hårlinjerna mellan dem är rader med kantlinje i stället för hårlinjegridens bakgrund: en halvgenomskinlig
    radbakgrund över gridens gråa linjefärg blir annars mörkare än sheeten och drar texten under 4,5:1 i ljust tema. */
 .rq-hairgrid.rq-duels-opponents { gap: 0; background: var(--rq-popover); border: var(--rq-hair) solid var(--rq-line-2); }
+/* Långa namn: en rad är ett rutnätsobjekt, och rutnätets automatiska kolumn sträcks till radens min-content, alltså till det längsta ordet. Ett förnamn på 35-45 tecken utan
+   brytpunkt drog därför raden (och sheetens kropp) bredare än sheeten. En kolumn med fast bredd (minmax(0, 1fr)) håller raden inom sheeten; namnet bryts sedan som i Board-raderna
+   (`anywhere`), och texten till höger (head-to-head-tipset med förnamnet) får högst 60 % av raden och bryts i sin tur. Skälet ("Waiting on a reply", "In a duel") ligger i textkolumnen
+   (`min-width: 0`) under namnet och har brytpunkter. */
+.rq-duels-opponents { grid-template-columns: minmax(0, 1fr); }
+.rq-duels-option--opponent .rq-name { overflow-wrap: anywhere; }
+.rq-duels-option--opponent .rq-duels-option__h2h { max-width: 60%; overflow-wrap: anywhere; }
 .rq-duels-option--opponent { min-height: var(--rq-control-hit); border: 0; border-left: var(--rq-edge-w) solid transparent; }
 .rq-duels-option--opponent + .rq-duels-option--opponent { border-top: var(--rq-hair) solid var(--rq-line-2); }
 .rq-duels-option--opponent:focus-visible { outline-offset: var(--rq-focus-inset); }
@@ -319,7 +326,7 @@
 
 .rq-duels-bet { padding: var(--rq-sp-10) var(--rq-sp-12); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
 .rq-duels-bet__label { margin: 0 0 var(--rq-sp-4); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
-.rq-duels-bet__summary { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
+.rq-duels-bet__summary { margin: 0; overflow-wrap: anywhere; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
 .rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: var(--rq-duels-bet-cols); gap: var(--rq-sp-10); }
 .rq-duels-bet__stakes > div { min-width: 0; text-align: start; }
 .rq-duels-bet__stakes > .rq-duels-bet__starts { grid-column: var(--rq-duels-bet-starts-span); }
