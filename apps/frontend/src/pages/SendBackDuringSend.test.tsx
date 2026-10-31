@@ -166,7 +166,7 @@ describe('Back while a challenge is being sent from the runner popup', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
 
     expect(location()).toBe(BOARD);
-    expect(karlRow()).toHaveFocus();
+    await waitFor(() => expect(karlRow()).toHaveFocus());
     expect(lockLeft()).toEqual(NO_LOCK);
   });
 });
