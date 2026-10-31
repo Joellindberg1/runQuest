@@ -176,7 +176,7 @@ const label = (file: string, selector: string): Locator => [file, selector, 'col
 /** Textfärgen som ljust tema överstyr med en egen regel. Finns regeln inte mäts regeln som mörkt tema använder, så ett borttaget eller omdöpt ljust-lager fäller paret i stället för att tystas. */
 const lightOverride = (file: string, selector: string, base: Locator): Source => (theme) => (theme === 'light' && rulesFor(file, selector).length > 0 ? [file, selector, base[2]] : base);
 
-const FILTER_REST = ':not([aria-pressed="true"], [aria-selected="true"])';
+const FILTER_REST = ':not([aria-pressed="true"], [aria-selected="true"], [aria-disabled="true"])';
 const NEWS_ROW_BACKGROUND: Locator = [NEWS, '.rq-news-row', 'background'];
 
 const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [

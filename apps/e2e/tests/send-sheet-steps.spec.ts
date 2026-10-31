@@ -255,6 +255,27 @@ test.describe('the send-a-challenge sheet: tier chips and one card per token', (
         const [note] = await page.evaluate(contrastOf, { selectors: ['.rq-duels-sheet [role="status"] .rq-duels-note'] });
         test.info().annotations.push({ type: 'contrast', description: `empty / ${theme} / ${width} px: chip ${chip?.ratio}, status text ${note?.ratio}` });
         expect(chip?.ratio, 'the empty chip is dimmed but still readable').toBeGreaterThanOrEqual(MIN_EMPTY_CHIP_CONTRAST);
+        // Dimmed means dimmer: the empty chip keeps its own token colour and no resting chip with tokens shares it (a shared recipe rule must not repaint it).
+        const colours = await page.evaluate(() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--rq-duels-chip-empty-fg)';
+          document.body.append(probe);
+          const emptyToken = getComputedStyle(probe).color;
+          probe.remove();
+          const chips = [...document.querySelectorAll<HTMLElement>('.rq-duels-sheet .rq-duels-chip')].map((element) => ({
+            label: element.textContent ?? '',
+            empty: element.getAttribute('aria-disabled') === 'true',
+            pressed: element.getAttribute('aria-pressed') === 'true',
+            colour: getComputedStyle(element).color,
+          }));
+          return { emptyToken, chips };
+        });
+        const emptyChips = colours.chips.filter((entry) => entry.empty);
+        const restingChips = colours.chips.filter((entry) => !entry.empty && !entry.pressed);
+        expect(emptyChips.length, 'there is an empty chip').toBeGreaterThan(0);
+        expect(restingChips.length, 'there is a resting chip with tokens').toBeGreaterThan(0);
+        for (const entry of emptyChips) expect(entry.colour, `${entry.label}: the empty chip keeps --rq-duels-chip-empty-fg`).toBe(colours.emptyToken);
+        for (const entry of restingChips) expect(entry.colour, `${entry.label}: a resting chip with tokens is brighter than the empty one`).not.toBe(colours.emptyToken);
         expect(note?.ratio, 'the explanation is readable').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
         const measured = await page.evaluate(measureSteps);
         expect(measured.pageOverflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);

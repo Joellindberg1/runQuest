@@ -1426,8 +1426,8 @@
   .rq-tab[aria-selected="true"] { color: var(--rq-gold-text); border-bottom-color: var(--rq-gold); }
   .rq-filter { padding: 7px 15px; font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-3); }
   .rq-filter[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
-  /* Ljust tema: den vilande texten tar --rq-text-4 (.65) i stället för --rq-text-3 (.60), som ger 4,04:1 mot skalet och 4,22:1 mot kortet (nu 4,69:1 och 4,94:1). Mörkt tema är oförändrat. */
-  [data-theme="light"] .rq-filter:not([aria-pressed="true"], [aria-selected="true"]) { color: var(--rq-text-4); }
+  /* Ljust tema: den vilande texten tar --rq-text-4 (.65) i stället för --rq-text-3 (.60), som ger 4,04:1 mot skalet och 4,22:1 mot kortet (nu 4,69:1 och 4,94:1). Mörkt tema är oförändrat. Ett avstängt chip (aria-disabled, t.ex. tomma nivåchips i duels.css) har sin egen dämpade färg och undantas: regeln har samma specificitet och kommer senare. */
+  [data-theme="light"] .rq-filter:not([aria-pressed="true"], [aria-selected="true"], [aria-disabled="true"]) { color: var(--rq-text-4); }
 
   /* ── Staplar, ringar, avatar, bakgrund ── */
   .rq-track { height: 6px; background: var(--rq-fill-1); }
