@@ -7,7 +7,7 @@ import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, U
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { AppRoutes } from '@/routes';
 import RunnerRoute from './RunnerPage';
-import { stat, token } from '@/features/challenges/duels.fixture';
+import { ADAM as ADAM_ID, DAN, KARL as KARL_ID, NAMES, NICK, historyItem, stat, token } from '@/features/challenges/duels.fixture';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
 import { warmRunnerPopup } from '@/test/warmLazy';
@@ -741,6 +741,30 @@ describe('the profile popup (background location)', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(boardRow()).toHaveFocus());
+  });
+
+  it('opened from the later of several rows that list the runner, closing returns focus to that row and not to the first', async () => {
+    const side = (id: string) => ({ id, name: NAMES[id]!, profile_picture: null, level: 20 });
+    const rows = [
+      historyItem({ id: 'h1', challenger: side(KARL_ID), opponent: side(ADAM_ID) }),
+      historyItem({ id: 'h2', challenger: side(NICK), opponent: side(DAN) }),
+      historyItem({ id: 'h3', challenger: side(ADAM_ID), opponent: side(KARL_ID) }),
+    ];
+    handlers.getChallengeGroupHistory = () => ({ success: true, data: { items: rows }, meta: { total: 3, limit: 20, offset: 0, has_more: false } });
+    const user = userEvent.setup();
+    renderWithApp(<AppRoutes />, { entry: '/duels?view=history', width: DESKTOP, history: true });
+    const list = await screen.findByRole('list', { name: 'Matches' });
+    const [first, , third] = within(list).getAllByRole('listitem');
+    const firstKarl = within(first!).getByRole('button', { name: NAMES[KARL_ID] });
+    const thirdKarl = within(third!).getByRole('button', { name: NAMES[KARL_ID] });
+
+    await user.click(thirdKarl);
+    await findPopup();
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(thirdKarl).toHaveFocus());
+    expect(firstKarl).not.toHaveFocus();
   });
 
   it('leaves focus to Radix when the page behind has no row for the runner', async () => {

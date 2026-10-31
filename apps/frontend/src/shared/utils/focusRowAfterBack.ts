@@ -1,5 +1,5 @@
-import { findRunnerElement } from './findRunnerElement';
 import { focusRunnerRowWhenRendered } from './focusRunnerRow';
+import { findRunnerTarget } from './runnerOpener';
 
 /** Sökningen som pågår just nu: högst en, eftersom ett ark bara stängs av Back en gång åt gången. */
 let release: (() => void) | null = null;
@@ -20,7 +20,7 @@ function searchAfterBack(runnerId: string | null): void {
 
   const onFocusIn = (event: FocusEvent) => {
     const target = event.target;
-    const ownMove = target instanceof HTMLElement && ((runnerId !== null && target === findRunnerElement(runnerId)) || target.tagName === 'H1');
+    const ownMove = target instanceof HTMLElement && ((runnerId !== null && target === findRunnerTarget(runnerId)) || target.tagName === 'H1');
     if (!ownMove) drop();
   };
   const stop = focusRunnerRowWhenRendered(runnerId, () => drop());

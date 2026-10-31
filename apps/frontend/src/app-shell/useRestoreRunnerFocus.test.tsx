@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { Router, type Location, type Navigator } from 'react-router-dom';
 import { requestRunnerFocus, takeRunnerFocus } from '@/shared/utils/runnerFocusIntent';
 import { useRestoreRunnerFocus } from './useRestoreRunnerFocus';
@@ -21,6 +21,17 @@ function Page() {
   return (
     <main>
       <h1>Page</h1>
+    </main>
+  );
+}
+
+function PageWithTwoRows() {
+  useRestoreRunnerFocus();
+  return (
+    <main>
+      <h1>Page</h1>
+      <button id="first" data-runner-id={KARL}>Karl, first row</button>
+      <button id="second" data-runner-id={KARL}>Karl, second row</button>
     </main>
   );
 }
@@ -67,5 +78,25 @@ describe('useRestoreRunnerFocus', () => {
 
     expect(document.getElementById('row')).not.toHaveFocus();
     expect(takeRunnerFocus()).toBe(KARL);
+  });
+
+  it('puts the focus on the element that was clicked, not on the first row of the same runner, when a cancelled send flow comes back', async () => {
+    const duels = location('/duels');
+    const { rerender } = render(
+      <Router location={duels} navigator={newNavigator()}>
+        <PageWithTwoRows />
+      </Router>,
+    );
+    fireEvent.click(document.getElementById('second')!);
+
+    requestRunnerFocus(KARL);
+    rerender(
+      <Router location={location('/duels-after-cancel')} navigator={newNavigator()}>
+        <PageWithTwoRows />
+      </Router>,
+    );
+
+    await waitFor(() => expect(document.getElementById('second')).toHaveFocus());
+    expect(document.getElementById('first')).not.toHaveFocus();
   });
 });
