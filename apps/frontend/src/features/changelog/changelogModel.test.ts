@@ -236,6 +236,37 @@ describe('changelog: v0.7.0', () => {
   });
 });
 
+describe('changelog: v0.8.3', () => {
+  const v083 = changelog.releases.find((entry) => entry.version === '0.8.3');
+  const descriptions = v083?.changes.map((change) => change.description) ?? [];
+  const text = descriptions.join(' ');
+
+  it('är en annonserad patch-post som popupen visar en gång under slugen patch_v0.8.3', () => {
+    expect(v083?.type).toBe('patch');
+    expect(v083?.announce).toBe(true);
+    const slugs = announcedNotes(changelog.releases).map((note) => note.slug);
+    expect(slugForVersion('0.8.3')).toBe('patch_v0.8.3');
+    expect(slugs.filter((slug) => slug === 'patch_v0.8.3')).toHaveLength(1);
+  });
+
+  it('täcker tid och tempo, Position, mobilens topp 3, popupen på dator, Your tokens, utmaningsflödet och integritetstexten', () => {
+    expect(text).toContain('time and pace');
+    expect(text).toContain('Position tab on the Board and on your profile');
+    expect(text).toContain('The top 3 on your phone');
+    expect(text).toContain('Overview, The Journey, Titles held and Badges');
+    expect(text).toContain('Your tokens');
+    expect(text).toContain('Sending a challenge is now three steps');
+    expect(text).toContain('Privacy & Terms');
+  });
+
+  it('lovar ingen popup eller paritet på mobil: mobilens Runner card är oförändrad', () => {
+    for (const description of descriptions) {
+      expect({ description, claimsMobilePopup: /phone|mobile/i.test(description) && /pop-up/i.test(description) }).toEqual({ description, claimsMobilePopup: false });
+    }
+    expect(text).not.toMatch(/parity/i);
+  });
+});
+
 describe('flikarna', () => {
   it('Features är standard, i prototypens ordning', () => {
     expect([...CHANGELOG_VIEWS]).toEqual(['features', 'working', 'releases']);
