@@ -24,7 +24,11 @@ export interface ShowcaseToggle {
 interface BadgeSeriesCardProps {
   /** En rad ur `buildCollection`: intjänad eller låst. Alla texter är redan ihopsatta av modellen. */
   row: BadgeRow;
-  toggle: ShowcaseToggle;
+  /**
+   * Visningsväxlaren. Utan den är kortet skrivskyddat: ingen växlare och ingen "Locked"-ruta (de hör till samlingen på /badges), och bara det som förklarar serien
+   * (namn, nivå, pips, krav, held-by), alltså varken flavor, Next eller "TOP TIER REACHED". Löparens popup ritar korten så.
+   */
+  toggle?: ShowcaseToggle;
 }
 
 /** Växlaren på ett intjänat kort. En `<button aria-pressed>`: den dimmas (aria-disabled) men lämnar aldrig tabbordningen, så skälet kan läsas. */
@@ -50,13 +54,13 @@ function ShowcaseSwitch({ row, toggle }: { row: BadgeRow; toggle: ShowcaseToggle
   );
 }
 
-/** Kroppen under namnraden. `children` är raden längst ned (held-by, och på det liggande kortet växlaren). */
-function Details({ row, children }: { row: BadgeRow; children?: ReactNode }) {
+/** Kroppen under namnraden. `children` är raden längst ned (held-by, och på det liggande kortet växlaren). `collection` = samlingens kort (med växlare): flavor och Next hör bara dit. */
+function Details({ row, collection, children }: { row: BadgeRow; collection: boolean; children?: ReactNode }) {
   return row.earned ? (
     <>
       <p className="rq-badge-card__req">{row.requirement}</p>
-      {row.flavor && <p className="rq-badge-card__flavor">{`"${row.flavor}"`}</p>}
-      {row.maxed ? <p className="rq-badge-card__max">TOP TIER REACHED</p> : row.next && <p className="rq-badge-card__next">{row.next}</p>}
+      {collection && row.flavor && <p className="rq-badge-card__flavor">{`"${row.flavor}"`}</p>}
+      {collection && (row.maxed ? <p className="rq-badge-card__max">TOP TIER REACHED</p> : row.next && <p className="rq-badge-card__next">{row.next}</p>)}
       {children}
     </>
   ) : (
@@ -77,24 +81,30 @@ function Details({ row, children }: { row: BadgeRow; children?: ReactNode }) {
  * Valfria rader finns bara när modellen har ett värde; här skrivs aldrig en platshållare. Ingen global procent (O2).
  *
  * Tre rutnätsområden (emblem · who · body) ur `--rq-badge-card-areas`, och växlaren längst ned i body, till höger om held-by.
- * Kortet i sig är inte klickbart; växlaren är dess enda interaktiva element.
+ * Kortet i sig är inte klickbart; växlaren är dess enda interaktiva element. Utan `toggle` är kortet skrivskyddat (förklaringskortet i löparens popup): inget interaktivt alls,
+ * och bara namn, nivå-chip, pips, krav och held-by.
  *
  * Tillgänglighet: emblemet är dekorativt (kortet läses en gång: namn, nivå, krav). Pips bär "Tier N of 6" på intjänade kort; på låsta kort säger chippet redan "Locked",
  * så pipsen är dekor där. Låst serie = ingen knapp, bara en aria-hidden "Locked"-ruta.
  */
 export function BadgeSeriesCard({ row, toggle }: BadgeSeriesCardProps) {
-  const foot = (
-    <div className="rq-badge-card__foot">
-      {row.earned && row.heldBy && <p className="rq-badge-card__held">{row.heldBy}</p>}
-      {row.earned ? <ShowcaseSwitch row={row} toggle={toggle} /> : <span className="rq-badge-toggle rq-badge-toggle--locked" aria-hidden="true">Locked</span>}
-    </div>
-  );
+  const heldBy = row.earned && row.heldBy ? <p className="rq-badge-card__held">{row.heldBy}</p> : null;
+  // Skrivskyddat kort: held-by står ensam och raden finns bara när den har något att visa.
+  let foot: ReactNode = heldBy && <div className="rq-badge-card__foot">{heldBy}</div>;
+  if (toggle) {
+    foot = (
+      <div className="rq-badge-card__foot">
+        {heldBy}
+        {row.earned ? <ShowcaseSwitch row={row} toggle={toggle} /> : <span className="rq-badge-toggle rq-badge-toggle--locked" aria-hidden="true">Locked</span>}
+      </div>
+    );
+  }
 
   return (
     <li
       className="rq-badge-card rq-badge-card--landscape"
       data-state={row.earned ? 'earned' : 'locked'}
-      data-display={row.earned && toggle.position !== null ? 'true' : undefined}
+      data-display={row.earned && toggle && toggle.position !== null ? 'true' : undefined}
     >
       <div className="rq-badge-card__emblem">
         <BadgeEmblem series={row.series} tier={row.tier} size="md" decorative />
@@ -105,7 +115,7 @@ export function BadgeSeriesCard({ row, toggle }: BadgeSeriesCardProps) {
         <BadgePips tier={row.tier} decorative={!row.earned} />
       </div>
       <div className="rq-badge-card__body">
-        <Details row={row}>{foot}</Details>
+        <Details row={row} collection={toggle !== undefined}>{foot}</Details>
       </div>
     </li>
   );

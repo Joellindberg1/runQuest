@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import type { User } from '@runquest/types';
-import { BadgePanel } from '@/features/badges/components/BadgePanel';
 import type { StatView } from '@/features/profile/statsModel';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
@@ -9,6 +8,7 @@ import type { PopupSection } from '../popupSections';
 import { ALL_TITLES, type TitleFilter } from '../titlesFilter';
 import { JourneyCard } from './JourneyCard';
 import { OverviewPanel } from './OverviewPanel';
+import { PopupBadgesPanel } from './PopupBadgesPanel';
 import { PopupTitlesPanel } from './PopupTitlesPanel';
 
 const SECTION_TABS: readonly ViewTab<PopupSection>[] = [
@@ -57,7 +57,7 @@ export function PopupSections({ user, data, section, onSectionChange, statView, 
         {section === 'overview' && <OverviewPanel user={user} now={data.now} cells={data.cells} view={statView} onChange={onStatViewChange} heatIntroPlayed={heatIntroPlayed} />}
         {section === 'journey' && <JourneyCard totalKm={user.total_km} />}
         {section === 'titles' && <PopupTitlesPanel user={user} filter={titleFilter} onFilterChange={setTitleFilter} />}
-        {section === 'badges' && <BadgePanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />}
+        {section === 'badges' && <PopupBadgesPanel rows={data.badgeRows} loading={data.badgesLoading} error={data.badgeError} />}
       </div>
     </div>
   );

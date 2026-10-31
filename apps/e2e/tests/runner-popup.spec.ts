@@ -1417,6 +1417,218 @@ test.describe('the Titles held tab of the profile popup', () => {
   }
 });
 
+/** Gruppens badges: sex medlemmar, och tre av dem har varje nivå i varje serie, så att kortens "Held by 3 of 6 in your pack" finns. Läggs över API:et i webbläsaren före sidan öppnas. */
+async function stubBadgeGroup(page: Page): Promise<void> {
+  const holders = Object.fromEntries(BADGE_SERIES_KEYS.map((series) => [series, Object.fromEntries([1, 2, 3, 4, 5, 6].map((tier) => [String(tier), 3]))]));
+  await answerWith(page, '/badges/group', { success: true, data: { members: [], holders }, meta: { member_count: 6 } });
+}
+
+async function openBadgesTab(page: Page, width: number, height: number, badges: number, options: OpenOptions = {}): Promise<Locator> {
+  await stubBadgeGroup(page);
+  await openBoard(page, width, height, 3, badges, options);
+  const dialog = await openPopup(page);
+  await sectionTab(dialog, 'Badges').click();
+  if (badges > 0) await expectSectionLoaded(dialog, 'Badges');
+  return dialog;
+}
+
+const badgesScroll = (dialog: Locator): Locator => sectionPanel(dialog).getByRole('region', { name: 'Badge list' });
+const badgeCards = (dialog: Locator): Locator => sectionPanel(dialog).getByRole('list', { name: 'Earned badges' }).getByRole('listitem');
+
+test.describe('the Badges tab of the profile popup', () => {
+  for (const [width, height] of [[1280, 768], [1440, 900]] as const) {
+    test(`with eight series on a ${width}x${height} screen the cards scroll in the panel, the heading stays, the dialog is ${DIALOG_HEIGHT_PX} px and nothing in it scrolls sideways`, async ({ page }, testInfo) => {
+      const dialog = await openBadgesTab(page, width, height, BADGE_SERIES_KEYS.length);
+      const scroll = badgesScroll(dialog);
+
+      expect((await dialog.boundingBox())!.height, 'the dialog height').toBeCloseTo(DIALOG_HEIGHT_PX, 0);
+      await expect(dialog.getByText(`${BADGE_SERIES_KEYS.length} of ${BADGE_SERIES_KEYS.length} series`)).toBeVisible();
+      await expect(badgeCards(dialog)).toHaveCount(BADGE_SERIES_KEYS.length);
+      const sizes = await scroll.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+      expect(sizes.scroll, 'eight cards are taller than the list').toBeGreaterThan(sizes.client);
+      await expect(scroll, 'a list that scrolls is a tab stop').toHaveAttribute('tabindex', '0');
+      expect(await sectionPanel(dialog).evaluate((element) => element.scrollHeight - element.clientHeight), 'the panel does not scroll').toBeLessThanOrEqual(TOLERANCE_PX);
+
+      const head = dialog.locator('.rq-runner-badges--popup .rq-runner-head');
+      const before = (await head.boundingBox())!;
+      await scroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+      expect(await scroll.evaluate((element) => element.scrollTop), 'the list scrolled').toBeGreaterThan(0);
+      expect((await head.boundingBox())!.y, 'the heading did not move').toBeCloseTo(before.y, 0);
+
+      for (const [label, locator] of [['dialog', dialog], ['content', dialog.locator('.rq-runner-popup__content')], ['panel', sectionPanel(dialog)], ['list', scroll]] as const) {
+        expect(await locator.evaluate((element) => element.scrollWidth - element.clientWidth), `${label} does not scroll sideways`).toBeLessThanOrEqual(0);
+      }
+      const pageOverflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const onBadges = await pageOverflow();
+      await sectionTab(dialog, 'Overview').click();
+      await expectSectionLoaded(dialog, 'Overview');
+      expect(onBadges, 'the Badges tab adds no sideways overflow to the page compared with Overview').toBe(await pageOverflow());
+      testInfo.annotations.push({ type: 'list', description: JSON.stringify({ dialogHeight: (await dialog.boundingBox())!.height, list: sizes, pageOverflow: onBadges }) });
+    });
+  }
+
+  test('four series, two rows of cards, fit in the panel: nothing scrolls and the list is no tab stop', async ({ page }) => {
+    const dialog = await openBadgesTab(page, 1280, 768, 4);
+    const scroll = badgesScroll(dialog);
+    await expect(badgeCards(dialog)).toHaveCount(4);
+    expect(await scroll.evaluate((element) => element.scrollHeight - element.clientHeight), 'the list does not scroll').toBeLessThanOrEqual(TOLERANCE_PX);
+    await expect(scroll, 'a list that fits is not a tab stop').not.toHaveAttribute('tabindex', /.*/);
+    expect((await dialog.boundingBox())!.height, 'the dialog height').toBeCloseTo(DIALOG_HEIGHT_PX, 0);
+  });
+
+  test('the cards are in two columns at 1024, 1280 and 1440 px, and in one column when the dialog is narrower', async ({ page }, testInfo) => {
+    const report: Record<string, number> = {};
+    for (const width of [1024, 1280, 1440]) {
+      const dialog = await openBadgesTab(page, width, 900, 6);
+      const cards = badgeCards(dialog);
+      report[`${width}: columns`] = await columnsOf(cards);
+      report[`${width}: card width`] = Math.round((await cards.first().boundingBox())!.width);
+      report[`${width}: list width`] = Math.round((await badgesScroll(dialog).boundingBox())!.width);
+      expect(report[`${width}: columns`], `${width}: two columns`).toBe(2);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    const dialog = await openBadgesTab(page, 1280, 900, 6);
+    await dialog.evaluate((element) => { (element as HTMLElement).style.width = '480px'; });
+    report['narrow dialog: columns'] = await columnsOf(badgeCards(dialog));
+    expect(report['narrow dialog: columns'], 'one column when the two do not fit').toBe(1);
+    testInfo.annotations.push({ type: 'columns', description: JSON.stringify(report) });
+  });
+
+  test('a card has a 56 px emblem, the tier chip, six pips, the requirement and the held-by line, and nothing to press', async ({ page }, testInfo) => {
+    const dialog = await openBadgesTab(page, 1280, 900, 3);
+    const cards = badgeCards(dialog);
+    await expect(cards).toHaveCount(3);
+    await expect(dialog.getByText('3 of 8 series')).toBeVisible();
+
+    const first = cards.first();
+    const emblem = (await first.locator('.rq-badge--md').boundingBox())!;
+    expect(Math.round(emblem.width), 'the emblem width').toBe(56);
+    await expect(first.locator('.rq-badge--md')).toHaveAttribute('aria-hidden', 'true');
+    await expect(first.getByRole('heading', { level: 3 })).toBeVisible();
+    await expect(first.locator('.rq-badge-chip')).toBeVisible();
+    await expect(first.locator('.rq-badge-pips__pip')).toHaveCount(6);
+    await expect(first.getByRole('img', { name: /^Tier \d of 6$/ })).toBeVisible();
+    await expect(first.locator('.rq-badge-card__req')).not.toBeEmpty();
+    await expect(first.getByText('Held by 3 of 6 in your pack')).toBeVisible();
+    await expect(first.locator('.rq-badge-card__flavor, .rq-badge-card__next, .rq-badge-card__max')).toHaveCount(0);
+    await expect(sectionPanel(dialog).getByRole('button')).toHaveCount(0);
+    await expect(sectionPanel(dialog).getByText('Locked')).toHaveCount(0);
+
+    // Emblemet till vänster, och namn, krav och held-by till höger om det i samma kort (prototypens läge).
+    const cardBox = (await first.boundingBox())!;
+    const nameBox = (await first.getByRole('heading', { level: 3 }).boundingBox())!;
+    const heldBox = (await first.locator('.rq-badge-card__held').boundingBox())!;
+    expect(nameBox.x, 'the name is right of the emblem').toBeGreaterThan(emblem.x + emblem.width);
+    expect(heldBox.x, 'the held-by line is right of the emblem').toBeGreaterThan(emblem.x + emblem.width);
+    expect(heldBox.y + heldBox.height, 'the held-by line is inside the card').toBeLessThanOrEqual(cardBox.y + cardBox.height + TOLERANCE_PX);
+    testInfo.annotations.push({ type: 'card', description: JSON.stringify({ card: { w: Math.round(cardBox.width), h: Math.round(cardBox.height) }, emblem: Math.round(emblem.width) }) });
+  });
+
+  test('the card surface is the neutral row tint, whatever the tier, with no gradient, in both themes', async ({ page }) => {
+    for (const theme of ['dark', 'light'] as const) {
+      const dialog = await openBadgesTab(page, 1280, 900, BADGE_SERIES_KEYS.length, { theme });
+      const surfaces = await badgeCards(dialog).evaluateAll((cards) => {
+        // The neutral tint is `--rq-row-soft`: a probe that paints it gives the value the cards are compared with.
+        const probe = document.createElement('div');
+        probe.style.background = 'var(--rq-row-soft)';
+        document.body.appendChild(probe);
+        const neutral = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return cards.map((card) => {
+          const style = getComputedStyle(card);
+          return { neutral, color: style.backgroundColor, image: style.backgroundImage, tier: card.querySelector('.rq-badge-chip')?.getAttribute('data-tier') };
+        });
+      });
+      expect(surfaces).toHaveLength(BADGE_SERIES_KEYS.length);
+      expect(new Set(surfaces.map((surface) => surface.tier)).size, 'the cards span several tiers').toBeGreaterThan(3);
+      for (const surface of surfaces) {
+        expect(surface.image, `${theme}: no gradient on the card`).toBe('none');
+        expect(surface.color, `${theme}: the ${surface.tier} card has the neutral surface`).toBe(surface.neutral);
+      }
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+  });
+
+  test('a runner without badges has "No badges yet." and no count', async ({ page }) => {
+    const dialog = await openBadgesTab(page, 1280, 900, 0);
+    await expect(dialog.getByText('No badges yet.')).toBeVisible();
+    await expect(sectionPanel(dialog).getByRole('list', { name: 'Earned badges' })).toHaveCount(0);
+    await expect(sectionPanel(dialog).getByText(/of 8 series$/)).toHaveCount(0);
+    expect((await dialog.boundingBox())!.height, 'the dialog height').toBeCloseTo(DIALOG_HEIGHT_PX, 0);
+  });
+
+  test('opening the tab makes no request: the banner has already asked for the badges', async ({ page }) => {
+    const badgeRequests: string[] = [];
+    page.on('request', (request) => { if (/\/badges\//.test(request.url())) badgeRequests.push(new URL(request.url()).pathname); });
+    await stubBadgeGroup(page);
+    await openBoard(page, 1280, 900, 3, 4);
+    const dialog = await openPopup(page);
+    await expect(dialog.getByRole('img', { name: /^Badges:/ })).toBeVisible();
+    const before = [...badgeRequests];
+    expect(before.length, 'the banner asked for the badges').toBeGreaterThan(0);
+
+    await sectionTab(dialog, 'Badges').click();
+    await expectSectionLoaded(dialog, 'Badges');
+    await sectionTab(dialog, 'Overview').click();
+    await sectionTab(dialog, 'Badges').click();
+    await expectSectionLoaded(dialog, 'Badges');
+    expect(badgeRequests, 'no badge request was made by the tab').toEqual(before);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    test(`the labels are at least ${MIN_LABEL_PX} px and the text is at least ${MIN_LABEL_CONTRAST}:1 in the ${theme} theme at 1024, 1280 and 1440 px`, async ({ page }, testInfo) => {
+      const report: Record<string, Record<string, number>> = {};
+      for (const width of [1024, 1280, 1440]) {
+        const dialog = await openBadgesTab(page, width, 900, BADGE_SERIES_KEYS.length, { theme });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
+        const measured: Record<string, number> = {};
+        const sample = async (label: string, selector: string) => {
+          for (const found of await page.evaluate(contrastOf, { selectors: [selector] })) measured[label] = Math.min(measured[label] ?? Infinity, found.ratio);
+        };
+        const sizeOf = (selector: string) => dialog.locator(selector).evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+
+        const card = '.rq-runner-badges--popup .rq-badge-card';
+        await sample('heading: count', '.rq-runner-badges--popup .rq-runner-head__aside');
+        await sample('card: name', `${card} .rq-badge-card__name`);
+        await sample('card: tier chip', `${card} .rq-badge-chip`);
+        await sample('card: requirement', `${card} .rq-badge-card__req`);
+        await sample('card: held by', `${card} .rq-badge-card__held`);
+        for (const selector of ['.rq-runner-head__aside', '.rq-badge-chip', '.rq-badge-card__req', '.rq-badge-card__held']) {
+          for (const size of await sizeOf(`.rq-runner-badges--popup ${selector}`)) expect(size, `${selector} size at ${width}`).toBeGreaterThanOrEqual(MIN_LABEL_PX);
+        }
+
+        report[String(width)] = { ...measured };
+        expect(Object.keys(measured).length, 'the samples were found').toBe(5);
+        for (const [label, ratio] of Object.entries(measured)) expect(ratio, `${theme} ${width}: ${label}`).toBeGreaterThanOrEqual(MIN_LABEL_CONTRAST);
+
+        // Fokusringen på listan (tangentbordet når den bara när den scrollar): inåtriktad och minst 3:1 mot kortets yta, mätt som Titles held.
+        const scroll = badgesScroll(dialog);
+        await expect(scroll).toHaveAttribute('tabindex', '0');
+        await sectionTab(dialog, 'Badges').focus();
+        await page.keyboard.press('Tab');
+        await scroll.focus();
+        const ring = await scroll.evaluate((element) => {
+          const style = getComputedStyle(element);
+          element.style.color = style.outlineColor;
+          return { style: style.outlineStyle, offset: parseFloat(style.outlineOffset) };
+        });
+        expect(ring.style, 'the focused list draws a ring').not.toBe('none');
+        expect(ring.offset, 'the ring is drawn inside the list').toBeLessThan(0);
+        const [ringSample] = await page.evaluate(contrastOf, { selectors: ['.rq-runner-badges__scroll'] });
+        report[String(width)]!['focus ring of the list'] = ringSample!.ratio;
+        expect(ringSample!.ratio, `${theme} ${width}: focus ring of the list`).toBeGreaterThanOrEqual(MIN_RING_CONTRAST);
+        await scroll.evaluate((element) => { element.style.color = ''; });
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+      }
+      testInfo.annotations.push({ type: `contrast ${theme}`, description: JSON.stringify(report) });
+    });
+  }
+});
+
 test.describe('the runner card as a page', () => {
   test('a direct load of /runner/:id renders the page, not the popup, on a 1280 px screen', async ({ page }) => {
     await stubGroup(page, 3);
