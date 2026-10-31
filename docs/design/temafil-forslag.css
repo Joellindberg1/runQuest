@@ -366,7 +366,11 @@
   --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
   --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
   --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 (1024–1219 px: 1) */
-  --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
+  /* Standings på telefon: sifferkolumnerna växer jämnt från de smalaste måtten (18 · 24 24 24 · 36 px) vid 360 px till de vanliga (24 · 34 34 34 · 52 px) vid 426 px; under 360 px gäller de smalaste, från 426 px
+     de vanliga. Därmed blir namnkolumnen aldrig smalare när skärmen blir bredare (ett hårt byte vid en bredd tappar alltid 52 px namnkolumn åt det bredare hållet). Smalast: tvåsiffrig rang, tre siffror i W, D och L, procenten
+     med tre decimaler (RUN-442); namnkolumnen är ca 92 px vid 320 px och 132 px vid 360 px, nog för "Christopher" (88 px). Desktop skriver över hela kolumnlistan nedan. */
+  --rq-duels-standing-ramp: clamp(0px, calc(100vw - 360px), 66px);   /* 0 vid 360 px och smalare, 66 px vid 426 px och bredare */
+  --rq-duels-standing-cols: calc(18px + var(--rq-duels-standing-ramp) * 6 / 66) minmax(0, 1fr) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(36px + var(--rq-duels-standing-ramp) * 16 / 66); /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
   --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
   --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
   --rq-duels-match-date-span: 3;
@@ -1018,16 +1022,6 @@
 @media (min-width: 1024px) and (max-width: 1219px) {
   :root {
     --rq-duels-rules-cols: minmax(0, 1fr);
-  }
-}
-
-/* De smalaste telefonerna (under 375 px): vid 320 px är Standings-raden 282 px och de fasta kolumnerna (24 + 34 + 34 + 34 + 52 px plus luft) lämnade bara 40 px åt namnet, så ett vanligt namn bröts mitt i ordet
-   (`overflow-wrap: anywhere`). Här smalnar rang- och sifferkolumnerna av (tvåsiffrig rang, tre siffror i W, D och L, procenten med tre decimaler ryms) och namnet får ca 92 px vid 320 px, 112 px vid 340 px
-   och 132 px vid 360 px, nog för "Christopher" (88 px) och "Gustafsson" (83 px). Gränsen ligger vid 375 px, inte 360 px: med de gamla kolumnerna är namnkolumnen 80 px vid 360 px och först 95 px vid 375 px,
-   så "Christopher" bröts mitt i ordet upp till 368 px. Från 375 px gäller kolumnerna ovan oförändrade. */
-@media (max-width: 374px) {
-  :root {
-    --rq-duels-standing-cols: 18px minmax(0, 1fr) 24px 24px 24px 36px;
   }
 }
 

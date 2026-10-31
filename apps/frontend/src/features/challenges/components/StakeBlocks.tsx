@@ -8,8 +8,8 @@ interface StakeBlocksProps {
   ruled?: boolean;
 }
 
-/** Längden ("14 d") hålls ihop med snedstrecket: en smal cell bryts före "/", aldrig inom varaktigheten. Texten är samma, bara mellanslagen är hårda. */
-const keepDurationTogether = (text: string): string => keepDurationsTogether(text.replace(/ \/ (?=\d)/, ` /${NO_BREAK_SPACE}`));
+/** Insatsens längd ("/ 14 d") hålls ihop med snedstrecket: en smal cell bryts före "/", aldrig inom längden. Själva "14 d" binds av keepDurationsTogether (delad med erbjudandetitlar och historikrader); här läggs bara snedstrecket till. */
+const bindStakeDuration = (text: string): string => keepDurationsTogether(text.replace(/ \/ (?=\d)/, ` /${NO_BREAK_SPACE}`));
 
 /** Vinst och förlust som två celler: grön vinst, röd förlust (dämpad vid "No penalty"). */
 export function StakeBlocks({ stake, winLabel, loseLabel, ruled = false }: StakeBlocksProps) {
@@ -17,11 +17,11 @@ export function StakeBlocks({ stake, winLabel, loseLabel, ruled = false }: Stake
     <dl className={ruled ? 'rq-duels-stakes rq-duels-stakes--ruled' : 'rq-duels-stakes'}>
       <div data-tone="up">
         <dt>{winLabel}</dt>
-        <dd>{keepDurationTogether(stake.win)}</dd>
+        <dd>{bindStakeDuration(stake.win)}</dd>
       </div>
       <div data-tone={stake.loseTone}>
         <dt>{loseLabel}</dt>
-        <dd>{keepDurationTogether(stake.lose)}</dd>
+        <dd>{bindStakeDuration(stake.lose)}</dd>
       </div>
     </dl>
   );
