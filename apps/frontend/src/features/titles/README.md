@@ -57,8 +57,9 @@ En titel tillhör en (användare, grupp). Frontend ritar bara det backend ger; r
 - **Enheten** på ett värde kommer ur `metric_key` (`titleFormat`); ett mått utan känd enhet visar bara talet, aldrig en gissad enhet.
 - **Olåsta titlar** (`holder: null`) visar "Nobody yet" och "Best so far · namn värde" ur group-eligibility (högst värde > 0,
   även under tröskeln). Laddar eligibility inte ritas korten ändå, utan bästa försöket — det är en bonus, inget felkort.
-- **Titellistan** har en egen query som kastar vid fel (`useTitleBoard`): `useTitleLeaderboard` sväljer fel och skulle ge
-  "No titles yet" som lögn vid nätverksfel.
+- **Titellistan** har en query som kastar vid fel (`useTitleBoard`), så att "No titles yet" aldrig blir en lögn vid nätverksfel.
+  Den delas av Titles, Playbook, admin, profilens My titles och löparens titelpanel (en cache-nyckel under `titleQueryKeys.all`);
+  de två senare visar felkort med Retry när den felar, i stället för värden utan enhet.
 - **Gruppernas öppet/stängt**: första gruppen öppen i All-vyn (designen), alla öppna när ett filter är aktivt.
 - **Visningsvalet** (max 3, `PUT /auth/me/displayed-titles`) finns kvar från gamla "My Titles"-fliken: valknapp på mina titlar,
   borttag med ✕ i panelen, Save (sekundärknapp — visningsval är inte sidans primära handling) sparar och hämtar om användarna så Board följer med. Förlorade titlar städas ur valet.

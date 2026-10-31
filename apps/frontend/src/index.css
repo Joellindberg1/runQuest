@@ -477,13 +477,21 @@
      avsnitt 2. Vimpeln återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
   --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
   --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
-  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
-  --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
-  --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
+  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 (1024–1219 px: 1) */
+  /* Standings på telefon: sifferkolumnerna växer jämnt från de smalaste måtten (18 · 24 24 24 · 36 px) vid 360 px till de vanliga (24 · 34 34 34 · 52 px) vid 426 px; under 360 px gäller de smalaste, från 426 px
+     de vanliga. Därmed blir namnkolumnen aldrig smalare när skärmen blir bredare (ett hårt byte vid en bredd tappar alltid 52 px namnkolumn åt det bredare hållet). Smalast: tvåsiffrig rang, tre siffror i W, D och L, procenten
+     med tre decimaler (RUN-442); namnkolumnen är ca 92 px vid 320 px och 132 px vid 360 px, nog för "Christopher" (88 px). Desktop skriver över hela kolumnlistan nedan. */
+  --rq-duels-standing-ramp: clamp(0px, calc(100vw - 360px), 66px);   /* 0 vid 360 px och smalare, 66 px vid 426 px och bredare */
+  --rq-duels-standing-cols: calc(18px + var(--rq-duels-standing-ramp) * 6 / 66) minmax(0, 1fr) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(36px + var(--rq-duels-standing-ramp) * 16 / 66); /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
+  --rq-duels-match-vs-w: 26px;                                        /* "vs"-kolumnen (smal desktop 32 · desktop 46) */
+  --rq-duels-match-meta-w: 0px;                                       /* metakolumnen: bara på desktop (190), annars ligger metan under paret */
+  --rq-duels-match-date-w: 0px;                                       /* datumkolumnen: bara på desktop (70) */
+  --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr);   /* vänster · vs · höger (desktop + meta + datum) */
   --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
   --rq-duels-match-date-span: 3;
   --rq-duels-match-meta-align: left;                                  /* desktop: right */
   --rq-duels-match-edge-w: 0px;                                       /* desktop: 3 px hårlinjekant till vänster */
+  --rq-duels-match-split: 50%;                                        /* var vänster halva slutar och höger börjar, från radens vänsterkant: mitten av "vs" (desktop: räknas ur kolumnerna) */
   --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
   --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
   --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
@@ -957,11 +965,15 @@
     --rq-duels-live-cols: repeat(2, minmax(0, 1fr));
     --rq-duels-rules-cols: repeat(3, minmax(0, 1fr));
     --rq-duels-standing-cols: 44px minmax(0, 1fr) 60px 60px 60px 78px;
-    --rq-duels-match-cols: minmax(0, 1fr) 46px minmax(0, 1fr) 190px 70px;
+    --rq-duels-match-vs-w: 46px;
+    --rq-duels-match-meta-w: 190px;
+    --rq-duels-match-date-w: 70px;
+    --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr) var(--rq-duels-match-meta-w) var(--rq-duels-match-date-w);
     --rq-duels-match-meta-span: auto;
     --rq-duels-match-date-span: auto;
     --rq-duels-match-meta-align: right;
     --rq-duels-match-edge-w: 3px;
+    --rq-duels-match-split: calc(var(--rq-pad-row-x) + (100% - 2 * var(--rq-pad-row-x) - var(--rq-duels-match-vs-w) - var(--rq-duels-match-meta-w) - var(--rq-duels-match-date-w) - 4 * var(--rq-sp-8)) / 2 + var(--rq-sp-8) + var(--rq-duels-match-vs-w) / 2);   /* radens vänsterpadding + en namnkolumn + ett glapp + halva "vs"-kolumnen (fem kolumner, fyra glapp av --rq-sp-8) */
     --rq-duels-offer-cols: minmax(0, 1fr) auto fit-content(240px);
     --rq-duels-offer-actions-cols: minmax(0, 1fr);
     --rq-duels-offer-rule-w: 0px;
@@ -1166,22 +1178,24 @@
 @media (min-width: 1024px) and (max-width: 1279px) {
   :root {
     --rq-duels-standing-cols: 28px minmax(0, 1fr) 32px 32px 32px 52px;
-    --rq-duels-match-cols: minmax(0, 1fr) 32px minmax(0, 1fr);
+    --rq-duels-match-vs-w: 32px;
+    --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr);
     --rq-duels-match-meta-span: 1 / 3;
     --rq-duels-match-date-span: 3;
     --rq-duels-match-meta-align: left;
+    --rq-duels-match-split: 50%;
     --rq-duels-offer-cols: minmax(0, 1fr);
     --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));
     --rq-duels-offer-rule-w: 1px;
   }
 }
 
-/* De smalaste telefonerna (under 360 px): vid 320 px är Standings-raden 282 px och de fasta kolumnerna (24 + 34 + 34 + 34 + 52 px plus luft) lämnade bara 40 px åt namnet, så ett vanligt namn bröts mitt i ordet
-   (`overflow-wrap: anywhere`). Här smalnar rang- och sifferkolumnerna av (tvåsiffrig rang, tre siffror i W, D och L, procenten med tre decimaler ryms) och namnet får ca 92 px vid 320 px och 112 px vid 340 px,
-   nog för "Christopher" (88 px). Från 360 px gäller kolumnerna ovan oförändrade. */
-@media (max-width: 359px) {
+/* Smal desktop (1024–1219 px): Rules ritar tre nivåkort i bredd bredvid sidokolumnen och korten blir 118–175 px breda. "Legendary" (vimpel + titel ca 136 px) behöver ett kort på minst ca 175 px
+   för att rymmas i kortets innerruta, så titeln gick ut ur kortet och ritades över sidokolumnens "Your tokens". Här staplas korten (som erbjudandekorten ovan), och texten får kortets hela bredd;
+   från 1220 px ryms titeln och tre kolumner gäller oförändrade. */
+@media (min-width: 1024px) and (max-width: 1219px) {
   :root {
-    --rq-duels-standing-cols: 18px minmax(0, 1fr) 24px 24px 24px 36px;
+    --rq-duels-rules-cols: minmax(0, 1fr);
   }
 }
 

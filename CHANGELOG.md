@@ -1,6 +1,32 @@
 # Changelog
 
+## Buggfixar 2026-10-31, andra omgången (buggrelease utan versionsnummer)
+
+Buggrelease mellan versionerna, från `integration/bugfix-2026-10-31` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
+
+### Duels
+- History: hela raden är tryckbar, i två halvor. Vänster halva öppnar vänster deltagares kort och höger halva höger deltagares, i radens fulla höjd (minst 44 px på mobil; var ca 23 px). Delningen går vid mitten av "vs", så på bred desktop (från 1280 px) täcker höger halva även meta och datum. Två tabbstopp per rad som förut, fokusringen ritas inåt på halvan. Text i History går inte längre att markera med musen (RUN-451).
+- Rules: nivåkorten staplas på 1024-1219 px, så att "Legendary" inte längre ligger över "Your tokens" (RUN-444).
+- Standings på 360-426 px: namnkolumnen växer gradvis (132 px vid 360, 135 px vid 375), så vanliga för- och efternamn bara bryts vid mellanslag. Längden ("N d") bryts aldrig inom sig i erbjudandetiteln och historikraden på 320 px (RUN-446).
+- Send-arket: långa namn utan brytpunkt bryts inom raden, head-to-head-tipset och sammanfattningen under "The bet" likaså, så arket scrollar inte i sidled på 320-1440 px. Vanliga namn ser ut som förut (RUN-441).
+
+### Profil och badges
+- Profilens "My titles": om titeltopplistan inte går att hämta visas ett felkort med Retry i stället för råa värden utan enhet. Profilen läser topplistan med samma hook och cache som Titles och löparkortet, så den hämtas färre gånger; den räknas som inaktuell efter en minut i stället för fem och hämtas om när fönstret får fokus (RUN-445).
+- `/badges` och badgedialogerna i ljust tema: nivåchippets text har minst 4,5:1 (4,89-6,65:1; var 1,4-2,6:1). Mörkt tema och chippets kant och tint är oförändrade (RUN-448).
+
+### Kända rester
+- Ljust tema: raden "Uncommon → Rare" i badgens uppgraderingsdialog har kvar nivåfärgen (3,15:1 respektive 1,74:1 för Epic → Legendary). Ljust tema ses över som helhet senare (`docs/open-assumptions.md`, "Badges").
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna.
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus `/duels` (Standings, History, Rules) på 320, 360 och 1024 px utan sidled scroll och `/badges` i ljust tema.
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras. Den säkra vägen är en revert-PR på `main`; rollbackreferensen är main före release-PR:en (aedd2ac8). Redeploy av den deployen i Railway fungerar om den finns kvar.
+
 ## Buggfixar 2026-10-31 (buggrelease utan versionsnummer)
+
+**Live 2026-10-31** via PR #64, main `4839aa85` (rollbackreferens: 48f7485f). Alla required checks och Lighthouse gröna före squash. Prod-deployerna (backend och frontend) SUCCESS efter CI på main. Röken efter deploy grön: `/health` 200, `GET /api/challenges/group-stats` och `POST /api/challenges/send` 401 utan token, `/`, `/board` och `/duels` 200 direktladdade, säkerhetshuvuden och skarp CSP på `/`, RUN-440-regeln (`.rq-rightnow__text` med `min-width: 0` och `overflow-wrap: anywhere`) i serverad CSS. Railway 0 % 5xx och inga nya Sentry-ärenden direkt efter deploy. Inloggad visuell kontroll av `/duels` gjordes inte av Lead (kräver inloggning i prod). Revert förberedd lokalt, inte pushad.
 
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-30` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
 

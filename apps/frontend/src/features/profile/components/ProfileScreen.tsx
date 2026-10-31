@@ -12,7 +12,7 @@ import { BadgeSummary } from '@/features/badges/components/BadgeSummary';
 import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
-import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
+import { useTitleBoard } from '@/features/titles/hooks/useTitlesQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { showPositionTab } from '@/features/leaderboard/positionTab';
 import { useViewParam } from '@/shared/hooks/useViewParam';
@@ -41,7 +41,7 @@ export function ProfileScreen() {
   const usersQuery = useUsersWithRuns(!!user);
   const me = usersQuery.data?.find((candidate) => candidate.id === user?.id);
   const titlesQuery = useRunnerTitles(user?.id ?? '');
-  const boardQuery = useTitleLeaderboard();
+  const boardQuery = useTitleBoard();
   // Position-fliken finns bara i en grupp på minst två, och det vet vi redan ur users-with-runs (ingen hämtning av positionssvaret för att kunna dölja fliken, ADR 007 addendum 2026-10-26).
   // Dold flik = `?view=position` är ett okänt värde och faller tillbaka på standardfliken som vilket annat ogiltigt värde som helst.
   const memberCount = usersQuery.data?.length ?? 0;

@@ -243,7 +243,7 @@ describe('Duels — inkommande och skickad', () => {
     setup({ my: { received_challenges: [FROM_NICK] } });
     renderDuels();
     const card = (await screen.findByText('Waiting on you')).closest('li') as HTMLElement;
-    expect(within(card).getByRole('heading', { level: 3 }).textContent).toBe('Nicklas · Most km · 7 d');
+    expect(within(card).getByRole('heading', { level: 3 })).toHaveTextContent('Nicklas · Most km · 7 d');
     expect(within(card).getByText('+0.25× / 10 d')).toBeInTheDocument();
     expect(within(card).getByText('−0.12× / 10 d')).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: /^Accept challenge from/ })).toBeEnabled();
@@ -304,7 +304,7 @@ describe('Duels — inkommande och skickad', () => {
     handlers.withdrawChallenge = (...args: unknown[]) => { calls.push(args); return { success: true }; };
     renderDuels();
     const card = (await screen.findByText('Sent')).closest('li') as HTMLElement;
-    expect(within(card).getByRole('heading', { level: 3 }).textContent).toBe('Daniel · Most runs · 5 d');
+    expect(within(card).getByRole('heading', { level: 3 })).toHaveTextContent('Daniel · Most runs · 5 d');
     expect(within(card).getByText('Waiting for Daniel to respond')).toBeInTheDocument();
 
     fireEvent.click(within(card).getByRole('button', { name: 'Withdraw' }));

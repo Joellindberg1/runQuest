@@ -4,23 +4,7 @@ import type { UserTitleEntry } from '@runquest/shared';
 
 export const titleQueryKeys = {
   all: ['titles'] as const,
-  leaderboard: () => [...titleQueryKeys.all, 'leaderboard'] as const,
 };
-
-/** Fetch full title leaderboard with React Query caching. */
-export function useTitleLeaderboard() {
-  return useQuery({
-    queryKey: titleQueryKeys.leaderboard(),
-    queryFn: async () => {
-      const response = await backendApi.getTitleLeaderboard();
-      return response.success ? (response.data ?? []) : [];
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60 * 1000,
-  });
-}
 
 /** Batch fetch titles for multiple users with React Query caching. */
 export function useMultipleUserTitles(userIds: string[]) {

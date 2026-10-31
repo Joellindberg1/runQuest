@@ -34,7 +34,8 @@ export function renderWithApp(ui: React.ReactNode, { entry = '/', user = AUTH_US
   };
   const entries = Array.isArray(entry) ? entry : [entry];
 
-  return render(
+  // `queryClient` följer med så att ett prov kan ogiltigförklara eller läsa cachen, som en runda gör i appen.
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={entries} useTransitions={false}>
@@ -45,4 +46,5 @@ export function renderWithApp(ui: React.ReactNode, { entry = '/', user = AUTH_US
       </AuthContext.Provider>
     </QueryClientProvider>,
   );
+  return { ...result, queryClient };
 }

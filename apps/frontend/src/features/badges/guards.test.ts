@@ -275,6 +275,30 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
     }
   });
 
+  it('kontrastvakt, ljust tema: chip-texten (nivåfärgen dragen mot --rq-text-1 av regeln i badges.css) når 4.5:1 mot chippets bakgrund, och regeln rör varken kant, tint eller mörkt tema', () => {
+    const rule = ruleBlocks.find((block) => block.selector === '[data-theme="light"] .rq-badge-chip[data-tier]');
+    const mix = /^color:\s*color-mix\(in srgb, var\(--rq-c-solid\) (\d+)%, var\(--rq-text-1\)\);$/.exec(rule?.body.trim() ?? '');
+    // Regeln sätter bara `color` (inte border-color, background eller en egen tint) och är den enda color-mix-regeln i badges.css: allt annat, och hela det mörka temat, är som förut.
+    expect(rule, 'the light-theme chip rule exists').toBeDefined();
+    expect(mix, 'the rule only sets color, as a color-mix of the tier colour and --rq-text-1').not.toBeNull();
+    expect(ruleBlocks.filter((block) => /color-mix/.test(block.body)).map((block) => block.selector)).toEqual([rule?.selector]);
+
+    // Samma metod som mörka vakten ovan: temats tokens ur index.css, och textfärgen är regelns eget värde (color-mix) löst mot nivåns färg.
+    const tokens = themeTokens(indexCss, 'light');
+    const color = (value: string, scope?: Map<string, string>) => resolveColor(tokens, value, scope);
+    // Kortet ligger direkt på sidans yta (--rq-bg-shell) med --rq-row-soft över; chippets tint ligger över kortet.
+    const card = flatten([color('var(--rq-bg-shell)'), color('var(--rq-row-soft)')]);
+    const tint = Number(index.get('--rq-badge-chip-tint'));
+    const colorValue = /^color:\s*(.+);$/.exec(rule?.body.trim() ?? '')?.[1] ?? '';
+    for (const name of TIER_NAMES) {
+      const key = name.toLowerCase();
+      const tier = color(`var(--rq-badge-${key})`).rgb;
+      const text = color(colorValue, new Map([['--rq-c-solid', `var(--rq-badge-${key})`]])).rgb;
+      const ratio = contrast(text, over(tier, tint, card));
+      expect({ name, enough: ratio >= 4.5 }).toEqual({ name, enough: true });
+    }
+  });
+
   it('nivåfärgerna är egna literaler: inget --rq-badge-*-värde är ett alias mot status-, guld- eller utmaningsfärger', () => {
     for (const [name, value] of index) {
       if (/-(common|uncommon|rare|heroic|epic|legendary)(-rgb|-grad)?$/.test(name)) {
