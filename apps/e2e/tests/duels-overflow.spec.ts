@@ -46,7 +46,8 @@ const ORDINARY_NAMES: Record<string, string> = {
   'stub-user-1': 'Stub Runner',
   'member-4': 'Erik Svensson',
   'member-5': 'Anna Lindqvist',
-  'member-6': 'Karin Ek',
+  // De bredaste vanliga orden i listan (Christopher 88 px, Gustafsson 83 px) sätter gränsen för namnkolumnen vid 320 px.
+  'member-6': 'Christopher Gustafsson',
 };
 
 // Två siffror i W, D och L: den bredaste cellen är "12", och procenten når 100.
@@ -54,10 +55,10 @@ function standingsFor(names: Record<string, string>, wide = false): ChallengeGro
   return MEMBER_IDS.map((id, index) => ({
     user_id: id,
     name: names[id]!,
-    // Med `wide` har första raden tre siffror i W och L (en grupp som spelat länge).
-    wins: wide && index === 0 ? 105 : 12 - index,
+    // Med `wide` har första raden tre siffror i W och L (en grupp som spelat länge), de bredaste siffrorna som finns.
+    wins: wide && index === 0 ? 888 : 12 - index,
     draws: index % 2 === 0 ? 10 : 0,
-    losses: wide && index === 0 ? 100 : 11 - index,
+    losses: wide && index === 0 ? 777 : 11 - index,
     total: 30,
     points: 99 - index * 7,
     challenge_active: false,
@@ -221,6 +222,7 @@ const TAB_NAMES: Record<(typeof VIEWS)[number], string> = { standings: 'Standing
 // Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
 const NARROW_WIDTHS = [320, 340];
 const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
+const STAKE_WIDTHS = [1024, 1050];
 
 /** Ord i ett namn som ligger på mer än en rad: en radbrytning som inte är ett mellanslag. */
 async function measureBrokenWords(page: Page, nameSelector: string): Promise<string[]> {
@@ -295,6 +297,33 @@ test.describe('the Duels screen with long names', () => {
         expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
       });
     }
+  }
+
+  // Längden i insatsraden ("+0.5× / 14 d") är en enhet: raden bryts före snedstrecket, aldrig mellan "14" och "d".
+  for (const width of STAKE_WIDTHS) {
+    test(`the duration in a stake line of a live card is not split over two lines at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES));
+      await page.getByRole('tab', { name: TAB_NAMES.live }).click();
+      await expect(page.locator('.rq-duels-live').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const durations = await page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('.rq-duels-live .rq-duels-stakes dd')).flatMap((cell) => {
+          const node = cell.firstChild;
+          const match = node?.textContent?.match(/\d+\s(?:d|runs?)$/);
+          if (!node || !match) return [];
+          const range = document.createRange();
+          range.setStart(node, match.index!);
+          range.setEnd(node, match.index! + match[0].length);
+          return [{ text: cell.textContent ?? '', lines: new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size }];
+        }),
+      );
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(durations.length, 'the live cards show a stake with a duration').toBeGreaterThanOrEqual(6);
+      expect.soft(durations.filter((duration) => duration.lines !== 1), 'every duration is on one line').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
   }
 
   // Längden ("· 7 d") och tiden ("5 d left") i ett Live-kort är var sin enhet: de får inte brytas till flera rader när kortet är smalt (1024-1100 px).
