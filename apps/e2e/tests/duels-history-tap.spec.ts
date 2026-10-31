@@ -208,6 +208,8 @@ test.describe('the match history rows', () => {
 
         expect.soft(await tapAndReadRunner(page, centre(geometry.name[0]!)), `row ${rowIndex}: the name of the left side`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, centre(geometry.name[1]!)), `row ${rowIndex}: the name of the right side`).toBe(rightId);
+        // Radens vänsterkant på desktop är en kantlinje (border-left): också den hör till vänster halva.
+        expect.soft(await tapAndReadRunner(page, { x: geometry.row.left + 1, y: middle.y }), `row ${rowIndex}: the outermost pixel of the left edge`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, { x: geometry.row.left + edge, y: middle.y }), `row ${rowIndex}: the left edge of the row`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, { x: geometry.row.right - edge, y: middle.y }), `row ${rowIndex}: the right edge of the row`).toBe(rightId);
         expect.soft(await tapAndReadRunner(page, centre(geometry.score[0]!)), `row ${rowIndex}: the score of the left side`).toBe(leftId);
@@ -233,6 +235,7 @@ test.describe('the match history rows', () => {
 
         expect.soft(await tapAndReadRunner(page, centre(geometry.name[0]!)), `row ${rowIndex}: the name of the left side`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, centre(geometry.name[1]!)), `row ${rowIndex}: the name of the right side`).toBe(rightId);
+        expect.soft(await tapAndReadRunner(page, { x: geometry.row.left + 1, y }), `row ${rowIndex}: the outermost pixel of the left edge`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, { x: vsX - 6, y }), `row ${rowIndex}: just left of the middle of "vs"`).toBe(leftId);
         expect.soft(await tapAndReadRunner(page, { x: vsX + 6, y }), `row ${rowIndex}: just right of the middle of "vs"`).toBe(rightId);
         expect.soft(await tapAndReadRunner(page, centre(geometry.score[0]!)), `row ${rowIndex}: the score of the left side`).toBe(leftId);
