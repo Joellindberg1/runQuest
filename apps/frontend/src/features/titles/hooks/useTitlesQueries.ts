@@ -15,8 +15,9 @@ export const TITLES_QUERY_KEYS = {
 };
 
 /**
- * Titelraderna (GET /titles/leaderboard). Egen hook i stället för `useTitleLeaderboard`: den hooken sväljer fel och
- * svarar tomt, och "No titles yet" vore då en lögn vid nätverksfel — Titles ska visa felkortet (regel 9).
+ * Titelraderna (GET /titles/leaderboard). Kastar vid fel (regel 9): ett tomt svar vore "No titles yet" som lögn vid
+ * nätverksfel, och utan raderna saknar värdena enhet. Delas av Titles, Playbook, admin, profilens My titles och
+ * löparens titelpanel — en källa, en cache-nyckel.
  */
 export function useTitleBoard(enabled = true) {
   return useQuery({

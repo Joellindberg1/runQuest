@@ -28,7 +28,7 @@ Mobil/direktladdning = sida i skalet (`variant="page"`, Back-knapp); desktop ini
 - **Double-run days** = dagar där två rundors starttider ligger ≥ 4 h isär (samma 4 h-gräns som titeln The Double Trouble; titeln kräver dessutom 5 km per runda och mäter km).
   Rundor utan `start_time` (manuell loggning) kan inte bevisa avståndet och räknas inte.
 - **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel, så att ett nätverksfel inte blir "No titles".
-  Enheten på värdena kommer från `metric_key` i `/titles/leaderboard`; saknas den visas bara talet.
+  Enheten på värdena kommer från `metric_key` i `/titles/leaderboard` (`useTitleBoard`, kastar vid fel); felar topplistan eller titlarna visas felkortet med Retry, även om en äldre topplista finns kvar, och Retry hämtar om båda; saknas den visas bara talet.
 - `useViewParam` bär med sig router-state, annars tappar overlayn sin `background` när statfliken byts.
 - Dynamiska värden går in via `cssVars()` (`--w`, `--x`, `--rq-ring-p`); inga inline-färger/mått (guards.test).
 - **Andras badges (RUN-130, spec F4, Council 1/13/16):** `RunnerCard` hämtar `useUserBadges(user.id)` (löparens samling, inget `seen_tier`) och `useGroupBadges()` — båda ur
