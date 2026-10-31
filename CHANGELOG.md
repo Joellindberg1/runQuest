@@ -2,6 +2,8 @@
 
 ## Buggfixar 2026-10-31 (buggrelease utan versionsnummer)
 
+**Live 2026-10-31** via PR #64, main `4839aa85` (rollbackreferens: 48f7485f). Alla required checks och Lighthouse gröna före squash. Prod-deployerna (backend och frontend) SUCCESS efter CI på main. Röken efter deploy grön: `/health` 200, `GET /api/challenges/group-stats` och `POST /api/challenges/send` 401 utan token, `/`, `/board` och `/duels` 200 direktladdade, säkerhetshuvuden och skarp CSP på `/`, RUN-440-regeln (`.rq-rightnow__text` med `min-width: 0` och `overflow-wrap: anywhere`) i serverad CSS. Railway 0 % 5xx och inga nya Sentry-ärenden direkt efter deploy. Inloggad visuell kontroll av `/duels` gjordes inte av Lead (kräver inloggning i prod). Revert förberedd lokalt, inte pushad.
+
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-30` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
 
 ### Utmaningar
