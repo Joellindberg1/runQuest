@@ -430,7 +430,7 @@
      avsnitt 2. Vimpeln återanvänder --rq-board-ribbon-*. Konsument: features/challenges/duels.css. */
   --rq-duels-split-cols: minmax(0, 1fr);                              /* desktop: vy | sidokolumn (320 px) */
   --rq-duels-live-cols: minmax(0, 1fr);                               /* live-korten: mobil 1 kolumn, desktop 2 */
-  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 */
+  --rq-duels-rules-cols: minmax(0, 1fr);                              /* nivåregler: mobil 1 kolumn, desktop 3 (1024–1219 px: 1) */
   --rq-duels-standing-cols: 24px minmax(0, 1fr) 34px 34px 34px 52px; /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
   --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
   --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
@@ -1074,6 +1074,15 @@
     --rq-duels-offer-cols: minmax(0, 1fr);
     --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));
     --rq-duels-offer-rule-w: 1px;
+  }
+}
+
+/* Smal desktop (1024–1219 px): Rules ritar tre nivåkort i bredd bredvid sidokolumnen och korten blir 118–175 px breda. "Legendary" (vimpel + titel ca 136 px) behöver ett kort på minst ca 175 px
+   för att rymmas i kortets innerruta, så titeln gick ut ur kortet och ritades över sidokolumnens "Your tokens". Här staplas korten (som erbjudandekorten ovan), och texten får kortets hela bredd;
+   från 1220 px ryms titeln och tre kolumner gäller oförändrade. */
+@media (min-width: 1024px) and (max-width: 1219px) {
+  :root {
+    --rq-duels-rules-cols: minmax(0, 1fr);
   }
 }
 
