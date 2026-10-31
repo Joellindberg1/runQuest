@@ -10,13 +10,21 @@ const LOADING_ROWS = 6;
 interface SideProps {
   side: HistorySide;
   align: 'start' | 'end';
+  /** Id på utfallet (poäng och resultat): namnknappen pekar på det som beskrivning. */
+  outcomeId: string;
   onOpenRunner: (userId: string) => void;
 }
 
-/** En sida av matchen: namn (min = guldprick) och poäng + resultat. Högersidan speglas så att poängen alltid ligger mot "vs". */
-function MatchSide({ side, align, onOpenRunner }: SideProps) {
+/**
+ * En sida av matchen: namn (min = guldprick) och poäng + resultat. Högersidan speglas så att poängen alltid ligger mot "vs".
+ * Namnknappen är sidans enda tabbstopp; dess träffyta täcker radens halva (CSS `::after`), så hela raden går att trycka på utan nästlade knappar.
+ */
+function MatchSide({ side, align, outcomeId, onOpenRunner }: SideProps) {
   const name = (
-    <button type="button" className="rq-duels-match__name" data-emphasis={side.emphasis} data-mine={side.mine} onClick={() => onOpenRunner(side.userId)}>
+    <button
+      type="button" className="rq-duels-match__name" data-half={align === 'end' ? 'left' : 'right'} data-emphasis={side.emphasis} data-mine={side.mine}
+      aria-describedby={outcomeId} onClick={() => onOpenRunner(side.userId)}
+    >
       {side.name}
     </button>
   );
@@ -26,7 +34,7 @@ function MatchSide({ side, align, onOpenRunner }: SideProps) {
   return (
     <div className="rq-duels-match__side" data-align={align}>
       <div className="rq-duels-match__who">{align === 'end' ? <>{name}{dot}</> : <>{dot}{name}</>}</div>
-      <div className="rq-duels-match__outcome">{align === 'end' ? <>{score}{result}</> : <>{result}{score}</>}</div>
+      <div className="rq-duels-match__outcome" id={outcomeId}>{align === 'end' ? <>{score}{result}</> : <>{result}{score}</>}</div>
     </div>
   );
 }
@@ -70,9 +78,9 @@ export function HistoryList({ status, rows, mineOnly, onToggleMine, hasMore, loa
         <ol aria-label="Matches" className="rq-hairgrid rq-duels-matches">
           {rows.map((row) => (
             <li key={row.id} className="rq-row rq-duels-match" data-mine={row.mine}>
-              <MatchSide side={row.left} align="end" onOpenRunner={onOpenRunner} />
+              <MatchSide side={row.left} align="end" outcomeId={`${row.id}-left-outcome`} onOpenRunner={onOpenRunner} />
               <span className="rq-duels-match__vs" aria-hidden="true">vs</span>
-              <MatchSide side={row.right} align="start" onOpenRunner={onOpenRunner} />
+              <MatchSide side={row.right} align="start" outcomeId={`${row.id}-right-outcome`} onOpenRunner={onOpenRunner} />
               <div className="rq-duels-match__meta">
                 {showReward ? (
                   <>

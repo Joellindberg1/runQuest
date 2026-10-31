@@ -10,7 +10,10 @@ const MIN_TAP_PX = 44;
 /** Några pixlar marginal för subpixelavrundning i mätningarna. */
 const TOLERANCE_PX = 1;
 const PHONE_WIDTHS = [320, 375, 390];
-const DESKTOP_SIZE = { width: 1280, height: 800 };
+/** Bredderna där metan ligger under paret: mobil och smal desktop. */
+const PAIR_LAYOUT_WIDTHS = [...PHONE_WIDTHS, 1024, 1100, 1279];
+/** Bredderna där metan och datumet har egna kolumner till höger om paret. */
+const WIDE_DESKTOP_SIZES = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
 /** Steget mellan provpunkterna i sidled när en halvas träffyta mäts. */
 const SAMPLE_STEP_PX = 6;
 
@@ -190,7 +193,10 @@ test.describe('the match history rows', () => {
         }
       }
     });
+  }
 
+  // Raden har metan under paret på mobil och på smal desktop (1024-1279 px): delningen går vid radens mitt.
+  for (const width of PAIR_LAYOUT_WIDTHS) {
     test(`a tap in either half of a history row, outside the name, opens that participant at ${width} px`, async ({ page }) => {
       await openHistory(page, { width, height: 800 });
 
@@ -214,24 +220,27 @@ test.describe('the match history rows', () => {
     });
   }
 
-  test('on desktop the pair splits at the middle of "vs", and a tap on the meta columns opens the right participant', async ({ page }) => {
-    await openHistory(page, DESKTOP_SIZE);
+  // Desktop räknar delningen fram ur kolumnbredderna (--rq-duels-match-split): provet på flera bredder fångar att den glider ur takt med kolumnerna.
+  for (const size of WIDE_DESKTOP_SIZES) {
+    test(`on desktop the pair splits at the middle of "vs", and a tap on the meta columns opens the right participant at ${size.width} px`, async ({ page }) => {
+      await openHistory(page, size);
 
-    for (let rowIndex = 0; rowIndex < history.length; rowIndex += 1) {
-      const [leftId, rightId] = PAIRS[rowIndex]!;
-      const geometry = await rowGeometry(page, rowIndex);
-      const vsX = centre(geometry.vs).x;
-      const y = centre(geometry.row).y;
+      for (let rowIndex = 0; rowIndex < history.length; rowIndex += 1) {
+        const [leftId, rightId] = PAIRS[rowIndex]!;
+        const geometry = await rowGeometry(page, rowIndex);
+        const vsX = centre(geometry.vs).x;
+        const y = centre(geometry.row).y;
 
-      expect.soft(await tapAndReadRunner(page, centre(geometry.name[0]!)), `row ${rowIndex}: the name of the left side`).toBe(leftId);
-      expect.soft(await tapAndReadRunner(page, centre(geometry.name[1]!)), `row ${rowIndex}: the name of the right side`).toBe(rightId);
-      expect.soft(await tapAndReadRunner(page, { x: vsX - 6, y }), `row ${rowIndex}: just left of the middle of "vs"`).toBe(leftId);
-      expect.soft(await tapAndReadRunner(page, { x: vsX + 6, y }), `row ${rowIndex}: just right of the middle of "vs"`).toBe(rightId);
-      expect.soft(await tapAndReadRunner(page, centre(geometry.score[0]!)), `row ${rowIndex}: the score of the left side`).toBe(leftId);
-      expect.soft(await tapAndReadRunner(page, centre(geometry.score[1]!)), `row ${rowIndex}: the score of the right side`).toBe(rightId);
-      expect.soft(await tapAndReadRunner(page, centre(geometry.meta)), `row ${rowIndex}: the meta column`).toBe(rightId);
-    }
-  });
+        expect.soft(await tapAndReadRunner(page, centre(geometry.name[0]!)), `row ${rowIndex}: the name of the left side`).toBe(leftId);
+        expect.soft(await tapAndReadRunner(page, centre(geometry.name[1]!)), `row ${rowIndex}: the name of the right side`).toBe(rightId);
+        expect.soft(await tapAndReadRunner(page, { x: vsX - 6, y }), `row ${rowIndex}: just left of the middle of "vs"`).toBe(leftId);
+        expect.soft(await tapAndReadRunner(page, { x: vsX + 6, y }), `row ${rowIndex}: just right of the middle of "vs"`).toBe(rightId);
+        expect.soft(await tapAndReadRunner(page, centre(geometry.score[0]!)), `row ${rowIndex}: the score of the left side`).toBe(leftId);
+        expect.soft(await tapAndReadRunner(page, centre(geometry.score[1]!)), `row ${rowIndex}: the score of the right side`).toBe(rightId);
+        expect.soft(await tapAndReadRunner(page, centre(geometry.meta)), `row ${rowIndex}: the meta column`).toBe(rightId);
+      }
+    });
+  }
 
   test('a row has one tab stop per participant, and no interactive element sits inside another', async ({ page }) => {
     await openHistory(page, { width: 375, height: 812 });

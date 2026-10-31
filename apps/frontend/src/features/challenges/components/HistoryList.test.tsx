@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { HistoryRow } from '../duelsModel';
 import { HistoryList } from './HistoryList';
@@ -16,14 +17,44 @@ const row: HistoryRow = {
   mine: false,
 };
 
-function renderList(showReward: boolean) {
+function renderList(showReward: boolean, onOpenRunner = vi.fn()) {
   render(
     <HistoryList
       status="ready" rows={[row]} mineOnly={false} onToggleMine={vi.fn()} hasMore={false} loadingMore={false} onLoadMore={vi.fn()}
-      retrying={false} onRetry={vi.fn()} showReward={showReward} onOpenRunner={vi.fn()}
+      retrying={false} onRetry={vi.fn()} showReward={showReward} onOpenRunner={onOpenRunner}
     />,
   );
 }
+
+describe('the two halves of a history row', () => {
+  it('has one button per participant, named after them, and nothing interactive inside another', () => {
+    renderList(false);
+
+    const match = within(screen.getByRole('list', { name: 'Matches' })).getAllByRole('listitem')[0]!;
+    expect(within(match).getAllByRole('button').map((button) => button.textContent)).toEqual(['Maria Johansson', 'Olof Bergstrom']);
+    expect(match.querySelectorAll('button button, button a, a button, a a')).toHaveLength(0);
+  });
+
+  it('opens the left participant from the left button and the right participant from the right button', async () => {
+    const onOpenRunner = vi.fn();
+    renderList(false, onOpenRunner);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Maria Johansson' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Olof Bergstrom' }));
+
+    expect(onOpenRunner.mock.calls).toEqual([['u-maria'], ['u-olof']]);
+  });
+
+  it("describes each button with that participant's own score and result", () => {
+    renderList(false);
+
+    const describedBy = (name: string) => document.getElementById(screen.getByRole('button', { name }).getAttribute('aria-describedby')!)!.textContent;
+    expect(describedBy('Maria Johansson')).toMatch(/41\.5.*Win|Win.*41\.5/);
+    expect(describedBy('Maria Johansson')).not.toMatch(/Loss|38\.3/);
+    expect(describedBy('Olof Bergstrom')).toMatch(/38\.3.*Loss|Loss.*38\.3/);
+    expect(describedBy('Olof Bergstrom')).not.toMatch(/Win|41\.5/);
+  });
+});
 
 describe('the meta of a history row', () => {
   it('keeps the duration together on mobile, and the text is found with an ordinary space', () => {

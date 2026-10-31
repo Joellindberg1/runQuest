@@ -441,6 +441,7 @@
   --rq-duels-match-date-span: 3;
   --rq-duels-match-meta-align: left;                                  /* desktop: right */
   --rq-duels-match-edge-w: 0px;                                       /* desktop: 3 px hårlinjekant till vänster */
+  --rq-duels-match-split: 50%;                                        /* var vänster halva slutar och höger börjar, från radens vänsterkant: mitten av "vs" (desktop: räknas ur kolumnerna) */
   --rq-duels-offer-cols: minmax(0, 1fr);                              /* inkommande kort: mobil staplat, desktop id · insats · knappar */
   --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));           /* Accept | Decline; desktop: ovanpå varandra */
   --rq-duels-offer-rule-w: 1px;                                       /* hårlinjer ovan/under insatsen (desktop 0) */
@@ -892,6 +893,7 @@
     --rq-duels-match-date-span: auto;
     --rq-duels-match-meta-align: right;
     --rq-duels-match-edge-w: 3px;
+    --rq-duels-match-split: calc(var(--rq-pad-row-x) + (100% - 2 * var(--rq-pad-row-x) - 306px - 4 * var(--rq-sp-8)) / 2 + var(--rq-sp-8) + 23px);   /* följer --rq-duels-match-cols: 306 = 46 + 190 + 70, 23 = halva 46 */
     --rq-duels-offer-cols: minmax(0, 1fr) auto fit-content(240px);
     --rq-duels-offer-actions-cols: minmax(0, 1fr);
     --rq-duels-offer-rule-w: 0px;
@@ -1075,6 +1077,7 @@
     --rq-duels-match-meta-span: 1 / 3;
     --rq-duels-match-date-span: 3;
     --rq-duels-match-meta-align: left;
+    --rq-duels-match-split: 50%;
     --rq-duels-offer-cols: minmax(0, 1fr);
     --rq-duels-offer-actions-cols: repeat(2, minmax(0, 1fr));
     --rq-duels-offer-rule-w: 1px;
