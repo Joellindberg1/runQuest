@@ -43,7 +43,8 @@ const MEMBER_STATE = [
 const members: ChallengeGroupStat[] = MEMBER_STATE.map((member, index) => ({
   user_id: `member-${index + 1}`, ...member, wins: 1, draws: 0, losses: 0, total: 1, points: 3, current_level: 10 + index, profile_picture: null,
 }));
-const headToHead = { opponent: { id: 'member-1', name: FREE_NAME }, record: { wins: 1, draws: 0, losses: 0, total: 1 }, history: [], active: null };
+// Rekordet är förlust, så att varje rad som går att välja visar "0-1 to <förnamn>": ett förnamn utan brytpunkt hamnar också i radens högra text.
+const headToHead = { opponent: { id: 'member-1', name: FREE_NAME }, record: { wins: 0, draws: 0, losses: 1, total: 1 }, history: [], active: null };
 
 async function stubChallengeApi(page: Page): Promise<void> {
   await page.route('**/api/challenges/**', (route) => {
@@ -71,6 +72,12 @@ test.describe('the send-a-challenge sheet with long opponent names', () => {
         await waitForStylesApplied(page);
         await expect(page.locator('html'), 'the requested theme is the one that is applied').toHaveAttribute('data-theme', theme);
 
+        // En valbar rad träffas av ett klick (Playwright klickar bara om raden är det som ligger under pekaren), och valet fyller i "The bet" med förnamnet.
+        const free = opponents.getByRole('button', { name: new RegExp(FREE_NAME) });
+        await free.click();
+        await expect(free).toHaveAttribute('aria-pressed', 'true');
+        await expect(sheet.locator('.rq-duels-bet__summary')).toContainText(FREE_NAME);
+
         const measured = await sheet.evaluate((root, { names, tolerance }) => {
           const textRect = (node: Element) => {
             const range = document.createRange();
@@ -79,51 +86,57 @@ test.describe('the send-a-challenge sheet with long opponent names', () => {
           };
           const body = root.querySelector('.rq-duels-sheet__body')!;
           const frame = root.getBoundingClientRect();
+          const summary = textRect(root.querySelector('.rq-duels-bet__summary')!);
           const rows = Array.from(root.querySelectorAll('.rq-duels-option--opponent')).map((row) => {
             const rowBox = row.getBoundingClientRect();
-            const name = textRect(row.querySelector('.rq-name')!);
-            const reasonNode = row.querySelector('.rq-duels-option__h2h');
-            const reason = reasonNode ? textRect(reasonNode) : null;
-            const reasonText = reasonNode?.textContent ?? '';
+            const nameNode = row.querySelector('.rq-name')!;
+            const name = textRect(nameNode);
+            // Texten till höger på raden: skälet när motståndaren är upptagen, annars head-to-head-tipset.
+            const asideNode = row.querySelector('.rq-duels-option__h2h');
+            const aside = asideNode ? textRect(asideNode) : null;
             return {
-              label: names.find((candidate) => (row.querySelector('.rq-name')?.textContent ?? '') === candidate) ?? 'unknown',
-              disabled: (row as HTMLButtonElement).disabled,
-              reasonText,
+              label: names.find((candidate) => nameNode.textContent === candidate) ?? 'unknown',
+              asideText: asideNode?.textContent ?? '',
               nameOutsideRow: Math.max(rowBox.left - name.left, name.right - rowBox.right),
               nameOutsideSheet: Math.max(frame.left - name.left, name.right - frame.right),
-              reasonOutsideRow: reason ? Math.max(rowBox.left - reason.left, reason.right - rowBox.right) : 0,
-              reasonOutsideSheet: reason ? Math.max(frame.left - reason.left, reason.right - frame.right) : 0,
-              reasonOverlapsName: reason ? Math.min(name.right, reason.right) - Math.max(name.left, reason.left) > tolerance && Math.min(name.bottom, reason.bottom) - Math.max(name.top, reason.top) > tolerance : false,
+              asideOutsideRow: aside ? Math.max(rowBox.left - aside.left, aside.right - rowBox.right) : 0,
+              asideOutsideSheet: aside ? Math.max(frame.left - aside.left, aside.right - frame.right) : 0,
+              asideOverlapsName: aside ? Math.min(name.right, aside.right) - Math.max(name.left, aside.left) > tolerance && Math.min(name.bottom, aside.bottom) - Math.max(name.top, aside.top) > tolerance : false,
               rowOutsideSheet: Math.max(frame.left - rowBox.left, rowBox.right - frame.right),
             };
           });
-          return { bodyOverflow: body.scrollWidth - body.clientWidth, sheetOverflow: root.scrollWidth - root.clientWidth, pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, rows };
+          return {
+            bodyOverflow: body.scrollWidth - body.clientWidth,
+            sheetOverflow: root.scrollWidth - root.clientWidth,
+            pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            summaryOutsideSheet: Math.max(frame.left - summary.left, summary.right - frame.right),
+            rows,
+          };
         }, { names: [FREE_NAME, PENDING_NAME, BUSY_NAME, NORMAL_NAME], tolerance: TOLERANCE_PX });
 
         expect(measured.bodyOverflow, 'the sheet body does not scroll sideways').toBeLessThanOrEqual(TOLERANCE_PX);
         expect(measured.sheetOverflow, 'the sheet does not clip anything sideways').toBeLessThanOrEqual(TOLERANCE_PX);
         expect(measured.pageOverflow, 'the page does not scroll sideways').toBeLessThanOrEqual(TOLERANCE_PX);
+        expect(measured.summaryOutsideSheet, 'the bet summary with the long first name stays inside the sheet').toBeLessThanOrEqual(TOLERANCE_PX);
         expect(measured.rows.map((row) => row.label).sort(), 'all four opponents are listed').toEqual([FREE_NAME, PENDING_NAME, BUSY_NAME, NORMAL_NAME].sort());
         for (const row of measured.rows) {
           expect(row.rowOutsideSheet, `the row for ${row.label} stays inside the sheet`).toBeLessThanOrEqual(TOLERANCE_PX);
           expect(row.nameOutsideRow, `${row.label} stays inside its own row`).toBeLessThanOrEqual(TOLERANCE_PX);
           expect(row.nameOutsideSheet, `${row.label} stays inside the sheet`).toBeLessThanOrEqual(TOLERANCE_PX);
-          expect(row.reasonOutsideRow, `the reason for ${row.label} stays inside its row`).toBeLessThanOrEqual(TOLERANCE_PX);
-          expect(row.reasonOutsideSheet, `the reason for ${row.label} stays inside the sheet`).toBeLessThanOrEqual(TOLERANCE_PX);
-          expect(row.reasonOverlapsName, `the reason for ${row.label} does not overlap the name`).toBe(false);
+          expect(row.asideOutsideRow, `the text beside ${row.label} stays inside its row`).toBeLessThanOrEqual(TOLERANCE_PX);
+          expect(row.asideOutsideSheet, `the text beside ${row.label} stays inside the sheet`).toBeLessThanOrEqual(TOLERANCE_PX);
+          expect(row.asideOverlapsName, `the text beside ${row.label} does not overlap the name`).toBe(false);
         }
-        const reasons = Object.fromEntries(measured.rows.map((row) => [row.label, row.reasonText]));
-        expect(reasons[PENDING_NAME], 'the opponent with a pending challenge says so').toBe('Waiting on a reply');
-        expect(reasons[BUSY_NAME], 'the opponent in a duel says so').toBe('In a duel');
+        const asides = Object.fromEntries(measured.rows.map((row) => [row.label, row.asideText]));
+        expect(asides[PENDING_NAME], 'the opponent with a pending challenge says so').toBe('Waiting on a reply');
+        expect(asides[BUSY_NAME], 'the opponent in a duel says so').toBe('In a duel');
+        expect(asides[FREE_NAME], 'a free opponent shows the head-to-head hint with the long first name').toBe(`0–1 to ${FREE_NAME}`);
 
-        // Avstängda rader förblir avstängda med skälet läsbart; en valbar rad träffas av ett klick.
+        // Avstängda rader förblir avstängda med skälet läsbart.
         await expect(opponents.getByRole('button', { name: new RegExp(PENDING_NAME) })).toBeDisabled();
         await expect(opponents.getByRole('button', { name: new RegExp(BUSY_NAME) })).toBeDisabled();
         await expect(opponents.getByText('Waiting on a reply')).toBeVisible();
         await expect(opponents.getByText('In a duel')).toBeVisible();
-        const free = opponents.getByRole('button', { name: new RegExp(FREE_NAME) });
-        await free.click();
-        await expect(free).toHaveAttribute('aria-pressed', 'true');
       });
     }
   }
