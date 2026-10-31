@@ -2,6 +2,8 @@
 
 ## Buggfixar 2026-10-31, andra omgången (buggrelease utan versionsnummer)
 
+**Live 2026-10-31** via PR #66, main `83907dcf` (rollbackreferens: aedd2ac8). Alla required checks och Lighthouse gröna före squash. Prod-deployerna (backend och frontend) SUCCESS efter CI på main. Röken efter deploy grön: `/health` 200, `GET /api/challenges/group-stats` och `POST /api/challenges/send` 401 utan token, `/`, `/board`, `/duels`, `/badges` och `/profile` 200 direktladdade, säkerhetshuvuden och skarp CSP på `/`, delningstokenet för History-raden (`--rq-duels-match-split`) i serverad CSS (samma `theme-*.css`-hash som integrationskritikerns bygge). Ägarens preview på staging (10f58f4a) och "kör vidare" före release. Revert förberedd lokalt, inte pushad.
+
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-31` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
 
 ### Duels
