@@ -92,12 +92,12 @@
       "version": "0.8.3",
       "type": "patch",
       "date": "31 October 2026",
-      "title": "Time and pace, Position and the profile pop-up",
+      "title": "Time and pace, Position and the profile pop-up on desktop",
       "announce": true,
       "changes": [
         {
           "type": "feature",
-          "description": "Group history now shows the time and pace of each run: a Time / Pace column on desktop and a small line above the distance on your phone. Your Run history shows them too, with a total at the bottom. Runs without a time, such as runs you logged by hand, have none to show."
+          "description": "Group history now shows the time and pace of each run: a Time / Pace column on desktop and a small line above the distance on your phone. Your Run history shows them too, with a total at the bottom. Runs without a time, such as runs you logged by hand, have no time to show."
         },
         {
           "type": "feature",
@@ -105,15 +105,15 @@
         },
         {
           "type": "improvement",
-          "description": "The top 3 on your phone is easier to read: the name and place are written out, the three cards are equally tall, and the badges are grouped in a small pyramid by the name."
+          "description": "The top 3 on your phone is easier to read: the place is shown as #1, #2 and #3, the surname gets its own lines, the three cards are equally tall, and the badges are grouped in a small pyramid by the name."
         },
         {
           "type": "feature",
-          "description": "On desktop, tapping a runner opens their Runner card as a pop-up with the tabs Overview, The Journey, Titles held and Badges. Challenge sits in the pop-up header and is switched off, with the reason shown, when you cannot challenge that runner. Cancel or Back from a challenge you started there takes you back to the page you opened the pop-up from."
+          "description": "On desktop, tapping a runner opens their Runner card as a pop-up with the tabs Overview, The Journey, Titles held and Badges. Challenge sits in the pop-up header and is switched off, with the reason shown, when you cannot challenge that runner. Cancel, or your browser's Back button, takes you back to the page you opened the pop-up from."
         },
         {
           "type": "improvement",
-          "description": "Your tokens on Duels has tier chips (Minor, Major and Legendary) that filter the cards, says why a tier is empty, and has a Send button on every card that picks that token for you."
+          "description": "Your tokens on Duels has tier chips (Minor, Major and Legendary) that filter the cards, says so when a tier is empty, and has a Send button on every card that picks that token for you."
         },
         {
           "type": "improvement",

@@ -259,6 +259,15 @@ describe('changelog: v0.8.3', () => {
     expect(text).toContain('Privacy & Terms');
   });
 
+  it('säger bara det koden gör: tom nivå, platsetiketter, webbläsarens Back och rundor utan tid', () => {
+    expect(v083?.title).toBe('Time and pace, Position and the profile pop-up on desktop');
+    expect(text).toContain('says so when a tier is empty');
+    expect(text).not.toContain('says why');
+    expect(text).toContain('the place is shown as #1, #2 and #3, the surname gets its own lines');
+    expect(text).toContain("Cancel, or your browser's Back button, takes you back to the page you opened the pop-up from");
+    expect(text).toContain('have no time to show');
+  });
+
   it('lovar ingen popup eller paritet på mobil: mobilens Runner card är oförändrad', () => {
     for (const description of descriptions) {
       expect({ description, claimsMobilePopup: /phone|mobile/i.test(description) && /pop-up/i.test(description) }).toEqual({ description, claimsMobilePopup: false });
