@@ -83,6 +83,11 @@ export function stakeOf(source: StakeSource): Stake {
 export const durationText = (days: number): string => `${days} d`;
 export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
 
+export const NO_BREAK_SPACE = '\u00a0';
+
+/** Längderna i en text ("7 d", "3 runs") får hårda mellanslag, så att en smal rad bryts före eller efter dem och aldrig mellan talet och enheten. Texten är densamma för en skärmläsare, bara mellanslagen är hårda. Modellen och dess tester behåller vanliga mellanslag: det här görs där texten ritas. */
+export const keepDurationsTogether = (text: string): string => text.replace(/(\d+) (d|runs?)\b/g, `$1${NO_BREAK_SPACE}$2`);
+
 /** "21 Aug" för ett ögonblick, dagen i appens tidszon. Månadsnamnen kommer ur shared/utils/format (egna: Intl:s förkortningar skiljer mellan ICU-versioner). */
 export function formatDayMonth(iso: string | null): string | null {
   return iso ? formatCalendarDayMonth(zoneDay(new Date(iso))) : null;
