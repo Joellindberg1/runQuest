@@ -1,5 +1,26 @@
 # Changelog
 
+## Buggfixar 2026-10-31 (buggrelease utan versionsnummer)
+
+Buggrelease mellan versionerna, från `integration/bugfix-2026-10-30` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
+
+### Utmaningar
+- Den som har fått en utmaning och inte svarat visas nu som upptagen ("… is waiting on a reply to a challenge.") i send-flödet, enligt samma regel som `POST /challenges/send` redan avvisade på. Förut såg mottagaren valbar ut och ett skick gav 400. Regeln finns på ett ställe (`services/challengeBusy.ts`) och delas av `/send` och group-stats (RUN-436).
+- En legendary-utmaning som startar automatiskt efter fem dagar markerar nu båda löparna som "In a duel" (`challenge_active`), som en accepterad utmaning gör. Aktiveringen delas av accept och schemaläggaren (`services/challengeActivation.ts`) med en villkorad uppdatering, så en samtidig accept inte ger dubbla flaggor (RUN-436). Legendary-dueller som startade automatiskt före releasen saknar flaggan tills de avgörs; då nollställs den ändå.
+
+### Gränssnitt
+- Duels: inga överlapp mellan namn, siffror och metatext i Standings, History och erbjudandekorten på 320 px och smal desktop (1024–1279 px); långa namn bryts inom sin cell, och ett klick mitt på namnet träffar namnet. Flikraden ligger på en rad som scrollar sidledes på mobil med 44 px höga flikar (RUN-435).
+- Standings under 360 px har smalare rang- och sifferkolumner, så vanliga för- och efternamn bara bryts vid mellanslag. I Live-korten och insatsraden bryts längden ("· 7 d", "/ 14 d") aldrig inom sig (RUN-442).
+- Right now i sidomenyn: ett långt namn eller eventnamn bryts inom rutan i stället för att gå utanför den (RUN-440).
+- Kända rester till nästa buggrelease: Rules-flikens nivåkort vid 1024–1140 px (RUN-444), vanliga namn vid 360–370 px och "N d" i erbjudandetitel och historik vid 320 px (RUN-446), send-arket med mycket långa namn på mobil (RUN-441).
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna.
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus `/duels` (Standings, Live, History) på 320 och 1024 px utan sidled scroll, och Right now i sidomenyn på 1024 px.
+
+### Rollback
+Ingen migration, ingen miljövariabel och inget kontrakt ändras (`has_pending_challenge` och `challenge_active` sätts för fler fall men har samma typ). Den säkra vägen är en revert-PR på `main`; rollbackreferensen är main före release-PR:en (48f7485f). Redeploy av den deployen i Railway fungerar om den finns kvar.
+
 ## Buggfixar 2026-10-26 (buggrelease utan versionsnummer)
 
 Buggrelease mellan versionerna, från `integration/bugfix-2026-10-26` (processen: `docs/release.md`, "Buggreleaser"). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.2.
