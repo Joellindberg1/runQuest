@@ -25,7 +25,6 @@ function MatchSide({ side, align, outcomeId, onOpenRunner }: SideProps) {
       type="button" className="rq-duels-match__name" data-half={align === 'end' ? 'left' : 'right'} data-emphasis={side.emphasis} data-mine={side.mine}
       data-runner-id={side.userId} aria-describedby={outcomeId} onClick={() => onOpenRunner(side.userId)}
     >
-
       {side.name}
     </button>
   );
