@@ -3,8 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
-import { focusRunnerRowWhenRendered } from '@/shared/utils/focusRunnerRow';
 import { firstName } from '@/shared/utils/format';
+import { focusRunnerRowAfterBack } from '@/shared/utils/focusRowAfterBack';
 import type { TierGroup } from '../duelsModel';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
 import { betSummary, buildOpponents, resolveOpponentParam, startingChoice, startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
@@ -108,12 +108,12 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
-  // Back under skicket (`pending`) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål som Cancel, via skalets väntan på att sidan ritats).
+  // Back under skicket (`pending`) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål som Cancel, med samma väntan på att sidan ritats), och släpper sökningen om användaren går vidare eller flyttar fokus (`focusRunnerRowAfterBack`).
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
   const returnFocus = (event: Event) => {
     event.preventDefault();
     if (sendPhase.current === 'pending' && originRunnerId) {
-      focusRunnerRowWhenRendered(originRunnerId, () => {});
+      focusRunnerRowAfterBack(originRunnerId);
       return;
     }
     if (cancelFocus === 'page' && sendPhase.current === 'idle') return;

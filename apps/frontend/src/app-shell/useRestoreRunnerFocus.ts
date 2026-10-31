@@ -3,6 +3,7 @@ import { matchPath, useLocation, useNavigate, type Location } from 'react-router
 import { paths } from '@/paths';
 import { readFocusRunnerId } from '@/shared/hooks/routeState';
 import { readBackground } from '@/shared/hooks/useOpenRunner';
+import { dropRowSearchAfterBack } from '@/shared/utils/focusRowAfterBack';
 import { focusRunnerRowWhenRendered } from '@/shared/utils/focusRunnerRow';
 import { historyIdx } from '@/shared/utils/historyIdx';
 import { takeRunnerFocus } from '@/shared/utils/runnerFocusIntent';
@@ -57,6 +58,8 @@ export function useRestoreRunnerFocus(): void {
     const idx = historyIdx();
     if (trail.current === null) trail.current = { now: location, before: null, idx, move: 'unknown', intent: null };
     else if (trail.current.now !== location) {
+      // Ett ark som Back stängde under ett skick söker efter löparens rad (`focusRunnerRowAfterBack`) och har ingen effekt kvar att städa med: ett nytt platsbyte avslutar den.
+      dropRowSearchAfterBack();
       trail.current = { now: location, before: trail.current.now, idx, move: moveBetween(trail.current.idx, idx), intent: takeRunnerFocus() };
     }
     const { before, move, intent } = trail.current;
