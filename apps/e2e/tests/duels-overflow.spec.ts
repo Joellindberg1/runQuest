@@ -44,8 +44,8 @@ const ORDINARY_NAMES: Record<string, string> = {
   'member-1': 'Maria Johansson',
   'member-2': 'Olof Bergstrom',
   'stub-user-1': 'Stub Runner',
-  'member-4': 'Erik Svensson',
-  'member-5': 'Anna Lindqvist',
+  'member-4': 'Sebastian Andersson',
+  'member-5': 'Jonathan Söderström',
   // De bredaste vanliga orden i listan (Christopher 88 px, Gustafsson 83 px) sätter gränsen för namnkolumnen vid 320 px.
   'member-6': 'Christopher Gustafsson',
 };
@@ -260,8 +260,10 @@ async function measureTabs(page: Page): Promise<TabsMeasure> {
 
 const TAB_NAMES = { standings: 'Standings', live: 'Live', rules: 'Rules', history: 'History' } as const;
 
-// Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
-const NARROW_WIDTHS = [320, 340, 360, 368, 375];
+// Telefonbredderna där Standings namnkolumn är smal (320-480 px) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
+const NARROW_WIDTHS = [320, 340, 360, 368, 375, 390, 414, 430, 480];
+// Bredderna där namnkolumnens bredd mäts: aldrig smalare när skärmen blir bredare, från de smalaste telefonerna till mobilvyns slut (1023 px).
+const NAME_COLUMN_WIDTHS = [320, 340, 359, 360, 374, 375, 390, 414, 430, 480, 600, 768, 1023];
 // Bredderna där en längd ("7 d") i titeln på ett erbjudande och på en historikrad bröts inom sig själv.
 const DURATION_WIDTHS = [320, 375];
 const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
@@ -409,6 +411,29 @@ test.describe('the Duels screen with long names', () => {
       });
     }
   }
+
+  // En bredare telefon ska aldrig få en smalare namnkolumn: ett hopp i kolumnbredden mellan två bredder (146 px vid 374 px, 95 px vid 375 px) gör att ett tvåordsnamn bryts på den bredare skärmen.
+  test('the name column of Standings never gets narrower when the screen gets wider, and the digits and the rank keep their room', async ({ page }) => {
+    await openDuels(page, 'dark', { width: NAME_COLUMN_WIDTHS[0]!, height: 800 }, standingsFor(ORDINARY_NAMES, true));
+    await expect(page.locator('.rq-duels-standing.rq-row').first()).toBeVisible();
+    await waitForStylesApplied(page);
+
+    const columns: Array<{ width: number; rank: number; name: number; digits: number; percent: number }> = [];
+    for (const width of NAME_COLUMN_WIDTHS) {
+      await page.setViewportSize({ width, height: 800 });
+      await waitForStylesApplied(page);
+      const tracks = await page.locator('.rq-duels-standing.rq-row').first().evaluate((row) => getComputedStyle(row).gridTemplateColumns.split(' ').map(parseFloat));
+      columns.push({ width, rank: tracks[0]!, name: tracks[1]!, digits: Math.min(tracks[2]!, tracks[3]!, tracks[4]!), percent: tracks[5]! });
+    }
+
+    const shrinking = columns.flatMap((column, index) => {
+      const previous = columns[index - 1];
+      return previous && column.name < previous.name - TOLERANCE_PX ? [`${previous.width} px: ${previous.name} px -> ${column.width} px: ${column.name} px`] : [];
+    });
+    expect.soft(shrinking, 'the name column does not shrink when the screen gets wider').toEqual([]);
+    // Tre siffror (888, 777) och en tvåsiffrig rang ryms i de smalaste spåren (RUN-442), så inget spår blir smalare än där.
+    expect.soft(columns.filter((column) => column.rank < 18 || column.digits < 24 || column.percent < 36), 'the rank, the digits and the percent keep at least their narrowest width').toEqual([]);
+  });
 
   // Längden i insatsraden ("+0.5× / 14 d") är en enhet: raden bryts före snedstrecket, aldrig mellan "14" och "d".
   for (const width of STAKE_WIDTHS) {
