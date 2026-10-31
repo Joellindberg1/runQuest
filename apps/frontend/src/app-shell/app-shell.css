@@ -143,6 +143,8 @@
   padding: var(--rq-sp-8) var(--rq-sp-12); text-decoration: none; background: var(--rq-cell);
 }
 .rq-rightnow__row:hover { background: var(--rq-row-hover); }
+/* Textkolumnen är ett rutnätsspår (1fr) vars min-content är det längsta ordet: ett namn utan brytpunkt (motståndare, event) gjorde raden bredare än panelen. Samma mönster som podiet och rest-raderna i board.css. */
+.rq-rightnow__text { min-width: 0; overflow-wrap: anywhere; }
 .rq-rightnow__label {
   font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-btn-sm);
   text-transform: uppercase; line-height: 1.15; color: var(--rq-c-solid);

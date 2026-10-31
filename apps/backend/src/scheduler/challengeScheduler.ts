@@ -2,9 +2,10 @@
 import { logger } from '../utils/logger.js';
 import cron from 'node-cron';
 import { getSupabaseClient } from '../config/database.js';
+import { activatePendingChallenge } from '../services/challengeActivation.js';
 import { settleChallenge } from '../services/challengeService.js';
 import { retractChallengeReceived } from '../services/activityLog.js';
-import { LEGENDARY_AUTO_START_DAYS, MS_DAY, UNANSWERED_CHALLENGE_LAPSE_DAYS, challengeWindow, groupNextMidnight } from '@runquest/shared';
+import { LEGENDARY_AUTO_START_DAYS, MS_DAY, UNANSWERED_CHALLENGE_LAPSE_DAYS, groupNextMidnight } from '@runquest/shared';
 import { summarizeSettled } from './settledSummary.js';
 import { errorCode, errorWithCode } from '../utils/errorCode.js';
 
@@ -38,7 +39,7 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
   const { data: challenges, error } = await supabase
     .from('challenges')
-    .select('id, duration_days')
+    .select('id, duration_days, challenger_id, opponent_id')
     .eq('status', 'pending')
     .eq('tier', 'legendary')
     .lte('legendary_sent_at', cutoff);
@@ -55,16 +56,10 @@ async function autoStartLegendaryChallenges(): Promise<void> {
 
   const results = await Promise.allSettled(
     challenges.map(async (c: any) => {
-      const { endDate, determineAt: determineAtInstant } = challengeWindow(startDate, c.duration_days);
-      const determineAt = determineAtInstant.toISOString();
-      const { error: startError } = await supabase
-        .from('challenges')
-        .update({ status: 'active', start_date: startDate, end_date: endDate, determine_at: determineAt })
-        .eq('id', c.id)
-        // Villkorad på pending: en accept som hann före, eller en tidigare körning, skrivs aldrig över (idempotent).
-        .eq('status', 'pending');
-      if (startError) {
-        throw errorWithCode(`Failed to auto-start legendary challenge ${c.id}`, startError);
+      // Samma aktivering som en accept: status, datum och båda parternas challenge_active. not_pending (en accept hann före) är ingen avvikelse.
+      const activation = await activatePendingChallenge(supabase, c, startDate);
+      if (activation.outcome === 'failed') {
+        throw errorWithCode(`Failed to auto-start legendary challenge ${c.id}`, activation.error);
       }
     })
   );

@@ -215,19 +215,16 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
-1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
-   med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
-   graciöst). Vill ha: flagga även mottagarsidan.
-2. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
+1. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
    participantCount/memberCount) — desktop-prototypens namnrad ("Karl ✓ …")
    kräver nytt fält.
-3. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
-4. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
+2. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
+3. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
    för participation; `requiresWeather` är typad `string | null` men hanterades
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
-5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
-6. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
+4. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
+5. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
    klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
    bara till). Medvetet val i9c; läker vid window focus.
 
@@ -296,12 +293,18 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **Rest-radens sub-rad i desktoptabellen bryter minis till en egen rad när namnkolumnen inte rymmer "Lvl N · X km" och badgesen** (`flex-wrap` på `.rq-board-sub--table`, texten bryts aldrig). På 1024 px blir en rad med tre badges ca 129 px hög (mot 104 px utan badges förut); från 1280 px ryms allt på en rad och raderna är oförändrade (84 px). Följd: på 1024–1100 px växer en rad ca 25 px när badgefrågan landar efter raderna (layoutförskjutning vid kall cache), samma slags hopp som podiet har sedan RUN-373; mellan 1024 och 1279 px gäller tabellens egna kolumner, så på 1279 px bryts "Next level" till två rader och rubrikraden är ca 20 px högre än på 1280 px. Rest-radernas namnkolumn är ca 123 px på 1024 px (mot 300 px från 1280 px), så RUN-384:s brytregel (`overflow-wrap: anywhere`) bryter där efternamn från ca 12 tecken mitt i ordet (t.ex. "Featherstone", "Christoffersen") och raden blir ca 22 px högre; på 1100 px först ord på ca 17 tecken, från 1180 px inget. Förut scrollade sidan 126 px i sidled i stället (integrationskritiken 2026-10-26).
 - **Ett ord i ett podienamn som är bredare än kortet bryts mitt i ordet (bugg 2026-10-26).** Namn har ingen längdgräns. Podiets namnknapp har `overflow-wrap: break-word` och `min-width: 0` (`board.css`): ett ord som ryms i kortet ligger som förut, men ett längre ord får krympa namnet under sitt längsta ord och bryts i kortets bredd i stället för att ligga utanför kortet och ge sidled scroll. Ellips valdes bort (ett namn är en identitet, och det klippta syns inte någonstans) och `anywhere` valdes bort (RUN-384:s skäl: det bryter vanliga namn mitt i ordet i den smala namnkolumnen). Följd: ett ord som förut sprängde namnkolumnen men låg inom kortet bryts nu också mitt i ordet, och kortet blir en rad högre (ca 22 px) i det fallet. Kritikern mätte 13 av 320 kombinationer (40 namn × 8 bredder): på 1024 px efternamn på 13–14 tecken som "Alexandersson", "Papadopoulos" och "Kristoffersson" (namnkolumnen är ca 125 px), på 1100–1180 px längre ord som "Featherstonehaugh"; namn med ord på högst 12 tecken påverkas inte på någon bredd. Provet "the podium with ordinary names" körs på 320, 375 och 1280 px och täcker inte 1024–1180 px. Fel om ägaren hellre vill ha ellips med fullt namn i en tooltip.
 
+## Duels: smal desktop och långa namn (bugg 2026-10-30)
+- **Designen anger bara 1440 px; 1024-1279 px har egna mått för Standings, historikraden och erbjudandekorten.** Vyn är bara ca 375 px bred bredvid sidokolumnen (320 px) på 1024 px, och Standings fasta kolumner (44 + 60 + 60 + 60 + 78 px plus luft) lämnade 0 px åt namnet. I intervallet har Standings smalare sifferkolumner (`28px 1fr 32px 32px 32px 52px`), historikraden lägger metan under paret som på mobil (`--rq-duels-match-meta-span: 1 / 3`) och erbjudandekorten (Waiting on you, Sent) staplas som på mobil. Från 1280 px gäller måtten oförändrade, utom att knappkolumnen i erbjudandekortet har ett tak (`fit-content(240px)`): ett långt förnamn gör anteckningen "Waiting for ... to respond" bredare än kortet rymmer. Typiska anteckningar är högst ca 225 px, så korten ser likadana ut på 1280 och 1440 px (jämfört rutor för ruta, med vanliga namn). Fel om designen vill ha en annan lösning (t.ex. sidokolumnen under vyn på smal desktop).
+- **Långa namn bryts var som helst i Standings, historiken och erbjudandekorten** (`overflow-wrap: anywhere`, som Boards rader); namnen i Live-korten kortas som förut med ellips. Ett namn på 45 tecken utan brytpunkt bryts alltså mitt i ordet i stället för att löpa in i nästa cell. Under 360 px smalnar Standings rang- och sifferkolumner av (`18px 1fr 24px 24px 24px 36px`, mot `24px 1fr 34px 34px 34px 52px`), så namnkolumnen är ca 92 px vid 320 px (förut 40 px) och ett vanligt namn bara bryts vid mellanslag; kolumnerna ryms för tre siffror i W, D och L och från 360 px gäller de gamla måtten oförändrade. Ett ord som är bredare än namnkolumnen (92 px vid 320 px, 112 px vid 340 px) bryts fortfarande mitt i ordet: "Alexandersson" (110 px) på 320 px, medan det ryms på 340 px; "Christopher" (88 px) ryms på båda. Från 360 px gäller de gamla kolumnerna (namnkolumnen ca 80 px vid 360 px), så "Christopher" och "Gustafsson" bryts där mitt i ordet upp till ca 370 px; det rättas i RUN-446. I Live-korten bryts längden ("· 7 d") och tiden ("5 d left") aldrig inom sig: ryms inte id och tid på en rad (kortet är ca 180-220 px brett på 1024-1100 px) lägger sig tiden på en egen rad under, till höger. Längden i insatsraden ("+0.5× / 14 d") hålls ihop med ett hårt mellanslag efter snedstrecket och före enheten, så raden bryts före "/" och aldrig mellan "14" och "d".
+- **Flikraden ligger på en rad och scrollar i sidled när den inte ryms** (som profilens statflikar), med den valda fliken i bild (`ViewTabs`). På mobil är flikarna minst 44 px höga (`--rq-duels-tab-hit`; var 31 px). Rubrikraden bryts på smal desktop så att flikarna och Send får en egen rad under titeln; från 1280 px ryms allt på en rad som förut.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).
+- **`group-stats.has_pending_challenge` gällde bara utmanaren** — löst i buggen 2026-10-30: fältet gäller båda sidor av en väntande utmaning, med samma regel som `POST /challenges/send` avvisar på (`services/challengeBusy.ts`); aktiva dueller visas av `challenge_active`, som både en accept och schemaläggarens legendary-autostart sätter för båda parter (`services/challengeActivation.ts`).
 - **Backend-kontraktsfrågor löstes i i9-dataspåret 2026-10-05:** `source` i users-with-runs (Strava-rundor kan inte raderas; null = manuell), PUT kvalificerar event med dagsfönster (DELETE medvetet utan anrop, svarar 409 för kvalificerande rundor), Stockholm-datumvalidering.
 - **Utgången eller ogiltig JWT gav 403** — nu 401 (`middleware/auth.ts`), så klienten loggar ut.
 - **Init-loggen skrev service-nyckelns prefix** — loggar nu bara "set"/"missing" (`config/database.ts`).

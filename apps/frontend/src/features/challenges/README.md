@@ -51,8 +51,8 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **Delad cache:** `['challenges','my']` är samma query som skalets "Right now" (samma form); handlingar invaliderar `['challenges']`,
   users-with-runs (tokens/W-D-L på Board) och Runner cards head-to-head. Send-sheetens head-to-head-tips delar Runner cards query FULLT ut (nyckel, sidstorlek och dataform = hela
   `HeadToHeadResponse`; `record` härleds i `combine`) — en annan form under samma nyckel kraschar Runner card (integrationstestet låser skarven).
-- **Känd begränsning:** en motståndare med en INKOMMANDE väntande utmaning ser ledig ut i sheeten (`group-stats.has_pending_challenge` sätts bara för
-  utmanaren). Backend avvisar `/send` med 400 och sheeten visar meddelandet inline. Åtgärd = backend-kontraktsfråga (nytt fält i group-stats); ingen ändring nu.
+- **Upptagen i sheeten:** `group-stats.has_pending_challenge` gäller båda sidor av en väntande utmaning (utmanare och mottagare) och `challenge_active` båda sidor av en
+  aktiv duell (sätts av accept och av schemaläggarens legendary-autostart), samma regel som backend avvisar `/send` på. Sheeten stänger av båda med orsaken; 400 från `/send` visas ändå inline om raden hunnit bli inaktuell.
 - **Framdrift** hämtas per live-duell (`/challenges/:id/progress`, ingen batch-endpoint finns); ett fel lämnar bara det kortet utan värden ("—").
   Progress-anropet avgör dessutom en duell som passerat `determine_at` (backend), så kortet kan försvinna vid nästa hämtning.
 - **Match history** är offset-sidor (20 per sida, "Show more"); filtret "My matches" gäller de sidor som hunnit laddas. Hämtas först när fliken visas.
