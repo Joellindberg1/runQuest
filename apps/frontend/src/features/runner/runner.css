@@ -220,9 +220,6 @@
 @container (min-width: 560px) {
   .rq-runner-badges__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-/* Ljust tema: nivåfärgerna är desamma som i mörkt och ger som chiptext 1,6-2,9:1 mot kortet (Legendary lägst), långt under 4,5:1. Chippet behåller nivåns kant och tint; texten blandas ur nivåfärgen och
-   --rq-text-1 (45 % nivå), så att nivån fortfarande syns i färgen men texten är läsbar. /badges-sidans chip är orörda. Mörkt tema är oförändrat (4,7:1 och uppåt). */
-[data-theme="light"] .rq-runner-badges__grid .rq-badge-chip[data-tier] { color: color-mix(in srgb, var(--rq-c-solid) 45%, var(--rq-text-1)); }
 
 /* BADGES-panelen (RUN-130) bor sedan RUN-128 i features/badges/badges.css, med komponenten. */
 

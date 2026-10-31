@@ -12,8 +12,8 @@ import { THEMES, contrast, flatten, mediaTokenNames, over, parseColor, refusingM
 //
 // Gränser i metoden: kaskaden följs bara så långt reglerna pekas ut här (en regel per lager, ljust tema via [data-theme="light"]-regeln om en sådan finns), och en
 // alfa-yta blandas över skalet. En överstyrning med en ANNAN väljare än den som pekas ut här (t.ex. `.rq-runner-h2h-banner .rq-runner-cell__label { color }`) fångas inte: vakten
-// mäter regeln den läser, inte kaskaden. Tokens som även deklareras i @media vägras i det tema där de sätts (värdet beror på bredden). Popupens nivåchip mäts som det ritas i dag, på kortet i popupen (section.rq-card över .rq-modal); /badges-sidans
-// chip i ljust tema ägs av en annan story och mäts inte här. Samlingskortets neutrala yta bevisas av features/badges/badgeCardSurface.test.ts (inte duplicerat här).
+// mäter regeln den läser, inte kaskaden. Tokens som även deklareras i @media vägras i det tema där de sätts (värdet beror på bredden). Popupens nivåchip mäts som det ritas, på kortet i popupen (section.rq-card över .rq-modal); i ljust tema är dess textfärg den
+// delade regeln i badges.css (samma som /badges-sidans chip, vars egen yta och alla sex nivåer prövas i features/badges/guards.test.ts). Samlingskortets neutrala yta bevisas av features/badges/badgeCardSurface.test.ts (inte duplicerat här).
 
 const TEXT_MIN = 4.5;
 const RING_MIN = 3;
@@ -310,13 +310,13 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
     ],
   },
   {
-    title: 'nivåchippet på badgekortet i profilpopupen (som det ritas i v0.8.3): text mot chippets tonade bakgrund',
+    title: 'nivåchippet på badgekortet i profilpopupen (ljust tema: den delade regeln i badges.css): text mot chippets tonade bakgrund',
     pairs: TIER_NAMES.map((tierName): TextPair => {
       const key = tierName.toLowerCase();
       return {
         name: `${tierName}-chippet på badgekortet`, surfaces: ['popupCard'],
         fg: (theme): Locator => (theme === 'light'
-          ? [RUNNER, '[data-theme="light"] .rq-runner-badges__grid .rq-badge-chip[data-tier]', 'color']
+          ? [BADGES, '[data-theme="light"] .rq-badge-chip[data-tier]', 'color']
           : [INDEX, '.rq-chip--status', 'color']),
         layers: [[BADGES, '.rq-badge-card', 'background'], [BADGES, '.rq-chip.rq-badge-chip[data-tier]', 'background']],
         scope: [[BADGES, '.rq-badge-chip[data-tier]'], [BADGES, `:is(.rq-badge, .rq-badge-pips, .rq-badge-chip, .rq-badge-popup__tierline)[data-tier="${key}"]`]],
