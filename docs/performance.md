@@ -476,3 +476,8 @@ ADR 006, punkt 10: taken för landningen sattes ur CI-körningarna efter RUN-343
 ### Verktygstestet gjordes robust
 
 `scripts/lighthouse-ci.test.mjs` ("run.sh when a served page cannot be fetched") föll en gång under last och på "något svarar redan på port 3001" när en annan process höll API-porten. Orsaken var fasta portar (API 3001, Caddy 18090) och korta gränser i `run.sh` (portkoll 1 s, 50 försök mot `/health`). Testet tar nu lediga portar (`API_PORT`, nya `LHCI_SERVE_PORT`), fler försök (`CADDY_WAIT_TRIES`), en rymlig portkoll i det upptagna-porten-testet (`PORT_PROBE_SECONDS`) och en timeout på `spawnSync`; standardvärdena i `run.sh` är oförändrade och CI sätter inga av dem. Provat: porten 3001 upptagen (före: 2 av 2 röda; efter: gröna), 20 körningar i följd (20/20 gröna, 5,3–5,5 s) och 8 körningar under egen CPU-last (32 räkneprocesser på 16 kärnor, 51–83 s per körning, 8/8 gröna).
+
+## Fokus tillbaka till öppnaren (RUN-452, v0.8.3)
+
+- Fullappens ingångs-JS (`index-*.js`) växer med cirka +228 B gzip (+143 B brotli; rått 351 451 till 352 195 B) för öppnarminnet (`shared/utils/runnerOpener.ts`) och klicklyssnaren som skalet startar; `/legal` får +188 B. Landningen `/` påverkas inte: `landing.html` och filerna den länkar är identiska före och efter. Mätt på lokala byggen före och efter ändringen; Lighthouse kördes inte lokalt.
+
