@@ -86,6 +86,7 @@ function BackButton() {
     <>
       <button type="button" onClick={() => void navigate(-1)}>Browser back</button>
       <button type="button" onClick={() => void navigate('/duels?view=standings')}>Go to standings</button>
+      <button type="button" onClick={() => void navigate('/titles')}>Go to titles</button>
     </>
   );
 }
@@ -403,12 +404,37 @@ const CARD_SEND = { name: 'Send a minor challenge: Most km, 7 days' };
 /** Vad "mina utmaningar" visar när servern har skapat utmaningen: tokenet är borta och utmaningen väntar på svar. */
 const afterServerCreated = () => mine({ tokens: [], sent_challenge: challenge({ id: 'c-new', challenger_id: ME.id, opponent_id: KARL }) });
 
-/** Duels, kortets Send, motståndaren Karl och Send; skicket hålls. Back lämnar fokus på kortets Send. */
-async function sendFromTokenCardThenBack() {
+/**
+ * Räknar de levande `focusin`-lyssnarna på dokumentet (de som lagts till och inte tagits bort). Bevakningen av fokus (`useFocusRescue`) lägger en lyssnare per skick, och den ska vara borta
+ * när skicket är avgjort, arket tog hand om fokus själv eller skärmen försvann. Måste installeras före renderingen.
+ */
+function trackFocusinListeners(): () => number {
+  const live: Array<{ listener: unknown; capture: boolean }> = [];
+  const isCapture = (options: unknown) => options === true || (typeof options === 'object' && options !== null && (options as { capture?: boolean }).capture === true);
+  const add = document.addEventListener.bind(document);
+  const remove = document.removeEventListener.bind(document);
+  vi.spyOn(document, 'addEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+    if (type === 'focusin') live.push({ listener, capture: isCapture(options) });
+    add(type, listener, options);
+  });
+  vi.spyOn(document, 'removeEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+    if (type === 'focusin') {
+      const index = live.findIndex((entry) => entry.listener === listener && entry.capture === isCapture(options));
+      if (index >= 0) live.splice(index, 1);
+    }
+    remove(type, listener, options);
+  });
+  return () => live.length;
+}
+
+/** Duels (vyn `entry`), kortets Send, motståndaren Karl och Send; skicket hålls. Back lämnar fokus på kortets Send. `baseline` är antalet `focusin`-lyssnare innan skicket gick iväg. */
+async function sendFromTokenCardThenBack(entry = DUELS_LIVE) {
+  const focusinCount = trackFocusinListeners();
   const held = heldSend();
-  renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [DUELS_LIVE], width: DESKTOP, history: true });
+  renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [entry], width: DESKTOP, history: true });
   const user = userEvent.setup();
   const cardSend = await screen.findByRole('button', CARD_SEND);
+  const baseline = focusinCount();
   await user.click(cardSend);
   await screen.findByRole('dialog', { name: 'Send a challenge' });
   await user.click(await within(sheet()).findByRole('radio', { name: /Karl Persson/ }));
@@ -420,7 +446,7 @@ async function sendFromTokenCardThenBack() {
 
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   await waitFor(() => expect(cardSend).toHaveFocus());
-  return { held, cardSend };
+  return { held, cardSend, focusinCount, baseline };
 }
 
 describe('Back during a send from a token card, then the answer', () => {
@@ -477,5 +503,92 @@ describe('Back during a send from a token card, then the answer', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
     expect(elsewhere).toHaveFocus();
     expect(confirmation).not.toHaveFocus();
+  });
+
+  it('a late answer while the runner popup is open and the element that had the focus is still there does not move the focus', async () => {
+    const { held } = await sendFromTokenCardThenBack('/duels?view=standings');
+    fireEvent.click(karlRow());
+    const popup = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
+    await waitFor(() => expect(popup).toContainElement(document.activeElement as HTMLElement));
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    const confirmation = await screen.findByText(SENT);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    expect(popup).toContainElement(document.activeElement as HTMLElement);
+    expect(confirmation).not.toHaveFocus();
+  });
+});
+
+// Bevakningen av fokus lägger en `focusin`-lyssnare per skick. Den ska vara borta när skicket är avgjort, när arket tar hand om fokus själv och när skärmen försvinner: annars sitter den kvar
+// och flyttar fokus vid en senare omritning.
+describe('the focus watch leaves no listener behind', () => {
+  it('while the send is pending after Back there is one more, and it is gone when a 400 has landed and the card is still there', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    expect(focusinCount()).toBe(baseline + 1);
+
+    await held.answer({ success: false, error: REFUSED });
+    await screen.findByText(REFUSED);
+
+    await waitFor(() => expect(focusinCount()).toBe(baseline));
+  });
+
+  it('a time limit whose refetch changes nothing (the challenge was never created) leaves none behind', async () => {
+    const { held, cardSend, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    // Omhämtningen pågår när tidsgränsen landar (som mot ett riktigt nät) och svarar sedan med samma data: ingen ritning följer på den, så inget annat än bevakningen själv kan städa.
+    let releaseTokens: () => void = () => {};
+    const tokensHeld = new Promise<void>((resolve) => { releaseTokens = resolve; });
+    handlers.getMyChallenges = async () => { await tokensHeld; return { success: true, data: mine() }; };
+
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    await screen.findByText(UNCONFIRMED);
+    expect(focusinCount()).toBe(baseline + 1);
+    releaseTokens();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(focusinCount()).toBe(baseline);
+    expect(cardSend).toHaveFocus();
+  });
+
+  it('a time limit whose refetch removes the card leaves none behind either', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    const notice = await screen.findByText(UNCONFIRMED);
+    await waitFor(() => expect(notice).toHaveFocus());
+
+    expect(focusinCount()).toBe(baseline);
+  });
+
+  it('an answer that comes while the sheet is still open leaves none behind: the sheet takes care of the focus', async () => {
+    const focusinCount = trackFocusinListeners();
+    const held = heldSend();
+    renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [DUELS_LIVE], width: DESKTOP, history: true });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', CARD_SEND));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    await user.click(await within(sheet()).findByRole('radio', { name: /Karl Persson/ }));
+    const baseline = focusinCount();
+    await user.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
+    await waitFor(() => expect(held.calls).toHaveLength(1));
+    expect(focusinCount()).toBe(baseline + 1);
+
+    await held.answer({ success: false, error: REFUSED });
+    expect(await within(sheet()).findByText(REFUSED)).toBeInTheDocument();
+
+    expect(focusinCount()).toBe(baseline);
+  });
+
+  it('leaving the screen while the send is pending removes it, and the answer afterwards adds none', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    fireEvent.click(screen.getByText('Go to titles'));
+    await waitFor(() => expect(location()).toBe('/titles'));
+
+    await waitFor(() => expect(focusinCount()).toBe(baseline));
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    expect(focusinCount()).toBe(baseline);
   });
 });
