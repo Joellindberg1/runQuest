@@ -752,7 +752,7 @@ describe('the profile popup (background location)', () => {
     ];
     handlers.getChallengeGroupHistory = () => ({ success: true, data: { items: rows }, meta: { total: 3, limit: 20, offset: 0, has_more: false } });
     const user = userEvent.setup();
-    renderWithApp(<AppRoutes />, { entry: '/duels?view=history', width: DESKTOP });
+    renderWithApp(<AppRoutes />, { entry: '/duels?view=history', width: DESKTOP, history: true });
     const list = await screen.findByRole('list', { name: 'Matches' });
     const [first, , third] = within(list).getAllByRole('listitem');
     const firstKarl = within(first!).getByRole('button', { name: NAMES[KARL_ID] });
