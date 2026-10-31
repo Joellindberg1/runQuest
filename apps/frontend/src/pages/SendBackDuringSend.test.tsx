@@ -436,13 +436,19 @@ describe('Back during a send from a token card, then the answer', () => {
     expect(screen.getAllByText(SENT)).toHaveLength(1);
   });
 
-  it('the time limit that refetches the tokens and removes the card: the focus goes to the honest text, not to the body', async () => {
+  it('the time limit lands first and the refetch that removes the card comes after it: the focus goes to the honest text, not to the body', async () => {
     const { held, cardSend } = await sendFromTokenCardThenBack();
-    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+    let releaseTokens: () => void = () => {};
+    const tokensHeld = new Promise<void>((resolve) => { releaseTokens = resolve; });
+    handlers.getMyChallenges = async () => { await tokensHeld; return { success: true, data: afterServerCreated() }; };
 
     await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
-
     const notice = await screen.findByText(UNCONFIRMED);
+    expect(cardSend).toBeInTheDocument();
+    expect(cardSend).toHaveFocus();
+
+    releaseTokens();
+
     await waitFor(() => expect(cardSend).not.toBeInTheDocument());
     await waitFor(() => expect(notice).toHaveFocus());
   });
