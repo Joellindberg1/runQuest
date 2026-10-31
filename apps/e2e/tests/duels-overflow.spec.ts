@@ -44,8 +44,8 @@ const ORDINARY_NAMES: Record<string, string> = {
   'member-1': 'Maria Johansson',
   'member-2': 'Olof Bergstrom',
   'stub-user-1': 'Stub Runner',
-  'member-4': 'Erik Svensson',
-  'member-5': 'Anna Lindqvist',
+  'member-4': 'Sebastian Andersson',
+  'member-5': 'Jonathan Söderström',
   // De bredaste vanliga orden i listan (Christopher 88 px, Gustafsson 83 px) sätter gränsen för namnkolumnen vid 320 px.
   'member-6': 'Christopher Gustafsson',
 };
@@ -103,15 +103,56 @@ const history: ChallengeHistoryItem[] = PAIRS.map(([challengerId, opponentId], i
   loser_boost: { type: 'multiplier_days', delta: -0.25, duration: 14 },
 }));
 
+interface DuelsStubData {
+  my: MyChallengesData;
+  history: ChallengeHistoryItem[];
+}
+const defaultStubData: DuelsStubData = { my: myChallenges, history };
+
+// Förnamn, mått och längd varieras så att radbrytningen hamnar på olika ställen i "Maria · Most km · 7 d": någon rad bryts mitt i längden om den får.
+const OFFER_FIRST_NAMES = ['Al', 'Eva', 'Olof', 'Maria', 'Johan', 'Karolin', 'Alexander', 'Christopher', 'Maximilian', 'Bartholomew', 'Konstantinos', 'Christopherson', 'Maximilianson'];
+const OFFER_METRICS: ChallengeRow['metric'][] = ['km', 'runs', 'total_xp'];
+const OFFER_TIERS: ChallengeRow['tier'][] = ['minor', 'major', 'legendary'];
+const OFFER_DAYS = [1, 3, 5, 7, 10, 11, 14, 30];
+const offers: ChallengeRow[] = OFFER_FIRST_NAMES.flatMap((first, nameIndex) =>
+  OFFER_METRICS.map((metric, metricIndex): ChallengeRow => ({
+    ...challenge(`offer-${nameIndex}-${metricIndex}`, 'member-2', 'stub-user-1', 'pending'),
+    challenger_id: `offer-user-${nameIndex}`,
+    challenger_name: `${first} Lindqvist`,
+    metric,
+    duration_days: OFFER_DAYS[(nameIndex + metricIndex) % OFFER_DAYS.length]!,
+    tier: OFFER_TIERS[(nameIndex + metricIndex) % OFFER_TIERS.length]!,
+  })),
+);
+const durationData: DuelsStubData = {
+  my: {
+    ...myChallenges,
+    sent_challenge: { ...challenge('offer-out', 'stub-user-1', 'member-1', 'pending'), metric: 'total_xp', duration_days: 11, tier: 'legendary' },
+    received_challenges: offers,
+    group_active: [],
+  },
+  history: PAIRS.flatMap(([challengerId, opponentId], pairIndex) =>
+    OFFER_DAYS.map((days, dayIndex): ChallengeHistoryItem => ({
+      ...history[pairIndex]!,
+      id: `duration-${pairIndex}-${dayIndex}`,
+      tier: OFFER_TIERS[(pairIndex + dayIndex) % OFFER_TIERS.length]!,
+      metric: OFFER_METRICS[(pairIndex + dayIndex) % OFFER_METRICS.length]!,
+      duration_days: days,
+      challenger: { ...history[pairIndex]!.challenger, id: challengerId },
+      opponent: { ...history[pairIndex]!.opponent, id: opponentId },
+    })),
+  ),
+};
+
 // Svaren sätts i webbläsaren och ersätter det fejkade API:ets svar för just de här anropen, så skärmen har innehåll att mäta.
-async function stubDuelsApi(page: Page, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
+async function stubDuelsApi(page: Page, groupStats: ChallengeGroupStat[] = standings, data: DuelsStubData = defaultStubData): Promise<void> {
   await page.route('**/api/challenges/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, '');
     const reply = (data: unknown, extra: object = {}) =>
       route.fulfill({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data, ...extra }) });
-    if (path === '/challenges/my') return reply(myChallenges);
+    if (path === '/challenges/my') return reply(data.my);
     if (path === '/challenges/group-stats') return reply(groupStats);
-    if (path === '/challenges/group-history') return reply({ items: history }, { meta: { total: history.length, limit: 20, offset: 0, has_more: false } });
+    if (path === '/challenges/group-history') return reply({ items: data.history }, { meta: { total: data.history.length, limit: 20, offset: 0, has_more: false } });
     const progress = path.match(/^\/challenges\/(.+)\/progress$/);
     if (progress) return reply({ challenge_id: progress[1], metric: 'km', start_date: '2026-10-20', end_date: '2026-11-03', progress: [{ user_id: 'member-2', value: 41.5 }, { user_id: 'stub-user-1', value: 38.25 }] });
     return route.fulfill({ status: 404, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'not stubbed' }) });
@@ -186,8 +227,8 @@ const VIEW_ROWS: Record<(typeof VIEWS)[number], { row: string; name: string }> =
   history: { row: '.rq-duels-match', name: '.rq-duels-match__name' },
 };
 
-async function openDuels(page: Page, theme: string, size: { width: number; height: number }, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
-  await stubDuelsApi(page, groupStats);
+async function openDuels(page: Page, theme: string, size: { width: number; height: number }, groupStats: ChallengeGroupStat[] = standings, data: DuelsStubData = defaultStubData): Promise<void> {
+  await stubDuelsApi(page, groupStats, data);
   await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize(size);
   await page.goto('/duels?view=standings');
@@ -217,12 +258,18 @@ async function measureTabs(page: Page): Promise<TabsMeasure> {
   }, TOLERANCE_PX);
 }
 
-const TAB_NAMES: Record<(typeof VIEWS)[number], string> = { standings: 'Standings', live: 'Live', history: 'History' };
+const TAB_NAMES = { standings: 'Standings', live: 'Live', rules: 'Rules', history: 'History' } as const;
 
-// Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
-const NARROW_WIDTHS = [320, 340];
+// Telefonbredderna där Standings namnkolumn är smal (320-480 px) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
+const NARROW_WIDTHS = [320, 340, 360, 368, 375, 390, 414, 430, 480];
+// Bredderna där namnkolumnens bredd mäts: aldrig smalare när skärmen blir bredare, från de smalaste telefonerna till mobilvyns slut (1023 px).
+const NAME_COLUMN_WIDTHS = [320, 340, 359, 360, 374, 375, 390, 414, 430, 480, 600, 768, 1023];
+// Bredderna där en längd ("7 d") i titeln på ett erbjudande och på en historikrad bröts inom sig själv.
+const DURATION_WIDTHS = [320, 375];
 const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
 const STAKE_WIDTHS = [1024, 1050];
+// Rules: nivåkorten ligger tre i bredd bredvid sidokolumnen på smal desktop (1024-1219 px), där "Legendary" annars gick ut ur sitt kort.
+const RULES_WIDTHS = [320, 375, 1024, 1050, 1100, 1140, 1180, 1220, 1280, 1440];
 
 /** Ord i ett namn som ligger på mer än en rad: en radbrytning som inte är ett mellanslag. */
 async function measureBrokenWords(page: Page, nameSelector: string): Promise<string[]> {
@@ -242,6 +289,72 @@ async function measureBrokenWords(page: Page, nameSelector: string): Promise<str
     }
     return broken;
   }, nameSelector);
+}
+
+/** Längder ("7 d", "14 d") som ligger på mer än en rad: en radbrytning mellan talet och enheten. Hårda mellanslag räknas som mellanslag. */
+async function measureSplitDurations(page: Page, selector: string): Promise<{ checked: number; split: string[] }> {
+  return page.evaluate((query) => {
+    const split: string[] = [];
+    let checked = 0;
+    for (const element of Array.from(document.querySelectorAll<HTMLElement>(query))) {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const match of (node.textContent ?? '').matchAll(/\d+[ \u00a0]d(?![a-z])/g)) {
+          checked += 1;
+          const range = document.createRange();
+          range.setStart(node, match.index!);
+          range.setEnd(node, match.index! + match[0].length);
+          const lines = new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top)));
+          if (lines.size > 1) split.push(`"${match[0]}" in "${(element.textContent ?? '').trim()}" is split over ${lines.size} lines`);
+        }
+      }
+    }
+    return { checked, split };
+  }, selector);
+}
+
+interface RulesMeasure {
+  /** Nivåtitlar vars text går utanför kortets innerruta (kortets mått utan padding och kant). */
+  titlesOutside: string[];
+  /** Två texter i Duels-ytan (korten och sidokolumnen) vars synliga rektanglar skär varandra. */
+  overlaps: string[];
+  /** Antal nivåkort. */
+  cards: number;
+}
+
+// Rules-fliken mäts på hela Duels-ytan, inte per rad: titeln på ett nivåkort kan ritas över sidokolumnens "Your tokens", så paren tas över alla texter i `.rq-duels`.
+async function measureRules(page: Page): Promise<RulesMeasure> {
+  return page.evaluate((tolerance) => {
+    const textRect = (el: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect();
+    };
+    const intersects = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) > tolerance && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > Math.min(a.height, b.height) / 3;
+    const label = (el: Element) => `${el.getAttribute('class') ?? el.tagName}:"${(el.textContent ?? '').trim().slice(0, 20)}"`;
+
+    const titlesOutside: string[] = [];
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.rq-duels-rule'));
+    for (const card of cards) {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      const left = box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
+      const right = box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+      const titleElement = card.querySelector('.rq-duels-rule__title')!;
+      const title = textRect(titleElement);
+      if (title.left < left - tolerance || title.right > right + tolerance) titlesOutside.push(`"${titleElement.textContent}" runs ${Math.round(Math.max(left - title.left, title.right - right))}px outside its card`);
+    }
+
+    const leaves = Array.from(document.querySelectorAll<HTMLElement>('.rq-duels *')).filter((el) => el.children.length === 0 && (el.textContent ?? '').trim() !== '');
+    const overlaps: string[] = [];
+    for (let first = 0; first < leaves.length; first += 1) {
+      for (let second = first + 1; second < leaves.length; second += 1) {
+        if (intersects(textRect(leaves[first]!), textRect(leaves[second]!))) overlaps.push(`${label(leaves[first]!)} x ${label(leaves[second]!)}`);
+      }
+    }
+    return { titlesOutside, overlaps, cards: cards.length };
+  }, TOLERANCE_PX);
 }
 
 test.describe('the Duels screen with long names', () => {
@@ -299,6 +412,29 @@ test.describe('the Duels screen with long names', () => {
     }
   }
 
+  // En bredare telefon ska aldrig få en smalare namnkolumn: ett hopp i kolumnbredden mellan två bredder (146 px vid 374 px, 95 px vid 375 px) gör att ett tvåordsnamn bryts på den bredare skärmen.
+  test('the name column of Standings never gets narrower when the screen gets wider, and the digits and the rank keep their room', async ({ page }) => {
+    await openDuels(page, 'dark', { width: NAME_COLUMN_WIDTHS[0]!, height: 800 }, standingsFor(ORDINARY_NAMES, true));
+    await expect(page.locator('.rq-duels-standing.rq-row').first()).toBeVisible();
+    await waitForStylesApplied(page);
+
+    const columns: Array<{ width: number; rank: number; name: number; digits: number; percent: number }> = [];
+    for (const width of NAME_COLUMN_WIDTHS) {
+      await page.setViewportSize({ width, height: 800 });
+      await waitForStylesApplied(page);
+      const tracks = await page.locator('.rq-duels-standing.rq-row').first().evaluate((row) => getComputedStyle(row).gridTemplateColumns.split(' ').map(parseFloat));
+      columns.push({ width, rank: tracks[0]!, name: tracks[1]!, digits: Math.min(tracks[2]!, tracks[3]!, tracks[4]!), percent: tracks[5]! });
+    }
+
+    const shrinking = columns.flatMap((column, index) => {
+      const previous = columns[index - 1];
+      return previous && column.name < previous.name - TOLERANCE_PX ? [`${previous.width} px: ${previous.name} px -> ${column.width} px: ${column.name} px`] : [];
+    });
+    expect.soft(shrinking, 'the name column does not shrink when the screen gets wider').toEqual([]);
+    // Tre siffror (888, 777) och en tvåsiffrig rang ryms i de smalaste spåren (RUN-442), så inget spår blir smalare än där.
+    expect.soft(columns.filter((column) => column.rank < 18 || column.digits < 24 || column.percent < 36), 'the rank, the digits and the percent keep at least their narrowest width').toEqual([]);
+  });
+
   // Längden i insatsraden ("+0.5× / 14 d") är en enhet: raden bryts före snedstrecket, aldrig mellan "14" och "d".
   for (const width of STAKE_WIDTHS) {
     test(`the duration in a stake line of a live card is not split over two lines at ${width} px`, async ({ page }) => {
@@ -345,6 +481,57 @@ test.describe('the Duels screen with long names', () => {
 
       expect(lineCounts.length, 'the live cards show a duration and a time').toBeGreaterThanOrEqual(6);
       expect.soft(lineCounts.filter((time) => time.lines !== 1), 'every duration and time is on one line').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
+  }
+
+  // Rules: nivåkorten ligger bredvid sidokolumnen och "Legendary" gick utanför sitt kort och ritades över "Your tokens" på 1024-1140 px.
+  for (const theme of THEMES) {
+    for (const width of RULES_WIDTHS) {
+      test(`rules: the tier titles stay inside their cards and nothing overlaps at ${width} px in the ${theme} theme`, async ({ page }) => {
+        await openDuels(page, theme, { width, height: 900 });
+        await page.getByRole('tab', { name: TAB_NAMES.rules }).click();
+        await expect(page.locator('.rq-duels-rule').first()).toBeVisible();
+        await waitForStylesApplied(page);
+
+        const measured = await measureRules(page);
+        const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+        expect(measured.cards, 'there is one card per tier').toBe(3);
+        expect.soft(measured.titlesOutside, 'every tier title stays inside its card').toEqual([]);
+        expect.soft(measured.overlaps, 'no two texts on the Rules screen overlap').toEqual([]);
+        expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+      });
+    }
+  }
+
+  // Längden ("7 d") i titeln på ett erbjudande (Waiting on you, Sent) och på en historikrad är en enhet: raden bryts före eller efter den, aldrig mellan talet och "d".
+  for (const width of DURATION_WIDTHS) {
+    test(`the duration in an offer title is not split over two lines at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES), durationData);
+      await page.getByRole('tab', { name: TAB_NAMES.live }).click();
+      await expect(page.locator('.rq-duels-offer').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const measured = await measureSplitDurations(page, '.rq-duels-offer__title');
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(measured.checked, 'every offer title shows a duration').toBe(offers.length + 1);
+      expect.soft(measured.split, 'no duration is split between the number and the unit').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
+
+    test(`the duration in a history row is not split over two lines at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES), durationData);
+      await page.getByRole('tab', { name: TAB_NAMES.history }).click();
+      await expect(page.locator('.rq-duels-match').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const measured = await measureSplitDurations(page, '.rq-duels-match__what, .rq-duels-match__detail');
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(measured.checked, 'the history rows show a duration').toBeGreaterThanOrEqual(PAIRS.length * OFFER_DAYS.length);
+      expect.soft(measured.split, 'no duration is split between the number and the unit').toEqual([]);
       expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
     });
   }

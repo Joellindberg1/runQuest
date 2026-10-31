@@ -8,7 +8,7 @@ import type { TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 interface TitlesPanelProps {
   user: User;
   titles: { data: UserTitleEntry[] | undefined; isError: boolean; isFetching: boolean; refetch: () => unknown };
-  board: { data: TitleLeaderboardEntry[] | undefined; isLoading: boolean };
+  board: { data: TitleLeaderboardEntry[] | undefined; isError: boolean; isFetching: boolean; refetch: () => unknown };
   isDesktop: boolean;
 }
 
@@ -18,15 +18,24 @@ interface TitlesPanelProps {
  */
 export function TitlesPanel({ user, titles, board, isDesktop }: TitlesPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  // Enheten och "held by" kommer ur topplistan: utan den ritas inga värden alls, så ett fel eller en laddning ser aldrig ut som data.
   const view = useMemo(
-    () => (titles.data ? buildMyTitles(titles.data, board.data ?? [], user.gender, !isDesktop, expanded) : null),
+    () => (titles.data && board.data ? buildMyTitles(titles.data, board.data, user.gender, !isDesktop, expanded) : null),
     [titles.data, board.data, user.gender, isDesktop, expanded],
   );
+  // Strikt: felar topplistan visas felkortet även om en äldre topplista finns kvar (som Titles-sidan), så sidorna beter sig lika.
+  const failed = titles.isError || board.isError;
 
   let body;
-  if (titles.isError) {
-    body = <ErrorState title="Couldn't load your titles" retrying={titles.isFetching} onRetry={() => void titles.refetch()} />;
-  } else if (!view || board.isLoading) {
+  if (failed) {
+    body = (
+      <ErrorState
+        title="Couldn't load your titles"
+        retrying={titles.isFetching || board.isFetching}
+        onRetry={() => void Promise.all([titles.refetch(), board.refetch()])}
+      />
+    );
+  } else if (!view) {
     body = <PanelLoading label="Loading your titles" />;
   } else if (view.rows.held.length === 0 && view.rows.runnersUp.length === 0) {
     body = <p className="rq-profile-note">No titles yet — your first record is one good run away.</p>;

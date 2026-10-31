@@ -195,6 +195,13 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
   const index = declarations(indexCss);
   const norm = (value: string | undefined) => (value ?? '').replace(/\s+/g, '').toLowerCase();
 
+  // WCAG-kontrast för kontrastvakterna (mörkt och ljust tema).
+  const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
+  const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+
   const source = readFromDisk('../../../../../docs/design/claude-design/runquest-badges.js');
   const tiersBlock = source.slice(source.indexOf('const TIERS = {'), source.indexOf('const ORDER'));
   const sizesBlock = source.slice(source.indexOf('const SIZES = {'), source.indexOf('/* Layers:'));
@@ -261,16 +268,11 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
   });
 
   it('kontrastvakt: chip-texten i varje nivåfärg når 4.5:1 mot chippets egen bakgrund (nivåfärgen i --rq-badge-chip-tint över kortet = panel över skalet + row-soft)', () => {
-    const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-    const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-    const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
-    const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
     const rgba = (name: string) => {
       const match = new RegExp(`${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([.\\d]+)\\)`).exec(indexCss);
       expect(match, name).not.toBeNull();
       return { rgb: [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])], alpha: Number(match?.[4]) };
     };
-    const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
     const panel = rgba('--rq-panel');
     const rowSoft = rgba('--rq-row-soft');
     const shell = hexRgb(/--rq-bg-shell:\s*(#[0-9a-fA-F]{6});/.exec(indexCss)?.[1] ?? '#000000');
@@ -281,6 +283,32 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
       const text = hexRgb(index.get(`--rq-badge-${key}`) ?? '#000000');
       const chipBackground = over(text, tint, card);
       expect({ key, ratio: contrast(text, chipBackground) >= 4.5 }).toEqual({ key, ratio: true });
+    }
+  });
+
+  it('kontrastvakt, ljust tema: chip-texten (nivåfärgen dragen mot --rq-text-1 av regeln i badges.css) når 4.5:1 mot chippets bakgrund, och regeln rör varken kant, tint eller mörkt tema', () => {
+    const rule = ruleBlocks.find((block) => block.selector === '[data-theme="light"] .rq-badge-chip[data-tier]');
+    const mix = /^color:\s*color-mix\(in srgb, var\(--rq-c-solid\) (\d+)%, var\(--rq-text-1\)\);$/.exec(rule?.body.trim() ?? '');
+    // Regeln sätter bara `color` (inte border-color, background eller en egen tint) och är den enda color-mix-regeln i badges.css: allt annat, och hela det mörka temat, är som förut.
+    expect(rule, 'the light-theme chip rule exists').toBeDefined();
+    expect(mix, 'the rule only sets color, as a color-mix of the tier colour and --rq-text-1').not.toBeNull();
+    expect(ruleBlocks.filter((block) => /color-mix/.test(block.body)).map((block) => block.selector)).toEqual([rule?.selector]);
+
+    const lightBlock = /\[data-theme="light"\]\s*\{[\s\S]*?\n\}/.exec(indexCss)?.[0] ?? '';
+    const lightToken = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(lightBlock)?.[1]?.trim() ?? '';
+    const rowSoft = /^rgb\((\d+) (\d+) (\d+) \/ ([.\d]+)\)$/.exec(lightToken('--rq-row-soft'));
+    expect(rowSoft, '--rq-row-soft in the light theme').not.toBeNull();
+    const shell = hexRgb(lightToken('--rq-bg-shell'));
+    const textOne = hexRgb(lightToken('--rq-text-1'));
+    // Kortet ligger direkt på sidans yta (--rq-bg-shell) med --rq-row-soft över; chippets tint ligger över kortet.
+    const card = over([Number(rowSoft?.[1]), Number(rowSoft?.[2]), Number(rowSoft?.[3])], Number(rowSoft?.[4]), shell);
+    const share = Number(mix?.[1]) / 100;
+    const tint = Number(index.get('--rq-badge-chip-tint'));
+    for (const name of TIER_NAMES) {
+      const tier = hexRgb(index.get(`--rq-badge-${name.toLowerCase()}`) ?? '#000000');
+      const text = tier.map((value, i) => value * share + textOne[i] * (1 - share));
+      const ratio = contrast(text, over(tier, tint, card));
+      expect({ name, enough: ratio >= 4.5 }).toEqual({ name, enough: true });
     }
   });
 
