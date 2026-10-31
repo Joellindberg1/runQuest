@@ -89,6 +89,43 @@
   ],
   "releases": [
     {
+      "version": "0.8.3",
+      "type": "patch",
+      "date": "31 October 2026",
+      "title": "Time and pace, Position and the profile pop-up on desktop",
+      "announce": true,
+      "changes": [
+        {
+          "type": "feature",
+          "description": "Group history now shows the time and pace of each run: a Time / Pace column on desktop and a small line above the distance on your phone. Your Run history shows them too, with a total at the bottom. Runs without a time, such as runs you logged by hand, have no time to show."
+        },
+        {
+          "type": "feature",
+          "description": "There is a new Position tab on the Board and on your profile. On the Board, a chart shows where everyone in the pack stood at the end of each week, and Current order lists the standings right now. On your profile it shows your own line, your best and lowest place, and where you stand now."
+        },
+        {
+          "type": "improvement",
+          "description": "The top 3 on your phone is easier to read: the place is shown as #1, #2 and #3, the surname gets its own lines, the three cards are equally tall, and the badges are grouped in a small pyramid by the name."
+        },
+        {
+          "type": "feature",
+          "description": "On desktop, tapping a runner opens their Runner card as a pop-up with the tabs Overview, The Journey, Titles held and Badges. Challenge sits in the pop-up header and is switched off, with the reason shown, when you cannot challenge that runner. Cancel, or your browser's Back button, takes you back to the page you opened the pop-up from."
+        },
+        {
+          "type": "improvement",
+          "description": "Your tokens on Duels has tier chips (Minor, Major and Legendary) that filter the cards, says so when a tier is empty, and has a Send button on every card that picks that token for you."
+        },
+        {
+          "type": "improvement",
+          "description": "Sending a challenge is now three steps: pick a tier, pick a token (one card per token, with its length and stake), then pick an opponent. On a phone, Send and Cancel stay in a fixed row at the bottom. If a challenge gets no answer within 15 seconds, the sheet stops waiting and says so."
+        },
+        {
+          "type": "improvement",
+          "description": "Privacy & Terms now say that the time and pace of each run are visible to the members of your pack."
+        }
+      ]
+    },
+    {
       "version": "0.8.2",
       "type": "patch",
       "date": "26 October 2026",
