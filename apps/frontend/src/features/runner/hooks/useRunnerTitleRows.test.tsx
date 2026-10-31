@@ -90,6 +90,39 @@ describe('useRunnerTitleRows', () => {
     expect(calls.titles).toBe(before.titles + 1);
   });
 
+  it('is retrying while only the title board is read again, with the rows it already had', async () => {
+    // A query without data goes back to "pending" while it is read again, so the error card is only drawn through a retry when an earlier answer is kept:
+    // the title board answers, and the next read (after a run) fails.
+    const { result } = renderHook(() => useRunnerTitleRows(ME), { wrapper });
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    let boardRead: 'fail' | 'held' = 'fail';
+    let releaseBoard: () => void = () => {};
+    handlers.getTitleLeaderboard = () => {
+      calls.board += 1;
+      return boardRead === 'fail'
+        ? { success: false, error: 'boom' }
+        : new Promise((resolve) => {
+            releaseBoard = () => resolve({ success: true, data: board() });
+          });
+    };
+    await act(() => invalidateAfterRunChange(client));
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    expect(result.current.rows).not.toBeNull();
+    expect(result.current.retrying).toBe(false);
+
+    boardRead = 'held';
+    const titleReadsBefore = calls.titles;
+    act(() => result.current.retry());
+    // The runner's titles answer at once, so the title board is the only read still going.
+    await waitFor(() => expect(calls.titles).toBe(titleReadsBefore + 1));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(result.current.retrying).toBe(true);
+
+    await act(async () => releaseBoard());
+    await waitFor(() => expect(result.current.retrying).toBe(false));
+    expect(result.current.failed).toBe(false);
+  });
+
   it('is read again when a run changes the titles', async () => {
     const { result } = renderHook(() => useRunnerTitleRows(ME), { wrapper });
     await waitFor(() => expect(result.current.rows).not.toBeNull());
