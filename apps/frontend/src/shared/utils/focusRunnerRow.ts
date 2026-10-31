@@ -13,21 +13,28 @@ const READINESS_ATTRIBUTES = ['aria-hidden', 'hidden', 'inert', 'style'];
 const contentRoot = (): ParentNode => document.querySelector(MAIN_SELECTOR) ?? document;
 const modalIsOpen = (): boolean => document.querySelector(OPEN_MODAL_SELECTOR) !== null;
 
-function focusMainHeading(): boolean {
+/** Sidans första synliga huvudrubrik, gjord fokuserbar för skript. */
+function mainHeading(): HTMLElement | null {
   const heading = Array.from(contentRoot().querySelectorAll<HTMLElement>(MAIN_HEADING_SELECTOR)).find(isRendered);
-  if (!heading) return false;
+  if (!heading) return null;
   // Rubrikerna som saknar tabIndex är inte fokuserbara; -1 gör dem det för skript men inte för Tab.
   if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
-  heading.focus();
-  return document.activeElement === heading;
+  return heading;
+}
+
+function focusMainHeading(): boolean {
+  const heading = mainHeading();
+  heading?.focus();
+  return heading !== null && document.activeElement === heading;
 }
 
 /**
  * Flyttar fokus till löparens rad så snart sidan har ritat den och ingen modal dialog är öppen, annars (efter `ROW_WAIT_MS`) till sidans huvudrubrik. Raden väljs i huvudinnehållet
  * (`main`) som `findRunnerElement` gör: den första synliga i dokumentordning, så valet är detsamma varje gång när samma löpare finns på flera ställen. `focus()` scrollar fram raden.
+ * Utan löpare (`null`: sidan som kommer tillbaka har ingen löpare att återvända till) är målet sidans huvudrubrik, så snart den ritats.
  * `onSettled` anropas en gång när fokus har flyttats eller när det inte längre går (ingen rubrik, eller en dialog som fortfarande är öppen). Returnerar en avbrytare.
  */
-export function focusRunnerRowWhenRendered(runnerId: string, onSettled: () => void): () => void {
+export function focusRunnerRowWhenRendered(runnerId: string | null, onSettled: () => void): () => void {
   let settled = false;
   let pending: number | undefined;
   const observer = new MutationObserver(() => schedule());
@@ -52,10 +59,10 @@ export function focusRunnerRowWhenRendered(runnerId: string, onSettled: () => vo
   function attempt() {
     pending = undefined;
     if (settled || modalIsOpen()) return;
-    const row = findRunnerElement(runnerId, contentRoot());
-    if (!row) return;
-    row.focus();
-    if (document.activeElement === row) settle();
+    const target = runnerId === null ? mainHeading() : findRunnerElement(runnerId, contentRoot());
+    if (!target) return;
+    target.focus();
+    if (document.activeElement === target) settle();
   }
 
   function giveUp() {
