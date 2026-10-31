@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import postcss, { type AtRule, type Rule } from 'postcss';
 import { describe, expect, it } from 'vitest';
 import { TIER_NAMES } from '@runquest/shared';
-import { THEMES, contrast, flatten, mediaTokenNames, over, parseColor, resolveColor, splitTopLevel, themeTokens, toHex, type Rgb, type Rgba, type Theme } from './contrast';
+import { THEMES, contrast, flatten, mediaTokenNames, over, parseColor, refusingMediaTokens, resolveColor, splitTopLevel, themeTokens, toHex, type Rgb, type Rgba, type Theme } from './contrast';
 
 // Kontrastvakt för de nya tokenparen: ny text når 4,5:1 mot sin faktiska yta och fokusringen 3:1, i mörkt och ljust tema. Samma metod som nivåchipsvakten i
 // features/badges/guards.test.ts (hjälparna bor i ./contrast.ts). Vakten läser färgerna ur komponenternas egna CSS-regler (vilken token texten tar, vilken tint
@@ -11,7 +11,8 @@ import { THEMES, contrast, flatten, mediaTokenNames, over, parseColor, resolveCo
 // Ett par som fäller skrivs ut i klartext: namn, yta, tema, kvot och de två färgerna.
 //
 // Gränser i metoden: kaskaden följs bara så långt reglerna pekas ut här (en regel per lager, ljust tema via [data-theme="light"]-regeln om en sådan finns), och en
-// alfa-yta blandas över skalet. Tokens som även deklareras i @media vägras (värdet beror på bredden). Popupens nivåchip mäts som det ritas i dag; /badges-sidans
+// alfa-yta blandas över skalet. En överstyrning med en ANNAN väljare än den som pekas ut här (t.ex. `.rq-runner-h2h-banner .rq-runner-cell__label { color }`) fångas inte: vakten
+// mäter regeln den läser, inte kaskaden. Tokens som även deklareras i @media vägras i det tema där de sätts (värdet beror på bredden). Popupens nivåchip mäts som det ritas i dag, på kortet i popupen (section.rq-card över .rq-modal); /badges-sidans
 // chip i ljust tema ägs av en annan story och mäts inte här. Samlingskortets neutrala yta bevisas av features/badges/badgeCardSurface.test.ts (inte duplicerat här).
 
 const TEXT_MIN = 4.5;
@@ -96,7 +97,7 @@ function customProps(file: string, selector: string): Map<string, string> {
 // ─── Tema, ytor och mätning ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const indexCss = readFileSync(`${srcDir}/${INDEX}`, 'utf8');
-const mediaTokens = mediaTokenNames(indexCss);
+const mediaTokens: Record<Theme, Set<string>> = { dark: mediaTokenNames(indexCss, 'dark'), light: mediaTokenNames(indexCss, 'light') };
 const THEME_LABEL: Record<Theme, string> = { dark: 'mörkt tema', light: 'ljust tema' };
 
 type Locator = readonly [file: string, selector: string, prop: string];
@@ -118,12 +119,7 @@ interface Measuring { tokens: Map<string, string>; scope: Map<string, string> }
 function measuring(theme: Theme, tokens: Map<string, string>, scopeRules: ReadonlyArray<readonly [string, string]> = []): Measuring {
   const scope = new Map<string, string>();
   for (const [file, selector] of scopeRules) for (const [name, value] of customProps(file, selector)) scope.set(name, value);
-  return { tokens: guarded(theme, tokens), scope };
-}
-
-/** Ett token som även sätts i @media får olika värde per bredd: det kan inte mätas här, så vakten vägrar i stället för att gissa. */
-function guarded(theme: Theme, tokens: Map<string, string>): Map<string, string> {
-  return new Map([...tokens].map(([name, value]) => [name, mediaTokens.has(name) && /#|rgb|color-mix/.test(value) ? `unmeasurable(${name} ${theme})` : value] as const));
+  return { tokens: refusingMediaTokens(tokens, mediaTokens[theme], theme), scope };
 }
 
 const colorOf = (m: Measuring, value: string) => resolveColor(m.tokens, value, m.scope);
@@ -290,7 +286,7 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
     pairs: TIER_NAMES.map((tierName): TextPair => {
       const key = tierName.toLowerCase();
       return {
-        name: `${tierName}-chippet på badgekortet`, surfaces: ['popup'],
+        name: `${tierName}-chippet på badgekortet`, surfaces: ['popupCard'],
         fg: (theme): Locator => (theme === 'light'
           ? [RUNNER, '[data-theme="light"] .rq-runner-badges__grid .rq-badge-chip[data-tier]', 'color']
           : [INDEX, '.rq-chip--status', 'color']),
@@ -450,8 +446,22 @@ describe('kontrastvakten själv', () => {
   it('mäter mot temat: ljust tema binder om textfärgerna, mörkt gör det inte', () => {
     const dark = themeTokens(indexCss, 'dark');
     const light = themeTokens(indexCss, 'light');
-    expect(resolveColor(dark, 'var(--rq-text-4)').rgb).toEqual([255, 255, 255]);
-    expect(resolveColor(light, 'var(--rq-text-4)')).toEqual({ rgb: [38, 35, 31], alpha: 0.65 });
+    const ink = (tokens: Map<string, string>) => resolveColor(tokens, 'rgb(var(--rq-ink-rgb))').rgb;
+    expect(ink(light)).not.toEqual(ink(dark));
+    expect(resolveColor(dark, 'var(--rq-text-4)').rgb).toEqual(ink(dark));
+    expect(resolveColor(light, 'var(--rq-text-4)').rgb).toEqual(ink(light));
     expect(dark.get('--rq-text-4')).not.toBe(light.get('--rq-text-4'));
+  });
+
+  it('vägrar mäta ett token som sätts i @media, med orsaken i klartext och bara i temat där det sätts', () => {
+    const css = ':root { --a: #ffffff; --b: #000000; } @media (min-width: 1px) { [data-theme="light"] { --a: #111111; } :root { --b: #222222; } }';
+    const names = { dark: mediaTokenNames(css, 'dark'), light: mediaTokenNames(css, 'light') };
+    expect([...names.dark]).toEqual(['--b']);
+    expect([...names.light].sort()).toEqual(['--a', '--b']);
+    const dark = refusingMediaTokens(themeTokens(css, 'dark'), names.dark, 'dark');
+    expect(resolveColor(dark, 'var(--a)').rgb).toEqual([255, 255, 255]);
+    expect(() => resolveColor(dark, 'var(--b)')).toThrow(/--b sätts även i ett @media-block.*mörkt tema/);
+    const light = refusingMediaTokens(themeTokens(css, 'light'), names.light, 'light');
+    expect(() => resolveColor(light, 'var(--a)')).toThrow(/--a sätts även i ett @media-block.*ljust tema/);
   });
 });

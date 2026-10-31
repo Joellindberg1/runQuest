@@ -92,12 +92,27 @@ export function themeTokens(indexCss: string, theme: Theme): Map<string, string>
   return tokens;
 }
 
-export function mediaTokenNames(indexCss: string): Set<string> {
+/** Tokens som sätts i ett @media-block för just detta tema: :root gäller båda temana, [data-theme="light"] bara det ljusa. */
+export function mediaTokenNames(indexCss: string, theme: Theme): Set<string> {
   const names = new Set<string>();
+  const selectors = theme === 'light' ? [':root', '[data-theme="light"]'] : [':root'];
   postcss.parse(indexCss).walkAtRules('media', (atRule: AtRule) => {
-    atRule.walkDecls(/^--/, (decl) => { names.add(decl.prop); });
+    atRule.walkRules((rule) => {
+      if (!selectorsOf(rule).some((selector) => selectors.includes(selector))) return;
+      rule.walkDecls(/^--/, (decl) => { names.add(decl.prop); });
+    });
   });
   return names;
+}
+
+/** Temats tokens där ett token som sätts i @media inte får läsas: värdet beror på bredden, så ett försök att mäta det fäller i klartext. */
+export function refusingMediaTokens(tokens: Map<string, string>, mediaNames: Set<string>, theme: Theme): Map<string, string> {
+  const guarded = new Map(tokens);
+  guarded.get = (name: string) => {
+    if (mediaNames.has(name)) throw new Error(`Token ${name} sätts även i ett @media-block i index.css (${theme === 'light' ? 'ljust tema' : 'mörkt tema'}): värdet beror på skärmbredden och kan inte mätas, uppdatera vakten`);
+    return Map.prototype.get.call(tokens, name) as string | undefined;
+  };
+  return guarded;
 }
 
 /** Ersätter var(--x) tills inget återstår. `scope` (lokala custom properties ur en regel) går före temats tokens. */
