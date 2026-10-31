@@ -314,6 +314,12 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **`?view=position` med en grupp på en och en `FirstBoardGate` som redan släppt:** gaten kollar bara adressens vy (Position väntar inte på titlar, pilar och minis), så Season som sidan faller tillbaka på hämtar dem själv och visar sin vanliga laddning. Gaten ändrades inte (kriterium 7).
 - **Prototypens mobil har "Current order · tap to show a line" i en eyebrow; implementationen har rubriken och hintet "Pick a runner to lift their line." (som prototypens webb).** Det är RUN-407:s val och rörs inte här.
 
+## Positionshistorik och tid per runda: ADR 007:s antaganden 1–3 (v0.8.3)
+
+- **Standard 8 veckor, högst 26.** `POSITION_WEEKS_DEFAULT` och `POSITION_WEEKS_MAX` (`packages/shared/src/contracts/leaderboard.ts`); `GET /api/leaderboard/positions` ger 400 utanför 1–26, och både Boards och profilens Position-flik begär 8 (designen visar 8). Antas räcka för båda ytorna. Taket styrs av hur många rader som läses, inte av designen. Fel om någon vill se längre bakåt än ett halvår.
+- **Summan i Run history gäller de visade rundorna, inte hela historiken.** `RunHistory` räknar `buildRunTimeSummary` på raderna som kortet visar för tillfället (före och efter Show all), och "based on N of M runs" gäller samma rader. Fel om ägaren menar total tid för alla rundor.
+- **Kontots skapandedag (`users.created_at`) räknas som inträde i gruppen.** Positionshistoriken (`buildPositionHistory`, `member_since`) och `/rank-delta` räknar en medlem från den dag kontot skapades, i gruppens tidszon. Det håller så länge varje användare har en grupp och skapades för den. Fel för ett konto som skapades långt före gruppen eller som byter grupp: då ska `group_members.starts_on` gälla, i båda routerna samtidigt (ADR 007:s revisit-trigger för XP per grupp).
+
 ## Runner card: tillbakalänken (RUN-425, v0.8.3)
 
 - **Etiketten ändras medvetet från "‹ Back" till "← Standings".** Manifestet och ADR 006 punkt 1 utgår från att sidan redan har `← STANDINGS`; på basen var kontrollen en `<button class="rq-back">` med `‹` och texten "Back". Jira-kriteriet gäller bokstavligt (synlig text "← Standings", pilen `aria-hidden`, tillgängligt namn "Standings", `<a href>` till `/board`). Etiketten är densamma oavsett varifrån sidan nåtts (Board, Duels, Log). Beteendet är oförändrat: vanligt klick = ett steg bakåt (`useCloseRunner`), direktladdning går till `/board`.
@@ -321,6 +327,12 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **Länkens färg är `--rq-text-4` (scopat i `runner.css`), inte `.rq-back`s `--rq-text-3`.** `--rq-text-3` ger 4,04:1 i det ljusa temat; `--rq-text-4` ger 4,69:1 ljust och 5,33:1 mörkt (mörkt var 7,27:1). Delade `.rq-back` (badges-sidan) är orörd.
 - **Länkens tryckyta är minst 44 px (`--rq-control-hit`) på mobil, och toppraden blir därmed ca 9,7 px högre, uppmätt 34,3 → 44 px (Challenge-knappen satte höjden förut).** Hjältekortet och allt under flyttas lika mycket nedåt på mobil; på desktop är måttet 0 och inget flyttas.
 - **Rubrikens fokusring syns vid direktladdning och tangentbordsnavigering.** Skalet döljer inte fokus för programmatisk fokus och Duels-rubriken har samma beteende; webbläsarens `:focus-visible`-regel döljer ringen efter ett musklick (klientnavigering från en rad), men inte utan föregående mus.
+
+## Send-arkets skal (RUN-430, v0.8.3)
+
+- **Ingen `scroll-padding` i arkets mitt.** Kriteriet ville ha scroll-padding lika med knappradens höjd, så att stegrubrikerna inte skyms. Knappraden (`.rq-duels-sheet__foot`) ligger utanför det scrollande mellanstycket (`.rq-duels-sheet__body`, `overflow: auto`) som flex-syskon, så ingen rubrik kan hamna under den. Kravet mäts i stället (`send-sheet-layout.spec.ts`: `scrollIntoView` i alla fyra lägen och tangentbordsfokus). Fel om knappraden en dag läggs ovanpå innehållet (`sticky` eller `fixed` inne i mitten).
+- **Ingen ny safe-area-token.** Knappraden använder skalets `--rq-tabbar-pb` (`max(12px, env(safe-area-inset-bottom))`, samma som flikraden), så Send och Cancel slutar ovanför hemindikatorn; provet emulerar en safe-area på 34 px. Fel om arket behöver annan luft än flikraden.
+- **Arket har ingen glid-in.** Kriteriet "glid-in-rörelsen är av under `prefers-reduced-motion`" utgår från en rörelse som varken koden eller prototypen har (arket har ingen animation eller transition i `duels.css`). Provet är därför ett skydd: med `prefers-reduced-motion: reduce` står arket still från första bildrutan. Fel om en rörelse läggs till utan att stängas av under reducerad rörelse (provet fäller då).
 
 ## Avbryt i send-flödet och fokus till löparens rad (RUN-424, v0.8.3)
 
@@ -355,6 +367,19 @@ Lösta frågor står under Historik längst ned. Öppet och orört: en bakdatera
 - **Panelens lista behåller `tabIndex=0`, men bara när den scrollar (`useScrollsVertically`).** En region som scrollar måste nås med tangentbordet; en lista som ryms är inget att tabba till. Måttet tas om vid storleksändring och när filtret ändrar innehållet.
 - **Den ljusa overridern i `runner.css` lyfter tre färger till AA i det ljusa temat:** den vilande filterknappen (`--rq-text-2`, `--rq-text-3` ger 4,22:1), Runner-up-namnet (`--rq-text-2`) och den dämpade tonen på värdet (`--rq-text-4`, 4,14:1 med text-3). Samma scopade mönster som Overview och Journey; det mörka temat är oförändrat.
 - **Topplistan som ger typ och enhet läses med `useTitleBoard`, som kastar vid fel (RUN-439).** `useTitleLeaderboard` sväljer fel och svarar `[]`, och då fick varje titel typen "Other" med råa värden och utan "held by". Nu gäller `failed` ett fel i antingen löparens titlar eller topplistan, panelen visar felkortet med Retry i både popupen och på `/runner/:id`, och Retry hämtar om båda. `useTitleLeaderboard` är orörd (profilen använder den). `useTitleBoard` ligger under `['titles']`, så invalideringen efter en runda når den.
+
+## Popupens The Journey (RUN-420, v0.8.3)
+
+- **Förloppsraden visar hela kilometer avrundade nedåt, inte prototypens decimal.** "30.3% · 988 / 3 266 km" kommer ur `journeyProgressLabel` (`features/profile/frodoModel.ts`), samma funktion som profilens Frodo-kort, så siffrorna kan inte skilja sig åt. Kilometertalet kapas nedåt: 942,7 km blir 942, inte 943, och 1180,6 km blir 1 180, så texten aldrig påstår en checkpoint som inte är nådd (checkpointen jämför råa km). Procenten stannar på 99.9% före målet. Prototypen visar decimalen ("942.7 / 3 266 km"); bannerns TOTAL KM har kvar en decimal (`formatKm`). Fel om ägaren vill ha decimalen i förloppsraden (då ändras både popupen och profilen).
+- **Zoomknappen är flikens enda knapp.** Prototypens "OVERVIEW"-knapp är zoomväljaren (`ZoomButton`, etiketterna Overview, Zoomed och Close-up). Den har en funktion och står kvar, men bara på desktop och bara när det finns något att zooma (inte vid 0 km eller i mål); mobilen visar procenten i stället.
+- **Den ljusa regeln för Journey gäller också `/runner/:id` och mobilens Runner card.** `[data-theme="light"] .rq-runner-journey …` i `runner.css` (summaraden, waypoint-etiketterna med `data-tier="1"` och den vilande zoomknappen till `--rq-text-4`) träffar `JourneyCard` överallt, eftersom popupen, sidan och mobilen delar komponenten. I ljust tema går texten från alfa .60 till .65 också på mobilen, som i övrigt är oförändrad i 0.8.3. Bara färgen ändras, inte layouten; mörkt tema är oförändrat. Lead godtog det (kontrasten når 4,5:1).
+
+## Popupens Badges (RUN-422, v0.8.3)
+
+- **Läsläget har varken flavor, Next eller TOP TIER.** `BadgeSeriesCard` utan `toggle` ritar bara det som förklarar serien: namn, nivåchip, pips, kravet och held-by. Flavor, "Next: …" och "TOP TIER REACHED" hör till samlingen på /badges, liksom växlaren och "Locked". Låsta serier visas inte i popupen. Fel om ägaren vill visa nästa nivå också för andra löpare.
+- **Kravet står utan prototypens "Earned:".** Prototypen skriver "Earned: <krav>"; kortet visar kravtexten ur `badgeModel` utan prefix, som på /badges (ingen ny copy).
+- **Två kolumner när listan är minst 560 px bred, annars en.** Det är en container query på listan (`.rq-runner-badges__scroll`), inte en media query på fönstret, med samma gräns som Titles held. Popupens 860 px ger ca 780 px, alltså två kolumner på 1024–1440 px.
+- **Nivåchipets text i ljust tema blandas i popupen med `color-mix` (45 % nivåfärg och `--rq-text-1`, regeln i `runner.css`).** Nivåfärgerna som chiptext gav 1,6–2,9:1 mot kortet. /badges-sidans chip rättas i buggreleasen med samma blandning i `badges.css` (RUN-448, 40 %: 45 % ger Legendary 4,33:1 på /badges-kortet). När main mergas in i v0.8.3 tas popupens regel bort, så att popupen ärver `badges.css`, och chipkategorin i `contrastGuard.test.ts` pekas om från `runner.css` till `badges.css`. Mörkt tema berörs inte.
 
 ## Ljust tema: kontrastrester (RUN-450, v0.8.3)
 
