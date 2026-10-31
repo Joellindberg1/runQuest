@@ -35,6 +35,7 @@ function rememberOpener(target: EventTarget | null): void {
  * Börjar minnas vilket element som öppnade löparens kort: ett klick (också Enter och mellanslag på en knapp, och ett tryck) som träffar ett element med `data-runner-id`, sett i
  * fångstfasen före anropsplatsens egen hanterare. Anropsplatserna är många och skickar bara löparens id vidare, och klickmålet är det enda som skiljer raderna åt när samma löpare står i
  * flera. `document.activeElement` räcker inte: Safari och Firefox på Mac fokuserar inte en knapp vid klick. Returnerar en avbrytare som också glömmer.
+ * Fångstfasen (`true`) är avsiktlig och provad: en anropsplats vars egen hanterare stoppar klicket (`stopPropagation`, som `RunnerName`) når aldrig en lyssnare i bubbelfasen.
  */
 export function watchRunnerOpener(): () => void {
   const onClick = (event: MouseEvent) => rememberOpener(event.target);

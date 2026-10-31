@@ -83,12 +83,23 @@ describe('findRunnerTarget', () => {
     expect(findRunnerTarget(KARL)?.id).toBe('third');
   });
 
-  it('answers only for the runner that was opened', () => {
-    render(THREE_ROWS);
+  it('answers only for the runner that was opened: another runner with rows at the same place still gets its first row', () => {
+    // Adam har lika många rader som Karl: utan en jämförelse av löparen vore Adams rad på Karls plats (2) svaret.
+    render(`${THREE_ROWS}<button id="adam-2" data-runner-id="${ADAM}">Adam 2</button><button id="adam-3" data-runner-id="${ADAM}">Adam 3</button>`);
 
     fireEvent.click(byId('third'));
 
     expect(findRunnerTarget(ADAM)?.id).toBe('adam');
+    expect(findRunnerTarget(KARL)?.id).toBe('third');
+  });
+
+  it('hears a click whose own handler stops it from bubbling, because it listens in the capture phase', () => {
+    render(THREE_ROWS);
+    byId('third').addEventListener('click', (event) => event.stopPropagation());
+
+    fireEvent.click(byId('third'));
+
+    expect(findRunnerTarget(KARL)?.id).toBe('third');
   });
 
   it('falls back on the first visible row when the opener is gone and nothing sits at its place', () => {
