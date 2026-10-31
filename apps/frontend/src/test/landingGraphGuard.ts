@@ -13,13 +13,16 @@ export interface ForbiddenInLanding {
 export const FORBIDDEN_IN_LANDING: readonly ForbiddenInLanding[] = [
   { what: 'an app page', pattern: /\/src\/pages\/(?:Board|Titles|Duels|Events|News|Log|Profile|Runner|Badges)Page/ },
   { what: 'the tour (driver.js)', pattern: /\/node_modules\/driver\.js\// },
-  { what: 'the full app router or shell', pattern: /\/src\/(?:routes|App)\.tsx$/ },
+  { what: 'the full app router or shell', pattern: /\/src\/(?:routes|App)\.tsx(?:\?|$)/ },
   // Hela featuren: RunnerPopup och allt den drar in (PopupSections, PopupBadgesPanel, PopupTitlesPanel, HeadToHeadBanner, PopupBanner …) bor i features/runner.
   { what: 'the runner popup or anything it brings in (features/runner)', pattern: /\/src\/features\/runner\// },
   // Positionsgraferna (profilens PositionChart/PositionPanel, leaderboardens PackPositionChart/PositionChartCard), positionsvyn (PositionView, PositionTab) och deras hook, vymodeller,
-  // laddare och stil: alla har "position" i filnamnet.
-  { what: 'a position chart, the position view or its model, hook, loader or stylesheet', pattern: /\/src\/[^?]*\/[^/?]*position[^/?]*$/i },
-  { what: 'the read-only badge card (BadgeSeriesCard)', pattern: /\/src\/features\/badges\/components\/BadgeSeriesCard(?:\.|$)/ },
+  // laddare och stil: "position" som eget ord i ett fil- eller mappnamn, i början (positionBoard.css, position/) eller efter ett ordbyte i camelCase/PascalCase (usePositionHistory,
+  // PackPositionChart). Ordgränsen gör att Proposition, composition och Dispositions inte träffas; frågesuffixet (?…) räknas inte med.
+  { what: 'a position chart, the position view or its model, hook, loader or stylesheet', pattern: /\/src\/[^?]*?(?:(?<![A-Za-z])[Pp]|(?<=[a-z0-9])P)ositions?(?![a-z])/ },
+  { what: 'the read-only badge card (BadgeSeriesCard)', pattern: /\/src\/features\/badges\/components\/BadgeSeriesCard(?:[.?]|$)/ },
+  // Send-flödet och dueller: SendSheet, DuelsScreen, StakeBlocks, OfferCards, HistoryList m.fl. Landningens graf når ingenting i featuren i dag (bygget visar det).
+  { what: 'the send flow or the duels screen (features/challenges)', pattern: /\/src\/features\/challenges\// },
 ];
 
 /** Modulerna i listan som landningens graf inte får nå: id och vad det är. Tom lista = vakten håller. */

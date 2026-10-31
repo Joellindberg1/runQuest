@@ -460,21 +460,24 @@ describe('the landing import graph guard', () => {
     });
     return landingClosure(name).flatMap((chunk) => chunk.moduleIds);
   }
-  /** `shell.ts` som importerar `target` statiskt, genom ett mellanled (`helper.ts` i src/shared): en modul nås sällan direkt från landningen. */
-  const reachesThrough = (target: string) => ({
+  /** `shell.ts` som importerar `target` statiskt, genom ett mellanled (`helper.ts` i src/shared): en modul nås sällan direkt från landningen. `specifier` är importadressen om den inte är en relativ sökväg (ett paket). */
+  const reachesThrough = (target: string, specifier = target.replace(/^src\//, '../').replace(/\.tsx?$/, '')) => ({
     shell: "import { helper } from '../../shared/helper';\nexport const shell = helper;\n",
     files: {
-      'src/shared/helper.ts': `import { value } from '../${target.replace(/^src\//, '').replace(/\.ts$/, '')}';\nexport const helper = value;\n`,
+      'src/shared/helper.ts': `import { value } from '${specifier}';\nexport const helper = value;\n`,
       [target]: "export const value = 'forbidden';\n",
     },
   });
+  /** Modulens sökväg inom fixturen: allt före fixturens rot bort. */
+  const inFixture = (id: string) => normalize(id).replace(/^.*\/fixture-[^/]+\//, '');
+  const slug = (target: string) => target.replace(/[^A-Za-z0-9]+/g, '-');
 
   it('landing import graph guard fails when it reaches the popup', async () => {
     const { shell, files } = reachesThrough(POPUP);
     const modules = await landingModulesOf('guard-popup', shell, files);
     // Fixturen står i grafen, så grönt vore ett fel i vakten och inte ett tomt bygge.
     expect(modules.map(normalize).some((id) => id.endsWith(`/${POPUP}`))).toBe(true);
-    expect(forbiddenInLanding(modules).map(({ id, what }) => ({ id: normalize(id).replace(/^.*\/src\//, 'src/'), what }))).toEqual([
+    expect(forbiddenInLanding(modules).map(({ id, what }) => ({ id: inFixture(id), what }))).toEqual([
       { id: POPUP, what: 'the runner popup or anything it brings in (features/runner)' },
     ]);
   }, BUILD_TIMEOUT_MS);
@@ -486,10 +489,22 @@ describe('the landing import graph guard', () => {
     ["the leaderboard's position chart", 'src/features/leaderboard/components/PackPositionChart.ts'],
     ['the position view', 'src/features/leaderboard/components/PositionView.ts'],
     ['the read-only badge card', 'src/features/badges/components/BadgeSeriesCard.ts'],
+    ['the send sheet', 'src/features/challenges/components/SendSheet.ts'],
+    ['the duels screen', 'src/features/challenges/components/DuelsScreen.ts'],
+    ['an app page', 'src/pages/BoardPage.ts'],
+    ['the full app router', 'src/routes.tsx'],
+    ['the app shell', 'src/App.tsx'],
   ])('landing import graph guard fails when it reaches %s', async (label, target) => {
     const { shell, files } = reachesThrough(target);
-    const modules = await landingModulesOf(`guard-${target.split('/').pop()}`, shell, files);
-    expect(forbiddenInLanding(modules).map(({ id }) => normalize(id).replace(/^.*\/src\//, 'src/'))).toEqual([target]);
+    const modules = await landingModulesOf(`guard-${slug(target)}`, shell, files);
+    expect(forbiddenInLanding(modules).map(({ id }) => inFixture(id))).toEqual([target]);
+  }, BUILD_TIMEOUT_MS);
+
+  it('landing import graph guard fails when it reaches the tour (driver.js)', async () => {
+    const target = 'node_modules/driver.js/index.js';
+    const { shell, files } = reachesThrough(target, 'driver.js');
+    const modules = await landingModulesOf('guard-driver', shell, { ...files, 'node_modules/driver.js/package.json': '{"name":"driver.js","version":"0.0.0","type":"module","main":"index.js"}\n' });
+    expect(forbiddenInLanding(modules).map(({ id }) => inFixture(id))).toEqual([target]);
   }, BUILD_TIMEOUT_MS);
 
   it('landing import graph guard passes when the popup and the position charts are only imported lazily, and when the graph holds none of them', async () => {
@@ -511,7 +526,7 @@ describe('the landing import graph guard', () => {
 });
 
 describe('the build guards', () => {
-  const page =(root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
+  const page = (root: string, head = '') => `<!doctype html><html lang="en"><head>${head}</head><body>${root}</body></html>`;
 
   /** En minimal dist med de två filerna; guarden prövas utan ett helt bygge eftersom markörerna kontrolleras före SSR-steget. Landningens head har sessionstipsets markör om inget annat anges. */
   function fakeDist(name: string, files: { index: string; indexHead?: string; indexTail?: string; landing: string; landingHead?: string; landingTail?: string }): string {

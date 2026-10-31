@@ -25,7 +25,38 @@ const MUST_BE_FORBIDDEN = [
   'features/leaderboard/components/PositionView.tsx',
   'features/leaderboard/components/PositionTab.tsx',
   'features/badges/components/BadgeSeriesCard.tsx',
+  'features/challenges/components/SendSheet.tsx',
+  'features/challenges/components/DuelsScreen.tsx',
+  'features/challenges/components/StakeBlocks.tsx',
+  'features/challenges/components/OfferCards.tsx',
+  'features/challenges/components/HistoryList.tsx',
 ];
+
+// Ett id per rad i listan, med raden som ska träffa: tas en rad bort ur listan (eller ändras så att den inte träffar) blir den här tabellen röd. Mönstren för sidorna, touren och
+// routern prövas inte av filerna ovan, eftersom touren ligger i node_modules och sidorna och routern inte är landningens riktiga innehåll.
+const ONE_ID_PER_ENTRY: Array<[string, string]> = [
+  [inSrc('pages/BoardPage.tsx'), 'an app page'],
+  [inSrc('pages/RunnerPage.tsx'), 'an app page'],
+  ['C:/repo/node_modules/driver.js/dist/driver.js.mjs', 'the tour (driver.js)'],
+  [inSrc('routes.tsx'), 'the full app router or shell'],
+  [`${inSrc('App.tsx')}?used`, 'the full app router or shell'],
+  [inSrc('features/runner/components/RunnerPopup.tsx'), 'the runner popup or anything it brings in (features/runner)'],
+  [inSrc('features/leaderboard/components/PositionView.tsx'), 'a position chart, the position view or its model, hook, loader or stylesheet'],
+  [inSrc('features/badges/components/BadgeSeriesCard.tsx'), 'the read-only badge card (BadgeSeriesCard)'],
+  [inSrc('features/challenges/components/SendSheet.tsx'), 'the send flow or the duels screen (features/challenges)'],
+];
+
+// "position" är ett eget ord i namnet: ord som bara innehåller bokstavsföljden släpps igenom, och frågesuffix och mappnamn hanteras.
+const POSITION_WORD_FORBIDDEN = [
+  'features/leaderboard/components/PositionChart.tsx?x=1',
+  'features/x/position/Foo.tsx',
+  'features/x/usePositionHistory.ts',
+  'features/x/positionBoard.css',
+  'features/x/PackPositionChart.tsx',
+  'features/x/Position.tsx',
+  'features/x/Positions.tsx',
+];
+const POSITION_LOOKALIKES_ALLOWED = ['features/x/PropositionCard.tsx', 'features/x/composition.ts', 'features/x/Dispositions.ts', 'features/x/decomposition/Foo.tsx', 'features/x/Foo.tsx?position=1'];
 
 // Det landningen står på i dag och därför ska få vara kvar: landningsfeaturen, ingångens egna filer, delade primitiver och bara det av leaderboardens delar som landningens exempelpaket använder.
 const MUST_STAY_ALLOWED = [
@@ -48,6 +79,22 @@ describe('the landing import graph list', () => {
 
   it.each(MUST_STAY_ALLOWED)('allows %s', (file) => {
     expect(existsSync(inSrc(file)), `${file} finns`).toBe(true);
+    expect(forbiddenInLanding([inSrc(file)])).toEqual([]);
+  });
+
+  it.each(ONE_ID_PER_ENTRY)('flags %s as: %s', (id, what) => {
+    expect(forbiddenInLanding([id]).map((hit) => hit.what)).toEqual([what]);
+  });
+
+  it('has an entry in the table above for every entry in the list', () => {
+    expect(ONE_ID_PER_ENTRY.map(([, what]) => what).sort()).toEqual(expect.arrayContaining(FORBIDDEN_IN_LANDING.map(({ what }) => what)));
+  });
+
+  it.each(POSITION_WORD_FORBIDDEN)('treats position as a word: forbids %s', (file) => {
+    expect(forbiddenInLanding([inSrc(file)])).toHaveLength(1);
+  });
+
+  it.each(POSITION_LOOKALIKES_ALLOWED)('treats position as a word: allows %s (Proposition, composition and Dispositions only contain the letters)', (file) => {
     expect(forbiddenInLanding([inSrc(file)])).toEqual([]);
   });
 
