@@ -56,6 +56,7 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 - **Framdrift** hämtas per live-duell (`/challenges/:id/progress`, ingen batch-endpoint finns); ett fel lämnar bara det kortet utan värden ("—").
   Progress-anropet avgör dessutom en duell som passerat `determine_at` (backend), så kortet kan försvinna vid nästa hämtning.
 - **Match history** är offset-sidor (20 per sida, "Show more"); filtret "My matches" gäller de sidor som hunnit laddas. Hämtas först när fliken visas.
+  Raden är tryckbar över hela ytan i två halvor: namnknappen i varje halva (ett tabbstopp per deltagare, inga nästlade knappar) har en osynlig träffyta (`::after`) som täcker halvan i radens hela höjd, och delningen går vid mitten av "vs" (`--rq-duels-match-split`; på desktop ligger meta och datum i höger halva). Vänster halva öppnar vänster deltagares kort, höger halva högers; fokusringen ritas inåt på halvan.
 - **Boosts:** `user_boosts.remaining` är TOTALA laddningar för per-runda-boosts och förbrukas av mina rundor efter skapandet (som `boostCalculation`);
   dagsboosts går på `expires_at`. Båda läser boostens SPARADE fönster (`start_date`/`end_date`, migration 059) med `boostWindow`/`boostRemaining` i shared, samma fönster som
   XP-omräkningen: en ny boost på n dagar gäller exakt n kalenderdagar och visar "n days" på sin startdag och före den; en gammal boost har sitt gamla fönster.
