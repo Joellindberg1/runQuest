@@ -51,7 +51,7 @@ export function RightNowPanel({ items }: { items: RightNowItem[] }) {
               <span className="rq-rightnow__icon">
                 <RQIcon name={item.icon} size={ICON_ROW} />
               </span>
-              <span>
+              <span className="rq-rightnow__text">
                 <span className="rq-rightnow__label">{item.label}</span>
                 <span className="rq-rightnow__note">{item.note}</span>
               </span>
