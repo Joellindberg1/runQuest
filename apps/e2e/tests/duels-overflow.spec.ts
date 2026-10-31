@@ -217,12 +217,14 @@ async function measureTabs(page: Page): Promise<TabsMeasure> {
   }, TOLERANCE_PX);
 }
 
-const TAB_NAMES: Record<(typeof VIEWS)[number], string> = { standings: 'Standings', live: 'Live', history: 'History' };
+const TAB_NAMES = { standings: 'Standings', live: 'Live', rules: 'Rules', history: 'History' } as const;
 
 // Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
 const NARROW_WIDTHS = [320, 340];
 const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
 const STAKE_WIDTHS = [1024, 1050];
+// Rules: nivåkorten ligger tre i bredd bredvid sidokolumnen på smal desktop (1024-1219 px), där "Legendary" annars gick ut ur sitt kort.
+const RULES_WIDTHS = [320, 375, 1024, 1050, 1100, 1140, 1180, 1220, 1280, 1440];
 
 /** Ord i ett namn som ligger på mer än en rad: en radbrytning som inte är ett mellanslag. */
 async function measureBrokenWords(page: Page, nameSelector: string): Promise<string[]> {
@@ -242,6 +244,50 @@ async function measureBrokenWords(page: Page, nameSelector: string): Promise<str
     }
     return broken;
   }, nameSelector);
+}
+
+interface RulesMeasure {
+  /** Nivåtitlar vars text går utanför kortets innerruta (kortets mått utan padding och kant). */
+  titlesOutside: string[];
+  /** Två texter i Duels-ytan (korten och sidokolumnen) vars synliga rektanglar skär varandra. */
+  overlaps: string[];
+  /** Antal nivåkort. */
+  cards: number;
+}
+
+// Rules-fliken mäts på hela Duels-ytan, inte per rad: titeln på ett nivåkort kan ritas över sidokolumnens "Your tokens", så paren tas över alla texter i `.rq-duels`.
+async function measureRules(page: Page): Promise<RulesMeasure> {
+  return page.evaluate((tolerance) => {
+    const textRect = (el: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect();
+    };
+    const intersects = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) > tolerance && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > Math.min(a.height, b.height) / 3;
+    const label = (el: Element) => `${el.getAttribute('class') ?? el.tagName}:"${(el.textContent ?? '').trim().slice(0, 20)}"`;
+
+    const titlesOutside: string[] = [];
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.rq-duels-rule'));
+    for (const card of cards) {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      const left = box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
+      const right = box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
+      const titleElement = card.querySelector('.rq-duels-rule__title')!;
+      const title = textRect(titleElement);
+      if (title.left < left - tolerance || title.right > right + tolerance) titlesOutside.push(`"${titleElement.textContent}" runs ${Math.round(Math.max(left - title.left, title.right - right))}px outside its card`);
+    }
+
+    const leaves = Array.from(document.querySelectorAll<HTMLElement>('.rq-duels *')).filter((el) => el.children.length === 0 && (el.textContent ?? '').trim() !== '');
+    const overlaps: string[] = [];
+    for (let first = 0; first < leaves.length; first += 1) {
+      for (let second = first + 1; second < leaves.length; second += 1) {
+        if (intersects(textRect(leaves[first]!), textRect(leaves[second]!))) overlaps.push(`${label(leaves[first]!)} x ${label(leaves[second]!)}`);
+      }
+    }
+    return { titlesOutside, overlaps, cards: cards.length };
+  }, TOLERANCE_PX);
 }
 
 test.describe('the Duels screen with long names', () => {
@@ -347,5 +393,25 @@ test.describe('the Duels screen with long names', () => {
       expect.soft(lineCounts.filter((time) => time.lines !== 1), 'every duration and time is on one line').toEqual([]);
       expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
     });
+  }
+
+  // Rules: nivåkorten ligger bredvid sidokolumnen och "Legendary" gick utanför sitt kort och ritades över "Your tokens" på 1024-1140 px.
+  for (const theme of THEMES) {
+    for (const width of RULES_WIDTHS) {
+      test(`rules: the tier titles stay inside their cards and nothing overlaps at ${width} px in the ${theme} theme`, async ({ page }) => {
+        await openDuels(page, theme, { width, height: 900 });
+        await page.getByRole('tab', { name: TAB_NAMES.rules }).click();
+        await expect(page.locator('.rq-duels-rule').first()).toBeVisible();
+        await waitForStylesApplied(page);
+
+        const measured = await measureRules(page);
+        const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+        expect(measured.cards, 'there is one card per tier').toBe(3);
+        expect.soft(measured.titlesOutside, 'every tier title stays inside its card').toEqual([]);
+        expect.soft(measured.overlaps, 'no two texts on the Rules screen overlap').toEqual([]);
+        expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+      });
+    }
   }
 });
