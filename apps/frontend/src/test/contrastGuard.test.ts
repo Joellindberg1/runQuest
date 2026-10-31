@@ -227,6 +227,10 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
         layers: [HAIRGRID, ROW_SOFT],
       },
       {
+        name: 'Runner-sidans radetikett (dt)', surfaces: ['card'], fg: lightOverride(RUNNER, '[data-theme="light"] .rq-runner-row dt', label(RUNNER, '.rq-runner-row dt')),
+        layers: [HAIRGRID, ROW_SOFT],
+      },
+      {
         name: 'Challenge pending (statuschipet)', surfaces: ['shell', 'popup'], fg: label(INDEX, '.rq-chip--status'),
         layers: [[INDEX, '.rq-chip--status', 'background']], scope: [[INDEX, '.rq-chip--duel']],
       },
