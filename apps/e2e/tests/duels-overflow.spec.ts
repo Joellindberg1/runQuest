@@ -103,15 +103,56 @@ const history: ChallengeHistoryItem[] = PAIRS.map(([challengerId, opponentId], i
   loser_boost: { type: 'multiplier_days', delta: -0.25, duration: 14 },
 }));
 
+interface DuelsStubData {
+  my: MyChallengesData;
+  history: ChallengeHistoryItem[];
+}
+const defaultStubData: DuelsStubData = { my: myChallenges, history };
+
+// Förnamn, mått och längd varieras så att radbrytningen hamnar på olika ställen i "Maria · Most km · 7 d": någon rad bryts mitt i längden om den får.
+const OFFER_FIRST_NAMES = ['Al', 'Eva', 'Olof', 'Maria', 'Johan', 'Karolin', 'Alexander', 'Christopher', 'Maximilian', 'Bartholomew', 'Konstantinos', 'Christopherson', 'Maximilianson'];
+const OFFER_METRICS: ChallengeRow['metric'][] = ['km', 'runs', 'total_xp'];
+const OFFER_TIERS: ChallengeRow['tier'][] = ['minor', 'major', 'legendary'];
+const OFFER_DAYS = [1, 3, 5, 7, 10, 11, 14, 30];
+const offers: ChallengeRow[] = OFFER_FIRST_NAMES.flatMap((first, nameIndex) =>
+  OFFER_METRICS.map((metric, metricIndex): ChallengeRow => ({
+    ...challenge(`offer-${nameIndex}-${metricIndex}`, 'member-2', 'stub-user-1', 'pending'),
+    challenger_id: `offer-user-${nameIndex}`,
+    challenger_name: `${first} Lindqvist`,
+    metric,
+    duration_days: OFFER_DAYS[(nameIndex + metricIndex) % OFFER_DAYS.length]!,
+    tier: OFFER_TIERS[(nameIndex + metricIndex) % OFFER_TIERS.length]!,
+  })),
+);
+const durationData: DuelsStubData = {
+  my: {
+    ...myChallenges,
+    sent_challenge: { ...challenge('offer-out', 'stub-user-1', 'member-1', 'pending'), metric: 'total_xp', duration_days: 11, tier: 'legendary' },
+    received_challenges: offers,
+    group_active: [],
+  },
+  history: PAIRS.flatMap(([challengerId, opponentId], pairIndex) =>
+    OFFER_DAYS.map((days, dayIndex): ChallengeHistoryItem => ({
+      ...history[pairIndex]!,
+      id: `duration-${pairIndex}-${dayIndex}`,
+      tier: OFFER_TIERS[(pairIndex + dayIndex) % OFFER_TIERS.length]!,
+      metric: OFFER_METRICS[(pairIndex + dayIndex) % OFFER_METRICS.length]!,
+      duration_days: days,
+      challenger: { ...history[pairIndex]!.challenger, id: challengerId },
+      opponent: { ...history[pairIndex]!.opponent, id: opponentId },
+    })),
+  ),
+};
+
 // Svaren sätts i webbläsaren och ersätter det fejkade API:ets svar för just de här anropen, så skärmen har innehåll att mäta.
-async function stubDuelsApi(page: Page, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
+async function stubDuelsApi(page: Page, groupStats: ChallengeGroupStat[] = standings, data: DuelsStubData = defaultStubData): Promise<void> {
   await page.route('**/api/challenges/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, '');
     const reply = (data: unknown, extra: object = {}) =>
       route.fulfill({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data, ...extra }) });
-    if (path === '/challenges/my') return reply(myChallenges);
+    if (path === '/challenges/my') return reply(data.my);
     if (path === '/challenges/group-stats') return reply(groupStats);
-    if (path === '/challenges/group-history') return reply({ items: history }, { meta: { total: history.length, limit: 20, offset: 0, has_more: false } });
+    if (path === '/challenges/group-history') return reply({ items: data.history }, { meta: { total: data.history.length, limit: 20, offset: 0, has_more: false } });
     const progress = path.match(/^\/challenges\/(.+)\/progress$/);
     if (progress) return reply({ challenge_id: progress[1], metric: 'km', start_date: '2026-10-20', end_date: '2026-11-03', progress: [{ user_id: 'member-2', value: 41.5 }, { user_id: 'stub-user-1', value: 38.25 }] });
     return route.fulfill({ status: 404, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'not stubbed' }) });
@@ -186,8 +227,8 @@ const VIEW_ROWS: Record<(typeof VIEWS)[number], { row: string; name: string }> =
   history: { row: '.rq-duels-match', name: '.rq-duels-match__name' },
 };
 
-async function openDuels(page: Page, theme: string, size: { width: number; height: number }, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
-  await stubDuelsApi(page, groupStats);
+async function openDuels(page: Page, theme: string, size: { width: number; height: number }, groupStats: ChallengeGroupStat[] = standings, data: DuelsStubData = defaultStubData): Promise<void> {
+  await stubDuelsApi(page, groupStats, data);
   await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize(size);
   await page.goto('/duels?view=standings');
@@ -220,7 +261,9 @@ async function measureTabs(page: Page): Promise<TabsMeasure> {
 const TAB_NAMES = { standings: 'Standings', live: 'Live', rules: 'Rules', history: 'History' } as const;
 
 // Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
-const NARROW_WIDTHS = [320, 340];
+const NARROW_WIDTHS = [320, 340, 360, 368, 375];
+// Bredderna där en längd ("7 d") i titeln på ett erbjudande och på en historikrad bröts inom sig själv.
+const DURATION_WIDTHS = [320, 375];
 const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
 const STAKE_WIDTHS = [1024, 1050];
 // Rules: nivåkorten ligger tre i bredd bredvid sidokolumnen på smal desktop (1024-1219 px), där "Legendary" annars gick ut ur sitt kort.
@@ -244,6 +287,28 @@ async function measureBrokenWords(page: Page, nameSelector: string): Promise<str
     }
     return broken;
   }, nameSelector);
+}
+
+/** Längder ("7 d", "14 d") som ligger på mer än en rad: en radbrytning mellan talet och enheten. Hårda mellanslag räknas som mellanslag. */
+async function measureSplitDurations(page: Page, selector: string): Promise<{ checked: number; split: string[] }> {
+  return page.evaluate((query) => {
+    const split: string[] = [];
+    let checked = 0;
+    for (const element of Array.from(document.querySelectorAll<HTMLElement>(query))) {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const match of (node.textContent ?? '').matchAll(/\d+[ \u00a0]d(?![a-z])/g)) {
+          checked += 1;
+          const range = document.createRange();
+          range.setStart(node, match.index!);
+          range.setEnd(node, match.index! + match[0].length);
+          const lines = new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top)));
+          if (lines.size > 1) split.push(`"${match[0]}" in "${(element.textContent ?? '').trim()}" is split over ${lines.size} lines`);
+        }
+      }
+    }
+    return { checked, split };
+  }, selector);
 }
 
 interface RulesMeasure {
@@ -413,5 +478,36 @@ test.describe('the Duels screen with long names', () => {
         expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
       });
     }
+  }
+
+  // Längden ("7 d") i titeln på ett erbjudande (Waiting on you, Sent) och på en historikrad är en enhet: raden bryts före eller efter den, aldrig mellan talet och "d".
+  for (const width of DURATION_WIDTHS) {
+    test(`the duration in an offer title is not split over two lines at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES), durationData);
+      await page.getByRole('tab', { name: TAB_NAMES.live }).click();
+      await expect(page.locator('.rq-duels-offer').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const measured = await measureSplitDurations(page, '.rq-duels-offer__title');
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(measured.checked, 'every offer title shows a duration').toBe(offers.length + 1);
+      expect.soft(measured.split, 'no duration is split between the number and the unit').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
+
+    test(`the duration in a history row is not split over two lines at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES), durationData);
+      await page.getByRole('tab', { name: TAB_NAMES.history }).click();
+      await expect(page.locator('.rq-duels-match').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const measured = await measureSplitDurations(page, '.rq-duels-match__what, .rq-duels-match__detail');
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(measured.checked, 'the history rows show a duration').toBeGreaterThanOrEqual(PAIRS.length * OFFER_DAYS.length);
+      expect.soft(measured.split, 'no duration is split between the number and the unit').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
   }
 });
