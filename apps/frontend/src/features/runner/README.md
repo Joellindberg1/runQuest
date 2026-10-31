@@ -28,7 +28,8 @@ Datahämtningen är gemensam (`hooks/useRunnerPanelData`) och panelerna är desa
 - **runnerModel.ts** — rena, testade vymodeller (hjälte, celler, distans-/streak-/fun-rader, titlar, head-to-head)
 - **headToHeadSentence.ts** — ren funktion: Head to head som en mening ur den inloggades sida (testad)
 - **hooks/useRunnerQueries.ts** — `useHeadToHead`, `useRunnerTitles`
-- `runner.css` — enda stilfilen; mått (`--rq-runner-*`) i temafilen, sektion 1.21
+- `runner.css` — reglerna som Runner cards sida (`RunnerCard`, eager) behöver, även de popupen delar; mått (`--rq-runner-*`) i temafilen, sektion 1.21
+- `runnerPopup.css` — reglerna som bara popupens komponenter använder (`.rq-runner-popup*`, flikraden, Overview, bannern och Head to head-panelen, Titles held och Badges i popupen). Importeras av `RunnerPopup.tsx` och följer med den lazy chunken; en ingång får aldrig länka den (`landingBuild.test.ts` fäller bygget). En regel flyttas hit först när varje klass i selektorn bara används av popupens komponenter
 
 ## Regler värda att komma ihåg
 

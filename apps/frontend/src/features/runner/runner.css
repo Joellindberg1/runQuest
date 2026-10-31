@@ -1,7 +1,8 @@
 /* Runner card (inkrement 3): hjältekort · Frodo's journey · statflikar · titlar · head-to-head.
    ENDAST tokens (regel 1). Måtten (--rq-runner-*) definieras i temafilen, sektion 1.21 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen.
+   Här bor reglerna som Runner cards sida (RunnerCard, eager) behöver, även de som popupen delar. Regler som bara popupens komponenter använder bor i runnerPopup.css, som den lazy RunnerPopup-chunken laddar. */
 
 /* ── Ram: sida (mobil/direktladdning) ─────────────────────────────────────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -18,70 +19,7 @@
    Head to head sträcks till radens höjd (designen: Web Prototype 1653); panelen utan head to head (ingen inloggad) tar första kolumnen ensam. */
 .rq-runner__lower { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__lower > .rq-runner-h2h { align-self: stretch; }
-
-/* ── Ram: profil-popupen (pages/RunnerPage.tsx) ───────────────────────────────
-   Lagret och bredden är skalets: .rq-scrim och .rq-modal (width min(--rq-modal-w, 95vw), max-height 88vh, flex-kolumn, overflow hidden). Här läggs bara den fasta
-   huvudytan (rubrik, Challenge; ✕ är .rq-modal__close, positionerad mot modalen) och ytan som scrollar: innehållet får aldrig göra dialogen högre än fönstret. */
-.rq-runner-popup__bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-12); padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
-.rq-runner-popup__title { flex-shrink: 0; margin: 0; font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-2); white-space: nowrap; }
-/* Challenge och, när den är avstängd, skälet bredvid: skälet tar den plats raden har kvar och radbryter före titeln och ✕. Radhöjden 1.2 gör att två rader av skälet inte blir högre än knappen, så rubrikraden (och dialogen, 669 px) har samma höjd med och utan skäl. */
-.rq-runner-popup__challenge { display: flex; flex: 0 1 auto; align-items: center; gap: var(--rq-sp-12); min-width: 0; }
-.rq-runner-popup__challenge > .rq-btn { flex-shrink: 0; white-space: nowrap; }
-.rq-runner-popup__reason { min-width: 0; font-size: var(--rq-fs-label); line-height: 1.2; text-align: right; color: var(--rq-text-4); }
-.rq-runner-popup__content { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
-
-/* ── Profil-popupen: flikraden och panelytan ──────────────────────────────────
-   Flikraden är ViewTabs (variant underline) med skalets .rq-tab; ringen, hit-ytan och typsnittet kommer från view-controls.css. Vald flik har samma tint och kant som övriga vald-ytor
-   (--rq-tint-selected / --rq-edge-selected, receptet .rq-filter) plus .rq-tabs guldlinje under. Alla flikar har en genomskinlig kant av samma bredd, så att raden inte rör sig när valet byts.
-   Panelytan har FAST höjd och scrollar för sig: dialogen blir då lika hög på alla flikar (och aldrig högre än .rq-modal tillåter, då scrollar innehållet i dialogen som förut). */
-.rq-runner-popup-tabs { display: flex; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
-.rq-runner-popup-tabs > .rq-tab {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-8); margin-bottom: 0; padding: var(--rq-sp-12) var(--rq-sp-8);
-  font-weight: 600; white-space: nowrap; background: none; border: var(--rq-hair) solid transparent; border-bottom: var(--rq-edge-w-thin) solid transparent;
-}
-.rq-runner-popup-tabs > .rq-tab[aria-selected="true"] {
-  background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); border-bottom-color: var(--rq-gold);
-}
-.rq-runner-popup-panel { height: var(--rq-runner-popup-panel-h); overflow-y: auto; padding-top: var(--rq-sp-14); }
-.rq-runner-popup-panel:focus-visible { outline-offset: var(--rq-focus-inset); }
-
-/* ── Profil-popupen: Overview ─────────────────────────────────────────────────
-   Växlingen (SegmentedControl, .rq-filter-chips) ligger över ett kort med profilens statistikinnehåll (rader eller aktivitetskartan). Höjden är panelytans, inte innehållets: panelen scrollar för sig. */
-.rq-runner-overview { display: flex; flex-direction: column; gap: var(--rq-sp-12); }
-/* Texten i Overview ska hålla 4,5:1 i båda teman (kravet för läsbar text). Ersättningen är --rq-text-4, tokenen som är satt till AA mot kortets yta i båda teman (stylelint tillåter inga egna custom properties, så ingen ny token införs).
-   Veckodagsbokstäverna (M, W, F, S) är profilens --rq-text-5 (2,53:1 mörkt, 1,79:1 ljust) och är läsbar text: de byter token i båda teman. Övriga överstyrningar gäller bara ljust tema,
-   där profilens --rq-text-3 ger 3,95:1 (radetiketter och rader med ton muted) och receptets vilande knapp 4,22:1; i mörkt tema är Overview identisk med profilen och det delade receptet.
-   Profilsidans egna rader och profile.css är oförändrade. */
-.rq-runner-overview .rq-profile-heat__day { color: var(--rq-text-4); }
-[data-theme="light"] .rq-runner-overview__switch > .rq-filter:not([aria-pressed="true"]) { color: var(--rq-text-2); }
-[data-theme="light"] .rq-runner-overview .rq-profile-row dt,
-[data-theme="light"] .rq-runner-overview .rq-profile-row dd[data-tone="muted"] { color: var(--rq-text-4); }
-/* Fun facts har fem rader (fyra plus utmaningsrekordet) och ska rymmas i panelytans fasta höjd utan att kortet scrollar: raderna bär egen vertikal luft, så kortet har bara en smal marginal. */
-.rq-card.rq-runner-overview__content { padding: var(--rq-sp-4) var(--rq-pad-card); }
-.rq-runner-overview__content > .rq-profile-heat { padding-block: var(--rq-sp-10); }
 .rq-runner__split > .rq-runner-h2h { align-self: stretch; }
-
-/* ── Profil-popupen: bannern och Head to head-panelen ─────────────────────────
-   Tre kolumner: ring | namn, ställning och statrad | panelen uppe till höger (prototypen: 212 px, sträckt till bannerns höjd). Statraden har lika breda celler hur många de är (fyra: TOTAL XP, TOTAL KM,
-   RUNS, TITLES HELD). Bannerns höjd får aldrig bero på panelens läge: panelens innehåll har samma lägsta höjd (--rq-runner-h2h-body-h) i alla lägen (rekord, laddar, fel, inga dueller) och ryms
-   i vänsterkolumnens höjd (ringen, namnraden och statraden), som därmed bestämmer bannern. Panelen har ingen egen bakgrund: etiketterna i rutorna ligger då på samma lager som statradens
-   (hårlinjegridens och cellens), och kontrasten blir densamma som där (≥ 4,5:1 i båda teman). */
-.rq-runner-hero--popup { display: grid; grid-template-columns: auto minmax(0, 1fr) var(--rq-runner-h2h-w); gap: var(--rq-sp-20); align-items: start; }
-.rq-runner-hero--popup .rq-runner-hero__meta { margin-bottom: var(--rq-sp-12); }
-.rq-runner-hero--popup .rq-runner-cells { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.rq-runner-h2h-banner { align-self: stretch; display: flex; flex-direction: column; gap: var(--rq-sp-8); min-width: 0; padding: var(--rq-sp-10) var(--rq-sp-12); border: var(--rq-hair) solid var(--rq-line-3); }
-.rq-runner-h2h-banner__head { display: flex; align-items: center; gap: var(--rq-sp-8); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-runner-h2h-banner__body { flex: 1; min-height: var(--rq-runner-h2h-body-h); display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
-.rq-runner-h2h-banner .rq-runner-record { margin: 0; }
-.rq-runner-h2h-banner .rq-runner-cell { padding: var(--rq-sp-6) var(--rq-sp-4); }
-.rq-runner-h2h-banner .rq-runner-cell__value[data-tone="muted"] { color: var(--rq-text-2); }
-.rq-runner-h2h-banner__body > :not(.rq-runner-record) { margin-block: auto; }
-.rq-runner-h2h-banner .rq-runner-note { padding: var(--rq-sp-6); }
-.rq-runner-h2h-banner .rq-runner-loading { padding: 0; }
-.rq-runner-h2h-banner .rq-error { gap: var(--rq-sp-4); padding: var(--rq-sp-4) var(--rq-sp-8); }
-.rq-runner-h2h-banner .rq-error .rq-btn { padding-block: var(--rq-sp-4); }
-.rq-runner-h2h-banner .rq-error__title { font-family: var(--rq-font-ui); font-size: var(--rq-fs-meta); font-weight: 600; }
-.rq-runner-h2h-banner .rq-error__text { font-size: var(--rq-fs-eyebrow); color: var(--rq-text-4); }
 
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
 .rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
@@ -182,44 +120,6 @@
 .rq-runner-title__value { flex-shrink: 0; font-weight: 600; font-size: var(--rq-fs-meta); color: var(--rq-gold-text); }
 .rq-runner-title__main { display: flex; flex-direction: column; min-width: 0; }
 .rq-runner-title__holder { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-
-/* ── Profil-popupen: Titles held ──────────────────────────────────────────────
-   Kortet fyller panelytans innerhöjd (panelen scrollar då inte själv): rubriken och typfiltret står fast och bara listan under scrollar. Listan är en container, så att kolumnerna
-   följer dess bredd och inte fönstrets: två kolumner när de ryms (prototypen, popupens 860 px ger ca 780 px), annars en. Typraden är mono i etikettens storlek (11 px) och --rq-text-4,
-   tokenen som är AA-kalibrerad mot kortets yta; på den guldtonade raden prövas den i båda teman. Sidans panel (.rq-runner-titles utan --popup) är oförändrad. */
-.rq-runner-titles--popup { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.rq-runner-titles__filter { flex-shrink: 0; margin-bottom: var(--rq-sp-10); }
-.rq-runner-titles__scroll { flex: 1; min-height: 0; overflow-y: auto; container-type: inline-size; }
-.rq-runner-titles__scroll:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
-.rq-runner-list.rq-runner-titles__grid { display: grid; grid-template-columns: minmax(0, 1fr); }
-.rq-runner-titles--popup .rq-runner-title[data-kind="held"] { padding: var(--rq-sp-8) var(--rq-sp-12); }
-.rq-runner-title__type { font-family: var(--rq-font-mono); font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-runner-titles--popup .rq-runner-title__name { overflow-wrap: anywhere; }
-@container (min-width: 560px) {
-  .rq-runner-list.rq-runner-titles__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-/* Ljust tema: den vilande knappen (text-3 ger 4,22:1) och Runner-up-raderna (namnet i text-3 och en ton på gapet, 4,14:1) lyfts till AA med samma scopade regel som Overview och Journey. Mörkt tema är oförändrat. */
-[data-theme="light"] .rq-runner-titles__filter > .rq-filter:not([aria-pressed="true"]) { color: var(--rq-text-2); }
-[data-theme="light"] .rq-runner-titles--popup .rq-runner-title[data-kind="runner-up"] .rq-runner-title__name { color: var(--rq-text-2); }
-[data-theme="light"] .rq-runner-titles--popup .rq-runner-title__value[data-tone="muted"] { color: var(--rq-text-4); }
-
-/* ── Profil-popupen: Badges ───────────────────────────────────────────────────
-   Som Titles held: kortet fyller panelytans innerhöjd, rubriken står fast och bara listan under scrollar. Korten är samlingens (.rq-badge-card, skrivskyddade) på sin neutrala yta; tierfärgen
-   ligger bara på emblemet, chippet och pipsen (badges.css). Listan är en container, så att kolumnerna följer dess bredd och inte fönstrets: två kolumner när de ryms (popupens 860 px ger
-   ca 780 px), annars en. Korten har prototypens läge i alla fönsterbredder: emblemet till vänster, och till höger namn och chip på en rad, pipsen under och sedan kravet och held-by
-   (samlingens skrivbordsläge lägger kroppen under emblemet, det gäller inte här). Panelen på sidan (.rq-badge-panel) är oförändrad. */
-.rq-runner-badges--popup { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.rq-runner-badges__scroll { flex: 1; min-height: 0; overflow-y: auto; container-type: inline-size; }
-.rq-runner-badges__scroll:focus-visible { outline-color: var(--rq-gold-text); outline-offset: var(--rq-focus-inset); }
-.rq-runner-badges__grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--rq-sp-8); }
-.rq-runner-badges__grid > .rq-badge-card.rq-badge-card--landscape { grid-template-areas: "emblem who" "emblem body"; padding: var(--rq-sp-12); }
-.rq-runner-badges__grid .rq-badge-card--landscape .rq-badge-card__who { flex-direction: row; align-items: center; }
-.rq-runner-badges__grid .rq-badge-card--landscape .rq-badge-card__who .rq-badge-pips { flex-basis: 100%; }
-/* Chippet är en etikett här, ingen knapp: en tät rad (som prototypens) gör kortet så lågt att två rader ryms i panelytan, så en löpare med få badges slipper en scroll på några pixlar. */
-.rq-runner-badges__grid .rq-badge-card .rq-chip.rq-badge-chip { padding-block: var(--rq-sp-2); }
-@container (min-width: 560px) {
-  .rq-runner-badges__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 
 /* BADGES-panelen (RUN-130) bor sedan RUN-128 i features/badges/badges.css, med komponenten. */
 

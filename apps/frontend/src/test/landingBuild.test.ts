@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import postcss, { type AtRule } from 'postcss';
 import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { build, type Plugin } from 'vite';
@@ -9,6 +10,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { RoutePending } from '@/app-shell/RoutePending';
 import { StagingBanner } from '@/app-shell/StagingBanner';
 import { sessionHintScript } from '@/landing-entry/sessionHint';
+import { splitTopLevel } from './contrast';
 import { forbiddenInLanding } from './landingGraphGuard';
 import { LANDING_MARKER, LOADER_MARKER, LOADER_PHASE_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
@@ -255,6 +257,49 @@ describe('the production build', () => {
       expect(own.map((file) => read(dist, file)).join('\n')).toMatch(marker);
       expect([...entryCss].map((file) => read(dist, file)).join('\n')).not.toMatch(marker);
     }
+  });
+
+  // Popupens egen stilmall (features/runner/runnerPopup.css) följer med den lazy RunnerPopup-chunken, på samma sätt som positionsgrafernas. Länkas den från en ingång (en import i
+  // RunnerCard, main eller något annat som en ingång laddar statiskt) hamnar reglerna i index-*.css igen och /legal tappar sin marginal mot stilmallsbudgeten.
+  it("the runner popup's stylesheet sits in its lazy chunk: neither entry links it", () => {
+    const entryCss = new Set(entryChunks().flatMap((entry) => staticClosure('prod', entry)).flatMap((chunk) => chunk.css));
+    const own = holdersOf('features/runner/components/RunnerPopup.tsx').flatMap((chunk) => chunk.css);
+    expect(own.length, 'RunnerPopup bär en egen stilmall').toBeGreaterThan(0);
+    expect(own.filter((file) => entryCss.has(file))).toEqual([]);
+    const lazyText = own.map((file) => read(dist, file)).join('\n');
+    const entryText = [...entryCss].map((file) => read(dist, file)).join('\n');
+    for (const marker of [/\.rq-runner-popup__bar\b/, /\.rq-runner-popup-tabs\b/, /\.rq-runner-overview\b/, /\.rq-runner-h2h-banner\b/, /\.rq-runner-titles--popup\b/, /\.rq-runner-badges__grid\b/]) {
+      expect(lazyText, `${marker} i popupens stilmall`).toMatch(marker);
+      expect(entryText, `${marker} i ingångarnas stilmallar`).not.toMatch(marker);
+    }
+    // Och sidans regler (Runner card på /runner/:id, mobil och direktladdning) ligger kvar i ingångens stilmall: RunnerCard är eager och får aldrig vänta på popupens chunk.
+    for (const marker of [/\.rq-runner__lower\b/, /\.rq-runner-hero__id\b/, /\.rq-runner-ring\b/, /\.rq-runner-journey__sum\b/]) {
+      expect(entryText, `${marker} i ingångarnas stilmallar`).toMatch(marker);
+      expect(lazyText, `${marker} i popupens stilmall`).not.toMatch(marker);
+    }
+  });
+
+  // En regel i popupens stilmall är bara säker att ha lazy om selektorn kräver en klass som ingen eagerladdad modul nämner. Annars ritas en eager komponent (RunnerCard, panelerna som sidan och popupen delar)
+  // utan regeln tills popupen öppnats. Klassnamnen läses ur källan till varje modul i ingångarnas statiska graf (en dynamiskt sammansatt klass syns inte, men popupens klasser är hela strängar).
+  it("every rule in the runner popup's stylesheet needs a class that no eagerly loaded module mentions", () => {
+    const eagerSources = entryChunks()
+      .flatMap((entry) => staticClosure('prod', entry))
+      .flatMap((chunk) => chunk.moduleIds)
+      .map(normalize)
+      .filter((id) => /\/src\/.+\.tsx?$/.test(id) && existsSync(id))
+      .map((id) => readFileSync(id, 'utf8'));
+    expect(eagerSources.length, 'the scan reads the eager modules').toBeGreaterThan(50);
+    expect(eagerSources.some((source) => source.includes('rq-runner__body')), 'RunnerCard is among the eager modules').toBe(true);
+    const mentionedEagerly = (name: string) => eagerSources.some((source) => source.includes(name));
+    const needing: string[] = [];
+    postcss.parse(readFileSync(join(frontend, 'src/features/runner/runnerPopup.css'), 'utf8')).walkRules((rule) => {
+      if (rule.parent?.type === 'atrule' && (rule.parent as AtRule).name.endsWith('keyframes')) return;
+      for (const branch of splitTopLevel(rule.selector)) {
+        const classes = [...branch.matchAll(/\.(rq-[\w-]+)/g)].map((match) => match[1]);
+        if (!classes.some((name) => !mentionedEagerly(name))) needing.push(branch.replace(/\s+/g, ' ').trim());
+      }
+    });
+    expect(needing).toEqual([]);
   });
 
   // Ingångsmodulen och dess förladdningar hämtas först efter första ritningen (RUN-343, deferLandingEntry.ts). HTML-filen bär bara ett litet boot-skript; boot-skriptet

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // Samlingskortets yta är neutral (STATE.md): nivåfärgen (`--rq-badge-*`) hör till emblemet, chippet och pipsen, aldrig till kortets bakgrund. Vakten läser kortets alla regler, både i badges.css och i
-// popupens egna regler i runner.css, så en ny ytfärg på korten fälls oavsett vilken fil den läggs i. CSS läses från disk: vitest (css: false) tömmer ?raw-importer av .css.
+// popupens egna regler i runner.css och runnerPopup.css, så en ny ytfärg på korten fälls oavsett vilken fil den läggs i. CSS läses från disk: vitest (css: false) tömmer ?raw-importer av .css.
 
 const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -52,6 +52,7 @@ function cardSurfaces(css: string): Array<{ selector: string; property: string; 
 const cardCss = [
   ['badges.css', readFromDisk('./badges.css')],
   ['runner.css', readFromDisk('../runner/runner.css')],
+  ['runnerPopup.css', readFromDisk('../runner/runnerPopup.css')],
 ] as const;
 
 describe('samlingskortets yta är neutral', () => {

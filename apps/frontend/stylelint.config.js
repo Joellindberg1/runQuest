@@ -191,6 +191,14 @@ export default {
         bannedSelectors: ["/rq-badge-panel/"],
       }),
     },
+    {
+      // Popupens regler (flyttade ur runner.css): samma undantag som där (den enhetslösa radhöjden på skälet bredvid Challenge) och samma förbud mot den gamla BADGES-panelens väljare.
+      files: ["src/features/runner/runnerPopup.css"],
+      rules: designRules({
+        rawLineHeight: true,
+        bannedSelectors: ["/rq-badge-panel/"],
+      }),
+    },
     { files: ["src/shared/components/error-state.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line"] }) },
     {
       // Bakgrundsbanan (ägarundantag 2026-10-13): bara rutnätet (rqTrackDrift) och de tre löparna (rqTrackLap1–3, bara transform) loopar, och båda stängs av helt med
