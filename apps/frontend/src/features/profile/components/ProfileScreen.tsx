@@ -12,7 +12,7 @@ import { BadgeSummary } from '@/features/badges/components/BadgeSummary';
 import { useGroupBadges, useUserBadges } from '@/features/badges/hooks/useBadgeQueries';
 import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
-import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
+import { useTitleBoard } from '@/features/titles/hooks/useTitlesQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useRunnerTitles } from '@/features/runner/hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../profileModel';
@@ -38,7 +38,7 @@ export function ProfileScreen() {
   const usersQuery = useUsersWithRuns(!!user);
   const me = usersQuery.data?.find((candidate) => candidate.id === user?.id);
   const titlesQuery = useRunnerTitles(user?.id ?? '');
-  const boardQuery = useTitleLeaderboard();
+  const boardQuery = useTitleBoard();
 
   // Badges är ett tillägg: egna queries, och ett badgefel stannar i sammanfattningen (resten av profilen berörs inte). Gruppens holders ger held-by;
   // felar den utelämnas raden (data är då undefined) utan platshållare.

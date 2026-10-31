@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { User } from '@runquest/types';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { firstName } from '@/shared/utils/format';
-import { useTitleLeaderboard } from '@/shared/hooks/useTitleQueries';
+import { useTitleBoard } from '@/features/titles/hooks/useTitlesQueries';
 import { useRunnerTitles } from '../hooks/useRunnerQueries';
 import { buildTitleRows } from '../runnerModel';
 import { PanelHead, PanelLoading } from './RunnerParts';
@@ -13,22 +13,25 @@ import { PanelHead, PanelLoading } from './RunnerParts';
  */
 export function TitlesPanel({ user }: { user: User }) {
   const titlesQuery = useRunnerTitles(user.id);
-  const boardQuery = useTitleLeaderboard();
+  const boardQuery = useTitleBoard();
+  // Enheten och "held by" kommer ur topplistan: utan den ritas inga värden alls, så ett fel eller en laddning ser aldrig ut som data.
   const rows = useMemo(
-    () => (titlesQuery.data ? buildTitleRows(titlesQuery.data, boardQuery.data ?? [], user.gender) : null),
+    () => (titlesQuery.data && boardQuery.data ? buildTitleRows(titlesQuery.data, boardQuery.data, user.gender) : null),
     [titlesQuery.data, boardQuery.data, user.gender],
   );
+  // Ett bakgrundsfel med en tidigare topplista kvar låter den stå; felkortet är för när det inte finns något att visa.
+  const failed = titlesQuery.isError || (boardQuery.isError && !boardQuery.data);
 
   let body;
-  if (titlesQuery.isError) {
+  if (failed) {
     body = (
       <ErrorState
         title="Couldn't load titles"
-        retrying={titlesQuery.isFetching}
-        onRetry={() => void titlesQuery.refetch()}
+        retrying={titlesQuery.isFetching || boardQuery.isFetching}
+        onRetry={() => void Promise.all([titlesQuery.refetch(), boardQuery.refetch()])}
       />
     );
-  } else if (!rows || boardQuery.isLoading) {
+  } else if (!rows) {
     body = <PanelLoading label="Loading titles" />;
   } else if (rows.held.length === 0 && rows.runnersUp.length === 0) {
     body = <p className="rq-runner-note">No titles yet — {firstName(user.name)} is still chasing the first one.</p>;
