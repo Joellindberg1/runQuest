@@ -28,6 +28,7 @@ const SHELL = 'app-shell/app-shell.css';
 const VIEW_CONTROLS = 'shared/components/view-controls.css';
 const DUELS = 'features/challenges/duels.css';
 const RUNNER = 'features/runner/runner.css';
+const RUNNER_POPUP = 'features/runner/runnerPopup.css';
 const BADGES = 'features/badges/badges.css';
 const PROFILE = 'features/profile/profile.css';
 const PROFILE_POSITION = 'features/profile/positionChart.css';
@@ -206,7 +207,7 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
       { name: 'Vald flik i filterraden (aria-selected)', surfaces: ['shell', 'card', 'popup'], fg: label(INDEX, '.rq-filter[aria-selected="true"]'), layers: [[INDEX, '.rq-filter[aria-selected="true"]', 'background']] },
       {
         name: 'Vald flik i profilpopupen', surfaces: ['popup'], fg: label(INDEX, '.rq-tab[aria-selected="true"]'),
-        layers: [[RUNNER, '.rq-runner-popup-tabs > .rq-tab[aria-selected="true"]', 'background']],
+        layers: [[RUNNER_POPUP, '.rq-runner-popup-tabs > .rq-tab[aria-selected="true"]', 'background']],
       },
       {
         name: 'Vald flik på profilsidan', surfaces: ['card'], fg: label(INDEX, '.rq-tab[aria-selected="true"]'),
@@ -247,7 +248,7 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
   {
     title: 'Head to head-etiketter',
     pairs: [
-      { name: 'Head to head: bannerrubriken i profilpopupen', surfaces: ['popup'], fg: label(RUNNER, '.rq-runner-h2h-banner__head') },
+      { name: 'Head to head: bannerrubriken i profilpopupen', surfaces: ['popup'], fg: label(RUNNER_POPUP, '.rq-runner-h2h-banner__head') },
       {
         name: 'Head to head: rekordets etikett (Wins/Losses/…)', surfaces: ['popup', 'popupCard', 'card'], fg: label(RUNNER, '.rq-runner-cell__label'),
         layers: [HAIRGRID, [RUNNER, '.rq-runner-cell', 'background']],
@@ -404,7 +405,7 @@ const RING_CASES: RingCase[] = [
     layers: [[PROFILE, '.rq-profile-tabs > .rq-tab[aria-selected="true"]', 'background']],
   },
   { name: 'Flik (understruken, profilpopupen), vilande', surfaces: ['popup'], rules: [TAB_RULE] },
-  { name: 'Flik (understruken, profilpopupen), vald', surfaces: ['popup'], rules: [TAB_RULE], layers: [[RUNNER, '.rq-runner-popup-tabs > .rq-tab[aria-selected="true"]', 'background']] },
+  { name: 'Flik (understruken, profilpopupen), vald', surfaces: ['popup'], rules: [TAB_RULE], layers: [[RUNNER_POPUP, '.rq-runner-popup-tabs > .rq-tab[aria-selected="true"]', 'background']] },
   { name: 'Flik (filterrad: Board, Duels), vilande', surfaces: ['shell', 'card'], rules: [TABLIST_FILTER] },
   { name: 'Flik (filterrad: Board, Duels), vald', surfaces: ['shell', 'card'], rules: [TABLIST_FILTER, TABLIST_FILTER_SELECTED], layers: [[INDEX, '.rq-filter[aria-selected="true"]', 'background']] },
   { name: 'Segmenterad kontroll, vilande knapp', surfaces: ['card', 'popup'], rules: [SEGMENTED] },

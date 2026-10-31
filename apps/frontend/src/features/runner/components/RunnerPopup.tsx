@@ -19,6 +19,7 @@ import { ChallengeOff } from './ChallengeOff';
 import { PopupBanner } from './PopupBanner';
 import { PopupSections } from './PopupSections';
 import '../runner.css';
+import '../runnerPopup.css';
 
 interface RunnerPopupProps {
   /** Löparen i adressen. */

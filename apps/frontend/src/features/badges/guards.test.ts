@@ -306,6 +306,7 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
     const srcRoot = fileURLToPath(new URL('../..', import.meta.url));
     const sheets = readdirSync(srcRoot, { recursive: true, encoding: 'utf8' }).map((path) => path.replace(/\\/g, '/')).filter((path) => path.endsWith('.css'));
     expect(sheets, 'badges.css is among the scanned stylesheets').toContain('features/badges/badges.css');
+    expect(sheets, 'the popup stylesheet (the density rule for the chip lives there) is among the scanned stylesheets').toContain('features/runner/runnerPopup.css');
     expect(sheets.length, 'the scan reaches the other stylesheets').toBeGreaterThan(10);
     const offenders: string[] = [];
     let chipRulesOutside = 0;
@@ -317,7 +318,7 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
         rule.walkDecls('color', () => { offenders.push(`${path}: ${rule.selector}`); });
       });
     }
-    // Skannern ser chipregler utanför badges.css (t.ex. radtätheten i runner.css), annars vore provet tomt.
+    // Skannern ser chipregler utanför badges.css (t.ex. radtätheten i runnerPopup.css), annars vore provet tomt.
     expect(chipRulesOutside, 'the scan sees chip rules outside badges.css').toBeGreaterThan(0);
     expect(offenders).toEqual([]);
   });
