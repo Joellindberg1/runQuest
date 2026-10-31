@@ -1,6 +1,7 @@
+import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { contrast, flatten, over, resolveColor, themeTokens } from '../../test/contrast';
 
@@ -14,6 +15,7 @@ const sources = import.meta.glob(['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!
 }) as Record<string, string>;
 
 const codeFiles = Object.entries(sources);
+
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('badges-featuren: delade definitioner, inte egna kopior', () => {
@@ -297,6 +299,27 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
       const ratio = contrast(text, over(tier, tint, card));
       expect({ name, enough: ratio >= 4.5 }).toEqual({ name, enough: true });
     }
+  });
+
+  it('exakt en chipregel: ingen regel utanför badges.css sätter color på .rq-badge-chip (popupen och övriga ytor ärver regeln i badges.css)', () => {
+    // Läses från disk: Vitest tömmer CSS som importeras (även `?raw`), så en glob skulle ge tomma strängar och ett prov som aldrig kan fälla.
+    const srcRoot = fileURLToPath(new URL('../..', import.meta.url));
+    const sheets = readdirSync(srcRoot, { recursive: true, encoding: 'utf8' }).map((path) => path.replace(/\\/g, '/')).filter((path) => path.endsWith('.css'));
+    expect(sheets, 'badges.css is among the scanned stylesheets').toContain('features/badges/badges.css');
+    expect(sheets.length, 'the scan reaches the other stylesheets').toBeGreaterThan(10);
+    const offenders: string[] = [];
+    let chipRulesOutside = 0;
+    for (const path of sheets) {
+      if (path === 'features/badges/badges.css') continue;
+      postcss.parse(readFileSync(`${srcRoot}/${path}`, 'utf8')).walkRules((rule) => {
+        if (!/\.rq-badge-chip\b/.test(rule.selector)) return;
+        chipRulesOutside += 1;
+        rule.walkDecls('color', () => { offenders.push(`${path}: ${rule.selector}`); });
+      });
+    }
+    // Skannern ser chipregler utanför badges.css (t.ex. radtätheten i runner.css), annars vore provet tomt.
+    expect(chipRulesOutside, 'the scan sees chip rules outside badges.css').toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
   });
 
   it('nivåfärgerna är egna literaler: inget --rq-badge-*-värde är ett alias mot status-, guld- eller utmaningsfärger', () => {
