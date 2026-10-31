@@ -19,8 +19,8 @@ export function TitlesPanel({ user }: { user: User }) {
     () => (titlesQuery.data && boardQuery.data ? buildTitleRows(titlesQuery.data, boardQuery.data, user.gender) : null),
     [titlesQuery.data, boardQuery.data, user.gender],
   );
-  // Ett bakgrundsfel med en tidigare topplista kvar låter den stå; felkortet är för när det inte finns något att visa.
-  const failed = titlesQuery.isError || (boardQuery.isError && !boardQuery.data);
+  // Strikt: felar topplistan visas felkortet även om en äldre topplista finns kvar (som Titles-sidan), så sidorna beter sig lika.
+  const failed = titlesQuery.isError || boardQuery.isError;
 
   let body;
   if (failed) {

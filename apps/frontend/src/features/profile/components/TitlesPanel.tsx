@@ -23,8 +23,8 @@ export function TitlesPanel({ user, titles, board, isDesktop }: TitlesPanelProps
     () => (titles.data && board.data ? buildMyTitles(titles.data, board.data, user.gender, !isDesktop, expanded) : null),
     [titles.data, board.data, user.gender, isDesktop, expanded],
   );
-  // Ett bakgrundsfel med en tidigare topplista kvar låter den stå; felkortet är för när det inte finns något att visa.
-  const failed = titles.isError || (board.isError && !board.data);
+  // Strikt: felar topplistan visas felkortet även om en äldre topplista finns kvar (som Titles-sidan), så sidorna beter sig lika.
+  const failed = titles.isError || board.isError;
 
   let body;
   if (failed) {

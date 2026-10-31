@@ -65,7 +65,7 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
 - **Profilbilden:** `POST /users/profile-picture` (via `backendApi`) finns kvar. Prototypen har ingen yta för den, så hjältekortet har en slank rad längst ned
   (avatar + "Change photo"). JPEG, PNG, WebP eller GIF (serverns typer), högst 5 MB (klienten nekar utan anrop). Efter en lyckad uppladdning omhämtas users, leaderboard, historiken, utmaningarna och head-to-head.
 - **Titlar** har en egen query (`useRunnerTitles`) som kastar vid fel, så att ett nätverksfel inte blir "No titles". Fel → felkort med Retry.
-  Topplistan (enheten och "held by") läses med `useTitleBoard`, delad med Titles; felar den visas samma felkort, och Retry hämtar om båda.
+  Topplistan (enheten och "held by") läses med `useTitleBoard`, delad med Titles; felar topplistan eller titlarna visas felkortet med Retry, även om en äldre topplista finns kvar; Retry hämtar om båda.
 - **Tour:** `tour_profile_v2` (ankare `profile-hero`, `profile-journey`, `profile-stats`, `profile-titles`, `profile-history`); v1-ankaren fanns inte längre.
 - **CSS-ordning:** Tailwind 3 plattar ut `@layer` till vanlig CSS i bygget, så det finns inga riktiga kaskadlager — vid lika specificitet avgör laddningsordningen.
   Profile ligger i huvudbunten, och där laddas `profile.css` FÖRE `index.css` (importordningen i `main.tsx`), så en enkel klass förlorar mot de delade
