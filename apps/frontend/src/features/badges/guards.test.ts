@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { contrast, flatten, over, resolveColor, themeTokens } from '../../test/contrast';
 
 // Vakttester över badges-featuren (ADR 009): typerna kommer ur @runquest/shared, varje resurs har EN query-definition, och inga
 // serienamn/texter är hårdkodade — allt om serierna läses ur shared (BADGE_SERIES, TIER_NAMES, requirementText, tierFlavor).
@@ -261,24 +262,14 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
   });
 
   it('kontrastvakt: chip-texten i varje nivåfärg når 4.5:1 mot chippets egen bakgrund (nivåfärgen i --rq-badge-chip-tint över kortet = panel över skalet + row-soft)', () => {
-    const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-    const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-    const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
-    const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
-    const rgba = (name: string) => {
-      const match = new RegExp(`${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([.\\d]+)\\)`).exec(indexCss);
-      expect(match, name).not.toBeNull();
-      return { rgb: [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])], alpha: Number(match?.[4]) };
-    };
-    const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
-    const panel = rgba('--rq-panel');
-    const rowSoft = rgba('--rq-row-soft');
-    const shell = hexRgb(/--rq-bg-shell:\s*(#[0-9a-fA-F]{6});/.exec(indexCss)?.[1] ?? '#000000');
-    const card = over(rowSoft.rgb, rowSoft.alpha, over(panel.rgb, panel.alpha, shell));
+    // Samma metod och samma hjälpare som src/test/contrastGuard.test.ts (nya tokenpar, båda teman, popupens chip).
+    const tokens = themeTokens(indexCss, 'dark');
+    const color = (value: string) => resolveColor(tokens, value);
+    const card = flatten([color('var(--rq-bg-shell)'), color('var(--rq-panel)'), color('var(--rq-row-soft)')]);
     const tint = Number(index.get('--rq-badge-chip-tint'));
     for (const name of TIER_NAMES) {
       const key = name.toLowerCase();
-      const text = hexRgb(index.get(`--rq-badge-${key}`) ?? '#000000');
+      const text = color(`var(--rq-badge-${key})`).rgb;
       const chipBackground = over(text, tint, card);
       expect({ key, ratio: contrast(text, chipBackground) >= 4.5 }).toEqual({ key, ratio: true });
     }
