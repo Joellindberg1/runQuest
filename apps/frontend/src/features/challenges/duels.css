@@ -91,11 +91,12 @@
 .rq-duels-live-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: var(--rq-duels-live-cols); gap: var(--rq-sp-10); }
 .rq-duels-live { --rq-edge: var(--rq-duels-tier); display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 .rq-duels-live:hover { background: var(--rq-row-hover); }
-.rq-duels-live__head { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); }
+.rq-duels-live__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); }
 .rq-duels-live__id { display: flex; align-items: center; gap: var(--rq-sp-8); min-width: 0; }
 .rq-duels-live__metric { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); }
-.rq-duels-live__len { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-duels-live__time { flex-shrink: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+/* Längden ("· 7 d") och tiden ("5 d left") är var sin enhet och bryts aldrig inom sig: rymmer inte kortet (ca 180-220 px på 1024-1100 px) id och tid på en rad får tiden en egen rad under, till höger. */
+.rq-duels-live__len { font-size: var(--rq-fs-meta); white-space: nowrap; color: var(--rq-text-4); }
+.rq-duels-live__time { flex-shrink: 0; margin-inline-start: auto; white-space: nowrap; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-live__time[data-tone="duel"] { color: var(--rq-duel); }
 .rq-duels-live__time[data-tone="down"] { color: var(--rq-down); }
 .rq-duels-live__sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--rq-sp-8); }
