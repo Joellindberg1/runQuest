@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryCache } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { MyChallengesData } from '@runquest/shared';
 import { AppRoutes } from '@/routes';
@@ -424,6 +425,18 @@ function trackFocusinListeners(): () => number {
     }
     remove(type, listener, options);
   });
+  // Prenumerationerna på frågecachen räknas med: bevakningen tar en när svaret landat, och den ska släppas lika noga.
+  const subscribe = QueryCache.prototype.subscribe;
+  vi.spyOn(QueryCache.prototype, 'subscribe').mockImplementation(function subscribeTracked(this: QueryCache, listener) {
+    const entry = { listener: null, capture: false };
+    live.push(entry);
+    const unsubscribe = subscribe.call(this, listener);
+    return () => {
+      const index = live.indexOf(entry);
+      if (index >= 0) live.splice(index, 1);
+      unsubscribe();
+    };
+  });
   return () => live.length;
 }
 
@@ -543,7 +556,8 @@ describe('the focus watch leaves no listener behind', () => {
 
     await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
     await screen.findByText(UNCONFIRMED);
-    expect(focusinCount()).toBe(baseline + 1);
+    // Lyssnaren på fokus och prenumerationen på frågecachen, som väntar på att omhämtningen ska bli klar.
+    expect(focusinCount()).toBe(baseline + 2);
     releaseTokens();
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
 

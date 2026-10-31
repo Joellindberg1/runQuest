@@ -24,7 +24,8 @@ interface Watching {
  * Back under ett skick lämnar fokus på kortet eller knappen som öppnade arket. När ett sent svar sedan hämtar om tokens försvinner kortet (tokenet är förbrukat), webbläsaren lägger fokus på
  * `<body>` och användaren som styr med tangentbordet eller skärmläsare börjar om från sidans topp. Bevakningen följer vad som har fokus från det att skicket går iväg, och när svaret har landat och
  * det fokuserade elementet har försvunnit ur dokumentet flyttas fokus till bekräftelsen (eller felet), annars rubrikens Send. Bara då: har användaren flyttat fokus eller finns kortet kvar flyttas inget.
- * Bevakningen avslutas när inga utmaningsfrågor hämtas om längre (efter ett tidsgränssvar pågår omhämtningen fortfarande när svaret landar, och det är den som tar bort kortet).
+ * Bevakningen avslutas när inga utmaningsfrågor hämtas om längre (efter ett tidsgränssvar pågår omhämtningen fortfarande när svaret landar, och det är den som tar bort kortet), också när omhämtningen
+ * inte ändrar något, och när skärmen försvinner.
  */
 export function useFocusRescue(): { begin: () => FocusWatch } {
   const queryClient = useQueryClient();
@@ -48,6 +49,13 @@ export function useFocusRescue(): { begin: () => FocusWatch } {
       landed: () => {
         if (current.current !== watching) return;
         watching.landed = true;
+        // Omhämtningen kan vara på väg när svaret landar (tidsgränsen) och sedan svara med samma data: ingen ritning följer då, och bevakningen skulle stå kvar. En ritning när den är klar
+        // kör effekten nedan, som då ser om kortet är borta (ritningen läser cachen som den är) eller om bevakningen är slut.
+        const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+          if (queryClient.isFetching({ queryKey: CHALLENGES_QUERY_KEY }) === 0) setLandedCount((count) => count + 1);
+        });
+        const stopFocusin = watching.stopListening;
+        watching.stopListening = () => { stopFocusin(); unsubscribe(); };
         setLandedCount((count) => count + 1);
       },
       stop: () => { if (current.current === watching) stopCurrent(); },
