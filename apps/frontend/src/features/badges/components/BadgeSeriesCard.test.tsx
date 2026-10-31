@@ -265,3 +265,57 @@ describe('BadgeSeriesCard — ingen global procent och ingen "has it" (O2, F9.12
     expect(text).not.toMatch(/in pack/i);
   });
 });
+
+// Utan växlare är kortet skrivskyddat: förklaringskortet i löparens popup (namn, nivå, pips, krav och held-by). Växlaren och "Locked"-rutan hör till samlingen på /badges.
+describe('BadgeSeriesCard skrivskyddat (utan växlare)', () => {
+  function renderReadOnly(row: BadgeRow) {
+    return render(
+      <ul>
+        <BadgeSeriesCard row={row} />
+      </ul>,
+    );
+  }
+
+  it('read-only badge card has no showcase switch', () => {
+    renderReadOnly(rowOf(milestoner.key));
+    expect(within(card()).queryByRole('button')).toBeNull();
+    expect(card().querySelector('.rq-badge-toggle')).toBeNull();
+    expect(card()).not.toHaveAttribute('data-display');
+    expect(within(card()).queryByText(/^Show$|On display/)).toBeNull();
+    // Det skrivskyddade kortet har inget interaktivt element alls.
+    expect(card().querySelectorAll('button, a, input, [tabindex]')).toHaveLength(0);
+  });
+
+  it('a locked row has no "Locked" box either', () => {
+    renderReadOnly(rowOf(nightOwl.key));
+    expect(card().querySelector('.rq-badge-toggle')).toBeNull();
+    expect(card().querySelector('.rq-badge-card__foot')).toBeNull();
+  });
+
+  it('keeps the name, the tier chip, the tier pips, the requirement and the held-by line, read once', () => {
+    renderReadOnly(rowOf(milestoner.key));
+    expect(within(card()).getByRole('heading', { level: 3, name: milestoner.name })).toBeInTheDocument();
+    expect(within(card()).getByText('Rare')).toHaveAttribute('data-tier', 'rare');
+    expect(within(card()).getByRole('img', { name: 'Tier 3 of 6' })).toBeInTheDocument();
+    expect(within(card()).getByText(requirementText(milestoner, 3))).toBeInTheDocument();
+    expect(within(card()).getByText('Held by 5 of 6 in your pack')).toBeInTheDocument();
+    expect(card().querySelector('.rq-badge--md')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('leaves out the flavor line, the Next line and the top-tier line: they belong to the collection', () => {
+    for (const series of [milestoner, streakKeeper]) {
+      const { unmount } = renderReadOnly(rowOf(series.key));
+      expect(card().querySelector('.rq-badge-card__flavor')).toBeNull();
+      expect(card().querySelector('.rq-badge-card__next')).toBeNull();
+      expect(card().querySelector('.rq-badge-card__max')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('a card without group data has no held-by line and no empty row', () => {
+    const noGroup = buildCollection({ items: [item(milestoner.key, 3)], showcase: [] }, undefined, ME)[0];
+    renderReadOnly(noGroup);
+    expect(within(card()).queryByText(/in your pack/)).toBeNull();
+    expect(card().querySelector('.rq-badge-card__foot')).toBeNull();
+  });
+});
