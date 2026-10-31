@@ -101,13 +101,17 @@
   .rq-badge, .rq-badge .rq-badge__frame { animation: none !important; }
 }
 
-/* ── Chip: status-receptet (tint .10 / kant .45 / text i full nivåfärg) via .rq-chip--status ──────────────
+/* ── Chip: status-receptet (tint .10 / kant .45 / text i full nivåfärg, i ljust tema dragen mot --rq-text-1, se nedan) via .rq-chip--status ──────────────
    Användning: <span className="rq-chip rq-chip--status rq-badge-chip" data-tier={tierKey(tier)}>{nivånamn}</span>.
    Låst chip: bara .rq-chip (ingen --status) — dess text är --rq-text-4 (≥ 4.5:1, verifierad i temafilen). */
 .rq-badge-chip[data-tier] { --rq-c: var(--rq-emblem-c-rgb); --rq-c-solid: var(--rq-emblem-c); }
 /* Nivåchippet har en svagare bakgrundstint än status-chippet (.06 mot .10): de dämpade nivåfärgerna (Heroic, Rare) klarar annars inte 4.5:1 mot chippets egen bakgrund.
    Sammansatt selektor slår .rq-chip--status oavsett laddningsordning; övriga status-chip är orörda. */
 .rq-chip.rq-badge-chip[data-tier] { background: rgb(var(--rq-c) / var(--rq-badge-chip-tint)); }
+/* Ljust tema: nivåfärgerna är valda för den mörka ytan, och i full nivåfärg ger Common, Uncommon, Rare, Heroic, Epic och Legendary bara 1,4-2,6:1 mot det ljusa kortet.
+   Texten dras därför mot --rq-text-1 (40 % nivåfärg, 60 % text), medan kant och tint behåller nivåfärgen. Mörkt tema berörs inte. Samma regel gäller varje nivåchip (kort, detaljkort, uppgraderingsdialog).
+   40 och inte 45: Legendary-guldet på chippets egen tint över kortet får 4,33:1 vid 45 % och 4,89:1 vid 40 % (högst 43 % klarar 4,5:1); övriga nivåer har marginal. */
+[data-theme="light"] .rq-badge-chip[data-tier] { color: color-mix(in srgb, var(--rq-c-solid) 40%, var(--rq-text-1)); }
 
 /* ── Pips: sex kvadrater, position (inte framsteg) ───────────────────────────── */
 .rq-badge-pips { display: inline-flex; align-items: center; gap: var(--rq-badge-pip-gap); }
