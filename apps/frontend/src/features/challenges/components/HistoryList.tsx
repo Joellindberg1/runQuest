@@ -1,6 +1,7 @@
 import { ErrorState } from '@/shared/components/ErrorState';
 import { RQIcon } from '@/shared/components/icons';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { keepDurationsTogether } from '../duelsFormat';
 import type { HistoryRow, HistorySide } from '../duelsModel';
 
 const ICON_MINE = 14;
@@ -76,10 +77,10 @@ export function HistoryList({ status, rows, mineOnly, onToggleMine, hasMore, loa
                 {showReward ? (
                   <>
                     <span className="rq-duels-match__what">{row.what}</span>
-                    <span className="rq-duels-match__detail">{`${row.days} · ${row.reward}`}</span>
+                    <span className="rq-duels-match__detail">{keepDurationsTogether(`${row.days} · ${row.reward}`)}</span>
                   </>
                 ) : (
-                  <span className="rq-duels-match__what">{`${row.what} · ${row.days}`}</span>
+                  <span className="rq-duels-match__what">{keepDurationsTogether(`${row.what} · ${row.days}`)}</span>
                 )}
               </div>
               {row.date && <span className="rq-duels-match__date">{row.date}</span>}

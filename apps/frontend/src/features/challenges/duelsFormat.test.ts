@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boostText, durationLongText, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, metricLabel, metricUnit,
+  boostText, durationLongText, formatDayMonth, formatMetricValue, formatMetricWithUnit, hoursUntilStart, keepDurationsTogether, metricLabel, metricUnit,
   stakeOf, startsInText, tierLabel, timeLeft,
 } from './duelsFormat';
 import { NOW } from './duels.fixture';
@@ -96,5 +96,30 @@ describe('tider (Stockholm-kalenderdagar, now = 4 okt 12:00)', () => {
     expect(startsInText('2026-10-07', NOW)).toBe('starts in 3 d');
     expect(startsInText('2026-10-04', NOW)).toBeNull();
     expect(startsInText(undefined, NOW)).toBeNull();
+  });
+});
+
+describe('keepDurationsTogether', () => {
+  const NO_BREAK_SPACE = '\u00a0';
+
+  it('binder talet och enheten i en längd med ett hårt mellanslag, så att en rad aldrig bryts mellan dem', () => {
+    expect(keepDurationsTogether('Most km · 7 d')).toBe(`Most km · 7${NO_BREAK_SPACE}d`);
+    expect(keepDurationsTogether('Legendary · Most XP · 11 d')).toBe(`Legendary · Most XP · 11${NO_BREAK_SPACE}d`);
+    expect(keepDurationsTogether('1 run, 3 runs')).toBe(`1${NO_BREAK_SPACE}run, 3${NO_BREAK_SPACE}runs`);
+  });
+
+  it('binder varje längd i texten, också den i en insats', () => {
+    expect(keepDurationsTogether('11 d · +0.5× / 14 d')).toBe(`11${NO_BREAK_SPACE}d · +0.5× / 14${NO_BREAK_SPACE}d`);
+  });
+
+  it('lämnar annan text orörd: mellanslag mellan ord, "days" och mått som "Most runs"', () => {
+    expect(keepDurationsTogether('Maria · Most runs')).toBe('Maria · Most runs');
+    expect(keepDurationsTogether('5 days left')).toBe('5 days left');
+    expect(keepDurationsTogether('12.1 km')).toBe('12.1 km');
+  });
+
+  it('är samma text för en skärmläsare: bara mellanslagens art skiljer', () => {
+    const text = 'Maria · Most km · 7 d';
+    expect(keepDurationsTogether(text).replace(new RegExp(NO_BREAK_SPACE, 'g'), ' ')).toBe(text);
   });
 });

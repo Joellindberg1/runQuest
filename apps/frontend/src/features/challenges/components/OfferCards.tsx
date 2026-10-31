@@ -1,3 +1,4 @@
+import { keepDurationsTogether } from '../duelsFormat';
 import type { IncomingCard, SentCard } from '../duelsModel';
 import { StakeBlocks } from './StakeBlocks';
 import { TierRibbon } from './TierRibbon';
@@ -28,7 +29,7 @@ export function IncomingOffer({ card, primary, busy, acceptBlocked, onAccept, on
               {card.fromShort}
             </button>
             {' · '}
-            {card.what}
+            {keepDurationsTogether(card.what)}
           </h3>
           <p className="rq-duels-offer__tier">{card.tierLabel}</p>
         </div>
@@ -78,7 +79,7 @@ export function SentOffer({ card, busy, onWithdraw, onOpenRunner }: SentOfferPro
               {card.toShort}
             </button>
             {' · '}
-            {card.what}
+            {keepDurationsTogether(card.what)}
           </h3>
           <p className="rq-duels-offer__tier">{card.tierLabel}</p>
         </div>
