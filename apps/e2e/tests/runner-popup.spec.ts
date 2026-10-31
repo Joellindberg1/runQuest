@@ -335,6 +335,14 @@ test.describe('the profile popup on desktop', () => {
     await expectPageLocked(page, dialog);
   });
 
+  // Raden ligger under vikningen i varje bygge (233 px från toppen i prod, 256 px med stagingbannern, fönstret är 200 px): klicket scrollar den i sikte, som en användare gör, och popupen ska lämna sidan där den stod.
+  test('with the runner row below the fold the page behind the popup stays where the click left it', async ({ page }) => {
+    await openBoard(page, 1024, 200);
+    const dialog = await openPopup(page);
+
+    await expectPageLocked(page, dialog);
+  });
+
   // Stabil höjd: panelytan har fast höjd, så dialogen är lika hög på alla fyra flikar, också med 15 titlar och en full badge-samling, och både medan en flik laddar och när den är klar.
   for (const [width, height] of [[1440, 900], [1280, 768]] as const) {
     test(`the dialog is equally tall on every tab, with 15 titles and many badges, on a ${width}x${height} screen`, async ({ page }, testInfo) => {
