@@ -165,7 +165,16 @@ async function openBoard(page: Page, width: number, height: number, titles = 3, 
 const runnerRow = (page: Page): Locator => page.locator(`[data-runner-id="${RUNNER.id}"]:visible`).first();
 const popup = (page: Page): Locator => page.getByRole('dialog', { name: `Runner card: ${RUNNER.name}` });
 
+/**
+ * Var sidan stod när raden klickades. Raden ligger ibland under vikningen (på en låg skärm; med stagingbannern, 23 px, redan på 256 px): klicket scrollar den då i sikte, som en användare
+ * gör, innan popupen öppnas. Det läget är det popupen ska lämna orört, så provet scrollar själv först (annars sker det i klickets egen scroll, som ingen mätning ser) och mäter före klicket.
+ */
+const restingScroll = new WeakMap<Page, { x: number; y: number }>();
+const restingScrollOf = (page: Page): { x: number; y: number } => restingScroll.get(page) ?? { x: 0, y: 0 };
+
 async function openPopup(page: Page): Promise<Locator> {
+  await runnerRow(page).scrollIntoViewIfNeeded();
+  restingScroll.set(page, await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY })));
   await runnerRow(page).click();
   const dialog = popup(page);
   await expect(dialog).toBeVisible();
@@ -206,8 +215,9 @@ async function expectPageLocked(page: Page, dialog: Locator): Promise<void> {
   await page.mouse.wheel(0, 3000);
   await page.mouse.wheel(0, 3000);
   const scrolled = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-  expect(scrolled.y, 'the page did not scroll down').toBe(0);
-  expect(scrolled.x, 'the page did not scroll sideways').toBe(0);
+  const resting = restingScrollOf(page);
+  expect(scrolled.y, 'the page did not scroll down').toBe(resting.y);
+  expect(scrolled.x, 'the page did not scroll sideways').toBe(resting.x);
 }
 
 const activeIsRunnerRow = (page: Page) =>
@@ -340,6 +350,7 @@ test.describe('the profile popup on desktop', () => {
     await openBoard(page, 1024, 200);
     const dialog = await openPopup(page);
 
+    expect(restingScrollOf(page).y, 'the click had to scroll the row into view').toBeGreaterThan(0);
     await expectPageLocked(page, dialog);
   });
 
