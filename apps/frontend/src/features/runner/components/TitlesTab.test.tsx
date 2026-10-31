@@ -205,6 +205,42 @@ describe('the Titles held tab of the popup', () => {
     expect(await within(section).findByText('4 held')).toBeInTheDocument();
   });
 
+  it('shows the error card with Retry, and no title typed Other, when the title board fails', async () => {
+    let boardFails = true;
+    const calls = { titles: 0, board: 0 };
+    handlers.getUserTitles = () => {
+      calls.titles += 1;
+      return { success: true, data: KARL_TITLES };
+    };
+    handlers.getTitleLeaderboard = () => {
+      calls.board += 1;
+      return boardFails ? { success: false, error: 'boom' } : { success: true, data: TITLE_BOARD };
+    };
+    const { section } = await openTitles();
+
+    expect(await within(section).findByText("Couldn't load titles")).toBeInTheDocument();
+    expect(within(section).queryByText('Other')).toBeNull();
+    expect(section.querySelector('.rq-runner-title__type')).toBeNull();
+    expect(within(section).queryByRole('group', { name: 'Titles filter' })).toBeNull();
+    expect(within(section).queryByText(/No titles/)).toBeNull();
+
+    boardFails = false;
+    const before = { ...calls };
+    await userEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('4 held')).toBeInTheDocument();
+    // Retry fetches both the title board and the runner's titles again.
+    expect(calls.board).toBe(before.board + 1);
+    expect(calls.titles).toBe(before.titles + 1);
+    expect(filterLabels(section)).toEqual(['All', 'Time of day', 'Distance', 'Pace', 'Consistency']);
+    expect(within(section).queryByText('Other')).toBeNull();
+    expect(within(within(section).getByRole('list', { name: 'Titles held' })).getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      'The Daaaaaviiiiid GogginsConsistency44 days',
+      'The Longest RunDistance32.8 km',
+      'The RoosterTime of day56 runs',
+      'The Monthly MonsterDistance181.4 km',
+    ]);
+  });
+
   it('shows the loading oval while the titles load', async () => {
     handlers.getUserTitles = () => new Promise(() => {});
     const { section } = await openTitles();
