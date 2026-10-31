@@ -1,4 +1,3 @@
-
 import type { Page, Route } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { DESKTOP, PHONE, RUNNER, historyOf, isInViewport, open, openSendFromPopup, popup, runnerRow, runnerRowHasFocus, sheet } from '../support/sendFlow';

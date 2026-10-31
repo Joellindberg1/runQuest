@@ -65,7 +65,10 @@ beforeEach(() => {
   handlers.getChallengeGroupStats = () => ({ success: true, data: [stat(ME.id), stat(KARL)] });
 });
 
-afterEach(() => { resetHistoryIdx(); });
+afterEach(() => {
+  resetHistoryIdx();
+  vi.restoreAllMocks();
+});
 
 const location = () => screen.getByTestId('location').textContent;
 const sheet = () => screen.getByRole('dialog', { name: 'Send a challenge' });
@@ -75,10 +78,15 @@ const karlRow = () => {
   return row;
 };
 
-/** Ger en Back-knapp: webbläsarens Back är ett steg bakåt i historiken. */
+/** Ger en Back-knapp (webbläsarens Back är ett steg bakåt i historiken) och en knapp som går vidare till en annan sida som också listar löparen. */
 function BackButton() {
   const navigate = useNavigate();
-  return <button type="button" onClick={() => void navigate(-1)}>Browser back</button>;
+  return (
+    <>
+      <button type="button" onClick={() => void navigate(-1)}>Browser back</button>
+      <button type="button" onClick={() => void navigate('/duels?view=standings')}>Go to standings</button>
+    </>
+  );
 }
 const browserBack = () => fireEvent.click(screen.getByText('Browser back'));
 
@@ -222,5 +230,74 @@ describe('Back while a challenge is being sent on /duels', () => {
     expect(await screen.findByText(REFUSED)).toHaveAttribute('data-tone', 'error');
     expect(within(sheet()).queryByRole('alert')).toHaveTextContent('');
     expect(sheet()).toBeInTheDocument();
+  });
+});
+
+/** Räknar fokusanrop på löparens rader, och släpper igenom dem. */
+function countRowFocusCalls() {
+  const original = HTMLElement.prototype.focus;
+  let calls = 0;
+  vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function focus(this: HTMLElement, options?: FocusOptions) {
+    if (this.getAttribute('data-runner-id') === KARL) calls += 1;
+    return original.call(this, options);
+  });
+  return () => calls;
+}
+
+/** Gruppens löpare som provet släpper när det vill: sidan under popupen har då ingen rad när Back kommer, och sökningen efter raden är igång. */
+function heldUsers() {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  handlers.getUsersWithRuns = async () => { await gate; return { success: true, data: [ME, OTHER] }; };
+  return release;
+}
+
+describe('the focus after a refused send', () => {
+  it('a refused send followed by Cancel gives the runner row exactly one focus', async () => {
+    const rowFocusCalls = countRowFocusCalls();
+    const held = await sendFromPopup(['/titles', ...popupOver('/board', '?view=week')]);
+    await held.answer({ success: false, error: REFUSED });
+    expect(await within(sheet()).findByText(REFUSED)).toBeInTheDocument();
+
+    await userEvent.click(within(sheet()).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(location()).toBe(BOARD));
+    await waitFor(() => expect(karlRow()).toHaveFocus());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    expect(rowFocusCalls()).toBe(1);
+  });
+});
+
+describe('the search for the runner row after Back is dropped when the user moves on', () => {
+  it('Back under a send and then straight on to another page that lists the runner does not move the focus there', async () => {
+    const held = await sendFromPopup(['/titles', ...popupOver('/board', '?view=week')]);
+    heldUsers();
+    browserBack();
+    await waitFor(() => expect(location()).toBe(BOARD));
+    expect(document.querySelector(`main [data-runner-id="${KARL}"]`)).toBeNull();
+
+    fireEvent.click(screen.getByText('Go to standings'));
+    await waitFor(() => expect(location()).toBe('/duels?view=standings'));
+    await waitFor(() => expect(karlRow()).toBeInTheDocument());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1300)); });
+
+    expect(karlRow()).not.toHaveFocus();
+    expect(held.calls, 'one send').toHaveLength(1);
+  });
+
+  it('Back under a send and then a focus move by the user: the row is not given the focus when it turns up', async () => {
+    await sendFromPopup(['/titles', ...popupOver('/board', '?view=week')]);
+    const releaseUsers = heldUsers();
+    browserBack();
+    await waitFor(() => expect(location()).toBe(BOARD));
+    const elsewhere = screen.getByText('Go to standings');
+    act(() => elsewhere.focus());
+
+    releaseUsers();
+    await waitFor(() => expect(karlRow()).toBeInTheDocument());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+
+    expect(karlRow()).not.toHaveFocus();
+    expect(elsewhere).toHaveFocus();
   });
 });
