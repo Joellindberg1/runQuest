@@ -8,8 +8,8 @@ import { paths } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
 import { readBackground } from '@/shared/hooks/useOpenRunner';
-import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 import { historyIdx } from '@/shared/utils/historyIdx';
+import { findRunnerTarget } from '@/shared/utils/runnerOpener';
 import { challengeAvailability } from '../challengeAvailability';
 import { useRunnerPanelData } from '../hooks/useRunnerPanelData';
 import { useHeadToHead } from '../hooks/useRunnerQueries';
@@ -106,10 +106,10 @@ function PopupContent({ user, allUsers }: { user: User; allUsers: User[] }) {
  *
  * Hela komponenten laddas lazy från `pages/RunnerPage.tsx` (`React.lazy` bakom Suspense) och hamnar därför aldrig i fullappens ingångs-chunk.
  * - Fokus in: rubriken (`tabIndex={-1}`), så att skärmläsaren läser dialogens namn före första knappen. Fokusfällan, Esc och klick på skrimman är Radix, alla via `onClose`.
- * - Fokus tillbaka: dialogen har ingen Trigger, och Safari och Firefox på Mac fokuserar inte en knapp vid klick, så Radix standard räcker inte. Efter stängning fokuseras det
- *   första synliga `[data-runner-id]` för löparen i bakgrundssidan. Det sker i `onCloseAutoFocus` (som Radix kör först när dialogen är borta), inte medan den är öppen:
- *   bakgrunden är då `aria-hidden` och ofokuserbar. Finns ingen rad gäller Radix standard. Lämnar Challenge popupen går användaren till en annan sida, och då får fokus
- *   inte dras till en rad där.
+ * - Fokus tillbaka: dialogen har ingen Trigger, och Safari och Firefox på Mac fokuserar inte en knapp vid klick, så Radix standard räcker inte. Efter stängning fokuseras elementet
+ *   som öppnade kortet, annars löparens första synliga `[data-runner-id]` i bakgrundssidan (`findRunnerTarget`; samma löpare kan stå i flera rader, och bara öppnaren är den användaren kom från).
+ *   Det sker i `onCloseAutoFocus` (som Radix kör först när dialogen är borta), inte medan den är öppen: bakgrunden är då `aria-hidden` och ofokuserbar. Finns inget element
+ *   gäller Radix standard. Lämnar Challenge popupen går användaren till en annan sida, och då får fokus inte dras till en rad där.
  */
 export function RunnerPopup({ id, runner, users, failure, failed, onClose }: RunnerPopupProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -129,7 +129,7 @@ export function RunnerPopup({ id, runner, users, failure, failed, onClose }: Run
           }}
           onCloseAutoFocus={(event) => {
             if (leftByNavigation.current) return;
-            const row = findRunnerElement(id);
+            const row = findRunnerTarget(id);
             if (!row) return;
             event.preventDefault();
             row.focus();

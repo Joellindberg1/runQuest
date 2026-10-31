@@ -7,6 +7,7 @@ import { dropRowSearchAfterBack } from '@/shared/utils/focusRowAfterBack';
 import { focusRunnerRowWhenRendered } from '@/shared/utils/focusRunnerRow';
 import { historyIdx } from '@/shared/utils/historyIdx';
 import { takeRunnerFocus } from '@/shared/utils/runnerFocusIntent';
+import { watchRunnerOpener } from '@/shared/utils/runnerOpener';
 
 /** Hur platsbytet rörde sig i historiken, av `history.state.idx` före och efter: lägre = ett steg bakåt, lika = `replace`, högre = en ny post (eller framåt). */
 type Move = 'back' | 'replace' | 'forward' | 'unknown';
@@ -44,7 +45,8 @@ interface Trail {
  *   som töms när fokus har flyttats;
  * - Back från löparens kort till sidan före det (`runnerCardLeft`): mobilens sida, och popupen när dess egen fokusåtergång inte körs (väntläget `PopupPending`, felkortet i `ShellErrorBoundary`).
  *   Den riktiga popupen flyttar fokus till samma rad i `onCloseAutoFocus`; att båda gör det är ofarligt.
- * Fokus flyttas när sidan har ritats och ingen dialog är öppen (`focusRunnerRowWhenRendered`), aldrig medan en dialog fortfarande döljer sidan.
+ * Fokus flyttas när sidan har ritats och ingen dialog är öppen (`focusRunnerRowWhenRendered`), aldrig medan en dialog fortfarande döljer sidan. Målet är elementet som öppnade kortet,
+ * annars löparens första synliga rad (`findRunnerTarget`): samma löpare står i flera rader i Duels History.
  */
 export function useRestoreRunnerFocus(): void {
   const location = useLocation();
@@ -53,6 +55,9 @@ export function useRestoreRunnerFocus(): void {
   // navigator byts), och då får avsikten inte hämtas en gång till (den är redan tagen och skulle vara borta) eller platsen före skrivas över med den nuvarande. Bevisat i useRestoreRunnerFocus.test.tsx.
   // StrictModes dubbelkörning vid montering skiljer inte varianterna åt: spåret skapas då första gången, så båda gör samma sak.
   const trail = useRef<Trail | null>(null);
+
+  // Elementet som öppnar löparens kort minns skalet här: fokus ska tillbaka till det, inte till löparens första rad (`findRunnerTarget`).
+  useEffect(() => watchRunnerOpener(), []);
 
   useEffect(() => {
     const idx = historyIdx();
