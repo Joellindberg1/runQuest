@@ -39,20 +39,34 @@ const NAMES: Record<string, string> = {
 };
 const MEMBER_IDS = Object.keys(NAMES);
 
+// Vanliga namn av ett eller två ord, för proven av var raderna bryts: under 360 px ska bara mellanslag ge en radbrytning.
+const ORDINARY_NAMES: Record<string, string> = {
+  'member-1': 'Maria Johansson',
+  'member-2': 'Olof Bergstrom',
+  'stub-user-1': 'Stub Runner',
+  'member-4': 'Erik Svensson',
+  'member-5': 'Anna Lindqvist',
+  'member-6': 'Karin Ek',
+};
+
 // Två siffror i W, D och L: den bredaste cellen är "12", och procenten når 100.
-const standings: ChallengeGroupStat[] = MEMBER_IDS.map((id, index) => ({
-  user_id: id,
-  name: NAMES[id]!,
-  wins: 12 - index,
-  draws: index % 2 === 0 ? 10 : 0,
-  losses: 11 - index,
-  total: 30,
-  points: 99 - index * 7,
-  challenge_active: false,
-  has_pending_challenge: false,
-  current_level: 20 - index,
-  profile_picture: null,
-}));
+function standingsFor(names: Record<string, string>, wide = false): ChallengeGroupStat[] {
+  return MEMBER_IDS.map((id, index) => ({
+    user_id: id,
+    name: names[id]!,
+    // Med `wide` har första raden tre siffror i W och L (en grupp som spelat länge).
+    wins: wide && index === 0 ? 105 : 12 - index,
+    draws: index % 2 === 0 ? 10 : 0,
+    losses: wide && index === 0 ? 100 : 11 - index,
+    total: 30,
+    points: 99 - index * 7,
+    challenge_active: false,
+    has_pending_challenge: false,
+    current_level: 20 - index,
+    profile_picture: null,
+  }));
+}
+const standings = standingsFor(NAMES);
 
 function challenge(id: string, challengerId: string, opponentId: string, status: ChallengeRow['status'] = 'active'): ChallengeRow {
   return {
@@ -89,13 +103,13 @@ const history: ChallengeHistoryItem[] = PAIRS.map(([challengerId, opponentId], i
 }));
 
 // Svaren sätts i webbläsaren och ersätter det fejkade API:ets svar för just de här anropen, så skärmen har innehåll att mäta.
-async function stubDuelsApi(page: Page): Promise<void> {
+async function stubDuelsApi(page: Page, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
   await page.route('**/api/challenges/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, '');
     const reply = (data: unknown, extra: object = {}) =>
       route.fulfill({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data, ...extra }) });
     if (path === '/challenges/my') return reply(myChallenges);
-    if (path === '/challenges/group-stats') return reply(standings);
+    if (path === '/challenges/group-stats') return reply(groupStats);
     if (path === '/challenges/group-history') return reply({ items: history }, { meta: { total: history.length, limit: 20, offset: 0, has_more: false } });
     const progress = path.match(/^\/challenges\/(.+)\/progress$/);
     if (progress) return reply({ challenge_id: progress[1], metric: 'km', start_date: '2026-10-20', end_date: '2026-11-03', progress: [{ user_id: 'member-2', value: 41.5 }, { user_id: 'stub-user-1', value: 38.25 }] });
@@ -171,8 +185,8 @@ const VIEW_ROWS: Record<(typeof VIEWS)[number], { row: string; name: string }> =
   history: { row: '.rq-duels-match', name: '.rq-duels-match__name' },
 };
 
-async function openDuels(page: Page, theme: string, size: { width: number; height: number }): Promise<void> {
-  await stubDuelsApi(page);
+async function openDuels(page: Page, theme: string, size: { width: number; height: number }, groupStats: ChallengeGroupStat[] = standings): Promise<void> {
+  await stubDuelsApi(page, groupStats);
   await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
   await page.setViewportSize(size);
   await page.goto('/duels?view=standings');
@@ -203,6 +217,30 @@ async function measureTabs(page: Page): Promise<TabsMeasure> {
 }
 
 const TAB_NAMES: Record<(typeof VIEWS)[number], string> = { standings: 'Standings', live: 'Live', history: 'History' };
+
+// Bredderna under 360 px (de smalaste telefonerna) och bredderna där Live-kortet är smalast bredvid sidokolumnen.
+const NARROW_WIDTHS = [320, 340];
+const LIVE_TIME_WIDTHS = [1024, 1050, 1100];
+
+/** Ord i ett namn som ligger på mer än en rad: en radbrytning som inte är ett mellanslag. */
+async function measureBrokenWords(page: Page, nameSelector: string): Promise<string[]> {
+  return page.evaluate((selector) => {
+    const broken: string[] = [];
+    for (const name of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+      const node = name.firstChild;
+      if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+      const text = node.textContent ?? '';
+      for (const word of text.matchAll(/\S+/g)) {
+        const range = document.createRange();
+        range.setStart(node, word.index!);
+        range.setEnd(node, word.index! + word[0].length);
+        const lines = new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top)));
+        if (lines.size > 1) broken.push(`"${word[0]}" in "${text}" is split over ${lines.size} lines`);
+      }
+    }
+    return broken;
+  }, nameSelector);
+}
 
 test.describe('the Duels screen with long names', () => {
   test.skip(!apiIsStubbed(), 'The screen is filled from a stubbed challenges API; run with E2E_STUB_API=1 against a local build.');
@@ -235,5 +273,50 @@ test.describe('the Duels screen with long names', () => {
         }
       });
     }
+  }
+
+  // Under 360 px är Standings namnkolumn smal, men ett vanligt namn ska bara brytas vid mellanslag: ett ord bryts aldrig mitt i. (Långa ord utan brytpunkt bryts fortfarande var som helst, se ovan.)
+  for (const theme of THEMES) {
+    for (const width of NARROW_WIDTHS) {
+      test(`standings with ordinary names breaks a name only at spaces at ${width} px in the ${theme} theme`, async ({ page }) => {
+        await openDuels(page, theme, { width, height: 700 }, standingsFor(ORDINARY_NAMES, true));
+        await expect(page.locator('.rq-duels-standing.rq-row').first()).toBeVisible();
+        await waitForStylesApplied(page);
+
+        const measured = await measureRows(page, VIEW_ROWS.standings.row, VIEW_ROWS.standings.name);
+        const brokenWords = await measureBrokenWords(page, VIEW_ROWS.standings.name);
+        const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+        expect(measured.rows, 'the rows are on the screen').toBeGreaterThanOrEqual(3);
+        expect.soft(brokenWords, 'every word of a name stays on one line').toEqual([]);
+        expect.soft(measured.overlaps, 'no two texts in a row overlap').toEqual([]);
+        expect.soft(measured.escapes, 'every text, also three digits in W and L, stays inside its own box and its row').toEqual([]);
+        expect.soft(measured.misclicks, 'a click in the middle of a name hits the name button').toEqual([]);
+        expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+      });
+    }
+  }
+
+  // Längden ("· 7 d") och tiden ("5 d left") i ett Live-kort är var sin enhet: de får inte brytas till flera rader när kortet är smalt (1024-1100 px).
+  for (const width of LIVE_TIME_WIDTHS) {
+    test(`the duration and the time in a live card each stay on one line at ${width} px`, async ({ page }) => {
+      await openDuels(page, 'dark', { width, height: 800 }, standingsFor(ORDINARY_NAMES));
+      await page.getByRole('tab', { name: TAB_NAMES.live }).click();
+      await expect(page.locator('.rq-duels-live').first()).toBeVisible();
+      await waitForStylesApplied(page);
+
+      const lineCounts = await page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('.rq-duels-live__len, .rq-duels-live__time')).map((time) => {
+          const range = document.createRange();
+          range.selectNodeContents(time);
+          return { text: (time.textContent ?? '').trim(), lines: new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size };
+        }),
+      );
+      const scroll = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+
+      expect(lineCounts.length, 'the live cards show a duration and a time').toBeGreaterThanOrEqual(6);
+      expect.soft(lineCounts.filter((time) => time.lines !== 1), 'every duration and time is on one line').toEqual([]);
+      expect.soft(scroll.scrollWidth, 'the page does not scroll sideways').toBeLessThanOrEqual(scroll.clientWidth);
+    });
   }
 });
