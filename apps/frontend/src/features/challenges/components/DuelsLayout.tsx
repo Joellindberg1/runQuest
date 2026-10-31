@@ -67,7 +67,7 @@ export function DuelsLayout(props: DuelsLayoutProps) {
   const { isDesktop, view, blocker, incoming, sent } = props;
 
   const tabs = (
-    <div data-tour="duels-tabs">
+    <div data-tour="duels-tabs" className="rq-duels__tabs-slot">
       <ViewTabs label="Duels view" tabs={TABS} value={view} onChange={props.onViewChange} idPrefix={ID_PREFIX} className="rq-duels__tabs" />
     </div>
   );

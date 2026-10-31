@@ -188,6 +188,7 @@ describe('PUT /api/challenges/:id/withdraw', () => {
     expect(res.status).toBe(200);
     expect(tables.challenges).toHaveLength(0);
     expect(tables.user_challenge_tokens[0]).toMatchObject({ sent_at: null, challenge_id: null });
+    expect(tables.users.map((u) => u.challenge_active)).toEqual([false, false]);
   });
 });
 

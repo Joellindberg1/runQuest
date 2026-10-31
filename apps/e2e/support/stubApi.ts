@@ -34,7 +34,7 @@ export function apiIsStubbed(env: NodeJS.ProcessEnv = process.env): boolean {
   return stubApiRequested(env) && targets.isLocal;
 }
 
-const STUB_USER = { id: 'stub-user-1', name: 'Stub Runner', email: 'stub-runner@example.test', is_admin: false };
+export const STUB_USER = { id: 'stub-user-1', name: 'Stub Runner', email: 'stub-runner@example.test', is_admin: false };
 // Ingen JWT-form: ett påhittat värde som inte kan förväxlas med en riktig token.
 const STUB_TOKEN = 'stub-session-not-a-real-token';
 

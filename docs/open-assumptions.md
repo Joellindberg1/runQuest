@@ -215,19 +215,16 @@ flyttas till STATE.md/ADR; backend-kontraktsfrågor samlas längst ned. Avgjorda
 
 ## Backend-kontraktsfrågor
 Lösta frågor står under Historik längst ned. Öppet och orört: en bakdaterad POST kan kvalificera ett pågående event (POST och Strava saknar dagsfönstret — bedömt som acceptabelt tills vidare).
-1. `group-stats` flaggar `has_pending_challenge` bara för utmanaren — en medlem
-   med inkommande väntande utmaning ser ledig ut i send-sheeten (400 visas
-   graciöst). Vill ha: flagga även mottagarsidan.
-2. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
+1. `/events` säger inte vem som är klar på ett aktivt participation-event (bara
    participantCount/memberCount) — desktop-prototypens namnrad ("Karl ✓ …")
    kräver nytt fält.
-3. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
-4. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
+2. Aggregat för events-facit (punkt 1 under Events) — `GET /events/record` e.d.
+3. Typglapp i shared: `EventItem.metric` är `string` men backend skickar `null`
    för participation; `requiresWeather` är typad `string | null` men hanterades
    som lista i gamla UI:t. Rätta typerna i packages/shared (kräver
    data-inkrement, shared får inte röras i komponentinkrement).
-5. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
-6. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
+4. Batch-endpoint för duel-progress (punkt 1 under Duels) — lågt prioriterad.
+5. **Retractade news-rader** (avböjd/återkallad utmaning) försvinner ur
    klientens flöde först vid fokus/omladdning, inte vid poll (catch-up lägger
    bara till). Medvetet val i9c; läker vid window focus.
 
@@ -372,12 +369,18 @@ Mätt i webbläsaren före och efter (stubbat API, 390 och 1280 px, ljust och m�
   - `.rq-field` (inmatningsfält): fokus markeras med `border-color: var(--rq-focus-field)` och fältet har ingen outline, så det ligger utanför ringtokenet och mäts inte av vakten (fokusgränsen 3:1 gäller kanten mot ytan). Inte mätt eller rättat här.
 - **Kvar i ljust tema, utanför storyn (samma rot, `--rq-text-3` .60 och några fler):** svepet visar fortfarande under 4,5:1 bland annat "Mark all read" och sidans noter i News (4,04:1), Playbooks radetiketter (`dt`, 3,95:1) och stycken (4,04:1), beskrivningar och felkortens text (4,22:1), `.rq-btn--ghost` (4,22:1), sidomenyns rubrik (`.rq-sidenav__eyebrow`, 4,15:1), avatarens initialer (3,88:1), nyhetsradens tid (4,37:1) och typrad i röd (3,62:1), samt stagingbannern (4,28:1) och den fyllda knappen (`#ffffff` på `#cd7f32`, 3,15:1). Ett höjt `--rq-text-3` i ljust tema (.65 är lika med `--rq-text-4`, .70 ger 5,5:1 mot skalet och ΔE 8) skulle rätta den största gruppen; det är en designfråga för Lead.
 
+## Duels: smal desktop och långa namn (bugg 2026-10-30)
+- **Designen anger bara 1440 px; 1024-1279 px har egna mått för Standings, historikraden och erbjudandekorten.** Vyn är bara ca 375 px bred bredvid sidokolumnen (320 px) på 1024 px, och Standings fasta kolumner (44 + 60 + 60 + 60 + 78 px plus luft) lämnade 0 px åt namnet. I intervallet har Standings smalare sifferkolumner (`28px 1fr 32px 32px 32px 52px`), historikraden lägger metan under paret som på mobil (`--rq-duels-match-meta-span: 1 / 3`) och erbjudandekorten (Waiting on you, Sent) staplas som på mobil. Från 1280 px gäller måtten oförändrade, utom att knappkolumnen i erbjudandekortet har ett tak (`fit-content(240px)`): ett långt förnamn gör anteckningen "Waiting for ... to respond" bredare än kortet rymmer. Typiska anteckningar är högst ca 225 px, så korten ser likadana ut på 1280 och 1440 px (jämfört rutor för ruta, med vanliga namn). Fel om designen vill ha en annan lösning (t.ex. sidokolumnen under vyn på smal desktop).
+- **Långa namn bryts var som helst i Standings, historiken och erbjudandekorten** (`overflow-wrap: anywhere`, som Boards rader); namnen i Live-korten kortas som förut med ellips. Ett namn på 45 tecken utan brytpunkt bryts alltså mitt i ordet i stället för att löpa in i nästa cell. Under 360 px smalnar Standings rang- och sifferkolumner av (`18px 1fr 24px 24px 24px 36px`, mot `24px 1fr 34px 34px 34px 52px`), så namnkolumnen är ca 92 px vid 320 px (förut 40 px) och ett vanligt namn bara bryts vid mellanslag; kolumnerna ryms för tre siffror i W, D och L och från 360 px gäller de gamla måtten oförändrade. Ett ord som är bredare än namnkolumnen (92 px vid 320 px, 112 px vid 340 px) bryts fortfarande mitt i ordet: "Alexandersson" (110 px) på 320 px, medan det ryms på 340 px; "Christopher" (88 px) ryms på båda. Från 360 px gäller de gamla kolumnerna (namnkolumnen ca 80 px vid 360 px), så "Christopher" och "Gustafsson" bryts där mitt i ordet upp till ca 370 px; det rättas i RUN-446. I Live-korten bryts längden ("· 7 d") och tiden ("5 d left") aldrig inom sig: ryms inte id och tid på en rad (kortet är ca 180-220 px brett på 1024-1100 px) lägger sig tiden på en egen rad under, till höger. Längden i insatsraden ("+0.5× / 14 d") hålls ihop med ett hårt mellanslag efter snedstrecket och före enheten, så raden bryts före "/" och aldrig mellan "14" och "d".
+- **Flikraden ligger på en rad och scrollar i sidled när den inte ryms** (som profilens statflikar), med den valda fliken i bild (`ViewTabs`). På mobil är flikarna minst 44 px höga (`--rq-duels-tab-hit`; var 31 px). Rubrikraden bryts på smal desktop så att flikarna och Send får en egen rad under titeln; från 1280 px ryms allt på en rad som förut.
+
 ## Historik (avgjort, kort)
 Punkter som stod som öppna och sedan avgjorts. Detaljerna finns i CHANGELOG.md och ADR:erna.
 - **Profilbildernas host i prod (`img-src`, RUN-344)** — verifierad av ägaren 2026-10-21: alla 6 profilbilder ligger på `yrrqaxdngayakcivfrck.supabase.co`, så skarp CSP blockerar ingen befintlig bild. Prod-röken kontrollerar fortfarande Sentrys host (`docs/release.md`, steg 4).
 - **`['events']` invalideras när en runda loggas** — löst i inkrement 7 (`useCreateRun` invaliderar direkt och en gång till efter 4 s).
 - **Edit-datumets max mot serverns UTC-"idag"** — löst i i9-dataspåret (servern validerar Stockholm-dagen och avvisar ogiltiga kalenderdagar).
 - **`/login` som den gamla inloggningssidan** — omritad i inkrement 11, sedan en popup över Landing (RUN-145, ADR 006 addendum).
+- **`group-stats.has_pending_challenge` gällde bara utmanaren** — löst i buggen 2026-10-30: fältet gäller båda sidor av en väntande utmaning, med samma regel som `POST /challenges/send` avvisar på (`services/challengeBusy.ts`); aktiva dueller visas av `challenge_active`, som både en accept och schemaläggarens legendary-autostart sätter för båda parter (`services/challengeActivation.ts`).
 - **Backend-kontraktsfrågor löstes i i9-dataspåret 2026-10-05:** `source` i users-with-runs (Strava-rundor kan inte raderas; null = manuell), PUT kvalificerar event med dagsfönster (DELETE medvetet utan anrop, svarar 409 för kvalificerande rundor), Stockholm-datumvalidering.
 - **Utgången eller ogiltig JWT gav 403** — nu 401 (`middleware/auth.ts`), så klienten loggar ut.
 - **Init-loggen skrev service-nyckelns prefix** — loggar nu bara "set"/"missing" (`config/database.ts`).

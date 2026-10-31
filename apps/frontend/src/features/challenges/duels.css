@@ -28,13 +28,17 @@
 
 /* ── Sida, rubrik, flikar ─────────────────────────────────────────────────── */
 .rq-duels { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
-.rq-duels__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
+/* Raden bryts när titeln, flikarna och Send inte ryms på en rad (smal desktop): flikarna får då en egen rad i stället för att skjutas ihop. */
+.rq-duels__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--rq-sp-12); }
 .rq-duels__title { margin: 0; font-weight: 400; }
 .rq-duels__sub { margin: var(--rq-sp-4) 0 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-duels__controls { display: flex; align-items: center; gap: var(--rq-sp-8); }
+.rq-duels__controls { display: flex; align-items: center; gap: var(--rq-sp-8); min-width: 0; margin-inline-start: auto; }
 .rq-duels__send { flex-shrink: 0; }
-.rq-duels__tabs { display: flex; flex-wrap: wrap; gap: var(--rq-sp-6); }
-.rq-duels__tabs > [role="tab"] { display: inline-flex; align-items: center; gap: var(--rq-sp-6); padding: var(--rq-sp-6) var(--rq-sp-12); font-family: var(--rq-font-ui); }
+/* Flikraden ligger på en rad och scrollar i sidled när den inte ryms (som .rq-profile-tabs), i stället för att brytas till en andra rad. */
+.rq-duels__tabs-slot { min-width: 0; }
+.rq-duels__tabs { display: flex; gap: var(--rq-sp-6); overflow-x: auto; scrollbar-width: thin; }
+.rq-duels__tabs > [role="tab"] { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--rq-sp-6); min-height: var(--rq-duels-tab-hit); padding: var(--rq-sp-6) var(--rq-sp-12); white-space: nowrap; font-family: var(--rq-font-ui); }
+.rq-duels__tabs > [role="tab"]:focus-visible { outline-offset: var(--rq-focus-inset); }
 .rq-duels__tabs > [role="tab"]:not([aria-selected="true"]) { background: none; }
 .rq-duels__stack { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-duels__split { display: grid; grid-template-columns: var(--rq-duels-split-cols); gap: var(--rq-sp-16); align-items: start; }
@@ -56,6 +60,8 @@
   padding: 0; border: 0; background: none; cursor: pointer; text-align: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
 }
 .rq-duels-namebtn:hover, .rq-duels-side__name:hover, .rq-duels-standing__name:hover, .rq-duels-match__name:hover { color: var(--rq-text-1); }
+/* Ett långt ord bryts var som helst i stället för att löpa in i nästa cell (som Boards rader). Live-sidornas namn kortas i stället med ellips (.rq-duels-side__name). */
+.rq-duels-namebtn, .rq-duels-standing__name, .rq-duels-match__name { min-width: 0; overflow-wrap: anywhere; }
 
 /* ── Insats: vinst/förlust som två celler ─────────────────────────────────── */
 .rq-duels-stakes { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rq-sp-8); }
@@ -72,6 +78,7 @@
 .rq-duels-offer[data-kind="incoming"] { --rq-edge: var(--rq-duel-base); --rq-edge-line: rgb(var(--rq-duel-base-rgb) / var(--rq-edge-status)); }
 .rq-duels-offer[data-kind="sent"] { --rq-edge: var(--rq-duels-tier); }
 .rq-duels-offer__id { display: flex; align-items: center; gap: var(--rq-sp-10); min-width: 0; }
+.rq-duels-offer__id > div { min-width: 0; }
 .rq-duels-offer__eyebrow { margin: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-offer[data-kind="incoming"] .rq-duels-offer__eyebrow { color: var(--rq-duel); }
 .rq-duels-offer__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); letter-spacing: var(--rq-ls-display); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
@@ -81,17 +88,18 @@
 .rq-duels-offer__side { display: flex; flex-direction: column; gap: var(--rq-sp-6); }
 .rq-duels-offer__actions { display: grid; grid-template-columns: var(--rq-duels-offer-actions-cols); gap: var(--rq-sp-8); }
 .rq-duels-offer__actions .rq-btn, .rq-duels-offer__side > .rq-btn { padding: var(--rq-sp-8) var(--rq-sp-18); }
-.rq-duels-offer__note { margin: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+.rq-duels-offer__note { margin: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-text-4); overflow-wrap: anywhere; }
 
 /* ── Live-kort ────────────────────────────────────────────────────────────── */
 .rq-duels-live-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: var(--rq-duels-live-cols); gap: var(--rq-sp-10); }
 .rq-duels-live { --rq-edge: var(--rq-duels-tier); display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 .rq-duels-live:hover { background: var(--rq-row-hover); }
-.rq-duels-live__head { display: flex; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); }
+.rq-duels-live__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rq-sp-8); }
 .rq-duels-live__id { display: flex; align-items: center; gap: var(--rq-sp-8); min-width: 0; }
 .rq-duels-live__metric { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-name); text-transform: uppercase; color: var(--rq-text-2); }
-.rq-duels-live__len { font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
-.rq-duels-live__time { flex-shrink: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+/* Längden ("· 7 d") och tiden ("5 d left") är var sin enhet och bryts aldrig inom sig: rymmer inte kortet (ca 180-220 px på 1024-1100 px) id och tid på en rad får tiden en egen rad under, till höger. */
+.rq-duels-live__len { font-size: var(--rq-fs-meta); white-space: nowrap; color: var(--rq-text-4); }
+.rq-duels-live__time { flex-shrink: 0; margin-inline-start: auto; white-space: nowrap; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-live__time[data-tone="duel"] { color: var(--rq-duel); }
 .rq-duels-live__time[data-tone="down"] { color: var(--rq-down); }
 .rq-duels-live__sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--rq-sp-8); }
@@ -112,6 +120,7 @@
 .rq-duels-standings__title h2 { margin: 0; font-weight: 700; font-size: var(--rq-fs-name); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-2); }
 .rq-duels-standings__title span { margin-left: auto; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-standing { display: grid; grid-template-columns: var(--rq-duels-standing-cols); align-items: center; gap: var(--rq-sp-8); }
+.rq-duels-standing > * { min-width: 0; }
 .rq-duels-standing [data-align="center"] { text-align: center; }
 .rq-duels-standing [data-align="end"] { text-align: right; }
 /* Min rad: guldton, utom vid hover — då gäller .rq-row:hover (raden är klickbar) */

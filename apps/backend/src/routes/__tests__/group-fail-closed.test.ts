@@ -129,15 +129,16 @@ describe('GET /api/challenges/group-stats', () => {
 
   it('läser bara den egna gruppens väntande utmaningar: en annan grupps rad flaggar ingen', async () => {
     const tables = statsTables();
+    tables.users.push({ id: 'u4', name: 'Dora', group_id: G1, wins: 0, draws: 0, losses: 0, challenge_active: false, current_level: 2, profile_picture: null });
     tables.challenges.push(
-      { id: 'c-mine', status: 'pending', challenger_id: 'u2', opponent_id: 'u1', group_id: G1 },
+      { id: 'c-mine', status: 'pending', challenger_id: 'u2', opponent_id: 'u4', group_id: G1 },
       // Rad i grupp 2 med en grupp-1-användare som avsändare: får inte räknas
       { id: 'c-foreign', status: 'pending', challenger_id: 'u1', opponent_id: 'u9', group_id: G2 },
     );
     const db = use(tables);
     const res = await server.request('GET', '/api/challenges/group-stats', { token: mintToken({ group_id: G1 }) });
     const flags = Object.fromEntries(res.body.data.map((s: any) => [s.user_id, s.has_pending_challenge]));
-    expect(flags).toEqual({ u1: false, u2: true });
+    expect(flags).toEqual({ u1: false, u2: true, u4: true });
     const pendingQuery = db.queries.find((q) => q.table === 'challenges')!;
     expect(pendingQuery.filters).toContainEqual({ op: 'eq', column: 'group_id', value: G1 });
   });
