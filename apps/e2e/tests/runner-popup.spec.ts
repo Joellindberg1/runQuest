@@ -38,6 +38,13 @@ function runsDaysAgo(userId: string, daysAgo: number[]) {
   });
 }
 
+/** Månaderna kartan ritar: innevarande månad räknas först när dess första måndag har varit (heatmapModel), annars 11. */
+function heatMonthsToday(): number {
+  const today = new Date();
+  const firstMonday = ((8 - new Date(today.getFullYear(), today.getMonth(), 1).getDay()) % 7) + 1;
+  return today.getDate() >= firstMonday ? 12 : 11;
+}
+
 function runner(id: string, name: string, totalXp: number, extra: Record<string, unknown> = {}) {
   return { id, name, email: `${id}@example.test`, is_admin: false, total_xp: totalXp, current_level: 4, total_km: 40, current_streak: 3, longest_streak: 5, runs: [], ...extra };
 }
@@ -520,7 +527,7 @@ test.describe('the Overview of the profile popup', () => {
 
     const heat = sectionPanel(dialog).locator('.rq-profile-heat');
     await expect(heat.locator('.rq-profile-heat__total')).toHaveText(String(RUNNER_RUN_DAYS_AGO.length));
-    await expect(heat.locator('.rq-profile-heat__unit')).toHaveText(/^runs in the last 12 months$/);
+    await expect(heat.locator('.rq-profile-heat__unit')).toHaveText(`runs in the last ${heatMonthsToday()} months`);
     await expect(sectionPanel(dialog).getByRole('region', { name: new RegExp(`^Run heatmap: ${RUNNER_RUN_DAYS_AGO.length} runs on ${RUNNER_RUN_DAYS_AGO.length} of \\d+ days$`) })).toBeVisible();
     await expect(sectionPanel(dialog).getByRole('tab')).toHaveCount(0);
     await expect(dialog.getByRole('tabpanel')).toHaveCount(1);

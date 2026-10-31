@@ -91,7 +91,7 @@
     {
       "version": "0.8.3",
       "type": "patch",
-      "date": "31 October 2026",
+      "date": "1 November 2026",
       "title": "Time and pace, Position and the profile pop-up on desktop",
       "announce": true,
       "changes": [
@@ -105,7 +105,7 @@
         },
         {
           "type": "improvement",
-          "description": "The top 3 on your phone is easier to read: the place is shown as #1, #2 and #3, the surname gets its own lines, the three cards are equally tall, and the badges are grouped in a small pyramid by the name."
+          "description": "The top 3 on your phone is easier to read: the place is shown as #1, #2 and #3, the surname gets its own lines, the three cards line up, and the badges are grouped in a small pyramid by the name."
         },
         {
           "type": "feature",

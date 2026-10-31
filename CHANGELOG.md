@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.8.3 — Tid och tempo, Position och profilkortet som popup (2026-10-31)
+## v0.8.3 — Tid och tempo, Position och profilkortet som popup (2026-11-01)
 
 Funktionsversion (patch) från `integration/v0.8.3`, epikerna RUN-378 (tid, tempo och position) och RUN-391 (profilkortet som popup och nya utmaningsflödet). Posten i `changelog.json` har `announce: true`: What's new-popupen (slug `patch_v0.8.3`) visas en gång per användare och Pack News-raden skrivs av `announce:release` efter deployen. Innehåller också buggreleaserna 2026-10-26, 2026-10-31 och 2026-10-31 (andra omgången), som redan är live med egna poster ovan, och RUN-452. Ingen migration, ingen miljövariabel; kontraktet växer additivt (en ny rutt och ett nytt fält i två svar).
 
@@ -18,6 +18,7 @@ Funktionsversion (patch) från `integration/v0.8.3`, epikerna RUN-378 (tid, temp
 - Titles held: om titeltopplistan inte går att hämta visas ett felkort med Retry i stället för titlar av typen "Other" (RUN-439).
 - Ljust tema: fokusringen (`--rq-focus-ring`) är mörkare (3,12–3,52:1 på sidomenyn och nyhetsraderna), vilande filter, profilens radetiketter och "Challenge pending" når 4,5:1, och kontrastvakten täcker de nya tokenparen (RUN-432, 450). Mörkt tema är oförändrat.
 - Vakter och prov: importgrafsvakten fäller om landningen når popupen, positionsgraferna, badgekorten eller send-flödet (RUN-431); popupprovet på låg skärm mäter sidans läge mot klicket (RUN-438).
+- Popupens stilmall (`runnerPopup.css`) laddas med den lazy popupchunken i stället för med appens `index-*.css`: `/legal` 50 076 → 49 221 B stilmallar (budget 50 000 B), `/` oförändrad; byggtestet fäller om filen länkas från en ingång (RUN-449). Send-arkets regler ligger kvar eager eftersom arket laddas eager (RUN-454 i backloggen).
 
 ### Kända rester
 - Ljust tema (`docs/open-assumptions.md`, "Ljust tema: kontrastrester"): Right now-raden i sidomenyn (2,58:1 med nya ringen), `.rq-field` och flera `--rq-text-3`-ytor (bland annat "Mark all read", Playbooks stycken) ligger kvar under gränsen; ljust tema ses över som helhet senare.
