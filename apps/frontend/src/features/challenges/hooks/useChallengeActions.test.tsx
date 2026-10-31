@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { NEWS_QUERY_KEYS } from '@/features/news/hooks/useNewsQueries';
@@ -68,5 +68,44 @@ describe('utmaningsmutationerna: webbanalys', () => {
     await result.current.decline.mutateAsync('c1');
     await result.current.withdraw.mutateAsync('c1');
     expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe('a send that got no answer or no connection', () => {
+  const send = (actions: ReturnType<typeof useChallengeActions>) => actions.send.mutateAsync({ tokenId: 't1', opponentId: 'u2' });
+  const messageOf = async (promise: Promise<unknown>) => {
+    try {
+      await promise;
+    } catch (failure) {
+      return failure instanceof Error ? failure.message : String(failure);
+    }
+    return 'resolved';
+  };
+
+  it('rejects with the honest text when the send timed out, and fetches the challenges again so that a send that did go through shows', async () => {
+    const { result, invalidate } = setup();
+    handlers.sendChallenge = async () => ({ success: false, error: 'This operation was aborted', reason: 'timeout' });
+
+    expect(await messageOf(send(result.current))).toMatch(/couldn.t confirm that your challenge was sent.*check your sent challenges/i);
+
+    await waitFor(() => expect(keys(invalidate)).toEqual(expect.arrayContaining([['challenges'], NEWS_QUERY_KEYS.feedRoot])));
+  });
+
+  it('rejects with a human text instead of "Failed to fetch" when there was no connection, and fetches nothing again', async () => {
+    const { result, invalidate } = setup();
+    handlers.sendChallenge = async () => ({ success: false, error: 'Failed to fetch', reason: 'network' });
+
+    const message = await messageOf(send(result.current));
+
+    expect(message).toMatch(/couldn.t reach RunQuest/i);
+    expect(message).not.toContain('Failed to fetch');
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the server own text for a send the server answered', async () => {
+    const { result } = setup();
+    handlers.sendChallenge = async () => ({ success: false, error: 'Opponent already has an active or pending challenge' });
+
+    expect(await messageOf(send(result.current))).toBe('Opponent already has an active or pending challenge');
   });
 });

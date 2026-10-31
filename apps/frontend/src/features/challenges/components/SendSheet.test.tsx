@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LEGENDARY_AUTO_START_DAYS, type MyChallengeToken } from '@runquest/shared';
 import { handlers, resetFakeBackend } from '@/test/fakeBackend';
@@ -8,7 +8,7 @@ import { renderWithApp } from '@/test/renderApp';
 import { ADAM, DAN, KARL, ME, NICK, stat, token } from '../duels.fixture';
 import { stakeOf } from '../duelsFormat';
 import { buildTokenGroups } from '../duelsModel';
-import { startRuleText, type SendPreselection } from '../sendModel';
+import { startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
 import { SendSheet } from './SendSheet';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -765,5 +765,82 @@ describe('Send flow: while the challenge is on its way', () => {
 
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Send flow: a send that got no answer, then a refetch shows that it went through', () => {
+  const UNCONFIRMED = "We couldn't confirm that your challenge was sent. Check your sent challenges before you try again.";
+  const SENT_BLOCKER: SendBlocker = { reason: 'sent', message: 'Your challenge to Karl is waiting for an answer. Withdraw it or wait for the reply before sending another.' };
+
+  /** Arket med en blocker som testet kan slå på, byta och ta bort, som när omhämtningen efter ett skick utan svar visar att utmaningen finns. */
+  function renderBlockable(onSend: () => Promise<void>, initial: SendBlocker | null = null) {
+    resetFakeBackend();
+    handlers.getHeadToHead = () => ({ success: false, error: 'not needed' });
+    const control: { set: (next: SendBlocker | null) => void; block: () => void } = { set: () => {}, block: () => {} };
+    function Harness() {
+      const [blocker, setBlocker] = useState<SendBlocker | null>(initial);
+      control.set = setBlocker;
+      control.block = () => setBlocker(SENT_BLOCKER);
+      return (
+        <SendSheet groups={buildTokenGroups(ALL_TIERS)} blocker={blocker} members={PACK} users={undefined} meId={ME} preselection={{ tier: 'minor', tokenKey: 'a' }} initialOpponent={KARL} onClose={() => {}} onSend={onSend} />
+      );
+    }
+    renderWithApp(<Harness />);
+    return control;
+  }
+
+  it('keeps the honest text in the alert and the focus inside the sheet when Send is replaced by the reason', async () => {
+    const user = userEvent.setup();
+    const control = renderBlockable(async () => { throw new Error(UNCONFIRMED); });
+    await user.click(sendButton());
+    expect(await within(sheet()).findByRole('alert')).toHaveTextContent(UNCONFIRMED);
+    await waitFor(() => expect(sendButton()).toHaveFocus());
+
+    act(() => control.block());
+
+    expect(within(sheet()).getByRole('status')).toHaveTextContent('is waiting for an answer');
+    expect(within(sheet()).getByRole('alert')).toHaveTextContent(UNCONFIRMED);
+    expect(within(sheet()).queryByRole('button', { name: /^Send/ })).toBeNull();
+    expect(sheet().contains(document.activeElement), 'the focus is in the sheet').toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  // Orsaksvyn har två Close: ✕ (aria-label) och knappen i knappraden (text).
+  const closeCross = () => within(sheet()).getByLabelText('Close');
+
+  it('leaves the focus on the close cross when the reason appears while the focus is on it', () => {
+    const control = renderBlockable(async () => {});
+    const cross = closeCross();
+    cross.focus();
+    expect(cross).toHaveFocus();
+
+    act(() => control.block());
+
+    expect(within(sheet()).getByRole('status')).toBeInTheDocument();
+    expect(cross).toHaveFocus();
+  });
+
+  it('does not move the focus when the sheet opens with the reason already in place', () => {
+    renderBlockable(async () => {}, SENT_BLOCKER);
+
+    expect(within(sheet()).getByRole('status')).toBeInTheDocument();
+    expect(sheet().contains(document.activeElement), 'the focus is in the sheet').toBe(true);
+    expect(document.activeElement, 'the sheet itself did not take the focus').not.toBe(sheet());
+  });
+
+  it('does not take the focus again when the reason changes or comes back while the focus is on the close cross', () => {
+    const control = renderBlockable(async () => {});
+    act(() => control.block());
+    const cross = closeCross();
+    cross.focus();
+
+    act(() => control.set({ reason: 'incoming', message: 'A challenge is waiting on you. Answer it before you send one of your own.' }));
+    expect(cross).toHaveFocus();
+
+    act(() => control.set(null));
+    const crossAgain = closeCross();
+    crossAgain.focus();
+    act(() => control.block());
+    expect(crossAgain).toHaveFocus();
   });
 });
