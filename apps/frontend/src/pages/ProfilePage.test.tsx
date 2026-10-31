@@ -361,6 +361,34 @@ describe('Profile — titlar', () => {
     fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('5 held · 0 runner-up')).toBeInTheDocument();
   });
+
+  it('när titeltopplistan felar: felkort med Retry i stället för värden utan enhet, och Retry hämtar om både topplistan och titlarna', async () => {
+    let boardFails = true;
+    const calls = { titles: 0, board: 0 };
+    handlers.getUserTitles = () => {
+      calls.titles += 1;
+      return { success: true, data: [...HELD, ...RUNNERS_UP] };
+    };
+    handlers.getTitleLeaderboard = () => {
+      calls.board += 1;
+      return boardFails ? { success: false, error: 'down' } : { success: true, data: BOARD };
+    };
+    renderProfile('/profile', DESKTOP);
+
+    const section = await screen.findByRole('region', { name: 'My titles' });
+    expect(await within(section).findByText("Couldn't load your titles", {}, SLOW)).toBeInTheDocument();
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+    expect(within(section).queryByText(/No titles/)).toBeNull();
+
+    boardFails = false;
+    const before = { ...calls };
+    fireEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('held by Karl Persson', {}, SLOW)).toBeInTheDocument();
+    expect(within(section).getByText('5.0 km')).toBeInTheDocument();
+    expect(calls.board).toBe(before.board + 1);
+    expect(calls.titles).toBe(before.titles + 1);
+  });
 });
 
 describe('Profile — rundhistorik', () => {

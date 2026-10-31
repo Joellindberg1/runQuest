@@ -333,6 +333,39 @@ describe('titlar', () => {
   });
 });
 
+describe('titelpanelen när titeltopplistan felar', () => {
+  it('felkort med Retry i stället för värden utan enhet, och Retry hämtar om både topplistan och titlarna', async () => {
+    let boardFails = true;
+    const calls = { titles: 0, board: 0 };
+    handlers.getUserTitles = () => {
+      calls.titles += 1;
+      return { success: true, data: KARL_TITLES };
+    };
+    handlers.getTitleLeaderboard = () => {
+      calls.board += 1;
+      return boardFails ? { success: false, error: 'boom' } : { success: true, data: TITLE_BOARD };
+    };
+    renderRunner();
+
+    const section = await screen.findByRole('region', { name: 'Titles' });
+    expect(await within(section).findByText("Couldn't load titles", undefined, SLOW)).toBeInTheDocument();
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+    expect(within(section).queryByText(/No titles/)).toBeNull();
+
+    boardFails = false;
+    const before = { ...calls };
+    fireEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('2 held', undefined, SLOW)).toBeInTheDocument();
+    expect(calls.board).toBe(before.board + 1);
+    expect(calls.titles).toBe(before.titles + 1);
+    const held = within(within(section).getByRole('list', { name: 'Titles held' })).getAllByRole('listitem');
+    expect(held.map((item) => item.textContent)).toEqual(['The Rooster56 runs', 'The Longest Run32.8 km']);
+    const [batman] = within(within(section).getByRole('list', { name: 'Runner-up titles' })).getAllByRole('listitem');
+    expect(batman).toHaveTextContent('held by Nicklas von Elling');
+  });
+});
+
 describe('head to head', () => {
   it('rekordet ur ditt perspektiv (you won · drawn · you lost) och senaste mötena', async () => {
     renderRunner();
