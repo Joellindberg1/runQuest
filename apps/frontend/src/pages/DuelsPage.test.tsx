@@ -477,9 +477,8 @@ describe('Duels — send-sheeten (?send=1&opponent=)', () => {
     renderDuels(`/duels?send=1&opponent=${DAN}`);
     await screen.findByRole('dialog', { name: 'Send a challenge' });
     for (const name of ['Adam', 'Daniel Lindblad']) {
-      const row = within(sheet()).getAllByRole('button', { name: new RegExp(name) })[0];
-      expect(row).toBeDisabled();
-      expect(within(row).getByText('Waiting on a reply')).toBeInTheDocument();
+      expect(option(name)).toHaveAttribute('aria-disabled', 'true');
+      expect(within(option(name)).getByText('Waiting on a reply')).toBeInTheDocument();
     }
     expect(within(sheet()).getByRole('button', { name: 'Send challenge' })).toBeDisabled();
   });
