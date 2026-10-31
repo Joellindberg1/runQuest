@@ -33,6 +33,7 @@ const PROFILE = 'features/profile/profile.css';
 const PROFILE_POSITION = 'features/profile/positionChart.css';
 const BOARD_POSITION = 'features/leaderboard/positionBoard.css';
 const LOG = 'features/log/log.css';
+const NEWS = 'features/news/news.css';
 
 // ─── CSS-reglerna ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ type Locator = readonly [file: string, selector: string, prop: string];
 type Source = Locator | ((theme: Theme) => Locator);
 const locate = (source: Source, theme: Theme): Locator => (typeof source === 'function' ? source(theme) : source);
 
-type SurfaceName = 'shell' | 'card' | 'popup' | 'popupCard' | 'sheet';
+type SurfaceName = 'shell' | 'card' | 'popup' | 'popupCard' | 'sheet' | 'sidebar';
 const SCRIM: Locator = [SHELL, '.rq-scrim', 'background'];
 const SURFACES: Record<SurfaceName, { label: string; layers: Locator[] }> = {
   shell: { label: 'sidans bakgrund', layers: [[INDEX, 'body', 'background']] },
@@ -112,6 +113,7 @@ const SURFACES: Record<SurfaceName, { label: string; layers: Locator[] }> = {
   popup: { label: 'profilpopupen', layers: [[INDEX, 'body', 'background'], SCRIM, [SHELL, '.rq-modal', 'background']] },
   popupCard: { label: 'kort i profilpopupen', layers: [[INDEX, 'body', 'background'], SCRIM, [SHELL, '.rq-modal', 'background'], [INDEX, '.rq-card', 'background']] },
   sheet: { label: 'send-arket', layers: [[INDEX, 'body', 'background'], SCRIM, [DUELS, '.rq-duels-sheet', 'background']] },
+  sidebar: { label: 'sidofältet', layers: [[INDEX, 'body', 'background'], [SHELL, '.rq-sidenav', 'background']] },
 };
 
 interface Measuring { tokens: Map<string, string>; scope: Map<string, string> }
@@ -171,6 +173,11 @@ const ORDER_ROW: Locator = [BOARD_POSITION, '.rq-board-position-order__row', 'ba
 const ORDER_ROW_PRESSED: Locator = [BOARD_POSITION, '.rq-board-position-order__row[aria-pressed="true"]', 'background'];
 
 const label = (file: string, selector: string): Locator => [file, selector, 'color'];
+/** Textfärgen som ljust tema överstyr med en egen regel. Finns regeln inte mäts regeln som mörkt tema använder, så ett borttaget eller omdöpt ljust-lager fäller paret i stället för att tystas. */
+const lightOverride = (file: string, selector: string, base: Locator): Source => (theme) => (theme === 'light' && rulesFor(file, selector).length > 0 ? [file, selector, base[2]] : base);
+
+const FILTER_REST = ':not([aria-pressed="true"], [aria-selected="true"])';
+const NEWS_ROW_BACKGROUND: Locator = [NEWS, '.rq-news-row', 'background'];
 
 const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
   {
@@ -206,6 +213,27 @@ const CATEGORIES: Array<{ title: string; pairs: TextPair[] }> = [
         layers: [[PROFILE, '.rq-profile-tabs > .rq-tab[aria-selected="true"]', 'background']],
       },
       { name: 'Vilande flik', surfaces: ['card', 'popup'], fg: label(INDEX, '.rq-tab') },
+    ],
+  },
+  {
+    title: 'vilande filter, profilens radetikett och "Challenge pending": ljust tema',
+    pairs: [
+      {
+        name: 'Vilande filter / flik / segmenterad knapp', surfaces: ['shell', 'card', 'popup'],
+        fg: lightOverride(INDEX, `[data-theme="light"] .rq-filter${FILTER_REST}`, label(INDEX, '.rq-filter')),
+      },
+      {
+        name: 'Profilens radetikett (dt)', surfaces: ['card'], fg: lightOverride(PROFILE, '[data-theme="light"] .rq-profile-row dt', label(PROFILE, '.rq-profile-row dt')),
+        layers: [HAIRGRID, ROW_SOFT],
+      },
+      {
+        name: 'Runner-sidans radetikett (dt)', surfaces: ['card'], fg: lightOverride(RUNNER, '[data-theme="light"] .rq-runner-row dt', label(RUNNER, '.rq-runner-row dt')),
+        layers: [HAIRGRID, ROW_SOFT],
+      },
+      {
+        name: 'Challenge pending (statuschipet)', surfaces: ['shell', 'popup'], fg: label(INDEX, '.rq-chip--status'),
+        layers: [[INDEX, '.rq-chip--status', 'background']], scope: [[INDEX, '.rq-chip--duel']],
+      },
     ],
   },
   {
@@ -354,11 +382,16 @@ interface RingCase {
   /** Bakgrunderna under ringen (ringen ritas inåt, alltså över kontrollens egen yta), nerifrån och upp. */
   layers?: Source[];
   scope?: ReadonlyArray<readonly [string, string]>;
+  /** Ringen ritas utanför kontrollen (offset ≥ 0, som sidomenyns länkar): den ligger då på ytan runt kontrollen och `layers` är tomt. */
+  outward?: boolean;
 }
 
 const TAB_RULE: RuleRef = [VIEW_CONTROLS, '[role="tablist"] > .rq-tab:focus-visible'];
 const PROFILE_TAB: RuleRef = [PROFILE, '.rq-profile-tabs > .rq-tab:focus-visible'];
 const SEGMENTED: RuleRef = [VIEW_CONTROLS, '.rq-segmented > .rq-filter:focus-visible'];
+const NEWS_ROW_RING: RuleRef = [NEWS, '.rq-news-row__hit:focus-visible'];
+// Sidomenyns länk har ingen egen fokusregel: den tar temats globala ring (utåt). Regeln pekas ändå ut, så att en framtida egen ring mäts i stället för att förbigås.
+const SIDENAV_RING: RuleRef = [SHELL, '.rq-navitem:focus-visible'];
 const SEGMENTED_PRESSED: RuleRef = [VIEW_CONTROLS, '.rq-segmented > .rq-filter[aria-pressed="true"]:focus-visible'];
 const TABLIST_FILTER: RuleRef = [VIEW_CONTROLS, '[role="tablist"] > .rq-filter:focus-visible'];
 const TABLIST_FILTER_SELECTED: RuleRef = [VIEW_CONTROLS, '[role="tablist"] > .rq-filter[aria-selected="true"]:focus-visible'];
@@ -384,6 +417,10 @@ const RING_CASES: RingCase[] = [
   ]),
   { name: 'Current order, rad', surfaces: ['card'], rules: [[BOARD_POSITION, '.rq-board-position-order__row:focus-visible']], layers: [ORDER_ROW] },
   { name: 'Current order, vald rad', surfaces: ['card'], rules: [[BOARD_POSITION, '.rq-board-position-order__row:focus-visible']], layers: [ORDER_ROW_PRESSED] },
+  { name: 'Nyhetsrad, läst', surfaces: ['shell'], rules: [NEWS_ROW_RING], layers: [HAIRGRID, NEWS_ROW_BACKGROUND] },
+  { name: 'Nyhetsrad, oläst', surfaces: ['shell'], rules: [NEWS_ROW_RING], layers: [HAIRGRID, [NEWS, '.rq-news-row[data-unread]', 'background']] },
+  { name: 'Nyhetsrad, med pekaren över', surfaces: ['shell'], rules: [NEWS_ROW_RING], layers: [HAIRGRID, [NEWS, '.rq-news-row:hover', 'background']] },
+  { name: 'Sidomenyns länk (a.rq-navitem)', surfaces: ['sidebar'], rules: [SIDENAV_RING], outward: true },
 ];
 
 function ringProblems(cases: RingCase[], theme: Theme, tokens = themeTokens(indexCss, theme)): string[] {
@@ -397,15 +434,16 @@ function ringProblems(cases: RingCase[], theme: Theme, tokens = themeTokens(inde
       const ratio = contrast(colour, background);
       const where = `${ringCase.name} | ${SURFACES[surface].label} | ${THEME_LABEL[theme]}`;
       if (ratio < RING_MIN) problems.push(`${where} | fokusringen ${ratio.toFixed(2)}:1 mot gränsen ${RING_MIN}:1 | ring ${toHex(colour)} mot ${toHex(background)}`);
-      if (ring.offset >= 0) problems.push(`${where} | fokusringen ritas utanför (outline-offset ${ring.offset}px), inåt kräver ett negativt värde`);
+      if (!ringCase.outward && ring.offset >= 0) problems.push(`${where} | fokusringen ritas utanför (outline-offset ${ring.offset}px), inåt kräver ett negativt värde`);
+      if (ringCase.outward && ring.offset < 0) problems.push(`${where} | fokusringen ritas inåt (outline-offset ${ring.offset}px), men ytan som mäts är den runt kontrollen`);
       if (ring.width < RING_MIN_WIDTH_PX) problems.push(`${where} | fokusringen är ${ring.width}px, minst ${RING_MIN_WIDTH_PX}px`);
     }
   }
   return problems;
 }
 
-describe('kontrastvakt, fokusring ≥ 3:1 mot ytan och inåtriktad: flikar, segmenterad kontroll, nivåchips och Current order', () => {
-  it.each(THEMES)('varje ring når gränsen, är minst 2 px och ritas inåt i %s tema', (theme) => {
+describe('kontrastvakt, fokusring ≥ 3:1 mot ytan: flikar, segmenterad kontroll, nivåchips, Current order, nyhetsrader (inåt) och sidomenyn (utåt)', () => {
+  it.each(THEMES)('varje ring når gränsen, är minst 2 px och ritas åt rätt håll i %s tema', (theme) => {
     expect(RING_CASES.length).toBeGreaterThan(0);
     expect(ringProblems(RING_CASES, theme)).toEqual([]);
   });
@@ -431,6 +469,28 @@ describe('kontrastvakten själv', () => {
     const outward = themeTokens(indexCss, 'dark');
     outward.set('--rq-focus-inset', '2px');
     expect(ringProblems(RING_CASES.filter((ringCase) => ringCase.name.startsWith('Current order, rad')), 'dark', outward).join('\n')).toContain('ritas utanför');
+  });
+
+  it('fäller nyhetsradens och sidomenyns ring när ringen är det gamla bronset, med ytan i klartext', () => {
+    const before = themeTokens(indexCss, 'light');
+    before.set('--rq-focus-ring', '2px solid #b8702a');
+    const found = ringProblems(RING_CASES.filter((ringCase) => /^(Nyhetsrad|Sidomenyns)/.test(ringCase.name)), 'light', before).join('\n');
+    expect(found).toContain('Nyhetsrad, läst | sidans bakgrund | ljust tema | fokusringen 2.92:1 mot gränsen 3:1 | ring #b8702a mot #e4ded7');
+    expect(found).toContain('Sidomenyns länk (a.rq-navitem) | sidofältet | ljust tema | fokusringen 2.60:1 mot gränsen 3:1 | ring #b8702a mot #d9d2c9');
+  });
+
+  it('fäller det vilande filtret och chipet när deras textfärg sänks, och mäter sidomenyns ring som utåtriktad', () => {
+    const lowered = themeTokens(indexCss, 'light');
+    lowered.set('--rq-text-4', 'rgb(var(--rq-ink-rgb) / .60)');
+    lowered.set('--rq-duel-text', 'var(--rq-duel)');
+    const pairs = CATEGORIES.find((category) => category.title.startsWith('vilande filter, profilens radetikett'))!.pairs;
+    const found = failures(pairs, 'light', lowered).join('\n');
+    expect(found).toContain('Vilande filter / flik / segmenterad knapp | sidans bakgrund | ljust tema | 4.04:1');
+    expect(found).toContain('Profilens radetikett (dt) | kortet | ljust tema | 3.95:1');
+    expect(found).toContain('Challenge pending (statuschipet) | sidans bakgrund | ljust tema | 3.88:1');
+    const inward = themeTokens(indexCss, 'light');
+    inward.set('--rq-focus-offset', '-2px');
+    expect(ringProblems(RING_CASES.filter((ringCase) => ringCase.name.startsWith('Sidomenyns')), 'light', inward).join('\n')).toContain('ritas inåt');
   });
 
   it('mäter som WCAG och läser temats färgformer: svart mot vitt är 21:1, alfa komponeras och color-mix blandas', () => {

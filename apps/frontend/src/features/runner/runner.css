@@ -169,6 +169,8 @@
 .rq-runner-rows { margin: 0; }
 .rq-runner-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
 .rq-runner-row dt { color: var(--rq-text-3); }
+/* Ljust tema: --rq-text-3 (.60) ger 3,95:1 mot radens tint på kortet, --rq-text-4 (.65) ger 4,56:1 (samma ersättning som profilens rader i profile.css). Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-runner-row dt { color: var(--rq-text-4); }
 .rq-runner-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
 
 /* ── Titlar ───────────────────────────────────────────────────────────────── */

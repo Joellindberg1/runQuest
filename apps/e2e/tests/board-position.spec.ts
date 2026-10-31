@@ -19,8 +19,6 @@ const SAME_LINE_PX = 4;
 /** WCAG AA för brödtext och för ikontext/ramar (fokusringen). */
 const MIN_TEXT_CONTRAST = 4.5;
 const MIN_RING_CONTRAST = 3;
-/** Golvet för de ovala chipsen: dagens värde (4,04:1 i det ljusa temat) får inte bli sämre. */
-const MIN_CHIP_TEXT_CONTRAST = 4;
 const THEMES = ['dark', 'light'] as const;
 /** Hur länge typsnittsfilerna hålls tillbaka i provet av kallt typsnitt: längre än `openBoard` väntar (overlays och stil), så raden ritas och mäts med kallt typsnitt. */
 const FONT_DELAY_MS = 9_000;
@@ -252,14 +250,14 @@ test.describe('the Position tab on the board', () => {
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(chartOf(page)).toBeVisible();
 
-        // Textfärgen mot flikens egen sammansatta bakgrund. Den valda fliken når AA. De ovala flikarna har chip-receptets textfärg (`.rq-filter`, --rq-text-3), som Season, Week och Streaks hade före
-        // Position och som är 4,04:1 i det ljusa temat: det är ett öppet antagande (docs/open-assumptions.md), inte något den här storyn ändrar, så provet vaktar att värdet inte blir sämre.
+        // Textfärgen mot flikens egen sammansatta bakgrund: både den valda och de vilande (ovala) flikarna når AA, i båda teman. Receptets vilande text (`.rq-filter`) är --rq-text-3 i mörkt tema och
+        // --rq-text-4 i ljust (4,69:1 mot skalet; --rq-text-3 gav 4,04:1).
         const texts = await page.evaluate(contrastOf, { selectors: ['.rq-board__tabs > [role="tab"]'] });
         expect(texts).toHaveLength(TABS.length);
         const selected = await page.locator('.rq-board__tabs > [role="tab"]').evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('aria-selected') === 'true'));
         texts.forEach((sample, index) => {
           test.info().annotations.push({ type: 'measure', description: `${theme} / ${width} px / "${sample.text}"${selected[index] ? ' (selected)' : ''}: ${sample.ratio}:1` });
-          expect(sample.ratio, `${theme} / ${width} px: the "${sample.text}" tab`).toBeGreaterThanOrEqual(selected[index] ? MIN_TEXT_CONTRAST : MIN_CHIP_TEXT_CONTRAST);
+          expect(sample.ratio, `${theme} / ${width} px: the "${sample.text}" tab`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST);
         });
 
         // Fokusringen på den valda och en ovald flik mot flikens bakgrund (icke-text: 3:1).
