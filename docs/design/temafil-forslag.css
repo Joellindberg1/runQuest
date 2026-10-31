@@ -371,7 +371,10 @@
      med tre decimaler (RUN-442); namnkolumnen är ca 92 px vid 320 px och 132 px vid 360 px, nog för "Christopher" (88 px). Desktop skriver över hela kolumnlistan nedan. */
   --rq-duels-standing-ramp: clamp(0px, calc(100vw - 360px), 66px);   /* 0 vid 360 px och smalare, 66 px vid 426 px och bredare */
   --rq-duels-standing-cols: calc(18px + var(--rq-duels-standing-ramp) * 6 / 66) minmax(0, 1fr) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(24px + var(--rq-duels-standing-ramp) * 10 / 66) calc(36px + var(--rq-duels-standing-ramp) * 16 / 66); /* # · Player · W · D · L · % (desktop 44 · 60 60 60 · 78) */
-  --rq-duels-match-cols: minmax(0, 1fr) 26px minmax(0, 1fr);          /* vänster · vs · höger (desktop + meta 190 + datum 70) */
+  --rq-duels-match-vs-w: 26px;                                        /* "vs"-kolumnen (smal desktop 32 · desktop 46) */
+  --rq-duels-match-meta-w: 0px;                                       /* metakolumnen: bara på desktop (190), annars ligger metan under paret */
+  --rq-duels-match-date-w: 0px;                                       /* datumkolumnen: bara på desktop (70) */
+  --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr);   /* vänster · vs · höger (desktop + meta + datum) */
   --rq-duels-match-meta-span: 1 / 3;                                  /* mobil: metan under paret; desktop: egen kolumn */
   --rq-duels-match-date-span: 3;
   --rq-duels-match-meta-align: left;                                  /* desktop: right */
@@ -823,12 +826,15 @@
     --rq-duels-live-cols: repeat(2, minmax(0, 1fr));
     --rq-duels-rules-cols: repeat(3, minmax(0, 1fr));
     --rq-duels-standing-cols: 44px minmax(0, 1fr) 60px 60px 60px 78px;
-    --rq-duels-match-cols: minmax(0, 1fr) 46px minmax(0, 1fr) 190px 70px;
+    --rq-duels-match-vs-w: 46px;
+    --rq-duels-match-meta-w: 190px;
+    --rq-duels-match-date-w: 70px;
+    --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr) var(--rq-duels-match-meta-w) var(--rq-duels-match-date-w);
     --rq-duels-match-meta-span: auto;
     --rq-duels-match-date-span: auto;
     --rq-duels-match-meta-align: right;
     --rq-duels-match-edge-w: 3px;
-    --rq-duels-match-split: calc(var(--rq-pad-row-x) + (100% - 2 * var(--rq-pad-row-x) - 306px - 4 * var(--rq-sp-8)) / 2 + var(--rq-sp-8) + 23px);   /* följer --rq-duels-match-cols: 306 = 46 + 190 + 70, 23 = halva 46 */
+    --rq-duels-match-split: calc(var(--rq-pad-row-x) + (100% - 2 * var(--rq-pad-row-x) - var(--rq-duels-match-vs-w) - var(--rq-duels-match-meta-w) - var(--rq-duels-match-date-w) - 4 * var(--rq-sp-8)) / 2 + var(--rq-sp-8) + var(--rq-duels-match-vs-w) / 2);   /* radens vänsterpadding + en namnkolumn + ett glapp + halva "vs"-kolumnen (fem kolumner, fyra glapp av --rq-sp-8) */
     --rq-duels-offer-cols: minmax(0, 1fr) auto fit-content(240px);
     --rq-duels-offer-actions-cols: minmax(0, 1fr);
     --rq-duels-offer-rule-w: 0px;
@@ -1008,7 +1014,8 @@
 @media (min-width: 1024px) and (max-width: 1279px) {
   :root {
     --rq-duels-standing-cols: 28px minmax(0, 1fr) 32px 32px 32px 52px;
-    --rq-duels-match-cols: minmax(0, 1fr) 32px minmax(0, 1fr);
+    --rq-duels-match-vs-w: 32px;
+    --rq-duels-match-cols: minmax(0, 1fr) var(--rq-duels-match-vs-w) minmax(0, 1fr);
     --rq-duels-match-meta-span: 1 / 3;
     --rq-duels-match-date-span: 3;
     --rq-duels-match-meta-align: left;

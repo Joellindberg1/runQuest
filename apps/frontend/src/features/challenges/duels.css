@@ -156,7 +156,8 @@
 .rq-duels-match__name[data-mine="true"] { color: var(--rq-text-2); }
 /* Hela raden är tryckbar utan nästlade knappar: namnknappen (ett tabbstopp per deltagare) har en osynlig träffyta som täcker radens halva, hela höjden (på mobil också metaraden under paret). Delningen går vid mitten av "vs" (--rq-duels-match-split); på desktop hamnar meta och datum i höger halva. Knappen är inte positionerad, så ytan följer raden (.rq-duels-match). */
 .rq-duels-match__name::after { content: ""; position: absolute; top: 0; bottom: 0; }
-.rq-duels-match__name[data-half="left"]::after { left: 0; width: var(--rq-duels-match-split); }
+/* Vänster halva börjar vid radens yttre kant: kantlinjen (border-left, 3 px på desktop) ligger utanför paddingkanten och ska också träffa. */
+.rq-duels-match__name[data-half="left"]::after { left: calc(-1 * var(--rq-duels-match-edge-w)); width: calc(var(--rq-duels-match-split) + var(--rq-duels-match-edge-w)); }
 .rq-duels-match__name[data-half="right"]::after { left: var(--rq-duels-match-split); right: 0; }
 /* Fokusringen ritas på träffytan, inåt (som flikraderna): hårlinjegriden klipper en yttre ring. */
 .rq-duels-match__name:focus-visible { outline: none; }
