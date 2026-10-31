@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User } from '@runquest/types';
 import ProfilePage from './ProfilePage';
@@ -388,6 +388,44 @@ describe('Profile — titlar', () => {
     expect(within(section).getByText('5.0 km')).toBeInTheDocument();
     expect(calls.board).toBe(before.board + 1);
     expect(calls.titles).toBe(before.titles + 1);
+  });
+
+  it('medan titeltopplistan väntar: laddningsläget i stället för värden utan enhet', async () => {
+    handlers.getTitleLeaderboard = () => new Promise(() => {});
+    renderProfile('/profile', DESKTOP);
+
+    const section = await screen.findByRole('region', { name: 'My titles' });
+    expect(await within(section).findByText('Loading your titles')).toBeInTheDocument();
+    // Titlarna har hunnit svara, men utan topplistan finns ingen enhet att rita.
+    await waitFor(() => expect(document.querySelector('[data-cell="titles"] dd')).toHaveTextContent('5'));
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+    expect(within(section).queryByText(/No titles/)).toBeNull();
+    expect(within(section).queryByRole('alert')).toBeNull();
+  });
+
+  it('när en omhämtning av titeltopplistan felar efter ett lyckat svar: felkort med Retry i stället för gamla rader, och Retry ger raderna med enhet igen', async () => {
+    let boardFails = false;
+    handlers.getTitleLeaderboard = () => (boardFails ? { success: false, error: 'down' } : { success: true, data: BOARD });
+    const { queryClient } = renderProfile('/profile', DESKTOP);
+
+    const section = await screen.findByRole('region', { name: 'My titles' });
+    expect(await within(section).findByText('held by Karl Persson')).toBeInTheDocument();
+
+    boardFails = true;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['titles', 'board'] });
+    });
+    expect(await within(section).findByText("Couldn't load your titles", {}, SLOW)).toBeInTheDocument();
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+    expect(within(section).queryByText('held by Karl Persson')).toBeNull();
+
+    boardFails = false;
+    fireEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('held by Karl Persson', {}, SLOW)).toBeInTheDocument();
+    expect(within(section).getByText('5.0 km')).toBeInTheDocument();
+    expect(within(section).queryByRole('alert')).toBeNull();
   });
 });
 

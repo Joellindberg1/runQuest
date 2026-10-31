@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
@@ -363,6 +363,44 @@ describe('titelpanelen när titeltopplistan felar', () => {
     expect(held.map((item) => item.textContent)).toEqual(['The Rooster56 runs', 'The Longest Run32.8 km']);
     const [batman] = within(within(section).getByRole('list', { name: 'Runner-up titles' })).getAllByRole('listitem');
     expect(batman).toHaveTextContent('held by Nicklas von Elling');
+  });
+
+  it('medan topplistan väntar: laddningsläget i stället för värden utan enhet', async () => {
+    handlers.getTitleLeaderboard = () => new Promise(() => {});
+    renderRunner('/runner/u-karl', DESKTOP);
+
+    const section = await screen.findByRole('region', { name: 'Titles' });
+    expect(await within(section).findByText('Loading titles')).toBeInTheDocument();
+    // Titlarna har hunnit svara (cellen i hjältekortet räknar dem), men utan topplistan finns ingen enhet att rita.
+    await waitFor(() => expect(document.querySelector('.rq-runner-cells [data-cell="titles"] dd')).toHaveTextContent('2'));
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+    expect(within(section).queryByText(/No titles/)).toBeNull();
+    expect(within(section).queryByRole('alert')).toBeNull();
+  });
+
+  it('när en omhämtning av topplistan felar efter ett lyckat svar: felkort med Retry i stället för gamla rader, och Retry ger raderna med enhet igen', async () => {
+    let boardFails = false;
+    handlers.getTitleLeaderboard = () => (boardFails ? { success: false, error: 'boom' } : { success: true, data: TITLE_BOARD });
+    const { queryClient } = renderRunner();
+
+    const section = await screen.findByRole('region', { name: 'Titles' });
+    expect(await within(section).findByText('2 held', undefined, SLOW)).toBeInTheDocument();
+
+    boardFails = true;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['titles', 'board'] });
+    });
+    expect(await within(section).findByText("Couldn't load titles", undefined, SLOW)).toBeInTheDocument();
+    expect(within(section).queryByRole('list', { name: 'Titles held' })).toBeNull();
+    expect(within(section).queryByRole('list', { name: 'Runner-up titles' })).toBeNull();
+
+    boardFails = false;
+    fireEvent.click(within(section).getByRole('button', { name: 'Retry' }));
+    expect(await within(section).findByText('2 held', undefined, SLOW)).toBeInTheDocument();
+    const held = within(within(section).getByRole('list', { name: 'Titles held' })).getAllByRole('listitem');
+    expect(held.map((item) => item.textContent)).toEqual(['The Rooster56 runs', 'The Longest Run32.8 km']);
+    expect(within(section).queryByRole('alert')).toBeNull();
   });
 });
 
