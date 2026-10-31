@@ -128,6 +128,8 @@
 .rq-profile-rows { margin: 0; }
 .rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
 .rq-profile-row dt { color: var(--rq-text-3); }
+/* Ljust tema: --rq-text-3 (.60) ger 3,95:1 mot radens tint på kortet, --rq-text-4 (.65) ger 4,56:1 (som Overview i popupen, runner.css). Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-profile-row dt { color: var(--rq-text-4); }
 .rq-profile-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
 
 /* ── Consistency-heatmapen ────────────────────────────────────────────────── */

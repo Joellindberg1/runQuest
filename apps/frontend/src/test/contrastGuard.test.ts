@@ -467,6 +467,28 @@ describe('kontrastvakten själv', () => {
     expect(ringProblems(RING_CASES.filter((ringCase) => ringCase.name.startsWith('Current order, rad')), 'dark', outward).join('\n')).toContain('ritas utanför');
   });
 
+  it('fäller nyhetsradens och sidomenyns ring när ringen är det gamla bronset, med ytan i klartext', () => {
+    const before = themeTokens(indexCss, 'light');
+    before.set('--rq-focus-ring', '2px solid #b8702a');
+    const found = ringProblems(RING_CASES.filter((ringCase) => /^(Nyhetsrad|Sidomenyns)/.test(ringCase.name)), 'light', before).join('\n');
+    expect(found).toContain('Nyhetsrad, läst | sidans bakgrund | ljust tema | fokusringen 2.92:1 mot gränsen 3:1 | ring #b8702a mot #e4ded7');
+    expect(found).toContain('Sidomenyns länk (a.rq-navitem) | sidofältet | ljust tema | fokusringen 2.60:1 mot gränsen 3:1 | ring #b8702a mot #d9d2c9');
+  });
+
+  it('fäller det vilande filtret och chipet när deras textfärg sänks, och mäter sidomenyns ring som utåtriktad', () => {
+    const lowered = themeTokens(indexCss, 'light');
+    lowered.set('--rq-text-4', 'rgb(var(--rq-ink-rgb) / .60)');
+    lowered.set('--rq-duel-text', 'var(--rq-duel)');
+    const pairs = CATEGORIES.find((category) => category.title.startsWith('vilande filter, profilens radetikett'))!.pairs;
+    const found = failures(pairs, 'light', lowered).join('\n');
+    expect(found).toContain('Vilande filter / flik / segmenterad knapp | sidans bakgrund | ljust tema | 4.04:1');
+    expect(found).toContain('Profilens radetikett (dt) | kortet | ljust tema | 3.95:1');
+    expect(found).toContain('Challenge pending (statuschipet) | sidans bakgrund | ljust tema | 3.88:1');
+    const inward = themeTokens(indexCss, 'light');
+    inward.set('--rq-focus-offset', '-2px');
+    expect(ringProblems(RING_CASES.filter((ringCase) => ringCase.name.startsWith('Sidomenyns')), 'light', inward).join('\n')).toContain('ritas inåt');
+  });
+
   it('mäter som WCAG och läser temats färgformer: svart mot vitt är 21:1, alfa komponeras och color-mix blandas', () => {
     expect(contrast([0, 0, 0], [255, 255, 255])).toBeCloseTo(21, 5);
     expect(parseColor('rgb(38 35 31 / .65)')).toEqual({ rgb: [38, 35, 31], alpha: 0.65 });

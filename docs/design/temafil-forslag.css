@@ -87,6 +87,7 @@
   --rq-up-text:     var(--rq-up);   /* liten text i vinst/förlust-ton på en tonad yta (ljust: mörkare, ≥ 4,5:1 mot guld-/bronstint) */
   --rq-down-text:   var(--rq-down);
   --rq-duel:        #fdba74;
+  --rq-duel-text:   var(--rq-duel);   /* liten text i duellens ton på en duelltint (ljust: mörkare, ≥ 4,5:1 mot tinten på skalet och på popupens yta) */
   --rq-duel-base:   #f97316;
   --rq-strava:      #fc5200;
 
@@ -1144,6 +1145,7 @@
   --rq-up-text:     #166534;                    /* --rq-up (#15803d) ger 4,35:1 mot den valda radens bronstint, #166534 ger över 6:1 */
   --rq-down-text:   #b91c1c;                    /* --rq-down (#dc2626) ger 4,37:1 mot "The bet"-kortets bronstint, #b91c1c ger över 5:1 */
   --rq-duel:        #b45309;
+  --rq-duel-text:   #a04a08;                    /* --rq-duel (#b45309) ger 3,88:1 mot chipets duelltint på skalet (#f2dfd3) och 4,35:1 på popupens yta (#f9ece7), #a04a08 ger 4,66:1 respektive 5,23:1 */
   --rq-duel-base:   #c2410c;
 
   --rq-rank-1:      #b8860b;                    /* rank behåller metall: 1 ≠ 3 */
@@ -1174,7 +1176,7 @@
   --rq-text-2: #26231f;
   --rq-text-4: rgb(var(--rq-ink-rgb) / .65);    /* AA mot ljus bas: .5 ger 3.05:1, .65 ger 4.69:1 */
   --rq-duels-chip-empty-fg: rgb(var(--rq-ink-rgb) / .55);
-  --rq-focus-ring:  2px solid var(--rq-gold-hover);    /* #cd7f32 ger 2,97:1 mot en rad (#f8f8f8) och 2,70:1 mot en vald rad (#eeeded) i Current order, under 3:1; #b8702a ger 3,7:1 och 3,3:1 */
+  --rq-focus-ring:  2px solid #a56526;                /* #cd7f32 ger 2,97:1 mot en rad (#f8f8f8) och 2,70:1 mot en vald rad (#eeeded) i Current order, under 3:1; --rq-gold-hover (#b8702a) ger 2,60:1 mot sidofältet (#d9d2c9), 2,92:1 mot en nyhetsrad (#e4ded7) och 2,76:1 med pekaren över (#dfd8d1); #a56526 ger 3,12:1, 3,50:1 och 3,31:1 (Current order: 3,7:1 och 3,3:1 före, 4,4:1 och 4,0:1 efter) */
   --rq-profile-position-dot-on-fill: var(--rq-text-1);   /* #26231f på brons: 4,9:1 */
   --rq-profile-position-label: var(--rq-text-4);               /* ≥ 4,5:1 mot vitt kort */
   --rq-board-position-label: var(--rq-text-4);                 /* namn, axeltal, veckoetiketter, legend: text-3 (.60) ger bara 4,2:1 mot vitt kort, text-4 (.65) ger 4,7:1 */
@@ -1390,7 +1392,7 @@
   .rq-chip--gold   { --rq-c: var(--rq-gold-rgb); --rq-c-solid: var(--rq-gold-text); }
   .rq-chip--up     { --rq-c: var(--rq-up-rgb);   --rq-c-solid: var(--rq-up); }
   .rq-chip--down   { --rq-c: var(--rq-down-rgb); --rq-c-solid: var(--rq-down); }
-  .rq-chip--duel   { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel); }  /* tint på base (#f97316), kant+text på duel (#fdba74) */
+  .rq-chip--duel   { --rq-c: var(--rq-duel-base-rgb); --rq-c-edge: var(--rq-duel-rgb); --rq-c-solid: var(--rq-duel-text); }  /* tint på base (#f97316), kant på duel (#fdba74), text på duel-text (mörkt: samma #fdba74) */
   .rq-chip--strava { padding: 5px 12px; border-color: rgb(var(--rq-strava-rgb) / .5); color: var(--rq-strava); }
 
   /* ── Flikar ── */
@@ -1398,6 +1400,8 @@
   .rq-tab[aria-selected="true"] { color: var(--rq-gold-text); border-bottom-color: var(--rq-gold); }
   .rq-filter { padding: 7px 15px; font-size: var(--rq-fs-chip); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; cursor: pointer; border: var(--rq-hair) solid var(--rq-line-4); color: var(--rq-text-3); }
   .rq-filter[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-color: rgb(var(--rq-gold-rgb) / var(--rq-edge-selected)); color: var(--rq-gold-text); }
+  /* Ljust tema: den vilande texten tar --rq-text-4 (.65) i stället för --rq-text-3 (.60), som ger 4,04:1 mot skalet och 4,22:1 mot kortet (nu 4,69:1 och 4,94:1). Mörkt tema är oförändrat. */
+  [data-theme="light"] .rq-filter:not([aria-pressed="true"], [aria-selected="true"]) { color: var(--rq-text-4); }
 
   /* ── Staplar, ringar, avatar, bakgrund ── */
   .rq-track { height: 6px; background: var(--rq-fill-1); }
