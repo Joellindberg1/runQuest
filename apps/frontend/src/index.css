@@ -1077,6 +1077,15 @@
   }
 }
 
+/* De smalaste telefonerna (under 360 px): vid 320 px är Standings-raden 282 px och de fasta kolumnerna (24 + 34 + 34 + 34 + 52 px plus luft) lämnade bara 40 px åt namnet, så ett vanligt namn bröts mitt i ordet
+   (`overflow-wrap: anywhere`). Här smalnar rang- och sifferkolumnerna av (tvåsiffrig rang, tre siffror i W, D och L, procenten med tre decimaler ryms) och namnet får ca 86 px vid 320 px och 106 px vid 340 px,
+   nog för "Johansson" (77 px). Från 360 px gäller kolumnerna ovan oförändrade. */
+@media (max-width: 359px) {
+  :root {
+    --rq-duels-standing-cols: 18px minmax(0, 1fr) 26px 26px 26px 36px;
+  }
+}
+
 
 /* ═════════════════════════════════════════════════════════════════════════════
    3. TOKENS — LJUST BRONS (sekundärt, förberett — INGEN referensbild finns)
