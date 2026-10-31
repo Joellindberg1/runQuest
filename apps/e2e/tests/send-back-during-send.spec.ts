@@ -1,100 +1,16 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { apiIsStubbed } from '../support/stubApi';
-import { CORS_HEADERS, DESKTOP, OTHER_MEMBER, PHONE, RUNNER, apiPath, historyOf, open, openSendFromPopup, runnerRow, runnerRowHasFocus, sheet } from '../support/sendFlow';
+import {
+  BACK_TO_BOARD, DESKTOP, JUMP_PAST_TIME_LIMIT_MS, NO_LOCK, OTHER_MEMBER, PHONE, RUNNER, UNCONFIRMED_TEXT, answerAndSettle, collectPageErrors, controlSend, focusIsOnBody, goToDuelsInApp, historyOf,
+  lockLeftOnPage, open, openSendFromPopup, runnerRow, runnerRowHasFocus, sentSectionTextFor, sheet, type SendControl,
+} from '../support/sendFlow';
 
 /**
  * Webbläsarens Back medan ett skick pågår. Send-arket låser Cancel, ✕, Esc och skrimman under skicket, men inte Back: arket avmonteras och utfallet har ingen yta att visas på.
  * Skicket styrs här av en rutt som håller svaret (aldrig, eller tills provet släpper det) och en klocka som hoppar förbi tidsgränsen (15 s i appen).
  */
-const JUMP_PAST_TIME_LIMIT_MS = 16_000;
-const UNCONFIRMED_TEXT = /couldn.t confirm that your challenge was sent/i;
-const BACK_TO_BOARD = /\/board$/;
-
-interface SendControl {
-  /** Ett element per POST /challenges/send som nådde "servern". */
-  sends: string[];
-  /** Antal gånger "mina utmaningar" har hämtats. */
-  myFetches: () => number;
-  /** Släpper svaret (201) på skicken som hålls. */
-  answer: () => void;
-}
-
-/** Utmaningen "servern" skapar: en väntande utmaning från mig till löparen i popupen. */
-const createdChallenge = (opponent: { id: string; name: string }) => ({
-  id: 'challenge-new', group_id: 'g1', token_id: 'token-minor-km', tier: 'minor', challenger_id: 'stub-user-1', challenger_name: 'Stub Runner', opponent_id: opponent.id, opponent_name: opponent.name,
-  metric: 'km', duration_days: 7, winner_delta: 0.15, winner_duration: 5, winner_type: 'multiplier_days', loser_delta: -0.07, loser_duration: 5, loser_type: 'multiplier_days',
-  challenger_level: 10, opponent_level: 11, status: 'pending', created_at: '2026-10-31T08:00:00Z',
-});
-
-/**
- * Lägger över skicket: svaret hålls tills `answer()` anropas (eller för alltid). Med `serverCreates` skapas utmaningen när skicket når "servern", och "mina utmaningar" visar den därefter (tokenet borta).
- * Registreras efter `open` och går därför före grundstubbens rutter.
- */
-async function controlSend(page: Page, opponent: { id: string; name: string }, { serverCreates, neverAnswer }: { serverCreates: boolean; neverAnswer: boolean }): Promise<SendControl> {
-  const sends: string[] = [];
-  let created = false;
-  let myFetches = 0;
-  let release: () => void = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-
-  await page.route(apiPath('/challenges/my'), async (route) => {
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS_HEADERS });
-    myFetches += 1;
-    // Innan utmaningen finns svarar grundstubben (inget token är använt); efteråt är tokenet borta och utmaningen skickad.
-    if (!created) return route.fallback();
-    const data = { tokens: [], sent_challenge: createdChallenge(opponent), received_challenges: [], boosts: [], history: [], group_active: [] };
-    return route.fulfill({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
-  });
-  await page.route(apiPath('/challenges/send'), async (route) => {
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS_HEADERS });
-    sends.push(route.request().url());
-    if (serverCreates) created = true;
-    if (neverAnswer) await new Promise<void>(() => {});
-    await held;
-    // Webbläsaren kan ha gett upp och avbrutit anropet: då finns inget att svara, och det är inget fel i stubben.
-    return route.fulfill({ status: 201, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data: { challenge_id: 'challenge-new' } }) }).catch(() => {});
-  });
-  return { sends, myFetches: () => myFetches, answer: release };
-}
-
-/** Tiden appen får på sig att reagera på ett svar (omhämtningen och det som följer på den) innan provet tittar: en vilopaus i verklig tid, inte på den fejkade klockan. */
-const REACTION_TIME_MS = 1_000;
-
-/** Släpper svaret och väntar tills sidan har fått det och appen hunnit reagera. */
-async function answerAndSettle(page: Page, control: SendControl): Promise<void> {
-  const received = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/challenges/send'));
-  control.answer();
-  await received;
-  await page.clock.runFor(REACTION_TIME_MS);
-  await page.waitForTimeout(REACTION_TIME_MS);
-}
-
-/** Allt som en dialog lämnar efter sig på sidan när den stängs: skrollås, `aria-hidden` och `inert` på appen, och en body som inte tar emot tryck. */
-const lockLeftOnPage = (page: Page) =>
-  page.evaluate(() => ({
-    scrollLocked: document.body.hasAttribute('data-scroll-locked'),
-    bodyPointerEvents: document.body.style.pointerEvents,
-    inert: document.querySelectorAll('[inert]').length,
-    hiddenBodyChildren: Array.from(document.body.children).filter((child) => child.getAttribute('aria-hidden') === 'true').length,
-    openDialogs: document.querySelectorAll('[role="dialog"]').length,
-  }));
-const NO_LOCK = { scrollLocked: false, bodyPointerEvents: '', inert: 0, hiddenBodyChildren: 0, openDialogs: 0 };
-
-const focusIsOnBody = (page: Page) => page.evaluate(() => document.activeElement === document.body || document.activeElement === null);
-
-/** Fel som sidan själv kastar (okontrollerade undantag): Back under ett skick ska inte ge något. */
-function collectPageErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  return errors;
-}
-
-const goToDuelsInApp = async (page: Page) => {
-  await page.getByRole('navigation').getByRole('link', { name: 'Challenges' }).first().click();
-  await expect(page).toHaveURL(/\/duels/);
-};
-const sentSectionText = new RegExp(`Waiting for ${RUNNER.name.split(' ')[0]} to respond`);
+const sentSectionText = sentSectionTextFor(RUNNER);
 
 test.describe('Back while a challenge is being sent from the runner popup (desktop)', () => {
   test.skip(!apiIsStubbed(), 'The sheet is filled from a stubbed challenges API; run with E2E_STUB_API=1 against a local build.');

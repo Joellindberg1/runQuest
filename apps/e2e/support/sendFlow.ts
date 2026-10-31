@@ -103,6 +103,111 @@ export const isInViewport = async (page: Page, locator: Locator): Promise<boolea
   return !!box && !!viewport && box.y >= 0 && box.y + box.height <= viewport.height && box.x >= 0 && box.x + box.width <= viewport.width;
 };
 
+// ─── Skick som styrs av provet (specerna send-back-during-send och send-back-focus) ───
+
+/** Hur långt klockan hoppar för att passera tidsgränsen (15 s i appen). */
+export const JUMP_PAST_TIME_LIMIT_MS = 16_000;
+export const UNCONFIRMED_TEXT = /couldn.t confirm that your challenge was sent/i;
+export const REFUSED_TEXT = 'Opponent already has a pending challenge';
+export const BACK_TO_BOARD = /\/board$/;
+
+export interface SendControl {
+  /** Ett element per POST /challenges/send som nådde "servern". */
+  sends: string[];
+  /** Antal gånger "mina utmaningar" har hämtats. */
+  myFetches: () => number;
+  /** Släpper svaret på skicken som hålls (201, eller 400 med `refuse`). */
+  answer: () => void;
+}
+
+/** Utmaningen "servern" skapar: en väntande utmaning från mig till motståndaren. */
+const createdChallenge = (opponent: { id: string; name: string }) => ({
+  id: 'challenge-new', group_id: 'g1', token_id: 'token-minor-km', tier: 'minor', challenger_id: 'stub-user-1', challenger_name: 'Stub Runner', opponent_id: opponent.id, opponent_name: opponent.name,
+  metric: 'km', duration_days: 7, winner_delta: 0.15, winner_duration: 5, winner_type: 'multiplier_days', loser_delta: -0.07, loser_duration: 5, loser_type: 'multiplier_days',
+  challenger_level: 10, opponent_level: 11, status: 'pending', created_at: '2026-10-31T08:00:00Z',
+});
+
+export interface ControlSendOptions {
+  /** Utmaningen skapas när skicket når "servern", och "mina utmaningar" visar den därefter (tokenet borta). */
+  serverCreates: boolean;
+  /** Svaret kommer aldrig (tidsgränsen avgör). */
+  neverAnswer: boolean;
+  /** Svaret som släpps är ett avslag (400, "Opponent already has a pending challenge") i stället för 201. */
+  refuse?: boolean;
+}
+
+/**
+ * Lägger över skicket: svaret hålls tills `answer()` anropas (eller för alltid). Med `serverCreates` skapas utmaningen när skicket når "servern", och "mina utmaningar" visar den därefter (tokenet borta).
+ * Registreras efter `open` och går därför före grundstubbens rutter.
+ */
+export async function controlSend(page: Page, opponent: { id: string; name: string }, { serverCreates, neverAnswer, refuse = false }: ControlSendOptions): Promise<SendControl> {
+  const sends: string[] = [];
+  let created = false;
+  let myFetches = 0;
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+
+  await page.route(apiPath('/challenges/my'), async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS_HEADERS });
+    myFetches += 1;
+    // Innan utmaningen finns svarar grundstubben (inget token är använt); efteråt är tokenet borta och utmaningen skickad.
+    if (!created) return route.fallback();
+    const data = { tokens: [], sent_challenge: createdChallenge(opponent), received_challenges: [], boosts: [], history: [], group_active: [] };
+    return route.fulfill({ status: 200, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
+  });
+  await page.route(apiPath('/challenges/send'), async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS_HEADERS });
+    sends.push(route.request().url());
+    if (serverCreates) created = true;
+    if (neverAnswer) await new Promise<void>(() => {});
+    await held;
+    // Webbläsaren kan ha gett upp och avbrutit anropet: då finns inget att svara, och det är inget fel i stubben.
+    const reply = refuse
+      ? route.fulfill({ status: 400, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: false, error: REFUSED_TEXT }) })
+      : route.fulfill({ status: 201, headers: CORS_HEADERS, contentType: 'application/json', body: JSON.stringify({ success: true, data: { challenge_id: 'challenge-new' } }) });
+    return reply.catch(() => {});
+  });
+  return { sends, myFetches: () => myFetches, answer: release };
+}
+
+/** Tiden appen får på sig att reagera på ett svar (omhämtningen och det som följer på den) innan provet tittar: en vilopaus i verklig tid, inte på den fejkade klockan. */
+const REACTION_TIME_MS = 1_000;
+
+/** Släpper svaret och väntar tills sidan har fått det och appen hunnit reagera. */
+export async function answerAndSettle(page: Page, control: SendControl): Promise<void> {
+  const received = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/challenges/send'));
+  control.answer();
+  await received;
+  await page.clock.runFor(REACTION_TIME_MS);
+  await page.waitForTimeout(REACTION_TIME_MS);
+}
+
+/** Allt som en dialog lämnar efter sig på sidan när den stängs: skrollås, `aria-hidden` och `inert` på appen, och en body som inte tar emot tryck. */
+export const lockLeftOnPage = (page: Page) =>
+  page.evaluate(() => ({
+    scrollLocked: document.body.hasAttribute('data-scroll-locked'),
+    bodyPointerEvents: document.body.style.pointerEvents,
+    inert: document.querySelectorAll('[inert]').length,
+    hiddenBodyChildren: Array.from(document.body.children).filter((child) => child.getAttribute('aria-hidden') === 'true').length,
+    openDialogs: document.querySelectorAll('[role="dialog"]').length,
+  }));
+export const NO_LOCK = { scrollLocked: false, bodyPointerEvents: '', inert: 0, hiddenBodyChildren: 0, openDialogs: 0 };
+
+export const focusIsOnBody = (page: Page) => page.evaluate(() => document.activeElement === document.body || document.activeElement === null);
+
+/** Fel som sidan själv kastar (okontrollerade undantag): Back under ett skick ska inte ge något. */
+export function collectPageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  return errors;
+}
+
+export const goToDuelsInApp = async (page: Page) => {
+  await page.getByRole('navigation').getByRole('link', { name: 'Challenges' }).first().click();
+  await expect(page).toHaveURL(/\/duels/);
+};
+export const sentSectionTextFor = (member: { name: string }) => new RegExp(`Waiting for ${member.name.split(' ')[0]} to respond`);
+
 /** Öppnar löparens popup från raden och följer Challenge in i send-arket. */
 export async function openSendFromPopup(page: Page): Promise<void> {
   await runnerRow(page).click();

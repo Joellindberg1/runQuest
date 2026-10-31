@@ -1,10 +1,12 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryCache } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { MyChallengesData } from '@runquest/shared';
 import { AppRoutes } from '@/routes';
-import { stat, token } from '@/features/challenges/duels.fixture';
+import { challenge, stat, token } from '@/features/challenges/duels.fixture';
+import { historyIdx } from '@/shared/utils/historyIdx';
 import { ME, OTHER, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
@@ -85,6 +87,7 @@ function BackButton() {
     <>
       <button type="button" onClick={() => void navigate(-1)}>Browser back</button>
       <button type="button" onClick={() => void navigate('/duels?view=standings')}>Go to standings</button>
+      <button type="button" onClick={() => void navigate('/titles')}>Go to titles</button>
     </>
   );
 }
@@ -165,7 +168,7 @@ describe('Back while a challenge is being sent from the runner popup', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
 
     expect(location()).toBe(BOARD);
-    expect(karlRow()).toHaveFocus();
+    await waitFor(() => expect(karlRow()).toHaveFocus());
     expect(lockLeft()).toEqual(NO_LOCK);
   });
 });
@@ -299,5 +302,307 @@ describe('the search for the runner row after Back is dropped when the user move
 
     expect(karlRow()).not.toHaveFocus();
     expect(elsewhere).toHaveFocus();
+  });
+});
+
+// Back när inget skick pågår (arket är vilande, ett skick har avvisats eller tidsgränsen har gått): Cancel, ✕, Esc och skrim går genom avbrytvägen, men Back gör det inte. Arket
+// avmonteras utan att `onClose` körs, och skalet vet inget om löparen: fokus ska ändå hamna där Cancel hade lagt det.
+const POPUP_ENTRY = () => ['/titles', ...popupOver('/board', '?view=week')];
+/** Platsen på bakgrundssidan i historiken: popupen och send-arket ersätter varandra, så Back och Cancel landar på samma post. */
+const BOARD_IDX = 1;
+
+/** Popupen över Board och Challenge in i send-arket, utan att något har skickats. */
+async function openSheetFromPopup() {
+  const held = heldSend();
+  renderWithApp(<><AppRoutes /><BackButton /></>, { entry: POPUP_ENTRY() as never, width: DESKTOP, history: true });
+  const dialog = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
+  fireEvent.click(await within(dialog).findByRole('link', { name: 'Challenge' }));
+  await screen.findByRole('dialog', { name: 'Send a challenge' });
+  return held;
+}
+
+async function landOnBoardAfterBack() {
+  browserBack();
+  await waitFor(() => expect(location()).toBe(BOARD));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(karlRow()).toHaveFocus());
+  expect(document.body).not.toHaveFocus();
+  expect(lockLeft()).toEqual(NO_LOCK);
+  expect(historyIdx()).toBe(BOARD_IDX);
+}
+
+describe('Back from the send sheet opened by the runner popup when no send is in flight', () => {
+  it('an idle sheet: Back gives the runner row the focus, with the same history as Cancel', async () => {
+    await openSheetFromPopup();
+    await landOnBoardAfterBack();
+  });
+
+  it('after a refused send: Back gives the runner row the focus', async () => {
+    const held = await openSheetFromPopup();
+    fireEvent.click(await within(sheet()).findByRole('button', { name: 'Send challenge' }));
+    await held.answer({ success: false, error: REFUSED });
+    expect(await within(sheet()).findByText(REFUSED)).toBeInTheDocument();
+
+    await landOnBoardAfterBack();
+  });
+
+  it('after the time limit: Back gives the runner row the focus', async () => {
+    const held = await openSheetFromPopup();
+    fireEvent.click(await within(sheet()).findByRole('button', { name: 'Send challenge' }));
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    expect(await within(sheet()).findByText(UNCONFIRMED)).toBeInTheDocument();
+
+    await landOnBoardAfterBack();
+  });
+
+  it('Back from an idle sheet and then straight on to another page that lists the runner does not move the focus there', async () => {
+    await openSheetFromPopup();
+    heldUsers();
+    browserBack();
+    await waitFor(() => expect(location()).toBe(BOARD));
+    expect(document.querySelector(`main [data-runner-id="${KARL}"]`)).toBeNull();
+
+    fireEvent.click(screen.getByText('Go to standings'));
+    await waitFor(() => expect(location()).toBe('/duels?view=standings'));
+    await waitFor(() => expect(karlRow()).toBeInTheDocument());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1300)); });
+
+    expect(karlRow()).not.toHaveFocus();
+  });
+});
+
+describe('Back from the send sheet when the entry has no origin', () => {
+  it('the header Send opens it: Back keeps the user on duels with the focus on that button', async () => {
+    renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [DUELS_LIVE], width: DESKTOP, history: true });
+    const user = userEvent.setup();
+    const headerSend = await screen.findByRole('button', { name: 'Send a challenge' });
+    await user.click(headerSend);
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+    browserBack();
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(headerSend).toHaveFocus());
+    expect(lockLeft()).toEqual(NO_LOCK);
+  });
+
+  it('an entry that came from another page (a deep link, the New sheet): Back lands on that page with the focus on its heading, not on the body', async () => {
+    renderWithApp(<><AppRoutes /><BackButton /></>, { entry: ['/titles', `/duels?send=1&opponent=${KARL}`], width: DESKTOP, history: true });
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+
+    browserBack();
+
+    await waitFor(() => expect(location()).toBe('/titles'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const heading = await screen.findByRole('heading', { level: 1 });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(lockLeft()).toEqual(NO_LOCK);
+  });
+});
+
+// Kortet i tokens-panelen som öppnade arket försvinner när ett sent svar hämtar om tokens (tokenet är förbrukat), och fokus, som Back lämnade på kortets Send, faller då till <body>.
+const CARD_SEND = { name: 'Send a minor challenge: Most km, 7 days' };
+/** Vad "mina utmaningar" visar när servern har skapat utmaningen: tokenet är borta och utmaningen väntar på svar. */
+const afterServerCreated = () => mine({ tokens: [], sent_challenge: challenge({ id: 'c-new', challenger_id: ME.id, opponent_id: KARL }) });
+
+/**
+ * Räknar de levande `focusin`-lyssnarna på dokumentet (de som lagts till och inte tagits bort). Bevakningen av fokus (`useFocusRescue`) lägger en lyssnare per skick, och den ska vara borta
+ * när skicket är avgjort, arket tog hand om fokus själv eller skärmen försvann. Måste installeras före renderingen.
+ */
+function trackFocusinListeners(): () => number {
+  const live: Array<{ listener: unknown; capture: boolean }> = [];
+  const isCapture = (options: unknown) => options === true || (typeof options === 'object' && options !== null && (options as { capture?: boolean }).capture === true);
+  const add = document.addEventListener.bind(document);
+  const remove = document.removeEventListener.bind(document);
+  vi.spyOn(document, 'addEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+    if (type === 'focusin') live.push({ listener, capture: isCapture(options) });
+    add(type, listener, options);
+  });
+  vi.spyOn(document, 'removeEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+    if (type === 'focusin') {
+      const index = live.findIndex((entry) => entry.listener === listener && entry.capture === isCapture(options));
+      if (index >= 0) live.splice(index, 1);
+    }
+    remove(type, listener, options);
+  });
+  // Prenumerationerna på frågecachen räknas med: bevakningen tar en när svaret landat, och den ska släppas lika noga.
+  const subscribe = QueryCache.prototype.subscribe;
+  vi.spyOn(QueryCache.prototype, 'subscribe').mockImplementation(function subscribeTracked(this: QueryCache, listener) {
+    const entry = { listener: null, capture: false };
+    live.push(entry);
+    const unsubscribe = subscribe.call(this, listener);
+    return () => {
+      const index = live.indexOf(entry);
+      if (index >= 0) live.splice(index, 1);
+      unsubscribe();
+    };
+  });
+  return () => live.length;
+}
+
+/** Duels (vyn `entry`), kortets Send, motståndaren Karl och Send; skicket hålls. Back lämnar fokus på kortets Send. `baseline` är antalet `focusin`-lyssnare innan skicket gick iväg. */
+async function sendFromTokenCardThenBack(entry = DUELS_LIVE) {
+  const focusinCount = trackFocusinListeners();
+  const held = heldSend();
+  renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [entry], width: DESKTOP, history: true });
+  const user = userEvent.setup();
+  const cardSend = await screen.findByRole('button', CARD_SEND);
+  const baseline = focusinCount();
+  await user.click(cardSend);
+  await screen.findByRole('dialog', { name: 'Send a challenge' });
+  await user.click(await within(sheet()).findByRole('radio', { name: /Karl Persson/ }));
+  await user.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
+  expect(await within(sheet()).findByRole('button', { name: 'Sending…' })).toBeDisabled();
+  await waitFor(() => expect(held.calls).toHaveLength(1));
+
+  browserBack();
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(cardSend).toHaveFocus());
+  return { held, cardSend, focusinCount, baseline };
+}
+
+describe('Back during a send from a token card, then the answer', () => {
+  it('a late 201 removes the card that had the focus: the focus goes to the confirmation, not to the body', async () => {
+    const { held, cardSend } = await sendFromTokenCardThenBack();
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    const confirmation = await screen.findByText(SENT);
+    await waitFor(() => expect(cardSend).not.toBeInTheDocument());
+    await waitFor(() => expect(confirmation).toHaveFocus());
+    expect(screen.getAllByText(SENT)).toHaveLength(1);
+  });
+
+  it('the time limit lands first and the refetch that removes the card comes after it: the focus goes to the honest text, not to the body', async () => {
+    const { held, cardSend } = await sendFromTokenCardThenBack();
+    let releaseTokens: () => void = () => {};
+    const tokensHeld = new Promise<void>((resolve) => { releaseTokens = resolve; });
+    handlers.getMyChallenges = async () => { await tokensHeld; return { success: true, data: afterServerCreated() }; };
+
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    const notice = await screen.findByText(UNCONFIRMED);
+    expect(cardSend).toBeInTheDocument();
+    expect(cardSend).toHaveFocus();
+
+    releaseTokens();
+
+    await waitFor(() => expect(cardSend).not.toBeInTheDocument());
+    await waitFor(() => expect(notice).toHaveFocus());
+  });
+
+  it('a 400 leaves the card where it is and the focus on it: the answer does not take the focus', async () => {
+    const { held, cardSend } = await sendFromTokenCardThenBack();
+
+    await held.answer({ success: false, error: REFUSED });
+
+    const notice = await screen.findByText(REFUSED);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    expect(cardSend).toBeInTheDocument();
+    expect(cardSend).toHaveFocus();
+    expect(notice).not.toHaveFocus();
+  });
+
+  it('a late 201 when the user has moved the focus elsewhere does not take it', async () => {
+    const { held } = await sendFromTokenCardThenBack();
+    const elsewhere = screen.getByText('Go to standings');
+    act(() => elsewhere.focus());
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    const confirmation = await screen.findByText(SENT);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    expect(elsewhere).toHaveFocus();
+    expect(confirmation).not.toHaveFocus();
+  });
+
+  it('a late answer while the runner popup is open and the element that had the focus is still there does not move the focus', async () => {
+    const { held } = await sendFromTokenCardThenBack('/duels?view=standings');
+    fireEvent.click(karlRow());
+    const popup = await screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
+    await waitFor(() => expect(popup).toContainElement(document.activeElement as HTMLElement));
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    const confirmation = await screen.findByText(SENT);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    expect(popup).toContainElement(document.activeElement as HTMLElement);
+    expect(confirmation).not.toHaveFocus();
+  });
+});
+
+// Bevakningen av fokus lägger en `focusin`-lyssnare per skick. Den ska vara borta när skicket är avgjort, när arket tar hand om fokus själv och när skärmen försvinner: annars sitter den kvar
+// och flyttar fokus vid en senare omritning.
+describe('the focus watch leaves no listener behind', () => {
+  it('while the send is pending after Back there is one more, and it is gone when a 400 has landed and the card is still there', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    expect(focusinCount()).toBe(baseline + 1);
+
+    await held.answer({ success: false, error: REFUSED });
+    await screen.findByText(REFUSED);
+
+    await waitFor(() => expect(focusinCount()).toBe(baseline));
+  });
+
+  it('a time limit whose refetch changes nothing (the challenge was never created) leaves none behind', async () => {
+    const { held, cardSend, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    // Omhämtningen pågår när tidsgränsen landar (som mot ett riktigt nät) och svarar sedan med samma data: ingen ritning följer på den, så inget annat än bevakningen själv kan städa.
+    let releaseTokens: () => void = () => {};
+    const tokensHeld = new Promise<void>((resolve) => { releaseTokens = resolve; });
+    handlers.getMyChallenges = async () => { await tokensHeld; return { success: true, data: mine() }; };
+
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    await screen.findByText(UNCONFIRMED);
+    // Lyssnaren på fokus och prenumerationen på frågecachen, som väntar på att omhämtningen ska bli klar.
+    expect(focusinCount()).toBe(baseline + 2);
+    releaseTokens();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(focusinCount()).toBe(baseline);
+    expect(cardSend).toHaveFocus();
+  });
+
+  it('a time limit whose refetch removes the card leaves none behind either', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    handlers.getMyChallenges = () => ({ success: true, data: afterServerCreated() });
+
+    await held.answer({ success: false, error: 'Request timed out', reason: 'timeout' });
+    const notice = await screen.findByText(UNCONFIRMED);
+    await waitFor(() => expect(notice).toHaveFocus());
+
+    expect(focusinCount()).toBe(baseline);
+  });
+
+  it('an answer that comes while the sheet is still open leaves none behind: the sheet takes care of the focus', async () => {
+    const focusinCount = trackFocusinListeners();
+    const held = heldSend();
+    renderWithApp(<><AppRoutes /><BackButton /></>, { entry: [DUELS_LIVE], width: DESKTOP, history: true });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', CARD_SEND));
+    await screen.findByRole('dialog', { name: 'Send a challenge' });
+    await user.click(await within(sheet()).findByRole('radio', { name: /Karl Persson/ }));
+    const baseline = focusinCount();
+    await user.click(within(sheet()).getByRole('button', { name: 'Send challenge' }));
+    await waitFor(() => expect(held.calls).toHaveLength(1));
+    expect(focusinCount()).toBe(baseline + 1);
+
+    await held.answer({ success: false, error: REFUSED });
+    expect(await within(sheet()).findByText(REFUSED)).toBeInTheDocument();
+
+    expect(focusinCount()).toBe(baseline);
+  });
+
+  it('leaving the screen while the send is pending removes it, and the answer afterwards adds none', async () => {
+    const { held, focusinCount, baseline } = await sendFromTokenCardThenBack();
+    fireEvent.click(screen.getByText('Go to titles'));
+    await waitFor(() => expect(location()).toBe('/titles'));
+
+    await waitFor(() => expect(focusinCount()).toBe(baseline));
+    await held.answer({ success: true, data: { challenge_id: 'c-new' } });
+
+    expect(focusinCount()).toBe(baseline);
   });
 });

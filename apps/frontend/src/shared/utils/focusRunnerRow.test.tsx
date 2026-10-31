@@ -64,6 +64,22 @@ describe('focusRunnerRowWhenRendered', () => {
     expect(settled).toHaveBeenCalledTimes(1);
   });
 
+  it('without a runner it focuses the main heading as soon as it is drawn, without waiting for a row, and makes it focusable', async () => {
+    page('<main></main>');
+    const settled = vi.fn();
+    focusRunnerRowWhenRendered(null, settled);
+    await flush();
+    expect(settled).not.toHaveBeenCalled();
+
+    document.querySelector('main')!.insertAdjacentHTML('beforeend', '<h1 id="title">Page</h1><button id="row" data-runner-id="u-karl">Karl</button>');
+    await flush();
+
+    expect(document.getElementById('title')).toHaveFocus();
+    expect(document.getElementById('title')).toHaveAttribute('tabindex', '-1');
+    expect(document.getElementById('row')).not.toHaveFocus();
+    expect(settled).toHaveBeenCalledTimes(1);
+  });
+
   it('does not move the focus while another modal dialog is open, and does once it is gone', async () => {
     page('<main><h1>Page</h1><button id="row" data-runner-id="u-karl">Karl</button></main><div role="dialog" aria-modal="true" id="other"><button id="inside">Inside</button></div>');
     document.getElementById('inside')!.focus();

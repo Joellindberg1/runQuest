@@ -21,6 +21,7 @@ import {
   buildTokenGroups, nameMap, summaryText, tokenTotal,
 } from '../duelsModel';
 import { useChallengeActions } from '../hooks/useChallengeActions';
+import { useFocusRescue } from '../hooks/useFocusRescue';
 import { useGroupHistory, useGroupStats, useLiveProgress, useMyChallenges } from '../hooks/useDuelsQueries';
 import { buildTierRules, observedStakes, sampleFromHistory, type StakeSample } from '../rulesModel';
 import { sendBlocker, startRuleSentence, type SendPreselection } from '../sendModel';
@@ -56,6 +57,7 @@ export function DuelsScreen() {
   const usersQuery = useUsersWithRuns(enabled);
   const historyQuery = useGroupHistory(enabled && view === 'history');
   const actions = useChallengeActions();
+  const focusRescue = useFocusRescue();
 
   const sendOpen = params.get(SEND_PARAM) === '1';
   // Identiteten på send-arket som är öppet just nu (null: inget öppet, eller skärmen är borta). Ett skick som är på väg när webbläsarens Back stänger arket (eller tar användaren
@@ -183,20 +185,32 @@ export function DuelsScreen() {
   // Avgörs skicket medan arket det skickades från fortfarande är öppet visar arket felet och `closeSend` stänger det efter ett lyckat skick. Har Back stängt arket under tiden finns ingen
   // yta för utfallet utom sidan: skärmen visar då utfallet som bekräftelse eller fel, och stänger inget. Är skärmen borta (Back lämnade /duels) syns inget, och omhämtningen som
   // mutationen själv gör (`useChallengeActions`) visar en skapad utmaning på nästa besök. Inget andra skick och ingen andra bekräftelse: svaret hanteras en gång, här.
+  // Fokus: Back lämnar det på kortet som öppnade arket, och omhämtningen efter svaret kan ta bort kortet. När svaret landat och det som hade fokus är borta flyttar `focusRescue` det till bekräftelsen.
   const sendChallenge = async (tokenKey: string, opponentId: string) => {
     const sheet = openSheet.current;
     const sheetIsOpen = () => sheet !== null && openSheet.current === sheet;
+    const focusWatch = focusRescue.begin();
     try {
       await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
     } catch (error) {
-      if (!sheetIsOpen()) setNotice({ tone: 'error', text: messageOf(error, 'Could not send the challenge') });
+      if (sheetIsOpen()) {
+        focusWatch.stop();
+      } else {
+        setNotice({ tone: 'error', text: messageOf(error, 'Could not send the challenge') });
+        focusWatch.landed();
+      }
       throw error;
     }
     const opponent = names[opponentId];
     // Nivån läses ur tokengrupperna från före skicket (tokenet är borta efter omhämtningen); bekräftelsen säger samma startregel som "The bet".
     const tier = tokenGroups.find((group) => group.cards.some((card) => card.tokenKey === tokenKey))?.tier ?? 'minor';
     setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. ${startRuleSentence(tier)}` });
-    if (sheetIsOpen()) closeSend();
+    if (sheetIsOpen()) {
+      closeSend();
+      focusWatch.stop();
+    } else {
+      focusWatch.landed();
+    }
   };
 
   const busyId = actions.accept.isPending

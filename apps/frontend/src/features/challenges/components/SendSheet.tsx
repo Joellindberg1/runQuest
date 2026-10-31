@@ -4,8 +4,9 @@ import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
-import { focusRunnerRowAfterBack } from '@/shared/utils/focusRowAfterBack';
+import { focusPageHeadingAfterBack, focusRunnerRowAfterBack } from '@/shared/utils/focusRowAfterBack';
 import type { TierGroup } from '../duelsModel';
+import { confirmationElement, duelsPageTarget } from '../focusTargets';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
 import { betSummary, buildOpponents, resolveOpponentParam, startingChoice, startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
 import { OpponentChoice } from './OpponentChoice';
@@ -13,10 +14,6 @@ import { TierChip } from './TierChip';
 import { TokenChoice } from './TokenChoice';
 
 const ICON_HEAD = 21;
-const HEADER_SEND_SELECTOR = '[data-tour="duels-send"]';
-const PAGE_HEADING_SELECTOR = '.rq-duels__title';
-/** Bekräftelsen efter en skickad utmaning (DuelsLayout): dit går fokus när kortet som öppnade arket inte finns kvar. */
-const CONFIRMATION_SELECTOR = '.rq-duels-notice';
 
 interface SendSheetProps {
   groups: TierGroup[];
@@ -84,6 +81,9 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
   // om skicket avvisas. Arket som stängs medan det är `pending` har stängts av webbläsarens Back (Cancel, ✕, Esc och skrim är låsta): svaret finns inte än. Ett ref och inte state,
   // eftersom Radix läser det först när arket redan har avmonterats (i en timer, efter att `submit` hunnit sätta `confirmed`).
   const sendPhase = useRef<'idle' | 'pending' | 'confirmed'>('idle');
+  // Arket stängdes av en av vägarna som går genom `onClose` (Cancel, ✕, Esc, skrim, Close i orsaksvyn): den avbrytvägen ger själv fokus till sidan (skalet fokuserar löparens rad).
+  // Utan den har arket stängts av webbläsarens Back, som inte kör något stängs-anrop och inte säger något till skalet. Ett ref av samma skäl som `sendPhase`: Radix läser det efter avmonteringen.
+  const closedByCancel = useRef(false);
 
   // Send är avstängd medan skicket pågår, och en avstängd knapp som hade fokus lämnar det på <body>. Efter ett avvisat skick (felet visas, Send är påslagen igen) får Send fokus tillbaka,
   // så ett nytt försök går att göra med tangentbordet; felet annonseras av sin alert.
@@ -108,19 +108,23 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
   // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
   // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
-  // Back under skicket (`pending`) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål som Cancel, med samma väntan på att sidan ritats), och släpper sökningen om användaren går vidare eller flyttar fokus (`focusRunnerRowAfterBack`).
+  // Back (under ett skick eller när inget pågår: vilande, efter ett avvisat skick eller efter tidsgränsen) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål
+  // som Cancel, med samma väntan på att sidan ritats), och släpper sökningen om användaren går vidare eller flyttar fokus (`focusRunnerRowAfterBack`).
   // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
+  // Finns inget av dem för att Back lämnade Duels (New-arket och djuplänken kommer från en annan sida) får huvudrubriken på sidan man kommer till fokus, aldrig <body>.
   const returnFocus = (event: Event) => {
     event.preventDefault();
-    if (sendPhase.current === 'pending' && originRunnerId) {
+    const closedByBack = sendPhase.current !== 'confirmed' && !closedByCancel.current;
+    if (closedByBack && originRunnerId) {
       focusRunnerRowAfterBack(originRunnerId);
       return;
     }
     if (cancelFocus === 'page' && sendPhase.current === 'idle') return;
-    const confirmation = sendPhase.current === 'confirmed' ? document.querySelector<HTMLElement>(CONFIRMATION_SELECTOR) : null;
+    const confirmation = sendPhase.current === 'confirmed' ? confirmationElement() : null;
     const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
-    const target = confirmation ?? (usable ? opener : (document.querySelector<HTMLElement>(HEADER_SEND_SELECTOR) ?? document.querySelector<HTMLElement>(PAGE_HEADING_SELECTOR)));
-    target?.focus();
+    const target = confirmation ?? (usable ? opener : duelsPageTarget());
+    if (target) target.focus();
+    else if (closedByBack) focusPageHeadingAfterBack();
   };
 
   const submit = async () => {
@@ -140,7 +144,7 @@ export function SendSheet({ groups, blocker, members, users, meId, preselection,
 
   return (
     // Ett skick som är på väg går inte att avbryta härifrån (utmaningen går iväg ändå): Cancel och ✕ är avstängda, och Escape och tryck på skrimmen ger inget stängt ark.
-    <Dialog.Root open onOpenChange={(open) => { if (!open && !sending) onClose(); }}>
+    <Dialog.Root open onOpenChange={(open) => { if (!open && !sending) { closedByCancel.current = true; onClose(); } }}>
       <Dialog.Portal>
         {/* Ett tryck på en yta som inte kan ta fokus (skrimmen) lägger annars fokus på <body>; medan skicket pågår hålls det kvar i arket. */}
         <Dialog.Overlay className="rq-scrim" onMouseDown={(event) => { if (sending) event.preventDefault(); }} />
