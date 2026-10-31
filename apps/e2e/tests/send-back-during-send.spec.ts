@@ -91,7 +91,7 @@ function collectPageErrors(page: Page): string[] {
 }
 
 const goToDuelsInApp = async (page: Page) => {
-  await page.getByRole('navigation').getByRole('link', { name: 'Duels' }).first().click();
+  await page.getByRole('navigation').getByRole('link', { name: 'Challenges' }).first().click();
   await expect(page).toHaveURL(/\/duels/);
 };
 const sentSectionText = new RegExp(`Waiting for ${RUNNER.name.split(' ')[0]} to respond`);
@@ -282,7 +282,8 @@ test.describe('the runner page on a phone', () => {
     await expect(sheet(page)).toHaveCount(0);
     await expect(page).toHaveURL(/\/duels$/);
     expect((await historyOf(page)).idx).toBe(boardIdx! + 2);
-    expect(await focusIsOnBody(page), 'the focus is not on the body').toBe(false);
+    // Challenge-länken på löparens sida finns inte längre; fokus går till rubrikens Send (mobilens "Send").
+    await expect(page.locator('[data-tour="duels-send"]')).toBeFocused();
     // Back lämnar Duels och kommer till löparens sida, inte tillbaka in i arket.
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/runner/${RUNNER.id}$`));

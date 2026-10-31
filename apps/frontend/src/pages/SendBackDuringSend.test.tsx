@@ -135,12 +135,15 @@ describe('Back while a challenge is being sent from the runner popup', () => {
     const held = await sendFromPopup(['/titles', ...popupOver('/board', '?view=week')]);
     browserBack();
     await waitFor(() => expect(location()).toBe(BOARD));
+    const fetchesBefore = myFetches;
 
     await held.answer({ success: true, data: { challenge_id: 'new' } });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
 
     expect(location()).toBe(BOARD);
     await waitFor(() => expect(karlRow()).toHaveFocus());
+    // Utmaningen finns nu: skalets "mina utmaningar" hämtas om (mutationen invaliderar även när skärmen är borta), så att den syns utan omladdning.
+    await waitFor(() => expect(myFetches).toBeGreaterThan(fetchesBefore));
     expect(screen.queryByText(SENT)).toBeNull();
     expect(held.calls, 'one send').toHaveLength(1);
   });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
@@ -57,6 +57,17 @@ export function DuelsScreen() {
   const historyQuery = useGroupHistory(enabled && view === 'history');
   const actions = useChallengeActions();
 
+  const sendOpen = params.get(SEND_PARAM) === '1';
+  // Identiteten på send-arket som är öppet just nu (null: inget öppet, eller skärmen är borta). Ett skick som är på väg när webbläsarens Back stänger arket (eller tar användaren
+  // från skärmen) får sitt svar efteråt, och då får det varken stänga ett ark som inte längre är dess eget eller navigera: en ny `setParams` på en avmonterad skärm skulle annars
+  // föra användaren tillbaka till /duels.
+  const openSheet = useRef<symbol | null>(null);
+  useEffect(() => {
+    if (!sendOpen) return;
+    openSheet.current = Symbol('send sheet');
+    return () => { openSheet.current = null; };
+  }, [sendOpen]);
+
   const my = myQuery.data;
   const stats = statsQuery.data;
   const activeIds = useMemo(() => (my?.group_active ?? NO_ITEMS).map((challenge) => challenge.id), [my]);
@@ -111,7 +122,6 @@ export function DuelsScreen() {
   const blocker = sendBlocker({ tokenCount: tokenTotal(tokenGroups), inLiveDuel, sent, incomingCount: incoming.length });
   const summary = summaryText({ live: my.group_active.length, waitingOnMe: incoming.length, tokens: tokenTotal(tokenGroups) }, isDesktop);
 
-  const sendOpen = params.get(SEND_PARAM) === '1';
   // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
   // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
   if (!sendOpen && preselection !== null) setPreselection(null);
@@ -170,13 +180,23 @@ export function DuelsScreen() {
     }
   };
 
+  // Avgörs skicket medan arket det skickades från fortfarande är öppet visar arket felet och `closeSend` stänger det efter ett lyckat skick. Har Back stängt arket under tiden finns ingen
+  // yta för utfallet utom sidan: skärmen visar då utfallet som bekräftelse eller fel, och stänger inget. Är skärmen borta (Back lämnade /duels) syns inget, och omhämtningen som
+  // mutationen själv gör (`useChallengeActions`) visar en skapad utmaning på nästa besök. Inget andra skick och ingen andra bekräftelse: svaret hanteras en gång, här.
   const sendChallenge = async (tokenKey: string, opponentId: string) => {
-    await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
+    const sheet = openSheet.current;
+    const sheetIsOpen = () => sheet !== null && openSheet.current === sheet;
+    try {
+      await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
+    } catch (error) {
+      if (!sheetIsOpen()) setNotice({ tone: 'error', text: messageOf(error, 'Could not send the challenge') });
+      throw error;
+    }
     const opponent = names[opponentId];
     // Nivån läses ur tokengrupperna från före skicket (tokenet är borta efter omhämtningen); bekräftelsen säger samma startregel som "The bet".
     const tier = tokenGroups.find((group) => group.cards.some((card) => card.tokenKey === tokenKey))?.tier ?? 'minor';
     setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. ${startRuleSentence(tier)}` });
-    closeSend();
+    if (sheetIsOpen()) closeSend();
   };
 
   const busyId = actions.accept.isPending
@@ -236,6 +256,7 @@ export function DuelsScreen() {
           preselection={preselection}
           initialOpponent={params.get(OPPONENT_PARAM)}
           cancelFocus={origin ? 'page' : 'opener'}
+          originRunnerId={origin?.runnerId}
           onClose={cancelSend}
           onSend={sendChallenge}
         />

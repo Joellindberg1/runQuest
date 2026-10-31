@@ -39,6 +39,10 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   stegrubrikerna kan aldrig hamna under knappraden (därför ingen `scroll-padding`); på mobil står Send och Cancel på en rad ovanför hemindikatorn (`--rq-tabbar-pb`, som läser
   `env(safe-area-inset-bottom)`). Medan ett skick pågår går arket inte att stänga: Cancel och ✕ är avstängda, Escape och tryck på skrimmen ignoreras (`onOpenChange`), och fokus
   flyttas till arket så att det inte hamnar på `<body>` när Send stängs av. Tomt läge och blockerat läge (`sendBlocker`) visar orsaken och en Close som följer samma `returnFocus` som Cancel.
+  Webbläsarens Back är inte låst: den avmonterar arket under skicket. `SendSheet` ser det på sin fas (`sendPhase`: `pending` när arket stängs utan svar) och fokuserar löparens rad om popupen öppnade flödet
+  (`originRunnerId`, samma `focusRunnerRowWhenRendered` som skalet), annars gäller `returnFocus` som vanligt. Svaret avgörs sedan i `DuelsScreen.sendChallenge` en gång: arket som skickade hålls i `openSheet`
+  (en identitet per öppning), och bara om det fortfarande är öppet stänger skärmen det (`closeSend`) eller lämnar felet till arket. Är det stängt visar `/duels` utfallet som bekräftelse eller felnotis; är skärmen
+  borta syns inget mer än att mutationens omhämtning (`useChallengeActions`) visar en skapad utmaning vid nästa besök, och användaren flyttas aldrig.
   Arket har ingen glid-in-rörelse (varken på mobil eller desktop): `prefers-reduced-motion` har alltså inget att stänga av, och e2e-provet vaktar att arket står still. Raderna i steg 3 heter
   personen (avataren är `aria-hidden`).
 - **Backend avvisar `/send` om jag har en aktiv ELLER väntande utmaning (som utmanare eller motståndare).** `sendBlocker` speglar det: live-duell, skickad,
