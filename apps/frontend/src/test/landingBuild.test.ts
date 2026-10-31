@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { RoutePending } from '@/app-shell/RoutePending';
 import { StagingBanner } from '@/app-shell/StagingBanner';
 import { sessionHintScript } from '@/landing-entry/sessionHint';
+import { forbiddenInLanding } from './landingGraphGuard';
 import { LANDING_MARKER, LOADER_MARKER, LOADER_PHASE_MARKER, SESSION_HINT_MARKER, modeFromArgs, prerenderLanding } from '../../scripts/prerender-landing.mjs';
 
 // Bygget av de två HTML-ingångarna (ADR 006, addendum 2026-10-19, punkt 1, 2 och 11): `vite build` följt av prerender-landing, med samma konfiguration som
@@ -20,11 +21,12 @@ const FRONTEND_DIR = '../..';
 const frontend = fileURLToPath(new URL(FRONTEND_DIR, import.meta.url));
 const BUILD_TIMEOUT_MS = 240_000;
 
-/** Vad bygget vet om varje chunk: filen, importerna, CSS-filerna och modulerna den består av. Manifestet saknar modulerna för delade chunkar. */
+/** Vad bygget vet om varje chunk: filen, de statiska och dynamiska importerna, CSS-filerna och modulerna den består av. Manifestet saknar modulerna för delade chunkar. */
 interface ChunkInfo {
   fileName: string;
   facadeModuleId: string | null;
   imports: string[];
+  dynamicImports: string[];
   css: string[];
   moduleIds: string[];
 }
@@ -46,6 +48,7 @@ function collectChunks(name: string): Plugin {
                   fileName: item.fileName,
                   facadeModuleId: item.facadeModuleId,
                   imports: item.imports,
+                  dynamicImports: item.dynamicImports,
                   css: [...(item.viteMetadata?.importedCss ?? [])],
                   moduleIds: Object.keys(item.modules),
                 },
@@ -197,14 +200,61 @@ describe('the production build', () => {
     expect(scripts.filter(({ text }) => serverCode.test(text)).map(({ file }) => file)).toEqual([]);
   });
 
-  it('the landing entry loads neither the app pages nor the tour', () => {
+  // Importgrafsvakten (ADR 006, addendum 2026-10-19, S4 punkt 4; utökad i addendum 2026-10-26, punkt 6): vad som inte får finnas ligger som mönster i landingGraphGuard.ts,
+  // och landingGraphGuard.test.ts + fixturerna längre ned visar att listan fäller.
+  it('the landing entry reaches none of the forbidden modules: the app pages, the tour, the popup, the position charts and view, the read-only badge card', () => {
     const closure = landingClosure('prod');
     const modules = closure.flatMap((chunk) => chunk.moduleIds).map(normalize);
-    expect(modules.filter((id) => /\/src\/pages\/(?:Board|Titles|Duels|Events|News|Log|Profile|Runner|Badges)Page/.test(id))).toEqual([]);
-    expect(modules.filter((id) => id.includes('/node_modules/driver.js/'))).toEqual([]);
-    expect(modules.filter((id) => /\/src\/(?:routes|App)\.tsx$/.test(id))).toEqual([]);
+    expect(forbiddenInLanding(modules)).toEqual([]);
     // Och själva landningen finns med, annars bevisar tomma sökträffar ingenting.
     expect(modules.some((id) => id.endsWith('/features/landing/components/LandingScreen.tsx'))).toBe(true);
+  });
+
+  // Lazy-gränserna ur bygget (ADR 006, addendum 2026-10-26, punkt 1 och 6): popupen och positionskomponenterna ligger i chunkar som något laddar med import(), och ingen chunk i
+  // någon av ingångarnas statiska graf har dem. Landningens boot-skript startar exakt landningens graf (provet ovan), så landningen täcks av samma sak. Manifestet
+  // (build.manifest) skrivs inte i dag; bygget läses som i provet ovan, ur Rollups bunt, som ger samma importlistor och dessutom modulerna.
+  const LAZY_COMPONENTS = [
+    'features/runner/components/RunnerPopup.tsx',
+    'features/runner/components/PopupSections.tsx',
+    'features/runner/components/PopupBadgesPanel.tsx',
+    'features/runner/components/PopupTitlesPanel.tsx',
+    'features/runner/components/PopupBanner.tsx',
+    'features/runner/components/HeadToHeadBanner.tsx',
+    'features/leaderboard/components/PositionView.tsx',
+    'features/leaderboard/components/PackPositionChart.tsx',
+    'features/leaderboard/components/PositionChartCard.tsx',
+    'features/profile/components/PositionPanel.tsx',
+    'features/profile/components/PositionChart.tsx',
+  ];
+  const entryChunks = () => chunksByBuild.get('prod')!.filter((chunk) => /\/(?:index|landing)\.html$/.test(normalize(chunk.facadeModuleId ?? '')));
+  const holdersOf = (component: string) => chunksByBuild.get('prod')!.filter((chunk) => chunk.moduleIds.some((id) => normalize(id).endsWith(`/src/${component}`)));
+
+  it('the runner popup and the position components sit in lazy chunks that neither entry loads statically', () => {
+    const entries = entryChunks();
+    expect(entries, 'ingångschunkarna för index.html och landing.html').toHaveLength(2);
+    const loadedByEntries = new Set(entries.flatMap((entry) => staticClosure('prod', entry)).map((chunk) => chunk.fileName));
+    const importedLazily = new Set(chunksByBuild.get('prod')!.flatMap((chunk) => chunk.dynamicImports));
+    for (const component of LAZY_COMPONENTS) {
+      const holders = holdersOf(component);
+      expect(holders, `${component} ligger i exakt en chunk`).toHaveLength(1);
+      expect(loadedByEntries.has(holders[0].fileName), `${component} (${holders[0].fileName}) har en statisk importör i en ingångs-chunk`).toBe(false);
+      expect(importedLazily.has(holders[0].fileName), `${component} (${holders[0].fileName}) laddas inte med import() av någon chunk`).toBe(true);
+    }
+  });
+
+  it("the position views' stylesheets sit in their lazy chunks: neither entry links them", () => {
+    const entryCss = new Set(entryChunks().flatMap((entry) => staticClosure('prod', entry)).flatMap((chunk) => chunk.css));
+    const lazyCss = (component: string) => holdersOf(component).flatMap((chunk) => chunk.css);
+    for (const [component, marker] of [
+      ['features/leaderboard/components/PositionView.tsx', /\.rq-board-position\b/],
+      ['features/profile/components/PositionChart.tsx', /\.rq-profile-position\b/],
+    ] as const) {
+      const own = lazyCss(component);
+      expect(own.length, `${component} bär en egen stilmall`).toBeGreaterThan(0);
+      expect(own.filter((file) => entryCss.has(file))).toEqual([]);
+      expect(own.map((file) => read(dist, file)).join('\n')).toMatch(marker);
+      expect([...entryCss].map((file) => read(dist, file)).join('\n')).not.toMatch(marker);
+    }
   });
 
   // Ingångsmodulen och dess förladdningar hämtas först efter första ritningen (RUN-343, deferLandingEntry.ts). HTML-filen bär bara ett litet boot-skript; boot-skriptet
@@ -381,6 +431,97 @@ describe('web analytics in the two HTML files', () => {
     expect(scripts[0].body).toBe(sessionHintScript());
     expect(firstIndexOf(html, [/<link\b[^>]*rel="(?:stylesheet|modulepreload|preload)"/, /<script\b[^>]*\bsrc=/])).toBeGreaterThan(scripts[0].index);
     expect(scriptsOf(dist).some((text) => text.includes(FAKE_WEBSITE_ID))).toBe(true);
+  }, BUILD_TIMEOUT_MS);
+});
+
+// Importgrafsvakten mot en syntetisk fixtur: ett litet riktigt Vite-bygge (landing.html → src/landing-entry/main.ts) vars källfiler ligger under samma sökvägar som de förbjudna
+// modulerna. Grafen läses som för det riktiga bygget (collectChunks, landingClosure), så vakten fäller på en modul som nås genom flera statiska led och släpper samma modul när
+// den bara nås med import().
+describe('the landing import graph guard', () => {
+  const FIXTURE_HTML = '<!doctype html><html><body><script type="module" src="/src/landing-entry/main.ts"></script></body></html>';
+  const ENTRY = "import { shell } from '../features/landing/shell';\ndocument.title = shell;\n";
+  const POPUP = 'src/features/runner/components/RunnerPopup.ts';
+
+  /** Bygger fixturen och ger modulerna i landningens statiska graf. `files` ligger under fixturens rot; `shell.ts` är det enda ingången importerar. */
+  async function landingModulesOf(name: string, shell: string, files: Record<string, string>): Promise<string[]> {
+    const root = join(workDir, `fixture-${name}`);
+    const all = { 'landing.html': FIXTURE_HTML, 'src/landing-entry/main.ts': ENTRY, 'src/features/landing/shell.ts': shell, ...files };
+    for (const [file, text] of Object.entries(all)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      writeFileSync(join(root, file), text);
+    }
+    await build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      publicDir: false,
+      plugins: [collectChunks(name)],
+      build: { outDir: join(root, 'dist'), emptyOutDir: true, rollupOptions: { input: join(root, 'landing.html') } },
+    });
+    return landingClosure(name).flatMap((chunk) => chunk.moduleIds);
+  }
+  /** `shell.ts` som importerar `target` statiskt, genom ett mellanled (`helper.ts` i src/shared): en modul nås sällan direkt från landningen. `specifier` är importadressen om den inte är en relativ sökväg (ett paket). */
+  const reachesThrough = (target: string, specifier = target.replace(/^src\//, '../').replace(/\.tsx?$/, '')) => ({
+    shell: "import { helper } from '../../shared/helper';\nexport const shell = helper;\n",
+    files: {
+      'src/shared/helper.ts': `import { value } from '${specifier}';\nexport const helper = value;\n`,
+      [target]: "export const value = 'forbidden';\n",
+    },
+  });
+  /** Modulens sökväg inom fixturen: allt före fixturens rot bort. */
+  const inFixture = (id: string) => normalize(id).replace(/^.*\/fixture-[^/]+\//, '');
+  const slug = (target: string) => target.replace(/[^A-Za-z0-9]+/g, '-');
+
+  it('landing import graph guard fails when it reaches the popup', async () => {
+    const { shell, files } = reachesThrough(POPUP);
+    const modules = await landingModulesOf('guard-popup', shell, files);
+    // Fixturen står i grafen, så grönt vore ett fel i vakten och inte ett tomt bygge.
+    expect(modules.map(normalize).some((id) => id.endsWith(`/${POPUP}`))).toBe(true);
+    expect(forbiddenInLanding(modules).map(({ id, what }) => ({ id: inFixture(id), what }))).toEqual([
+      { id: POPUP, what: 'the runner popup or anything it brings in (features/runner)' },
+    ]);
+  }, BUILD_TIMEOUT_MS);
+
+  it.each([
+    ['a module the popup brings in', 'src/features/runner/components/PopupSections.ts'],
+    ["the profile's position chart", 'src/features/profile/components/PositionChart.ts'],
+    ["the profile's position panel", 'src/features/profile/components/PositionPanel.ts'],
+    ["the leaderboard's position chart", 'src/features/leaderboard/components/PackPositionChart.ts'],
+    ['the position view', 'src/features/leaderboard/components/PositionView.ts'],
+    ['the read-only badge card', 'src/features/badges/components/BadgeSeriesCard.ts'],
+    ['the send sheet', 'src/features/challenges/components/SendSheet.ts'],
+    ['the duels screen', 'src/features/challenges/components/DuelsScreen.ts'],
+    ['an app page', 'src/pages/BoardPage.ts'],
+    ['the full app router', 'src/routes.tsx'],
+    ['the app shell', 'src/App.tsx'],
+  ])('landing import graph guard fails when it reaches %s', async (label, target) => {
+    const { shell, files } = reachesThrough(target);
+    const modules = await landingModulesOf(`guard-${slug(target)}`, shell, files);
+    expect(forbiddenInLanding(modules).map(({ id }) => inFixture(id))).toEqual([target]);
+  }, BUILD_TIMEOUT_MS);
+
+  it('landing import graph guard fails when it reaches the tour (driver.js)', async () => {
+    const target = 'node_modules/driver.js/index.js';
+    const { shell, files } = reachesThrough(target, 'driver.js');
+    const modules = await landingModulesOf('guard-driver', shell, { ...files, 'node_modules/driver.js/package.json': '{"name":"driver.js","version":"0.0.0","type":"module","main":"index.js"}\n' });
+    expect(forbiddenInLanding(modules).map(({ id }) => inFixture(id))).toEqual([target]);
+  }, BUILD_TIMEOUT_MS);
+
+  it('landing import graph guard passes when the popup and the position charts are only imported lazily, and when the graph holds none of them', async () => {
+    const lazy = await landingModulesOf(
+      'guard-lazy',
+      // Tilldelningen till globalThis är en bieffekt, så att bygget behåller import()-anropen.
+      "export const shell = 'landing';\n(globalThis as Record<string, unknown>).lazy = [() => import('../runner/components/RunnerPopup'), () => import('../profile/components/PositionChart')];\n",
+      { [POPUP]: "export const popup = 'popup';\n", 'src/features/profile/components/PositionChart.ts': "export const chart = 'chart';\n" },
+    );
+    // Båda finns i bygget, i egna chunkar, men inte i landningens statiska graf.
+    const built = chunksByBuild.get('guard-lazy')!.flatMap((chunk) => chunk.moduleIds).map(normalize);
+    expect(built.some((id) => id.endsWith(`/${POPUP}`))).toBe(true);
+    expect(built.some((id) => id.endsWith('/features/profile/components/PositionChart.ts'))).toBe(true);
+    expect(forbiddenInLanding(lazy)).toEqual([]);
+
+    const clean = await landingModulesOf('guard-clean', "export const shell = 'landing';\n", {});
+    expect(forbiddenInLanding(clean)).toEqual([]);
   }, BUILD_TIMEOUT_MS);
 });
 
