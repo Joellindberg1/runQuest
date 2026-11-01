@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import type { ChallengeTier } from '@runquest/shared';
 import { RQIcon } from '@/shared/components/icons';
 import { ViewTabs, type ViewTab } from '@/shared/components/ViewTabs';
 import { panelId, tabId } from '@/shared/components/viewTabIds';
 import type { BoostView, DuelsView, IncomingCard, LiveCard, RecordCell, SentCard, StandingRow, TierGroup } from '../duelsModel';
 import type { TierRule } from '../rulesModel';
-import type { SendBlocker } from '../sendModel';
+import type { SendBlocker, SendPreselection } from '../sendModel';
 import '../duels.css';
 import { HistoryList, type HistoryListProps } from './HistoryList';
 import { IncomingOffer, SentOffer } from './OfferCards';
@@ -41,7 +40,7 @@ export interface DuelsLayoutProps {
   /** Varför jag inte kan skicka — styr om Send är guldknappen (bara när det går att skicka). */
   blocker: SendBlocker | null;
   inLiveDuel: boolean;
-  onOpenSend: (tier?: ChallengeTier) => void;
+  onOpenSend: (preselection?: SendPreselection) => void;
   live: LiveCard[];
   incoming: IncomingCard[];
   sent: SentCard | null;
@@ -118,7 +117,7 @@ export function DuelsLayout(props: DuelsLayoutProps) {
 
   const side = (
     <div className="rq-duels__side">
-      <TokensPanel groups={props.tokens} blocker={blocker} showIntro={isDesktop} onSend={props.onOpenSend} />
+      <TokensPanel groups={props.tokens} blocker={blocker} onSend={props.onOpenSend} />
       <BoostPanel boosts={props.boosts} />
       {isDesktop && <RecordPanel cells={props.record} />}
     </div>
@@ -128,7 +127,7 @@ export function DuelsLayout(props: DuelsLayoutProps) {
     <div className="rq-duels">
       <header className="rq-duels__head">
         <div>
-          <h1 className="rq-display rq-duels__title">Challenges</h1>
+          <h1 className="rq-display rq-duels__title" tabIndex={-1}>Challenges</h1>
           <p className="rq-duels__sub">{props.summary}</p>
         </div>
         {isDesktop ? (
@@ -143,9 +142,10 @@ export function DuelsLayout(props: DuelsLayoutProps) {
       {!isDesktop && tabs}
 
       {/* Live regions måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras. */}
+      {/* Bekräftelsen har tabIndex -1: efter en skickad utmaning flyttar send-arket fokus hit (kortet som öppnade arket finns inte kvar). */}
       <div role="status" className="rq-duels-notice-slot">
         {props.notice && (
-          <p className="rq-duels-notice" data-tone={props.notice.tone}>
+          <p className="rq-duels-notice" data-tone={props.notice.tone} tabIndex={-1}>
             {props.notice.text}
           </p>
         )}

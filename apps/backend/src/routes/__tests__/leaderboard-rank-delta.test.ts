@@ -153,6 +153,60 @@ describe('GET /api/leaderboard/rank-delta', () => {
     expect(entries.filters).toContainEqual({ op: 'gte', column: 'events.ends_at', value: '2026-09-14T04:00:00.000Z' });
   });
 
+  it('rank-delta response is identical for a Stockholm group before and after', async () => {
+    // Event-XP nära dygnsgränsen: söndag 23:30Z är måndag 01:30 i Stockholm, alltså krediterad från veckostart.
+    const stockholmTables = () => ({
+      users: [user('u-anna', 'Anna', G1, 400), user('u-bertil', 'Bertil', G1, 350)],
+      runs: [run('r1', 'u-bertil', G1, '2026-09-29', 20)],
+      event_entries: [
+        entryRow('e1', 'u-anna', G1, 100, { type: 'participation', qualified_at: '2026-09-27T23:30:00Z', ends_at: '2026-10-02T21:59:59Z' }),
+        entryRow('e2', 'u-bertil', G1, 30, { type: 'competition', ends_at: '2026-09-27T21:59:59Z', settled_at: '2026-09-27T21:55:00Z' }),
+      ],
+    });
+    const expected = {
+      success: true,
+      data: {
+        as_of: '2026-09-28',
+        users: [
+          { user_id: 'u-anna', xp: 400, rank: 1, previous_xp: 300, previous_rank: 2, rank_delta: 1 },
+          { user_id: 'u-bertil', xp: 350, rank: 2, previous_xp: 330, previous_rank: 1, rank_delta: -1 },
+        ],
+      },
+    };
+
+    useDb(stockholmTables());
+    const byDefault = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+    setGroupTimeZoneSource((groupId) => (groupId === G1 ? 'Europe/Stockholm' : undefined));
+    useDb(stockholmTables());
+    const explicit = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+
+    expect(byDefault.status).toBe(200);
+    expect(byDefault.body).toEqual(expected);
+    expect(explicit.body).toEqual(byDefault.body);
+  });
+
+  it("rank-delta dates the ledger in the group's zone", async () => {
+    // Samma event-XP (söndag 23:30Z) är måndag 01:30 i Stockholm men söndag 19:30 i New York.
+    const tablesWithLateSundayEvent = () => ({
+      users: [user('u-anna', 'Anna', G1, 400), user('u-bertil', 'Bertil', G1, 350)],
+      runs: [],
+      event_entries: [
+        entryRow('e1', 'u-anna', G1, 100, { type: 'participation', qualified_at: '2026-09-27T23:30:00Z', ends_at: '2026-10-02T21:59:59Z' }),
+      ],
+    });
+    const annaIn = async (zone: string | undefined) => {
+      setGroupTimeZoneSource(zone ? (groupId) => (groupId === G1 ? zone : undefined) : undefined);
+      useDb(tablesWithLateSundayEvent());
+      const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });
+      return res.body.data.users.find((u: any) => u.user_id === 'u-anna');
+    };
+
+    // Stockholm: krediterad från veckostart, så den räknas bort och Anna låg bakom Bertil.
+    expect(await annaIn('Europe/Stockholm')).toMatchObject({ previous_xp: 300, previous_rank: 2, rank: 1, rank_delta: 1 });
+    // New York: krediterad före veckostart, så den räknas inte bort.
+    expect(await annaIn('America/New_York')).toMatchObject({ previous_xp: 400, previous_rank: 1, rank: 1, rank_delta: 0 });
+  });
+
   it('500 med {error} vid databasfel', async () => {
     useDb(tables(), { errors: { event_entries: { message: 'boom internal' } } });
     const res = await server.request('GET', '/api/leaderboard/rank-delta', { token: mintToken({ group_id: G1 }) });

@@ -1,13 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { Route, Routes } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { Link, Route, Routes } from 'react-router-dom';
 import type { Run, User } from '@runquest/types';
 import type { ChallengeHistoryItem, HeadToHeadResponse, TitleLeaderboardEntry, UserTitleEntry } from '@runquest/shared';
 import { getLevelFromXP, getXPForLevel } from '@/shared/services/levelService';
 import { AppRoutes } from '@/routes';
 import RunnerRoute from './RunnerPage';
+import { ADAM as ADAM_ID, DAN, KARL as KARL_ID, NAMES, NICK, historyItem, stat, token } from '@/features/challenges/duels.fixture';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { warmRunnerPopup } from '@/test/warmLazy';
+import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 vi.mock('@/features/onboarding/components/FeatureTour', () => ({ FeatureTour: () => null }));
@@ -88,7 +92,7 @@ const H2H: HeadToHeadResponse = {
   active: null,
 };
 
-function renderRunner(entry = '/runner/u-karl', width = MOBILE) {
+function renderRunner(entry: string | string[] = '/runner/u-karl', width = MOBILE) {
   return renderWithApp(
     <Routes>
       <Route path="/runner/:id" element={<RunnerRoute presentation="page" />} />
@@ -99,6 +103,9 @@ function renderRunner(entry = '/runner/u-karl', width = MOBILE) {
     { entry, width },
   );
 }
+
+// Popupen är en lazy chunk: den första dynamiska importen i filen är kall och kan ta längre än findBy-sekunden under last.
+beforeAll(warmRunnerPopup);
 
 beforeEach(() => {
   resetFakeBackend();
@@ -297,6 +304,11 @@ describe('titlar', () => {
     expect(batman).toHaveTextContent('The Batman');
     expect(batman).toHaveTextContent('held by Nicklas von Elling');
     expect(batman).toHaveTextContent('7 runs'); // 18 − 11
+
+    // The page keeps its one list: the type filter and the type line belong to the popup.
+    expect(within(section).queryByRole('group', { name: 'Titles filter' })).toBeNull();
+    expect(within(section).queryByRole('region', { name: 'Title list' })).toBeNull();
+    expect(section.querySelector('.rq-runner-title__type')).toBeNull();
   });
 
   it('inga titlar → anteckning, inte en tom ruta', async () => {
@@ -334,7 +346,7 @@ describe('titlar', () => {
 });
 
 describe('titelpanelen när titeltopplistan felar', () => {
-  it('felkort med Retry i stället för värden utan enhet, och Retry hämtar om både topplistan och titlarna', async () => {
+  it('felkort med Retry i stället för titlar av typen "Other" och värden utan enhet, och Retry hämtar om både topplistan och titlarna', async () => {
     let boardFails = true;
     const calls = { titles: 0, board: 0 };
     handlers.getUserTitles = () => {
@@ -488,17 +500,66 @@ describe('Challenge-knappen', () => {
 });
 
 describe('ramen: sida respektive overlay', () => {
-  it('mobil/sida: Back-knapp, ingen "Runner profile"-rubrik och ingen dialog', async () => {
+  // MemoryRouter har ingen riktig historik; useCloseRunner läser indexet ur window.history.state.
+  const historyState = vi.spyOn(window.history, 'state', 'get');
+  afterEach(() => historyState.mockReset());
+
+  it('mobil/sida: tillbakalänk, ingen "Runner profile"-rubrik och ingen dialog', async () => {
     renderRunner();
-    expect(await screen.findByRole('button', { name: /Back/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Standings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Standings|Back/ })).toBeNull();
     expect(screen.queryByText('Runner profile')).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('Back går ett steg tillbaka, eller till /board utan historik', async () => {
+  it('back control is a link with an href to the board', async () => {
     renderRunner();
-    fireEvent.click(await screen.findByRole('button', { name: /Back/ }));
+    const back = await screen.findByRole('link', { name: 'Standings' });
+
+    expect(back).toHaveAttribute('href', '/board');
+    expect(back).toHaveTextContent('← Standings');
+    // Pilen är dekoration: det tillgängliga namnet är bara "Standings".
+    expect(back.querySelector('[aria-hidden="true"]')).toHaveTextContent('←');
+  });
+
+  it('clicking it goes one step back', async () => {
+    // Historiken har en post före kortet (klientnavigering hit från Duels): ett steg bakåt är /duels, inte /board.
+    historyState.mockReturnValue({ idx: 1 });
+    renderRunner(['/duels', '/runner/u-karl']);
+    fireEvent.click(await screen.findByRole('link', { name: 'Standings' }));
+
+    await waitFor(() => expect(location()).toBe('/duels'));
+  });
+
+  it('direct load: the back control goes to the board (no history to step back into)', async () => {
+    renderRunner();
+    fireEvent.click(await screen.findByRole('link', { name: 'Standings' }));
     await waitFor(() => expect(location()).toBe('/board'));
+  });
+
+  it('runner page focuses the heading on entry', async () => {
+    renderRunner();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Karl Persson' });
+
+    expect(heading).toHaveAttribute('tabindex', '-1');
+    expect(heading).toHaveFocus();
+  });
+
+  it('runner page focuses the heading when entered by in-app navigation', async () => {
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="page" />} />
+        <Route path="/board" element={<Link to="/runner/u-karl">Open Karl</Link>} />
+      </Routes>,
+      { entry: '/board' },
+    );
+    await userEvent.click(await screen.findByRole('link', { name: 'Open Karl' }));
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Karl Persson' });
+
+    expect(heading).toHaveFocus();
+    // Fokus ligger kvar på rubriken när panelerna hämtat klart efter första ritningen.
+    await screen.findByRole('region', { name: 'Head to head' });
+    expect(heading).toHaveFocus();
   });
 
   it('egen profil: /runner/<eget id> → /profile (inget head-to-head mot sig själv)', async () => {
@@ -508,45 +569,481 @@ describe('ramen: sida respektive overlay', () => {
   });
 });
 
-describe('desktop-overlayn (background location)', () => {
+describe('the profile popup (background location)', () => {
   const fromBoard = [
     '/board',
     { pathname: '/runner/u-karl', state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
   ];
-
-  it('samma kort i dialogen: "Runner profile", Challenge, hjältekort, paneler', async () => {
+  // Challenge är en länk bara när jag kan skicka och Karl är ledig; annars en avstängd knapp (RunnerPopupChallenge.test.tsx prövar alla lägen).
+  beforeEach(() => {
+    handlers.getMyChallenges = () => ({ success: true, data: { tokens: [token({ id: 't1' })], sent_challenge: null, received_challenges: [], boosts: [], history: [], group_active: [] } });
+    handlers.getChallengeGroupStats = () => ({ success: true, data: [stat(ME.id), stat('u-karl')] });
+  });
+  // Medan popupens chunk hämtas visar sidan en upptagen dialog med samma roll (men namnet "Runner card"); det är den riktiga dialogen, med löparens namn, som proven väntar på.
+  const findPopup = () => screen.findByRole('dialog', { name: 'Runner card: Karl Persson' });
+  const openPopup = async () => {
     renderWithApp(<AppRoutes />, { entry: fromBoard, width: DESKTOP });
+    const dialog = await findPopup();
+    await within(dialog).findByRole('heading', { level: 1, name: 'Karl Persson' });
+    return dialog;
+  };
+  // Radix döljer bakgrunden för hjälpmedel medan dialogen är öppen, och en rad kan nås först när dialogen är borta.
+  const boardRow = () => findRunnerElement('u-karl') as HTMLElement;
+  const popupTitle = (dialog: HTMLElement) => within(dialog).getByRole('heading', { level: 2, name: 'Runner card: Karl Persson' });
 
-    const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByRole('heading', { level: 1, name: 'Karl Persson' })).toBeInTheDocument();
-    expect(within(dialog).getByText('Runner profile')).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'Challenge' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
-    expect(within(dialog).getByRole('tablist', { name: 'Runner stats' })).toBeInTheDocument();
-    expect(await within(dialog).findByRole('region', { name: 'Head to head' })).toBeInTheDocument();
+  it('shows the same cards in the dialog: "Runner card", Challenge, hero and the Overview panels', async () => {
+    const dialog = await openPopup();
+
+    expect(within(dialog).getByText('Runner card')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Runner profile')).toBeNull();
+    expect(await within(dialog).findByRole('link', { name: 'Challenge' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+    // Head to head sits in the banner, read as one sentence, and not as a panel of its own.
+    expect(await within(dialog).findByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: 'Head to head' })).toBeNull();
+    // The other tabs' panels are not drawn until their tab is selected.
+    expect(within(dialog).queryByRole('region', { name: "Frodo's journey" })).toBeNull();
+    expect(within(dialog).queryByRole('region', { name: 'Titles' })).toBeNull();
+    expect(within(dialog).queryByRole('region', { name: 'Badges' })).toBeNull();
   });
 
-  it('flikbyte i overlayn behåller overlayn och bakgrundssidan (router-state följer med ?view=)', async () => {
-    renderWithApp(<AppRoutes />, { entry: fromBoard, width: DESKTOP });
-    const dialog = await screen.findByRole('dialog');
+  it('is a modal dialog: role dialog, aria-modal and no aria-describedby', async () => {
+    const dialog = await openPopup();
 
-    fireEvent.click(await within(dialog).findByRole('tab', { name: 'Fun facts' }));
-    await waitFor(() => expect(location()).toBe('/runner/u-karl?view=fun'));
+    expect(dialog).toHaveAttribute('role', 'dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).not.toHaveAttribute('aria-describedby');
+  });
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(within(screen.getByRole('dialog')).getByRole('tab', { name: 'Fun facts' })).toHaveAttribute('aria-selected', 'true');
+  it('is named by the visible heading "Runner card" with the runner name as hidden continuation', async () => {
+    const dialog = await openPopup();
+
+    expect(screen.getByRole('dialog', { name: 'Runner card: Karl Persson' })).toBe(dialog);
+    const heading = popupTitle(dialog);
+    expect(dialog.getAttribute('aria-labelledby')).toBe(heading.id);
+    // Det som syns är bara "Runner card" (göms för hjälpmedel); hela namnet kommer från skärmläsartexten.
+    expect(heading.querySelector('[aria-hidden="true"]')).toHaveTextContent(/^Runner card$/);
+    expect(heading.querySelector('.sr-only')).toHaveTextContent('Runner card: Karl Persson');
+  });
+
+  it('moves focus to the heading when the popup opens', async () => {
+    const dialog = await openPopup();
+    const heading = popupTitle(dialog);
+
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(heading).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('traps Tab and Shift+Tab inside the dialog', async () => {
+    const user = userEvent.setup();
+    const dialog = await openPopup();
+    await waitFor(() => expect(popupTitle(dialog)).toHaveFocus());
+    await within(dialog).findByText('Head to head: 2–0–1 to you');
+
+    // Tabbarna räknas ur dialogen (den fokuserade rubriken har tabindex -1 och är ingen av dem), efter att panelen ritats. Ett dolt element (`hidden` eller `display: none` i en förfader)
+    // är aldrig ett tabbstopp och räknas därför inte: det som tabbas är det som syns. Ett varv plus två tryck räcker för att bevisa fällan: den som går runt
+    // har inte släppt ut fokus, och 40 tryck i jsdom tar så lång tid att sviten under last överskrider tidsgränsen (e2e har 40-varvsbeviset i Chromium).
+    const isRendered = (element: HTMLElement) => {
+      for (let node: HTMLElement | null = element; node && node !== dialog.parentElement; node = node.parentElement) {
+        if (node.hidden || node.style.display === 'none') return false;
+      }
+      return true;
+    };
+    const tabbables = [...dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]')].filter((element) => element.tabIndex >= 0 && isRendered(element));
+    expect(tabbables.length, 'the dialog has several tab stops').toBeGreaterThan(3);
+    const first = tabbables[0]!;
+    const last = tabbables[tabbables.length - 1]!;
+
+    const forward: Element[] = [];
+    for (let press = 0; press < tabbables.length + 2; press += 1) {
+      await user.tab();
+      forward.push(document.activeElement!);
+      expect(dialog.contains(document.activeElement), `Tab ${press + 1} stays in the dialog`).toBe(true);
+    }
+    expect(forward[0], 'the first Tab from the heading lands on the first tab stop').toBe(first);
+    expect(forward[tabbables.length - 1], 'the last Tab of the round lands on the last tab stop').toBe(last);
+    expect(forward[tabbables.length], 'Tab from the last tab stop wraps to the first').toBe(first);
+
+    const backward: Element[] = [];
+    for (let press = 0; press < tabbables.length + 2; press += 1) {
+      await user.tab({ shift: true });
+      backward.push(document.activeElement!);
+      expect(dialog.contains(document.activeElement), `Shift+Tab ${press + 1} stays in the dialog`).toBe(true);
+    }
+    const atFirst = backward.indexOf(first);
+    expect(atFirst, 'Shift+Tab reaches the first tab stop').toBeGreaterThanOrEqual(0);
+    expect(backward[atFirst + 1], 'Shift+Tab from the first tab stop wraps to the last').toBe(last);
+  }, 15_000); // tangenttrycken i jsdom tar flera sekunder när hela sviten körs samtidigt
+
+  it('closes with Escape', async () => {
+    const dialog = await openPopup();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(location()).toBe('/board');
+  });
+
+  it('closes with the ✕ button', async () => {
+    const dialog = await openPopup();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(location()).toBe('/board');
+  });
+
+  it('closes when the scrim is clicked', async () => {
+    await openPopup();
+    const scrim = document.querySelector('.rq-scrim') as HTMLElement;
+
+    fireEvent.pointerDown(scrim);
+    fireEvent.click(scrim);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(location()).toBe('/board');
+  });
+
+  it('closing the popup returns focus to the runner row', async () => {
+    const dialog = await openPopup();
+    // Popupen öppnades av en adress, så raden hade aldrig fokus: återgången hänger inte på vad som hade fokus vid klicket.
+    expect(document.activeElement).not.toBe(boardRow());
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(boardRow()).toHaveFocus());
+  });
+
+  it('returns focus to the runner row when the popup is closed with the ✕ button', async () => {
+    const dialog = await openPopup();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(boardRow()).toHaveFocus());
+  });
+
+  it('returns focus to the runner row when the popup is closed by a click on the scrim', async () => {
+    await openPopup();
+    const scrim = document.querySelector('.rq-scrim') as HTMLElement;
+
+    fireEvent.pointerDown(scrim);
+    fireEvent.click(scrim);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(boardRow()).toHaveFocus());
+  });
+
+  it('opened from a click on the board row, closing returns focus to that row', async () => {
+    const user = userEvent.setup();
+    renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+    await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
+
+    await user.click(boardRow());
+    const dialog = await findPopup();
+    await waitFor(() => expect(popupTitle(dialog)).toHaveFocus());
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(boardRow()).toHaveFocus());
+  });
+
+  it('opened from the later of several rows that list the runner, closing returns focus to that row and not to the first', async () => {
+    const side = (id: string) => ({ id, name: NAMES[id]!, profile_picture: null, level: 20 });
+    const rows = [
+      historyItem({ id: 'h1', challenger: side(KARL_ID), opponent: side(ADAM_ID) }),
+      historyItem({ id: 'h2', challenger: side(NICK), opponent: side(DAN) }),
+      historyItem({ id: 'h3', challenger: side(ADAM_ID), opponent: side(KARL_ID) }),
+    ];
+    handlers.getChallengeGroupHistory = () => ({ success: true, data: { items: rows }, meta: { total: 3, limit: 20, offset: 0, has_more: false } });
+    const user = userEvent.setup();
+    renderWithApp(<AppRoutes />, { entry: '/duels?view=history', width: DESKTOP, history: true });
+    const list = await screen.findByRole('list', { name: 'Matches' });
+    const [first, , third] = within(list).getAllByRole('listitem');
+    const firstKarl = within(first!).getByRole('button', { name: NAMES[KARL_ID] });
+    const thirdKarl = within(third!).getByRole('button', { name: NAMES[KARL_ID] });
+
+    await user.click(thirdKarl);
+    await findPopup();
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(thirdKarl).toHaveFocus());
+    expect(firstKarl).not.toHaveFocus();
+  });
+
+  it('leaves focus to Radix when the page behind has no row for the runner', async () => {
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+      </Routes>,
+      { entry: '/runner/u-karl', width: DESKTOP },
+    );
+    const dialog = await findPopup();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('does not pull focus to a row on the destination page when Challenge leaves the popup', async () => {
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+        <Route path="/duels" element={<button type="button" data-runner-id="u-karl">Karl on the duels page</button>} />
+      </Routes>,
+      { entry: '/runner/u-karl', width: DESKTOP },
+    );
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Challenge' }));
+    await waitFor(() => expect(location()).toBe('/duels?send=1&opponent=u-karl'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByRole('button', { name: 'Karl on the duels page' })).not.toHaveFocus();
+  });
+
+  it('keeps the Overview choice as popup state: switching it neither touches the address nor the page behind', async () => {
+    const dialog = await openPopup();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fun facts' }));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fun facts' })).toHaveAttribute('aria-pressed', 'true'));
+
+    expect(location()).toBe('/runner/u-karl');
+    expect(screen.getByRole('dialog')).toBe(dialog);
     expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1);
-    // Radix döljer bakgrunden för hjälpmedel medan dialogen är öppen, därför hidden: true.
     expect(screen.getByRole('heading', { name: 'The standings', hidden: true })).toBeInTheDocument();
   });
 
-  it('Challenge i overlayn stänger den och landar på /duels med förvald motståndare', async () => {
-    renderWithApp(<AppRoutes />, { entry: fromBoard, width: DESKTOP });
-    const dialog = await screen.findByRole('dialog');
+  it('popup state resets on every open', async () => {
+    const user = userEvent.setup();
+    renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+    await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
+
+    await user.click(boardRow());
+    let dialog = await findPopup();
+    await user.click(await within(dialog).findByRole('button', { name: 'Streak' }));
+    expect(within(dialog).getByRole('button', { name: 'Streak' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(dialog).getByRole('tab', { name: 'Titles held' }));
+    expect(within(dialog).getByRole('tab', { name: 'Titles held' })).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    await user.click(boardRow());
+    dialog = await findPopup();
+    expect(await within(dialog).findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('tab', { name: 'Titles held' })).toHaveAttribute('aria-selected', 'false');
+    expect(await within(dialog).findByRole('button', { name: 'Activity' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Streak' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  describe('the popup tabs', () => {
+    const sections = (dialog: HTMLElement) => within(dialog).getByRole('tablist', { name: 'Runner sections' });
+    const tab = (dialog: HTMLElement, name: string) => within(sections(dialog)).getByRole('tab', { name });
+
+    it('are Overview, The Journey, Titles held and Badges, starting on Overview', async () => {
+      const dialog = await openPopup();
+
+      const names = within(sections(dialog)).getAllByRole('tab').map((element) => element.textContent);
+      expect(names).toEqual(['Overview', 'The Journey', 'Titles held', 'Badges']);
+      expect(tab(dialog, 'Overview')).toHaveAttribute('aria-selected', 'true');
+      for (const name of ['The Journey', 'Titles held', 'Badges']) expect(tab(dialog, name)).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('draw the existing panels one at a time: Overview, The Journey, Titles held and Badges', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+
+      await user.click(tab(dialog, 'The Journey'));
+      expect(within(dialog).getByRole('region', { name: "Frodo's journey" })).toBeInTheDocument();
+      expect(within(dialog).queryByRole('group', { name: 'Overview view' })).toBeNull();
+      // Head to head lives in the banner, so it stays on every tab.
+      expect(within(dialog).getByText('Head to head: 2–0–1 to you')).toBeInTheDocument();
+
+      await user.click(tab(dialog, 'Titles held'));
+      expect(await within(dialog).findByRole('region', { name: 'Titles' })).toBeInTheDocument();
+      expect(within(dialog).queryByRole('region', { name: "Frodo's journey" })).toBeNull();
+
+      await user.click(tab(dialog, 'Badges'));
+      expect(await within(dialog).findByRole('region', { name: 'Badges' })).toBeInTheDocument();
+      expect(within(dialog).queryByRole('region', { name: 'Titles' })).toBeNull();
+
+      await user.click(tab(dialog, 'Overview'));
+      expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+      expect(within(dialog).getAllByText('Head to head: 2–0–1 to you')).toHaveLength(1);
+    });
+
+    it('move with the arrow keys, Home and End, and have a single tab stop', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      const stops = () => within(sections(dialog)).getAllByRole('tab').filter((element) => element.tabIndex === 0);
+      expect(stops().map((element) => element.textContent)).toEqual(['Overview']);
+
+      tab(dialog, 'Overview').focus();
+      await user.keyboard('{ArrowRight}');
+      expect(tab(dialog, 'The Journey')).toHaveAttribute('aria-selected', 'true');
+      expect(tab(dialog, 'The Journey')).toHaveFocus();
+      expect(stops().map((element) => element.textContent)).toEqual(['The Journey']);
+
+      await user.keyboard('{End}');
+      expect(tab(dialog, 'Badges')).toHaveAttribute('aria-selected', 'true');
+      expect(tab(dialog, 'Badges')).toHaveFocus();
+
+      await user.keyboard('{ArrowRight}');
+      expect(tab(dialog, 'Overview')).toHaveAttribute('aria-selected', 'true');
+
+      await user.keyboard('{ArrowLeft}');
+      expect(tab(dialog, 'Badges')).toHaveAttribute('aria-selected', 'true');
+
+      await user.keyboard('{Home}');
+      expect(tab(dialog, 'Overview')).toHaveAttribute('aria-selected', 'true');
+      expect(tab(dialog, 'Overview')).toHaveFocus();
+    });
+
+    it('control one tabpanel that is labelled by the selected tab', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      // Overview draws no tabpanel of its own: the one panel is the popup's.
+      expect(within(dialog).getAllByRole('tabpanel')).toHaveLength(1);
+      const panel = within(dialog).getByRole('tabpanel');
+      for (const name of ['Overview', 'The Journey', 'Titles held', 'Badges']) {
+        await user.click(tab(dialog, name));
+        expect(tab(dialog, name).getAttribute('aria-controls')).toBe(panel.id);
+        expect(panel.getAttribute('aria-labelledby')).toBe(tab(dialog, name).id);
+      }
+    });
+
+    it('use ids that no other element in the page has', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      for (const name of ['Overview', 'The Journey', 'Titles held', 'Badges']) {
+        await user.click(tab(dialog, name));
+        const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
+        expect(ids.filter((id, index) => ids.indexOf(id) !== index), `duplicate ids on the ${name} tab`).toEqual([]);
+      }
+      expect(tab(dialog, 'Badges').id).not.toMatch(/^runner-stats/);
+    });
+
+    it('use unique ids in every Overview view, and the shared stats content brings none from the profile', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      for (const name of ['Activity', 'Distance', 'Streak', 'Fun facts']) {
+        await user.click(within(dialog).getByRole('button', { name }));
+        if (name === 'Streak') await within(dialog).findByLabelText('Streak', { selector: 'dl' }, SLOW);
+        const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
+        expect(ids.filter((id, index) => ids.indexOf(id) !== index), `duplicate ids in the ${name} view`).toEqual([]);
+        expect(ids.filter((id) => id.startsWith('profile-stats')), `profile ids in the ${name} view`).toEqual([]);
+        // Radix' own trigger ids (badge popovers) point at content that is only mounted when opened; the ids that matter here are the popup's and the profile's.
+        for (const labelled of document.querySelectorAll('[aria-labelledby], [aria-controls]')) {
+          for (const reference of (labelled.getAttribute('aria-labelledby') ?? labelled.getAttribute('aria-controls') ?? '').split(' ')) {
+            if (reference.startsWith('runner-')) expect(document.getElementById(reference), `${reference} exists in the ${name} view`).not.toBeNull();
+          }
+        }
+      }
+    });
+
+    it('write no search parameter and leave the page behind alone', async () => {
+      const user = userEvent.setup();
+      const dialog = await openPopup();
+
+      await user.click(tab(dialog, 'Titles held'));
+      await user.click(tab(dialog, 'Badges'));
+      await user.click(tab(dialog, 'The Journey'));
+
+      expect(location()).toBe('/runner/u-karl');
+      expect(screen.getByRole('dialog')).toBe(dialog);
+    });
+
+    it('name the Overview switch differently from the Overview panel that holds it', async () => {
+      const dialog = await openPopup();
+
+      const panel = within(dialog).getByRole('tabpanel', { name: 'Overview' });
+      expect(within(panel).queryByRole('group', { name: 'Overview' })).toBeNull();
+      expect(within(panel).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+    });
+
+    it('play the activity map in only the first time it is shown in an opening, and again in the next opening', async () => {
+      const user = userEvent.setup();
+      renderWithApp(<AppRoutes />, { entry: '/board', width: DESKTOP });
+      await waitFor(() => expect(findRunnerElement('u-karl')).not.toBeNull());
+      await user.click(boardRow());
+      let dialog = await findPopup();
+      const intro = () => dialog.querySelector('.rq-profile-heat')?.getAttribute('data-intro');
+
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro()).toBe('true');
+
+      await user.click(within(dialog).getByRole('button', { name: 'Distance' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Activity' }));
+      expect(intro(), 'Activity picked again').toBe('false');
+
+      await user.click(tab(dialog, 'The Journey'));
+      await user.click(tab(dialog, 'Overview'));
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro(), 'back from another tab').toBe('false');
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await user.click(boardRow());
+      dialog = await findPopup();
+      await within(dialog).findByRole('region', { name: /^Run heatmap/ });
+      expect(intro(), 'a new opening').toBe('true');
+    });
+  });
+
+  it('a popup for the own profile is never drawn: the address goes to /profile, without Challenge or Head to head', async () => {
+    renderWithApp(<AppRoutes />, {
+      entry: [
+        '/board',
+        { pathname: `/runner/${ME.id}`, state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
+      ],
+      width: DESKTOP,
+    });
+
+    await waitFor(() => expect(location()).toBe('/profile'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Challenge' })).toBeNull();
+    expect(screen.queryByText(/Head to head/)).toBeNull();
+  });
+
+  it('Challenge in the popup closes it and lands on /duels with the opponent preselected', async () => {
+    const dialog = await openPopup();
 
     fireEvent.click(await within(dialog).findByRole('link', { name: 'Challenge' }));
     await waitFor(() => expect(location()).toBe('/duels?send=1&opponent=u-karl'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Runner card/ })).toBeNull());
+  });
+
+  it('an unknown id falls back to the page variant: Page not found in the shell, no dialog', async () => {
+    renderWithApp(<AppRoutes />, {
+      entry: [
+        '/board',
+        { pathname: '/runner/u-nobody', state: { background: { pathname: '/board', search: '', hash: '', state: null, key: 'bg' } } },
+      ],
+      width: DESKTOP,
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('shows the frame with the loading state while the group is loading', async () => {
+    handlers.getUsersWithRuns = () => new Promise(() => {});
+    renderWithApp(
+      <Routes>
+        <Route path="/runner/:id" element={<RunnerRoute presentation="overlay" />} />
+      </Routes>,
+      { entry: '/runner/u-karl', width: DESKTOP },
+    );
+
+    // ✕ finns bara i den riktiga dialogen (den upptagna som visas medan chunken hämtas har ingen).
+    const close = await screen.findByRole('button', { name: 'Close' });
+    const dialog = screen.getByRole('dialog', { name: 'Runner card' });
+    expect(dialog).not.toHaveAttribute('aria-busy');
+    expect(within(dialog).getByText('Loading runner')).toBeInTheDocument();
+    expect(dialog).toContainElement(close);
   });
 });
 

@@ -50,7 +50,8 @@ describe('insatser', () => {
       win: '+0.25× / 10 d',
       lose: '−0.12× / 10 d',
       loseTone: 'down',
-      summary: '+0.25× win · −0.12× loss',
+      winFor: '+0.25× for 10 days',
+      loseFor: '−0.12× for 10 days',
     });
   });
 
@@ -58,7 +59,7 @@ describe('insatser', () => {
     const stake = stakeOf({ winner_delta: 0.5, winner_duration: 14, loser_delta: 0, loser_duration: 0 });
     expect(stake.lose).toBe('No penalty');
     expect(stake.loseTone).toBe('muted');
-    expect(stake.summary).toBe('+0.5× win · no penalty');
+    expect(stake.loseFor).toBe('No penalty');
   });
 });
 

@@ -1,6 +1,8 @@
 // Frodo's journey: ren waypoint-/viewport-matematik. Delas av Profile (components/JourneyCard) och Runner card
 // (features/runner/components/JourneyCard) — EN layoutalgoritm. Ingen DOM här.
 
+import { formatInt } from '@/shared/utils/format';
+
 export const JOURNEY_END_KM = 3266;
 
 export type ZoomLevel = 0 | 1 | 2;
@@ -105,6 +107,37 @@ export function nextCheckpointInfo(totalKm: number): { name: string; km: number;
 /** Andel av vägen till Mount Doom i procent (0–100, klampad). */
 export function journeyPercent(totalKm: number): number {
   return Math.max(0, Math.min(100, (totalKm / JOURNEY_END_KM) * 100));
+}
+
+// Avrundningen får aldrig påstå mer än som är nått: checkpointen jämför råa km, så kilometertalet kapas nedåt (1180,6 km är 1 180, inte 1 181 = Moria) och procenten
+// kan inte visa 100 före målet (3265,7 km är 99,9 %). I övrigt avrundas procenten till närmaste (godkända prototypens 30,3 %).
+const PERCENT_BEFORE_END_MAX = 99.9;
+const WHOLE_PERCENT_BEFORE_END_MAX = 99;
+
+const reachedKm = (totalKm: number): number => Math.max(0, Math.min(Math.floor(totalKm), JOURNEY_END_KM));
+
+/** Procenten med en decimal, "30.3%"; 100.0% först när målet är nått. */
+export function journeyPercentText(totalKm: number): string {
+  const shown = totalKm >= JOURNEY_END_KM ? 100 : Math.min(journeyPercent(totalKm), PERCENT_BEFORE_END_MAX);
+  return `${shown.toFixed(1)}%`;
+}
+
+/** Hela procent för progressbarens `aria-valuenow`; 100 först när målet är nått. */
+export function journeyPercentWhole(totalKm: number): number {
+  if (totalKm >= JOURNEY_END_KM) return 100;
+  return Math.min(Math.round(journeyPercent(totalKm)), WHOLE_PERCENT_BEFORE_END_MAX);
+}
+
+/** Förloppsraden "30.3% · 988 / 3 266 km". Profilens Frodo-kort och popupens Journey skriver den med samma funktion, så siffrorna aldrig kan skilja sig åt. */
+export function journeyProgressLabel(totalKm: number): string {
+  return `${journeyPercentText(totalKm)} · ${formatInt(reachedKm(totalKm))} / ${formatInt(JOURNEY_END_KM)} km`;
+}
+
+/** Förloppet som en mening för skärmläsare (progressbarens `aria-valuetext`); framme: bara att målet är nått. */
+export function journeyValueText(totalKm: number): string {
+  if (totalKm >= JOURNEY_END_KM) return 'Mount Doom reached';
+  const kmText = `${formatInt(reachedKm(totalKm))} of ${formatInt(JOURNEY_END_KM)} km`;
+  return `${journeyPercentText(totalKm)} of the way to Mount Doom, ${kmText}, last checkpoint ${lastCheckpoint(totalKm).name}`;
 }
 
 export interface PlacedWaypoint extends Waypoint {

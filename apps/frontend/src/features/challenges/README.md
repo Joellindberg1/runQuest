@@ -11,10 +11,10 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   - `DuelsScreen` — all datakoppling, handlingar, send-sheetens URL-tillstånd, tour. Ritar `DuelsLayout`.
   - `DuelsLayout` — ren presentation av färdiga vymodeller (rubrik, flikar, aktiv vy, sidokolumn). Preview-sidan återanvänder den.
   - `OfferCards` (`IncomingOffer` "Waiting on you", `SentOffer`), `LiveSection` (live-kort), `StandingsTable`, `HistoryList`, `RulesView`,
-    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren)
+    `SidePanels` (`TokensPanel`, `BoostPanel`, `RecordPanel`), `SendSheet`, `TokenChoice` (send-flödets steg 2: tokenkorten som en radiogrupp med roving tabindex, bock och "Selected"), `OpponentChoice` (steg 3: motståndarna som en radiogrupp; en motståndare i en duell eller med väntande utmaning är `aria-disabled` med orsaken synlig, och pilarna hoppar över dem), `StakeBlocks`, `TierRibbon` (nivåns vimpel — enda `<svg>` i featuren; sitter på tokenkorten och Board), `TierChip` (nivåchipet "MINOR ×3": filterval med nivåns accent, delas av Your tokens och send-flödets steg 1), `TokenCard` (ett tokenkort: vimpel utan siffra, mått och längd i versaler på första raden, tokenets egen insats på andra; handlingen sätts in som barn, i Your tokens är det Send)
 - **duelsFormat.ts** — tier/mått/insatser/tider som text (en-GB, Stockholm-kalenderdagar, `now` skickas in)
-- **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper, standings, historikrader, boosts, rekord, rubrikrad
-- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering
+- **duelsModel.ts** — live-kort, inkommande/skickad, token-grupper (alltid tre nivåer med `count`/`empty`/`selectable`, ett kort per token — identiska tokens slås inte ihop), standings, historikrader, boosts, rekord, rubrikrad
+- **sendModel.ts** — varför man inte kan skicka (`sendBlocker`), motståndarval, head-to-head-tips, `?opponent=`-validering, förval av nivå och kort (`SendPreselection`, `startingChoice`), "The bet" (`betSummary`, `startRuleText`: "Starts" byggs ur samma `LEGENDARY_AUTO_START_DAYS` som schemaläggaren) och head-to-head-tipsets text (`h2hHint`)
 - **rulesModel.ts** — insatser per nivå (verkliga data först, seed som reserv) och "How it works"
 - **hooks/** — `useDuelsQueries` (`useMyChallenges`, `useGroupStats`, `useLiveProgress`, `useGroupHistory`, `useOpponentRecords`),
   `useChallengeActions` (send/accept/decline/withdraw som mutationer som kastar vid fel)
@@ -23,10 +23,30 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
 
 ## Regler värda att komma ihåg
 
-- **Spelreglerna är oförändrade (ägarbeslut 1).** Ett token fixerar nivå, mått (km/runs/total_xp) OCH längd; avsändaren väljer bara token och motståndare.
-  Därför har send-sheeten steg "1 · Spend a token" och "2 · Pick an opponent", inte designens fria val av mått/längd, och "The bet" visar mått och längd som fakta.
+- **Spelreglerna är oförändrade (ägarbeslut 1).** Ett token fixerar nivå, mått (km/runs/total_xp) OCH längd; avsändaren väljer bara nivå, token och motståndare.
+  Därför har send-sheeten steg "1 · Pick a tier" (nivåchips), "2 · Pick a challenge" (ett kort per token) och "3 · Pick an opponent", inte designens fria val av mått/längd, och "The bet" visar mått och längd som fakta.
   Insatserna kommer ur data (token/utmaning/historikrad), aldrig ur konstanter; `DEFAULT_STAKES` (migration 006) används bara för en nivå utan något exempel.
   Legendary har straff i databasen (−0.25×/14 d) — designens "no penalty" gäller inte; delta 0 läses "No penalty".
+- **Förval i send-flödet** är komponenttillstånd i `DuelsScreen` (`SendPreselection | null`), aldrig adress: Send på ett tokenkort → nivå och kort, en nivåchip → bara nivån,
+  Challenge från popupen → bara motståndaren (`?opponent=`). Ett ensamt kort på nivån är förvalt. Sheeten monteras per öppning och `closeSend` nollställer förvalet,
+  så förra valet följer aldrig med.
+- **"The bet" och fokus.** "The bet" är en permanent `aria-live="polite"`-region med `aria-atomic`: bara texten ändras, så en ändring läses upp en gång och ett oförändrat val ingen gång.
+  "Starts" kommer ur `startRuleText` (midnatten efter accepten; legendary också efter `LEGENDARY_AUTO_START_DAYS` dagar utan svar, samma konstant som `challengeScheduler`), aldrig
+  prototypens "when accepted". Cancel syns på mobil och desktop. Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt: fokus går till bekräftelsen
+  (`.rq-duels-notice`, `tabIndex -1`); annars till öppnaren, rubrikens Send eller sidans rubrik. Vinst- och förlusttext på en tonad yta använder `--rq-up-text`/`--rq-down-text`.
+  Bekräftelsen efter en skickad utmaning ("Challenge sent to …") bygger sin startregel på `startRuleSentence`, samma `unansweredClause` som "Starts", så de två säger aldrig olika.
+- **Arkets skal.** `SendSheet` är en Radix-dialog med `aria-modal="true"` (Radix sätter det inte själv). Huvudet och knappraden ligger utanför det scrollande mellanstycket, så
+  stegrubrikerna kan aldrig hamna under knappraden (därför ingen `scroll-padding`); på mobil står Send och Cancel på en rad ovanför hemindikatorn (`--rq-tabbar-pb`, som läser
+  `env(safe-area-inset-bottom)`). Medan ett skick pågår går arket inte att stänga: Cancel och ✕ är avstängda, Escape och tryck på skrimmen ignoreras (`onOpenChange`), och fokus
+  flyttas till arket så att det inte hamnar på `<body>` när Send stängs av. Tomt läge och blockerat läge (`sendBlocker`) visar orsaken och en Close som följer samma `returnFocus` som Cancel.
+  Webbläsarens Back är inte låst: den avmonterar arket, under skicket eller när inget pågår (vilande, efter ett avvisat skick, efter tidsgränsen), utan att någon avbrytväg körs. `SendSheet` skiljer Back från Cancel, ✕, Esc, skrim och Close med `closedByCancel` (satt i `onOpenChange`) och sin fas (`sendPhase`), och fokuserar löparens rad om popupen öppnade flödet
+  (`originRunnerId`, `shared/utils/focusRowAfterBack.ts`: samma `focusRunnerRowWhenRendered` som skalet, men sökningen släpps när platsen byts (skalet anropar `dropRowSearchAfterBack`) eller när användaren flyttar fokus), annars gäller `returnFocus` som vanligt (öppnaren, rubrikens Send, Duels rubrik, och sidans huvudrubrik när Back lämnade Duels: `focusPageHeadingAfterBack`).
+  Ett sent svar efter Back kan ta bort kortet som hade fokus (tokenet är förbrukat): `useFocusRescue` följer fokus och flyttar det till bekräftelsen (annars rubrikens Send) när svaret landat och det fokuserade elementet är borta, och bara då.
+  Svaret avgörs sedan i `DuelsScreen.sendChallenge` en gång: arket som skickade hålls i `openSheet`
+  (en identitet per öppning), och bara om det fortfarande är öppet stänger skärmen det (`closeSend`) eller lämnar felet till arket. Är det stängt visar `/duels` utfallet som bekräftelse eller felnotis; är skärmen
+  borta syns inget mer än att mutationens omhämtning (`useChallengeActions`) visar en skapad utmaning vid nästa besök, och användaren flyttas aldrig.
+  Arket har ingen glid-in-rörelse (varken på mobil eller desktop): `prefers-reduced-motion` har alltså inget att stänga av, och e2e-provet vaktar att arket står still. Raderna i steg 3 heter
+  personen (avataren är `aria-hidden`).
 - **Backend avvisar `/send` om jag har en aktiv ELLER väntande utmaning (som utmanare eller motståndare).** `sendBlocker` speglar det: live-duell, skickad,
   inkommande, inga tokens. En motståndare som är upptagen som *mottagare* av en väntande utmaning syns inte i group-stats — då svarar servern 400
   och sheeten visar meddelandet inline.
@@ -65,3 +85,5 @@ Mobil = App Prototypens challenges-skärm (vy, sedan tokens under), desktop = We
   samma specificitet förlorar därför — använd sammansatta selektorer (`.rq-card.rq-duels-standings`, `.rq-hairgrid > .rq-duels-…`).
 - Vimpeln (`TierRibbon`, svalstjärt, RUN-147) ritas ur samma geometri som Boards challenge-vimpel (`shared/components/challengeMark`: path, text-x/y, viewBox) men har egen stil; den återanvänder `--rq-board-ribbon-*`-måtten. Ingen kod i `apps/frontend/src` får innehålla den gamla sköldens path (vakt i `shared/components/challengeMark.test.ts`).
 - Tour `tour_duels_v2` (ankare `duels-tokens`, `duels-send`, `duels-tabs`) startar först när sidan är ritad.
+- Tokenkortet (`TokenCard`) är två textrader (`.rq-duels-token__what`, `.rq-duels-token__stake`) och bär ingen knapp själv. Send i Your tokens (`.rq-duels-send`) är en sekundär knapp i nivåns accent, aldrig fylld: kant = `--rq-tier-send-edge`, text = `--rq-tier-<nivå>-send` (temafilen, sektion 1.6; ljust läge har en mörkare Major för att hålla 4.5:1 mot kortet), träffyta `--rq-control-hit` i båda riktningarna (44 × 44 px på mobil). Det tillgängliga namnet bär nivån: "Send a minor challenge: Most km, 7 days"; två identiska tokens ger två knappar med samma namn, och var och en skickar sitt eget id. Måtten (två rader på 320–1440 px, kontrast, träffyta, hover, fokus) bevisas i `apps/e2e/tests/token-card-send.spec.ts`.
+- Nivåchipset (`TierChip`) är ett filterval (`aria-pressed`) i en `.rq-segmented`-rad och ärver därför träffytan (44 px på mobil) och den inåtriktade fokusringen ur `shared/components/view-controls.css`; det är en egen komponent i stället för ett `SegmentedControl`-alternativ eftersom det bär nivåns färg och kan vara tomt: en tom nivå är `aria-disabled` (aldrig `disabled`: den ska gå att fokusera och förklara sig, "No Major tokens right now" i en `role="status"`) och räknas aldrig som vald. Chipet bär ingen insats; insatsen står på korten. Valt chip tar nivåns tint/kant/text (`--rq-tier-*`).

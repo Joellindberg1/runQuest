@@ -25,7 +25,7 @@ export function IncomingOffer({ card, primary, busy, acceptBlocked, onAccept, on
         <div>
           <p className="rq-duels-offer__eyebrow">Waiting on you</p>
           <h3 className="rq-duels-offer__title">
-            <button type="button" className="rq-duels-namebtn" onClick={() => onOpenRunner(card.fromId)}>
+            <button type="button" className="rq-duels-namebtn" aria-label={card.from} data-runner-id={card.fromId} onClick={() => onOpenRunner(card.fromId)}>
               {card.fromShort}
             </button>
             {' · '}
@@ -75,7 +75,7 @@ export function SentOffer({ card, busy, onWithdraw, onOpenRunner }: SentOfferPro
         <div>
           <p className="rq-duels-offer__eyebrow">Sent</p>
           <h3 className="rq-duels-offer__title">
-            <button type="button" className="rq-duels-namebtn" onClick={() => onOpenRunner(card.toId)}>
+            <button type="button" className="rq-duels-namebtn" aria-label={card.to} data-runner-id={card.toId} onClick={() => onOpenRunner(card.toId)}>
               {card.toShort}
             </button>
             {' · '}

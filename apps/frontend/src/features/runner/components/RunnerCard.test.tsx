@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import * as Dialog from '@radix-ui/react-dialog';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@runquest/types';
@@ -12,6 +11,7 @@ import { AuthContext, type AuthContextType } from '@/providers/authContext';
 import { ME, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { setViewportWidth } from '@/test/viewport';
 import { RunnerCard } from './RunnerCard';
+import { RunnerPopup } from './RunnerPopup';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Badge-anropen styrs per test; resten av kortet går mot fakeBackend som i RunnerPage.test.
@@ -53,14 +53,14 @@ const auth: AuthContextType = {
 
 const loggedOut: AuthContextType = { ...auth, user: null };
 
-function renderCard(width = MOBILE, authValue: AuthContextType = auth, variant: 'page' | 'overlay' = 'page') {
+function renderCard(width = MOBILE, authValue: AuthContextType = auth, surface: 'page' | 'popup' = 'page', onBack: () => void = () => {}) {
   setViewportWidth(width);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          <RunnerCard user={KARL} allUsers={PACK} variant={variant} />
+          {surface === 'page' ? <RunnerCard user={KARL} allUsers={PACK} onBack={onBack} /> : <RunnerPopup id={KARL.id} runner={KARL} users={PACK} failure={null} failed={false} onClose={() => {}} />}
         </MemoryRouter>
       </AuthContext.Provider>
     </QueryClientProvider>,
@@ -83,6 +83,35 @@ beforeEach(() => {
   badgesApi.getGroupBadges.mockReset();
   badgesApi.getUserBadges.mockResolvedValue(KARL_BADGES);
   badgesApi.getGroupBadges.mockResolvedValue(groupOf({ [speedster.key]: 1, [milestoner.key]: 5, [nightOwl.key]: 6, [streakKeeper.key]: 2 }));
+});
+
+describe('tillbakalänken', () => {
+  const backLink = () => screen.findByRole('link', { name: 'Standings' });
+
+  it('ett vanligt vänsterklick förhindras och går via onBack (ett steg bakåt)', async () => {
+    const onBack = vi.fn();
+    renderCard(MOBILE, auth, 'page', onBack);
+    const back = await backLink();
+
+    // fireEvent.click returnerar false när händelsen avbrutits (preventDefault): länken navigerar alltså inte själv.
+    expect(fireEvent.click(back)).toBe(false);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['Cmd', { metaKey: true }],
+    ['Shift', { shiftKey: true }],
+    ['Alt', { altKey: true }],
+    ['mittenknappen', { button: 1 }],
+  ])('%s-klick är en vanlig länk: webbläsaren får göra sitt, onBack anropas inte', async (_name, init) => {
+    const onBack = vi.fn();
+    renderCard(MOBILE, auth, 'page', onBack);
+    const back = await backLink();
+
+    expect(fireEvent.click(back, init)).toBe(true);
+    expect(onBack).not.toHaveBeenCalled();
+  });
 });
 
 describe('minis i hjältekortet (T1)', () => {
@@ -200,19 +229,27 @@ describe('ordningen: .rq-runner__lower (T2)', () => {
     expect(container.querySelector('.rq-runner__side')?.contains(screen.getByRole('region', { name: 'Titles' }))).toBe(true);
   });
 
-  it('overlay-varianten (desktop-modalen): samma ordning som sidan och panelen renderas en gång', async () => {
-    const { container } = renderCard(DESKTOP, auth, 'overlay');
-    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
-    await screen.findByRole('region', { name: 'Head to head' });
+  it('popupen (desktop-dialogen): hjälte över flikarna, en panel i taget och Badges-panelen renderas en gång', async () => {
+    renderCard(DESKTOP, auth, 'popup');
+    // Dialogen portas till body, utanför renderingens container.
+    const dialog = await screen.findByRole('dialog');
+    await screen.findByText('Head to head: 2–0–1 to you');
 
-    expect(container.querySelector('.rq-runner')).toHaveAttribute('data-variant', 'overlay');
-    expect(regionOrder(container)).toEqual(['Runner', "Frodo's journey", 'Runner stats', 'Titles', 'Badges', 'Head to head']);
+    // Overview är startfliken: hjälten (med head to head i bannern) och Overview-växlingen. Inget av de andra flikarnas innehåll ritas.
+    expect(regionOrder(dialog)).toEqual(['Runner']);
+    expect(within(dialog).getByRole('group', { name: 'Overview view' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Head to head' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Badges' })).toBeNull();
+    expect(dialog.querySelector('.rq-runner__lower')).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Badges' }));
+    await within(await screen.findByRole('region', { name: 'Badges' })).findByRole('list', { name: 'Earned badges' });
+    expect(regionOrder(dialog)).toEqual(['Runner', 'Badges']);
     expect(screen.getAllByRole('region', { name: 'Badges' })).toHaveLength(1);
-    expect(container.querySelectorAll('.rq-badge-panel')).toHaveLength(1);
-    const lower = container.querySelector('.rq-runner__lower') as HTMLElement;
-    expect([...lower.children]).toEqual([badgesPanel(), screen.getByRole('region', { name: 'Head to head' })]);
-    expect(container.querySelector('.rq-runner__split')?.nextElementSibling).toBe(lower);
-    expect(screen.getByText('Runner profile')).toBeInTheDocument();
+    // The popup's tab has the cards of the popup, not the compact panel of the page.
+    expect(dialog.querySelectorAll('.rq-runner-badges')).toHaveLength(1);
+    expect(dialog.querySelectorAll('.rq-badge-panel')).toHaveLength(0);
+    expect(screen.queryByText('Runner profile')).toBeNull();
   });
 
   it('utan inloggad (ingen head to head) står panelen ensam i .rq-runner__lower', async () => {
@@ -288,68 +325,5 @@ describe('robusthet (T4)', () => {
     const badgeKeys = queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter((key) => key[0] === 'badges');
     expect(badgeKeys).toEqual(expect.arrayContaining([[...BADGE_QUERY_KEYS.user('u-karl')], [...BADGE_QUERY_KEYS.group]]));
     expect(badgeKeys).toHaveLength(2);
-  });
-});
-
-// Emblem-popovern inuti Runner card-dialogen (RUN-152): samma Radix-struktur som RunnerPage (Dialog.Root/Portal/Overlay/Content). Popovern portas till body, utanför dialogens innehåll —
-// den får varken räknas som ett klick utanför (stänger dialogen) eller ta Escape från dialogen.
-describe('emblem-popovern i Runner card-dialogen', () => {
-  function renderInDialog() {
-    setViewportWidth(DESKTOP);
-    const onOpenChange = vi.fn();
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0, gcTime: 0 } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <AuthContext.Provider value={auth}>
-          <MemoryRouter>
-            <Dialog.Root open onOpenChange={onOpenChange}>
-              <Dialog.Portal>
-                <Dialog.Overlay className="rq-scrim" />
-                <Dialog.Content className="rq-modal" aria-describedby={undefined}>
-                  <Dialog.Title className="sr-only">{KARL.name}</Dialog.Title>
-                  <Dialog.Close aria-label="Close">✕</Dialog.Close>
-                  <RunnerCard user={KARL} allUsers={PACK} variant="overlay" />
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-          </MemoryRouter>
-        </AuthContext.Provider>
-      </QueryClientProvider>,
-    );
-    return { onOpenChange };
-  }
-  const runnerDialog = () => screen.getByRole('dialog', { name: KARL.name });
-  const popover = () => screen.queryByRole('dialog', { name: speedster.name });
-
-  it('emblemet öppnar popovern; ett klick inuti den stänger inte Runner card-dialogen', async () => {
-    const { onOpenChange } = renderInDialog();
-    const panel = await screen.findByRole('region', { name: 'Badges' });
-    await within(panel).findByRole('list', { name: 'Earned badges' });
-
-    fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));
-    const detail = await screen.findByRole('dialog', { name: speedster.name });
-    expect(runnerDialog()).toBeInTheDocument();
-    // Popovern ligger utanför dialogens innehåll (Radix-portal), inte inuti det.
-    expect(runnerDialog().contains(detail)).toBe(false);
-
-    fireEvent.pointerDown(within(detail).getByRole('heading', { name: speedster.name }));
-    fireEvent.click(within(detail).getByRole('heading', { name: speedster.name }));
-    expect(popover()).toBeInTheDocument();
-    expect(runnerDialog()).toBeInTheDocument();
-    expect(onOpenChange).not.toHaveBeenCalled();
-  });
-
-  it('Escape stänger bara popovern: Runner card-dialogen står kvar', async () => {
-    const { onOpenChange } = renderInDialog();
-    const panel = await screen.findByRole('region', { name: 'Badges' });
-    await within(panel).findByRole('list', { name: 'Earned badges' });
-
-    fireEvent.click(within(panel).getByRole('button', { name: nameOf(5, speedster) }));
-    const detail = await screen.findByRole('dialog', { name: speedster.name });
-
-    fireEvent.keyDown(detail, { key: 'Escape' });
-    await waitFor(() => expect(popover()).toBeNull());
-    expect(runnerDialog()).toBeInTheDocument();
-    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

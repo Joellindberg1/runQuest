@@ -9,6 +9,7 @@ import { RequireAuth } from '@/app-shell/RequireAuth';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { legacyChallengesTarget } from '@/app-shell/legacyRedirects';
 import { ShellErrorBoundary } from '@/app-shell/ShellErrorBoundary';
+import { useRestoreRunnerFocus } from '@/app-shell/useRestoreRunnerFocus';
 import { readBackground, useCloseRunner } from '@/shared/hooks/useOpenRunner';
 import { RoutePending } from '@/app-shell/RoutePending';
 // Skalets delade lager (.rq-scrim, .rq-modal) används även av landningens inloggningsdialog. Laddningsvyns ram (.rq-shell__pending) ligger i shell-pending.css och följer med RoutePending.
@@ -57,6 +58,8 @@ export const AppRoutes: React.FC = () => {
   const isDesktop = useIsDesktop();
   const background = isDesktop ? readBackground(location) : undefined;
   const closeOverlay = useCloseRunner();
+  // Här och inte i ShellOutlet: `<Routes location={background}>` ger skalets `useLocation` bakgrundssidan medan popupen är öppen, så skalet ser aldrig popupen stängas.
+  useRestoreRunnerFocus();
 
   return (
     <>

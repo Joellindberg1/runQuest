@@ -19,16 +19,29 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   - **Ingen väljare i profilen (RUN-150/151):** valet av visade badges görs på `/badges` (`features/badges`, `BadgesScreen`). `ProfileScreen` äger ingen `pickerOpen`/`editRef`/panel och sammanfattningen har ingen Edit-knapp. Tur-ankarna är oförändrade.
   - `FrodoRoad` — vägen (waypoints, ticks, stapel, markör, ändetiketter) och `ZoomButton`; EN komponent som även Runner cards desktop-väg använder (`prefix` styr klassnamnen)
   - `JourneyCard` — Frodo: vägen med waypoints/ticks, zoomknapp (Overview → Zoomed → Close-up) på mobil OCH desktop, procent, nästa mål
-  - `StatsPanel` — `ViewTabs variant="underline"` över `?view=`; `Heatmap` är Consistency-fliken
+  - `PositionPanel` — innehållet i Position-fliken (femte fliken, bara i en grupp på minst två medlemmar): `usePositionHistory(POSITION_WEEKS_DEFAULT)` → `buildPositionProfileModel(history, userId)` → `PositionChart` (`React.lazy`, egen chunk; importen startar när fliken öppnas). Monteras bara när fliken är vald, så ingen positionsbegäran går på övriga flikar. Laddning = `PanelLoading`, fel = `ErrorState` med Retry
+  - `StatsPanel` — skalet: `ViewTabs variant="underline"`, kontrollerad (`view`, `onChange`, `label`, `dataTour` från värden): `ProfileScreen` äger `?view=` (`useViewParam`), panelen läser aldrig adressen Flikraden har en femte flik, Position (`showPosition`, bara i en grupp på minst två): den ritar `PositionPanel` (lazy) i stället för `StatsContent`, förladdar panelens chunk när pekaren eller fokus går till fliken och sätter kantfaden på flikraden.
+  - `StatsContent` — innehållet för en vy utan skal (Distance, Streak med trappan hämtad bara när den visas, Fun facts, Consistency = `Heatmap`, som ritar den löpare den får som prop). Delas av profilens `StatsPanel` och popupens `OverviewPanel` (`features/runner`); `extraFunRows` är det som en värd lägger sist i Fun facts (popupens utmaningsrekord), profilens modell har inga
   - `TitlesPanel` — "MY TITLES": mobil "5 held · 3 runner-up" + tre titlar + "Show all 8", desktop "Holding · 5" / "Runner-up · 3" med innehavare och avstånd
-  - `RunHistory` — fyra rader + "Show all N runs"; `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
+  - `RunHistory` — fyra rader + "Show all N runs"; varje rad har "Time" och "Pace" och under listan står "Total time"/"Pace" för de rundor som visas just nu (räknas om vid "Show all").
+    Vymodellen (`buildRunTime`, `buildRunTimeSummary` i `profileModel`) använder bara `summariseRunTime`/`paceSecPerKm` (shared) och `runTimeFormat`; saknad, null, 0, NaN eller negativ tid ger "—" med dold text
+    "no time recorded", och "based on N of M runs" visas bara när N < M. Skärmläsaren får en mening per rad/summa (från en timme med ord: "1 hour 9 minutes 40 seconds"), de synliga fälten är `aria-hidden`.
+    `EditRunSheet` — redigera/radera (bottensheet mobil, dialog desktop)
+  - `PositionChart` — Position-flikens graf (RUN-401; fliken själv är RUN-402): en handritad SVG (ingen diagramlib) ur `positionModel`, som prop. Linjen är en SVG som sträcks över ytan (`non-scaling-stroke`), dottarna är HTML ovanpå
+    (24 px, siffran `aria-hidden`), veckoetiketterna `W27…` sitter under och axelsiffror saknas. `role="img"` bär en mening (`summary`), "Show as table" (`aria-expanded`) visar en `<table>` med rubrikceller. `hidden` ritar ingenting,
+    `new-runner` och `no-finished-week` ger modellens text i stället för graf. Ritas en gång, inget rör sig. Komponenten ska laddas med `React.lazy` (dynamisk import) av fliken och får aldrig hamna i landningens eller profilens huvudbunt;
+    den har egen stilfil, `positionChart.css`, som följer med chunken. Tokens `--rq-profile-position-*` (index.css sektion 1.26 + temafilen). `<svg>` är undantaget i `eslint.config.js` (måste vara `aria-hidden`).
 - **profileModel.ts** — hjälte/celler/titlar (via runnerModel), rundrader, redigeringsregler, bekräftelsetexter, XP-uppräkning, bildvalidering
-- **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS`
+- **statsModel.ts** — Distance/Streak (delade med Runner card) och profilens egna Fun facts ("Longest gap between runs"); `STAT_VIEWS` (de fyra som alla ser), `statViewsFor(memberCount)` (regeln `showPositionTab` bor i `leaderboard/positionTab`, delad med Board) (Position som femte flik, ur gruppstorleken i `users-with-runs`; en grupp på en faller `?view=position` tillbaka på Distance)
+- **Kantfaden på flikraden** — delad med Board: `shared/components/tabRowFade.ts` (räkneregeln) och `shared/hooks/useTabRowFade.ts` (`StatsPanel` skickar antalet flikar som `tabCount`). `data-fade-start/end` sätts på `.rq-profile-tabs-wrap`, toningen är en mask i `profile.css` och zonen är radens `scroll-padding-inline`
 - **heatmapModel.ts** — Consistency-rutnätet och dess tre siffror
 - **frodoModel.ts** — waypoint-/viewport-matematiken; delas med Runner card
+- **positionModel.ts** — Position-flikens vymodell ur `PositionHistoryResponse` (lägen `hidden`/`no-finished-week`/`new-runner`/`ready`, axel, dottar, linje, Best/Lowest/Now, meningen och tabellen). Perioden (`range`) och veckoetiketterna kommer ur
+  leaderboardens `positionWeekLabels`, texterna för den pågående veckan ("this week so far") och tankstrecket (`—`, "not in the group yet", fotnoten) ur `leaderboard/positionTexts` — delade med leaderboardens `positionChartModel`,
+  så att båda skriver samma sak om samma svar (testet `positionTextsAgree` matar samma svar genom båda)
 - **profileFormat.ts** — "1 day"/"19 days"; tal, km och månadsnamn ligger i shared/utils/format
 - **hooks/** — `useRunChanges` (`useUpdateRun`/`useDeleteRun`), `useProfilePictureUpload`
-- `profile.css` — enda stilfilen; mått (`--rq-profile-*`) i temafilen, sektion 1.26 (index.css + docs/design/temafil-forslag.css)
+- `profile.css` — stilfilen för skärmen (utom positionsgrafen, som har `positionChart.css`); mått (`--rq-profile-*`) i temafilen, sektion 1.26 (index.css + docs/design/temafil-forslag.css)
 - `profile.fixture.ts` — testdata (rundor, användare)
 
 ## Regler värda att komma ihåg
@@ -57,8 +70,9 @@ Runner card (`/runner/:id`, `features/runner`) är samma skärm sedd utifrån: h
   (`mapApiUser`). **409 vid radering** (rundan kvalificerade ett event, ADR 008 addendum 5): serverns klartext visas i rutans `role="alert"` och rutan står kvar.
 - **Heatmapen:** en ruta per dag, veckor mån–sön, en vecka tillhör månaden där dess måndag ligger (4–5 per månad, som prototypen). Intensitet = dagens km:
   0 · <5 · 5–10 · 10–15 · 15+ (stegen följer distansbonusarna). Desktop 12 månader, mobil 6. Raden är scrollbar (fokus går att panorera) och visar nyaste delen. Etiketten räknar de block som faktiskt ritas ("runs · 5 months" tidigt i en månad). Rutor med runda har `role="img"` + aria-label (dag · km · rundor); dagar utan runda är dekor.
-  Nuvarande streak är den effektiva (samma `streakDeadline` som Board/Right now), "longest streak" är rekordet — samma tal som Streak-fliken. Rutorna växer in en gång
-  (`rqGrowY`, stagger per vecka) och står sedan still.
+  Nuvarande streak är den effektiva (samma `streakDeadline` som Board/Right now), "longest streak" är rekordet — samma tal som Streak-fliken. Rutorna växer in när kartan monteras
+  (`rqGrowY`, stagger per vecka) och står sedan still; popupen delar en flagga (`introPlayed`) mellan monteringarna så att det sker en gång per öppning. Scrollregionen är ett tabbstopp
+  bara när raden faktiskt scrollar (`data-fits="false"`).
 - **Longest gap between runs** = största antalet dagar mellan två löpardagar (två dagar i rad = 1). Bara avslutade uppehåll; tiden sedan senaste rundan räknas inte.
 - **Frodo-zoom** på båda skärmstorlekarna (prototypen har den i båda). Mobil visar procent + "Next X — N km", desktop dessutom "Last checkpoint", "away" och en ring
   där nästa checkpoint ligger. Vid 0 km / framme finns ingen zoomknapp.

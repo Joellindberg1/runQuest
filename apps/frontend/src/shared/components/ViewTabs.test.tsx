@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ViewTabs } from './ViewTabs';
 
 const TABS = [
@@ -36,6 +37,45 @@ describe('ViewTabs', () => {
     expect(onChange).toHaveBeenLastCalledWith('a');
     fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowLeft' });
     expect(onChange).toHaveBeenLastCalledWith('b');
+  });
+
+  it('ViewTabs selects the first tab on Home', async () => {
+    const user = userEvent.setup();
+    const onChange = setup('c');
+    screen.getByRole('tab', { name: 'Gamma' }).focus();
+    await user.keyboard('{Home}');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith('a');
+    expect(screen.getByRole('tab', { name: 'Alpha' })).toHaveFocus();
+  });
+
+  it('ViewTabs selects the last tab on End', async () => {
+    const user = userEvent.setup();
+    const onChange = setup('a');
+    screen.getByRole('tab', { name: 'Alpha' }).focus();
+    await user.keyboard('{End}');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith('c');
+    expect(screen.getByRole('tab', { name: 'Gamma' })).toHaveFocus();
+  });
+
+  it.each([
+    ['ctrlKey', 'End'],
+    ['ctrlKey', 'Home'],
+    ['metaKey', 'ArrowLeft'],
+    ['altKey', 'ArrowLeft'],
+    ['altKey', 'ArrowRight'],
+    ['shiftKey', 'End'],
+  ] as const)('ViewTabs leaves %s + %s to the browser: no tab change and the default is not prevented', (modifier, key) => {
+    const onChange = setup('b');
+    const notPrevented = fireEvent.keyDown(screen.getByRole('tab', { name: 'Beta' }), { key, [modifier]: true });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notPrevented).toBe(true);
+  });
+
+  it('ViewTabs still prevents the default for an unmodified arrow, so the page does not scroll', () => {
+    setup('b');
+    expect(fireEvent.keyDown(screen.getByRole('tab', { name: 'Beta' }), { key: 'ArrowRight' })).toBe(false);
   });
 
   it('andra tangenter gör ingenting', () => {

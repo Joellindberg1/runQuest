@@ -1,7 +1,9 @@
+import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 import { BADGE_SERIES, TIER_NAMES } from '@runquest/shared';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { contrast, flatten, over, resolveColor, themeTokens } from '../../test/contrast';
 
 // Vakttester över badges-featuren (ADR 009): typerna kommer ur @runquest/shared, varje resurs har EN query-definition, och inga
 // serienamn/texter är hårdkodade — allt om serierna läses ur shared (BADGE_SERIES, TIER_NAMES, requirementText, tierFlavor).
@@ -13,6 +15,7 @@ const sources = import.meta.glob(['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!
 }) as Record<string, string>;
 
 const codeFiles = Object.entries(sources);
+
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('badges-featuren: delade definitioner, inte egna kopior', () => {
@@ -195,13 +198,6 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
   const index = declarations(indexCss);
   const norm = (value: string | undefined) => (value ?? '').replace(/\s+/g, '').toLowerCase();
 
-  // WCAG-kontrast för kontrastvakterna (mörkt och ljust tema).
-  const channel = (value: number) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-  const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-  const contrast = (a: number[], b: number[]) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
-  const over = (fg: number[], alpha: number, bg: number[]) => fg.map((value, i) => value * alpha + bg[i] * (1 - alpha));
-  const hexRgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
-
   const source = readFromDisk('../../../../../docs/design/claude-design/runquest-badges.js');
   const tiersBlock = source.slice(source.indexOf('const TIERS = {'), source.indexOf('const ORDER'));
   const sizesBlock = source.slice(source.indexOf('const SIZES = {'), source.indexOf('/* Layers:'));
@@ -268,19 +264,14 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
   });
 
   it('kontrastvakt: chip-texten i varje nivåfärg når 4.5:1 mot chippets egen bakgrund (nivåfärgen i --rq-badge-chip-tint över kortet = panel över skalet + row-soft)', () => {
-    const rgba = (name: string) => {
-      const match = new RegExp(`${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([.\\d]+)\\)`).exec(indexCss);
-      expect(match, name).not.toBeNull();
-      return { rgb: [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])], alpha: Number(match?.[4]) };
-    };
-    const panel = rgba('--rq-panel');
-    const rowSoft = rgba('--rq-row-soft');
-    const shell = hexRgb(/--rq-bg-shell:\s*(#[0-9a-fA-F]{6});/.exec(indexCss)?.[1] ?? '#000000');
-    const card = over(rowSoft.rgb, rowSoft.alpha, over(panel.rgb, panel.alpha, shell));
+    // Samma metod och samma hjälpare som src/test/contrastGuard.test.ts (nya tokenpar, båda teman, popupens chip).
+    const tokens = themeTokens(indexCss, 'dark');
+    const color = (value: string) => resolveColor(tokens, value);
+    const card = flatten([color('var(--rq-bg-shell)'), color('var(--rq-panel)'), color('var(--rq-row-soft)')]);
     const tint = Number(index.get('--rq-badge-chip-tint'));
     for (const name of TIER_NAMES) {
       const key = name.toLowerCase();
-      const text = hexRgb(index.get(`--rq-badge-${key}`) ?? '#000000');
+      const text = color(`var(--rq-badge-${key})`).rgb;
       const chipBackground = over(text, tint, card);
       expect({ key, ratio: contrast(text, chipBackground) >= 4.5 }).toEqual({ key, ratio: true });
     }
@@ -294,22 +285,42 @@ describe('--rq-badge-*-tokens: värdena följer designkällan runquest-badges.js
     expect(mix, 'the rule only sets color, as a color-mix of the tier colour and --rq-text-1').not.toBeNull();
     expect(ruleBlocks.filter((block) => /color-mix/.test(block.body)).map((block) => block.selector)).toEqual([rule?.selector]);
 
-    const lightBlock = /\[data-theme="light"\]\s*\{[\s\S]*?\n\}/.exec(indexCss)?.[0] ?? '';
-    const lightToken = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(lightBlock)?.[1]?.trim() ?? '';
-    const rowSoft = /^rgb\((\d+) (\d+) (\d+) \/ ([.\d]+)\)$/.exec(lightToken('--rq-row-soft'));
-    expect(rowSoft, '--rq-row-soft in the light theme').not.toBeNull();
-    const shell = hexRgb(lightToken('--rq-bg-shell'));
-    const textOne = hexRgb(lightToken('--rq-text-1'));
+    // Samma metod som mörka vakten ovan: temats tokens ur index.css, och textfärgen är regelns eget värde (color-mix) löst mot nivåns färg.
+    const tokens = themeTokens(indexCss, 'light');
+    const color = (value: string, scope?: Map<string, string>) => resolveColor(tokens, value, scope);
     // Kortet ligger direkt på sidans yta (--rq-bg-shell) med --rq-row-soft över; chippets tint ligger över kortet.
-    const card = over([Number(rowSoft?.[1]), Number(rowSoft?.[2]), Number(rowSoft?.[3])], Number(rowSoft?.[4]), shell);
-    const share = Number(mix?.[1]) / 100;
+    const card = flatten([color('var(--rq-bg-shell)'), color('var(--rq-row-soft)')]);
     const tint = Number(index.get('--rq-badge-chip-tint'));
+    const colorValue = /^color:\s*(.+);$/.exec(rule?.body.trim() ?? '')?.[1] ?? '';
     for (const name of TIER_NAMES) {
-      const tier = hexRgb(index.get(`--rq-badge-${name.toLowerCase()}`) ?? '#000000');
-      const text = tier.map((value, i) => value * share + textOne[i] * (1 - share));
+      const key = name.toLowerCase();
+      const tier = color(`var(--rq-badge-${key})`).rgb;
+      const text = color(colorValue, new Map([['--rq-c-solid', `var(--rq-badge-${key})`]])).rgb;
       const ratio = contrast(text, over(tier, tint, card));
       expect({ name, enough: ratio >= 4.5 }).toEqual({ name, enough: true });
     }
+  });
+
+  it('exakt en chipregel: ingen regel utanför badges.css sätter color på .rq-badge-chip (popupen och övriga ytor ärver regeln i badges.css)', () => {
+    // Läses från disk: Vitest tömmer CSS som importeras (även `?raw`), så en glob skulle ge tomma strängar och ett prov som aldrig kan fälla.
+    const srcRoot = fileURLToPath(new URL('../..', import.meta.url));
+    const sheets = readdirSync(srcRoot, { recursive: true, encoding: 'utf8' }).map((path) => path.replace(/\\/g, '/')).filter((path) => path.endsWith('.css'));
+    expect(sheets, 'badges.css is among the scanned stylesheets').toContain('features/badges/badges.css');
+    expect(sheets, 'the popup stylesheet (the density rule for the chip lives there) is among the scanned stylesheets').toContain('features/runner/runnerPopup.css');
+    expect(sheets.length, 'the scan reaches the other stylesheets').toBeGreaterThan(10);
+    const offenders: string[] = [];
+    let chipRulesOutside = 0;
+    for (const path of sheets) {
+      if (path === 'features/badges/badges.css') continue;
+      postcss.parse(readFileSync(`${srcRoot}/${path}`, 'utf8')).walkRules((rule) => {
+        if (!/\.rq-badge-chip\b/.test(rule.selector)) return;
+        chipRulesOutside += 1;
+        rule.walkDecls('color', () => { offenders.push(`${path}: ${rule.selector}`); });
+      });
+    }
+    // Skannern ser chipregler utanför badges.css (t.ex. radtätheten i runnerPopup.css), annars vore provet tomt.
+    expect(chipRulesOutside, 'the scan sees chip rules outside badges.css').toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
   });
 
   it('nivåfärgerna är egna literaler: inget --rq-badge-*-värde är ett alias mot status-, guld- eller utmaningsfärger', () => {

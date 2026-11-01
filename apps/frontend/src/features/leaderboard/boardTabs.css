@@ -1,0 +1,24 @@
+/* Standings flikrad (BoardTabs): fyra flikar med Position. ENDAST tokens (regel 1). Egen fil, inte board.css: board.css ligger också i landningens stilmallar (LandingScreen), och flikraden hör bara till
+   Board-sidan, så den här filen följer med sidan och aldrig med landningen. Utseendet på själva flikarna (chip, vald guld, inåtriktad ring, 44 px på mobil) kommer ur view-controls.css och board.css. */
+
+/* Fyra flikar ryms inte på 320 px: lika breda flikar (flex: 1) som aldrig krymper under sin text, och rymms de inte scrollar raden i sidled i sin egen yta i stället för att göra sidan bredare
+   (lika breda flikar som scrollar i sin egen yta, som profilens flikrad). overflow-x: auto gör också overflow-y till auto och klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset i view-controls.css). */
+.rq-board__tabs-wrap { min-width: 0; }
+/* scroll-padding-inline är kantfadens zon: samma token som toningen nedan, och useTabRowFade läser måttet härifrån för att hålla den valda fliken utanför zonen. */
+.rq-board__tabs { overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: var(--rq-sp-24); }
+.rq-board__tabs > [role="tab"] { flex: 1; white-space: nowrap; }
+
+/* Kantfade: raden tonas ut mot den kant som har fler flikar bortom sig (data-fade-* sätts av useTabRowFade, ur radens scrollläge). Masken använder bara alfa; textfärgen är bara en
+   ogenomskinlig färg. Utan data-attributen (alla flikar ryms) finns ingen mask. */
+.rq-board__tabs-wrap[data-fade-start="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-board__tabs-wrap[data-fade-end="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-board__tabs-wrap[data-fade-start="true"][data-fade-end="true"] > .rq-board__tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+}

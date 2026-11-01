@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
-import type { ChallengeTier } from '@runquest/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { DUELS_TOUR_SLUG } from '@runquest/shared';
 import { useIsDesktop } from '@/app-shell/useIsDesktop';
 import { useNow } from '@/app-shell/useNow';
@@ -10,18 +9,22 @@ import { OPPONENT_PARAM, SEND_PARAM } from '@/paths';
 import { useAuth } from '@/providers/authContext';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { SkeletonRows } from '@/shared/components/loaders/SkeletonRows';
+import { readSendOrigin, withoutSendOrigin, type FocusRunnerState } from '@/shared/hooks/routeState';
 import { useOpenRunner } from '@/shared/hooks/useOpenRunner';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
 import { useViewParam } from '@/shared/hooks/useViewParam';
+import { historyIdx } from '@/shared/utils/historyIdx';
+import { requestRunnerFocus } from '@/shared/utils/runnerFocusIntent';
 import { firstName } from '@/shared/utils/format';
 import {
   DEFAULT_DUELS_VIEW, DUELS_VIEWS, buildBoosts, buildHistoryRows, buildIncoming, buildLiveCards, buildRecord, buildSent, buildStandings,
   buildTokenGroups, nameMap, summaryText, tokenTotal,
 } from '../duelsModel';
 import { useChallengeActions } from '../hooks/useChallengeActions';
+import { useFocusRescue } from '../hooks/useFocusRescue';
 import { useGroupHistory, useGroupStats, useLiveProgress, useMyChallenges } from '../hooks/useDuelsQueries';
 import { buildTierRules, observedStakes, sampleFromHistory, type StakeSample } from '../rulesModel';
-import { sendBlocker } from '../sendModel';
+import { sendBlocker, startRuleSentence, type SendPreselection } from '../sendModel';
 import { DuelsLayout, type Notice } from './DuelsLayout';
 import { SendSheet } from './SendSheet';
 
@@ -39,11 +42,12 @@ export function DuelsScreen() {
   const isDesktop = useIsDesktop();
   const now = useNow();
   const openRunner = useOpenRunner();
+  const navigate = useNavigate();
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useViewParam(DUELS_VIEWS, DEFAULT_DUELS_VIEW);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [tierHint, setTierHint] = useState<ChallengeTier | null>(null);
+  const [preselection, setPreselection] = useState<SendPreselection | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
 
   const meId = user?.id ?? '';
@@ -53,6 +57,18 @@ export function DuelsScreen() {
   const usersQuery = useUsersWithRuns(enabled);
   const historyQuery = useGroupHistory(enabled && view === 'history');
   const actions = useChallengeActions();
+  const focusRescue = useFocusRescue();
+
+  const sendOpen = params.get(SEND_PARAM) === '1';
+  // Identiteten på send-arket som är öppet just nu (null: inget öppet, eller skärmen är borta). Ett skick som är på väg när webbläsarens Back stänger arket (eller tar användaren
+  // från skärmen) får sitt svar efteråt, och då får det varken stänga ett ark som inte längre är dess eget eller navigera: en ny `setParams` på en avmonterad skärm skulle annars
+  // föra användaren tillbaka till /duels.
+  const openSheet = useRef<symbol | null>(null);
+  useEffect(() => {
+    if (!sendOpen) return;
+    openSheet.current = Symbol('send sheet');
+    return () => { openSheet.current = null; };
+  }, [sendOpen]);
 
   const my = myQuery.data;
   const stats = statsQuery.data;
@@ -108,10 +124,16 @@ export function DuelsScreen() {
   const blocker = sendBlocker({ tokenCount: tokenTotal(tokenGroups), inLiveDuel, sent, incomingCount: incoming.length });
   const summary = summaryText({ live: my.group_active.length, waitingOnMe: incoming.length, tokens: tokenTotal(tokenGroups) }, isDesktop);
 
-  const sendOpen = params.get(SEND_PARAM) === '1';
+  // Förvalet gäller bara medan sheeten som det öppnades för är öppen. Webbläsarens Back stänger sheeten utan att closeSend körs, och en senare ingång som bara byter
+  // adress (?send=1, popupens Challenge, Forward) ska inte ärva det: därför nollställs det så fort sheeten inte är öppen (set-state-under-render, React-mönstret för härlett tillstånd).
+  if (!sendOpen && preselection !== null) setPreselection(null);
+  // Ursprunget (sidan under löparens popup) gäller bara flödet som popupens Challenge öppnade. Det får inte ligga kvar efter ett skick (`closeSend` tömmer det):
+  // annars skulle ett senare Cancel hoppa till en gammal bakgrundssida.
+  const origin = readSendOrigin(state);
+  const stateWithoutOrigin = withoutSendOrigin(state);
   // Öppna med en ny historikpost (back stänger sheeten); stäng med replace så back inte öppnar den igen.
-  const openSend = (tier?: ChallengeTier) => {
-    setTierHint(tier ?? null);
+  const openSend = (next?: SendPreselection) => {
+    setPreselection(next ?? null);
     setNotice(null);
     setParams(
       (previous) => {
@@ -122,8 +144,8 @@ export function DuelsScreen() {
       { state },
     );
   };
+  // Stängning utan att gå till en annan sida: efter ett skick och för flöden utan ursprung.
   const closeSend = () => {
-    setTierHint(null);
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -131,8 +153,23 @@ export function DuelsScreen() {
         next.delete(OPPONENT_PARAM);
         return next;
       },
-      { replace: true, state },
+      { replace: true, state: stateWithoutOrigin },
     );
+  };
+  // Avbrutet (Cancel, ✕, Esc, skrim, Close i det blockerade läget). Med ursprung går vi tillbaka till sidan under popupen och skalet fokuserar löparens rad.
+  // Ligger den en post bakåt (indexet som popupen skickade stämmer med var vi är) går vi ett steg bakåt: historiken får ingen ny post, och fokusavsikten bärs i minnet eftersom
+  // `navigate(-1)` inte kan bära route-state. Går det inte att avgöra (djuplänk, ny flik, historiken ändrad) ersätter vi send-flödets post med sidan, och avsikten bärs av route-state.
+  const cancelSend = () => {
+    if (!origin) {
+      closeSend();
+      return;
+    }
+    if (origin.returnIdx !== undefined && historyIdx() === origin.returnIdx + 1) {
+      requestRunnerFocus(origin.runnerId);
+      navigate(-1);
+      return;
+    }
+    navigate(origin.returnTo, { replace: true, state: { focusRunnerId: origin.runnerId } satisfies FocusRunnerState });
   };
 
   const respond = async (run: () => Promise<unknown>, success: string, failure: string) => {
@@ -145,11 +182,35 @@ export function DuelsScreen() {
     }
   };
 
-  const sendChallenge = async (tokenId: string, opponentId: string) => {
-    await actions.send.mutateAsync({ tokenId, opponentId });
+  // Avgörs skicket medan arket det skickades från fortfarande är öppet visar arket felet och `closeSend` stänger det efter ett lyckat skick. Har Back stängt arket under tiden finns ingen
+  // yta för utfallet utom sidan: skärmen visar då utfallet som bekräftelse eller fel, och stänger inget. Är skärmen borta (Back lämnade /duels) syns inget, och omhämtningen som
+  // mutationen själv gör (`useChallengeActions`) visar en skapad utmaning på nästa besök. Inget andra skick och ingen andra bekräftelse: svaret hanteras en gång, här.
+  // Fokus: Back lämnar det på kortet som öppnade arket, och omhämtningen efter svaret kan ta bort kortet. När svaret landat och det som hade fokus är borta flyttar `focusRescue` det till bekräftelsen.
+  const sendChallenge = async (tokenKey: string, opponentId: string) => {
+    const sheet = openSheet.current;
+    const sheetIsOpen = () => sheet !== null && openSheet.current === sheet;
+    const focusWatch = focusRescue.begin();
+    try {
+      await actions.send.mutateAsync({ tokenId: tokenKey, opponentId });
+    } catch (error) {
+      if (sheetIsOpen()) {
+        focusWatch.stop();
+      } else {
+        setNotice({ tone: 'error', text: messageOf(error, 'Could not send the challenge') });
+        focusWatch.landed();
+      }
+      throw error;
+    }
     const opponent = names[opponentId];
-    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. It starts at midnight after they accept.` });
-    closeSend();
+    // Nivån läses ur tokengrupperna från före skicket (tokenet är borta efter omhämtningen); bekräftelsen säger samma startregel som "The bet".
+    const tier = tokenGroups.find((group) => group.cards.some((card) => card.tokenKey === tokenKey))?.tier ?? 'minor';
+    setNotice({ tone: 'ok', text: `Challenge sent${opponent ? ` to ${firstName(opponent)}` : ''}. ${startRuleSentence(tier)}` });
+    if (sheetIsOpen()) {
+      closeSend();
+      focusWatch.stop();
+    } else {
+      focusWatch.landed();
+    }
   };
 
   const busyId = actions.accept.isPending
@@ -206,9 +267,11 @@ export function DuelsScreen() {
           members={stats}
           users={usersQuery.data}
           meId={meId}
-          initialTier={tierHint}
+          preselection={preselection}
           initialOpponent={params.get(OPPONENT_PARAM)}
-          onClose={closeSend}
+          cancelFocus={origin ? 'page' : 'opener'}
+          originRunnerId={origin?.runnerId}
+          onClose={cancelSend}
           onSend={sendChallenge}
         />
       )}

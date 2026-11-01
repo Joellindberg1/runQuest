@@ -50,8 +50,10 @@ export interface Stake {
   /** "−0.07× / 5 d", eller "No penalty" när straffet är 0. */
   lose: string;
   loseTone: StakeTone;
-  /** Kort form utan längd, för token-raderna: "+0.15× win · −0.07× loss" / "+0.5× win · no penalty". */
-  summary: string;
+  /** Löptextform med längd, för tokenkorten: "+0.15× for 5 days" / "+0.2× for 3 runs". */
+  winFor: string;
+  /** Som `winFor` för förlusten, eller "No penalty" när straffet är 0. */
+  loseFor: string;
 }
 
 const trimmed = (value: number): string => String(Number(Math.abs(value).toFixed(2)));
@@ -70,18 +72,26 @@ export function boostText(delta: number, duration: number | null, type?: string)
   return `${deltaText(delta)} / ${windowText(duration, type)}`;
 }
 
+export const durationText = (days: number): string => `${days} d`;
+export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
+
+/** Boostens storlek och längd i löptext: "+0.15× for 5 days", "+0.2× for 3 runs". */
+function boostForText(delta: number, duration: number | null, type: string | undefined): string {
+  const length = duration ?? 0;
+  const window = type === 'multiplier_runs' ? `${length} ${length === 1 ? 'run' : 'runs'}` : durationLongText(length);
+  return `${deltaText(delta)} for ${window}`;
+}
+
 export function stakeOf(source: StakeSource): Stake {
   const noPenalty = source.loser_delta === 0;
   return {
     win: boostText(source.winner_delta, source.winner_duration, source.winner_type),
     lose: noPenalty ? 'No penalty' : boostText(source.loser_delta, source.loser_duration, source.loser_type),
     loseTone: noPenalty ? 'muted' : 'down',
-    summary: `${deltaText(source.winner_delta)} win · ${noPenalty ? 'no penalty' : `${deltaText(source.loser_delta)} loss`}`,
+    winFor: boostForText(source.winner_delta, source.winner_duration, source.winner_type),
+    loseFor: noPenalty ? 'No penalty' : boostForText(source.loser_delta, source.loser_duration, source.loser_type),
   };
 }
-
-export const durationText = (days: number): string => `${days} d`;
-export const durationLongText = (days: number): string => `${days} ${days === 1 ? 'day' : 'days'}`;
 
 export const NO_BREAK_SPACE = '\u00a0';
 

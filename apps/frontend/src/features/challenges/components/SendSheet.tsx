@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { LEGENDARY_AUTO_START_DAYS, type ChallengeGroupStat, type ChallengeTier } from '@runquest/shared';
+import type { ChallengeGroupStat } from '@runquest/shared';
 import type { User } from '@runquest/types';
 import { RQIcon } from '@/shared/components/icons';
 import { firstName } from '@/shared/utils/format';
-import { tierLabel } from '../duelsFormat';
-import type { TierGroup, TokenCombo } from '../duelsModel';
+import { focusPageHeadingAfterBack, focusRunnerRowAfterBack } from '@/shared/utils/focusRowAfterBack';
+import type { TierGroup } from '../duelsModel';
+import { confirmationElement, duelsPageTarget } from '../focusTargets';
 import { useOpponentRecords } from '../hooks/useDuelsQueries';
-import { buildOpponents, resolveOpponentParam, type OpponentOption, type SendBlocker } from '../sendModel';
-import { TierRibbon } from './TierRibbon';
+import { betSummary, buildOpponents, resolveOpponentParam, startingChoice, startRuleText, type SendBlocker, type SendPreselection } from '../sendModel';
+import { OpponentChoice } from './OpponentChoice';
+import { TierChip } from './TierChip';
+import { TokenChoice } from './TokenChoice';
 
 const ICON_HEAD = 21;
 
@@ -19,64 +22,35 @@ interface SendSheetProps {
   members: ChallengeGroupStat[];
   users: User[] | undefined;
   meId: string;
-  /** Nivån som tryckts på i tokens-panelen. */
-  initialTier: ChallengeTier | null;
+  /** Nivå och kort som tryckts på i tokens-panelen; null = inget förval. */
+  preselection: SendPreselection | null;
   /** `?opponent=`: förvald motståndare om personen går att utmana. */
   initialOpponent: string | null;
+  /** Vart fokus går när sheeten avbryts: `opener` = kortet/knappen som öppnade den, `page` = sidan som tar över (avbrutet flöde från löparens popup, där skalet fokuserar löparens rad). Efter ett skick gäller alltid bekräftelsen. */
+  cancelFocus?: 'opener' | 'page';
+  /** Löparen vars popup öppnade flödet. Stänger webbläsarens Back arket medan skicket pågår körs ingen avbrytväg och skalet vet inget om det: arket fokuserar då löparens rad själv. */
+  originRunnerId?: string;
   onClose: () => void;
   /** Kastar vid fel; sheeten visar då meddelandet och stannar kvar. */
-  onSend: (tokenId: string, opponentId: string) => Promise<void>;
-}
-
-function TokenOption({ combo, selected, onSelect }: { combo: TokenCombo; selected: boolean; onSelect: () => void }) {
-  return (
-    <button type="button" className="rq-duels-option rq-duels-option--token" data-tier={combo.tier} aria-pressed={selected} onClick={onSelect}>
-      <TierRibbon tier={combo.tier} count={combo.count} />
-      <span className="rq-duels-option__text">
-        <span className="rq-duels-option__tier">{tierLabel(combo.tier)}</span>
-        <span className="rq-duels-option__what">{`${combo.metricLabel} · ${combo.durationLabel}`}</span>
-        <span className="rq-duels-option__stake">
-          <span data-tone="up">{combo.stake.win}</span>
-          <span data-tone={combo.stake.loseTone}>{combo.stake.lose}</span>
-        </span>
-      </span>
-    </button>
-  );
-}
-
-function OpponentRow({ option, selected, onSelect }: { option: OpponentOption; selected: boolean; onSelect: () => void }) {
-  return (
-    <button type="button" className="rq-duels-option rq-duels-option--opponent" aria-pressed={selected} disabled={option.disabled} onClick={onSelect}>
-      <span className="rq-avatar rq-duels-avatar">
-        {option.pictureUrl ? <img src={option.pictureUrl} alt="" /> : option.initials}
-      </span>
-      <span className="rq-duels-option__text">
-        <span className="rq-name">{option.name}</span>
-        <span className="rq-duels-option__note">{option.note}</span>
-      </span>
-      {option.disabledReason ? (
-        <span className="rq-duels-option__h2h" data-tone="muted">{option.disabledReason}</span>
-      ) : (
-        option.h2h && <span className="rq-duels-option__h2h" data-tone={option.h2h.tone}>{option.h2h.text}</span>
-      )}
-    </button>
-  );
+  onSend: (tokenKey: string, opponentId: string) => Promise<void>;
 }
 
 /**
  * Skicka utmaning: bottensheet på mobil, centrerad dialog på desktop (samma markup, olika mått via tokens).
- * Steg 1 väljer token — ett token fixerar nivå, mått och längd (spelreglerna ändras inte i redesignen, ägarbeslut 1,
- * så designens fria val av mått/längd ersätts av tokenets). Steg 2 väljer motståndare. "The bet" sammanfattar.
+ * Steg 1 väljer nivå (nivåchips utan insats; en tom nivå går inte att välja och förklarar sig). Steg 2 väljer kort: ett kort per token på nivån, och
+ * ett token fixerar mått, längd och insats (spelreglerna ändras inte i redesignen, ägarbeslut 1). Steg 3 väljer motståndare. "The bet" sammanfattar.
+ * Förvalet kommer ur `startingChoice` (förvald nivå/kort, annars det ensamma kortet, aldrig förra valet); byte av nivå börjar om därifrån.
  * Monteras bara medan den är öppen, så valen nollställs varje gång.
  */
-export function SendSheet({ groups, blocker, members, users, meId, initialTier, initialOpponent, onClose, onSend }: SendSheetProps) {
-  const combos = useMemo(() => groups.flatMap((group) => group.combos), [groups]);
+export function SendSheet({ groups, blocker, members, users, meId, preselection, initialOpponent, cancelFocus = 'opener', originRunnerId, onClose, onSend }: SendSheetProps) {
   const baseOptions = useMemo(() => buildOpponents({ members, users, meId, headToHead: {} }), [members, users, meId]);
 
-  const [comboKey, setComboKey] = useState<string | null>(
-    () => (groups.find((group) => group.tier === initialTier) ?? groups[0])?.combos[0]?.key ?? null,
-  );
+  const [choice, setChoice] = useState<SendPreselection | null>(() => startingChoice(groups, preselection));
+  // Räknaren gör att samma tomma nivå som aktiveras igen ger en ny text i statusregionen (en oförändrad text läses inte upp två gånger).
+  const [explained, setExplained] = useState<{ label: string; presses: number } | null>(null);
   const [opponentId, setOpponentId] = useState<string | null>(() => resolveOpponentParam(initialOpponent, baseOptions));
+  // Sheeten öppnas av en knapp utan att vara en Dialog.Trigger, så Radix vet inte vart fokus ska tillbaka: elementet som hade fokus när sheeten monterades (före Radix flyttar fokus in).
+  const [opener] = useState(() => document.activeElement);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,96 +60,169 @@ export function SendSheet({ groups, blocker, members, users, meId, initialTier, 
   );
   const options = useMemo(() => buildOpponents({ members, users, meId, headToHead: records }), [members, users, meId, records]);
 
-  const combo = combos.find((candidate) => candidate.key === comboKey) ?? combos[0];
+  // Valet härleds mot dagens tokens: en nivå eller ett kort som försvunnit (t.ex. efter en omhämtning) pekar aldrig på något.
+  const group = groups.find((candidate) => candidate.tier === choice?.tier && candidate.selectable) ?? groups.find((candidate) => candidate.selectable) ?? null;
+  const card = group?.cards.find((candidate) => candidate.tokenKey === choice?.tokenKey) ?? null;
   const opponent = options.find((option) => option.userId === opponentId && !option.disabled) ?? null;
-  const ready = !!combo && !!opponent && !sending;
+  const ready = !!card && !!opponent && !sending;
 
-  const summary = combo
-    ? `${combo.metricLabel}${opponent ? ` vs ${firstName(opponent.name)}` : ''} · ${combo.durationLabel}`
-    : '';
+  const summary = betSummary(card, opponent ? firstName(opponent.name) : null);
+
+  const pickTier = (picked: TierGroup) => {
+    if (!picked.selectable) {
+      setExplained((previous) => ({ label: picked.label, presses: (previous?.presses ?? 0) + 1 }));
+      return;
+    }
+    setExplained(null);
+    if (picked.tier !== group?.tier) setChoice(startingChoice(groups, { tier: picked.tier, tokenKey: null }));
+  };
+
+  // Var skicket är, för stängningen: `pending` från det att skicket går iväg tills det avgörs, `confirmed` när föräldern har fått ett lyckat svar (och stänger arket), tillbaka till `idle`
+  // om skicket avvisas. Arket som stängs medan det är `pending` har stängts av webbläsarens Back (Cancel, ✕, Esc och skrim är låsta): svaret finns inte än. Ett ref och inte state,
+  // eftersom Radix läser det först när arket redan har avmonterats (i en timer, efter att `submit` hunnit sätta `confirmed`).
+  const sendPhase = useRef<'idle' | 'pending' | 'confirmed'>('idle');
+  // Arket stängdes av en av vägarna som går genom `onClose` (Cancel, ✕, Esc, skrim, Close i orsaksvyn): den avbrytvägen ger själv fokus till sidan (skalet fokuserar löparens rad).
+  // Utan den har arket stängts av webbläsarens Back, som inte kör något stängs-anrop och inte säger något till skalet. Ett ref av samma skäl som `sendPhase`: Radix läser det efter avmonteringen.
+  const closedByCancel = useRef(false);
+
+  // Send är avstängd medan skicket pågår, och en avstängd knapp som hade fokus lämnar det på <body>. Efter ett avvisat skick (felet visas, Send är påslagen igen) får Send fokus tillbaka,
+  // så ett nytt försök går att göra med tangentbordet; felet annonseras av sin alert.
+  const sendRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (error) sendRef.current?.focus();
+  }, [error]);
+
+  // Medan skicket pågår är Send avstängd och fokus hade annars gått till <body>, där Escape inte längre hör hemma i arket. Fokus flyttas till arket självt tills svaret kommer.
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (sending) contentRef.current?.focus();
+  }, [sending]);
+
+  // En omhämtning efter ett skick utan svar kan visa att utmaningen gick iväg: arket blir då orsaksvyn och Send, som hade fokus, försvinner. Fokus får inte hamna på <body>.
+  const isBlocked = blocker !== null;
+  const wasBlocked = useRef(isBlocked);
+  useEffect(() => {
+    if (isBlocked && !wasBlocked.current && !contentRef.current?.contains(document.activeElement)) contentRef.current?.focus();
+    wasBlocked.current = isBlocked;
+  }, [isBlocked]);
+
+  // Radix flyttar annars fokus till en trigger som inte finns (då hamnar det på <body>).
+  // Efter en skickad utmaning är kortet som öppnade arket borta eller avstängt (och en avstängd knapp tar inte emot fokus): fokus går till bekräftelsen på sidan.
+  // Back (under ett skick eller när inget pågår: vilande, efter ett avvisat skick eller efter tidsgränsen) från löparens popup: ingen avbrytväg körs, så arket ger löparens rad fokus själv (samma mål
+  // som Cancel, med samma väntan på att sidan ritats), och släpper sökningen om användaren går vidare eller flyttar fokus (`focusRunnerRowAfterBack`).
+  // Annars till öppnaren. Saknas den (ingång som bytte sida: New-arket, popupens Challenge, djuplänken) blir det rubrikens Send-knapp, annars sidans huvudrubrik (tabIndex -1 i DuelsLayout).
+  // Finns inget av dem för att Back lämnade Duels (New-arket och djuplänken kommer från en annan sida) får huvudrubriken på sidan man kommer till fokus, aldrig <body>.
+  const returnFocus = (event: Event) => {
+    event.preventDefault();
+    const closedByBack = sendPhase.current !== 'confirmed' && !closedByCancel.current;
+    if (closedByBack && originRunnerId) {
+      focusRunnerRowAfterBack(originRunnerId);
+      return;
+    }
+    if (cancelFocus === 'page' && sendPhase.current === 'idle') return;
+    const confirmation = sendPhase.current === 'confirmed' ? confirmationElement() : null;
+    const usable = opener instanceof HTMLElement && opener !== document.body && opener.isConnected && !opener.matches(':disabled');
+    const target = confirmation ?? (usable ? opener : duelsPageTarget());
+    if (target) target.focus();
+    else if (closedByBack) focusPageHeadingAfterBack();
+  };
 
   const submit = async () => {
-    if (!combo || !opponent) return;
+    if (!card || !opponent) return;
     setError(null);
     setSending(true);
+    sendPhase.current = 'pending';
     try {
-      await onSend(combo.tokenId, opponent.userId);
+      await onSend(card.tokenKey, opponent.userId);
+      sendPhase.current = 'confirmed';
     } catch (failure) {
+      sendPhase.current = 'idle';
       setError(failure instanceof Error ? failure.message : 'Could not send the challenge');
       setSending(false);
     }
   };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+    // Ett skick som är på väg går inte att avbryta härifrån (utmaningen går iväg ändå): Cancel och ✕ är avstängda, och Escape och tryck på skrimmen ger inget stängt ark.
+    <Dialog.Root open onOpenChange={(open) => { if (!open && !sending) { closedByCancel.current = true; onClose(); } }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="rq-scrim" />
-        <Dialog.Content className="rq-duels-sheet" aria-describedby={undefined}>
+        {/* Ett tryck på en yta som inte kan ta fokus (skrimmen) lägger annars fokus på <body>; medan skicket pågår hålls det kvar i arket. */}
+        <Dialog.Overlay className="rq-scrim" onMouseDown={(event) => { if (sending) event.preventDefault(); }} />
+        {/* Radix sätter role="dialog" men inte aria-modal; skalets övriga dialoger sätter det uttryckligen. */}
+        <Dialog.Content ref={contentRef} className="rq-duels-sheet" aria-modal="true" aria-describedby={undefined} onCloseAutoFocus={returnFocus}>
           <header className="rq-duels-sheet__head">
             <RQIcon name="swords" size={ICON_HEAD} />
             <div className="rq-duels-sheet__id">
               <Dialog.Title className="rq-duels-sheet__title">Send a challenge</Dialog.Title>
               <p className="rq-duels-sheet__sub">One token, one opponent</p>
             </div>
-            <Dialog.Close className="rq-sheet__close" aria-label="Close">✕</Dialog.Close>
+            <Dialog.Close className="rq-sheet__close" aria-label="Close" disabled={sending}>✕</Dialog.Close>
           </header>
 
           <div className="rq-duels-sheet__body">
-            {blocker || !combo ? (
-              <>
-                <p role="status" className="rq-duels-sheet__blocked">{blocker?.message ?? 'You have no tokens to send. You earn them by levelling up.'}</p>
-                <Dialog.Close className="rq-btn rq-btn--ghost">Close</Dialog.Close>
-              </>
+            {blocker || group === null ? (
+              <p role="status" className="rq-duels-sheet__blocked">{blocker?.message ?? 'You have no tokens to send. You earn them by levelling up.'}</p>
             ) : (
               <>
-                <section aria-labelledby="duels-send-token">
-                  <h3 id="duels-send-token" className="rq-duels-step">1 · Spend a token</h3>
-                  <div className="rq-duels-token-options" role="group" aria-labelledby="duels-send-token">
-                    {combos.map((candidate) => (
-                      <TokenOption key={candidate.key} combo={candidate} selected={candidate.key === combo.key} onSelect={() => setComboKey(candidate.key)} />
+                <section aria-labelledby="duels-send-tier">
+                  <h3 id="duels-send-tier" className="rq-duels-step">1 · Pick a tier</h3>
+                  <div role="group" aria-labelledby="duels-send-tier" className="rq-segmented rq-duels-chips">
+                    {groups.map((candidate) => (
+                      <TierChip key={candidate.tier} tier={candidate.tier} label={candidate.label} count={candidate.count} selected={candidate.tier === group.tier} onPress={() => pickTier(candidate)} />
                     ))}
                   </div>
+                  {/* Live-regionen måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras (ny nyckel vid varje aktivering). */}
+                  <div role="status" className="rq-duels-sheet__status">
+                    {explained && <p key={explained.presses} className="rq-duels-note">No {explained.label} tokens right now</p>}
+                  </div>
+                </section>
+
+                <section aria-labelledby="duels-send-token">
+                  <h3 id="duels-send-token" className="rq-duels-step">2 · Pick a challenge · Your {group.label.toLowerCase()} tokens</h3>
+                  <TokenChoice cards={group.cards} selectedKey={card?.tokenKey ?? null} labelledBy="duels-send-token" onSelect={(tokenKey) => setChoice({ tier: group.tier, tokenKey })} />
                 </section>
 
                 <section aria-labelledby="duels-send-opponent">
-                  <h3 id="duels-send-opponent" className="rq-duels-step">2 · Pick an opponent</h3>
-                  <div className="rq-hairgrid rq-duels-opponents" role="group" aria-labelledby="duels-send-opponent">
-                    {options.map((option) => (
-                      <OpponentRow key={option.userId} option={option} selected={option.userId === opponent?.userId} onSelect={() => setOpponentId(option.userId)} />
-                    ))}
-                  </div>
+                  <h3 id="duels-send-opponent" className="rq-duels-step">3 · Pick an opponent</h3>
+                  <OpponentChoice options={options} selectedId={opponent?.userId ?? null} labelledBy="duels-send-opponent" onSelect={setOpponentId} />
                 </section>
 
-                <section className="rq-duels-bet" aria-labelledby="duels-send-bet">
+                {/* Hela vadet läses upp som en enhet (aria-atomic) när valet ändras. Regionen är permanent och bara texten ändras, så en oförändrad text läses inte om. */}
+                <section className="rq-duels-bet" aria-labelledby="duels-send-bet" aria-live="polite" aria-atomic="true">
                   <h3 id="duels-send-bet" className="rq-duels-bet__label">The bet</h3>
                   <p className="rq-duels-bet__summary">{summary}</p>
                   <dl className="rq-duels-bet__stakes">
                     <div data-tone="up">
                       <dt>If you win</dt>
-                      <dd>{combo.stake.win}</dd>
+                      <dd>{card?.stake.winFor ?? '—'}</dd>
                     </div>
-                    <div data-tone={combo.stake.loseTone}>
+                    <div data-tone={card?.stake.loseTone ?? 'muted'}>
                       <dt>If you lose</dt>
-                      <dd>{combo.stake.lose}</dd>
+                      <dd>{card?.stake.loseFor ?? '—'}</dd>
                     </div>
-                    <div data-tone="muted">
+                    <div data-tone="muted" className="rq-duels-bet__starts">
                       <dt>Starts</dt>
-                      <dd>{combo.tier === 'legendary' ? `Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered` : 'Midnight after it is accepted'}</dd>
+                      <dd>{startRuleText(group.tier)}</dd>
                     </div>
                   </dl>
                 </section>
 
-                <p role="alert" className="rq-duels-sheet__error">{error}</p>
-
               </>
             )}
+            {/* Utanför valet: efter ett skick utan svar visar omhämtningen kanske att utmaningen gick iväg, och arket blir då orsaksvyn. Felet ska stå kvar och regionen får inte avmonteras. */}
+            <p role="alert" className="rq-duels-sheet__error">{error}</p>
           </div>
-          {blocker || !combo ? null : (
+          {/* Knappraden finns också när arket bara visar orsaken: Close ligger i samma fasta rad, med samma luft ovanför hemindikatorn. */}
+          {blocker || group === null ? (
             <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
-              <button type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
+              <Dialog.Close className="rq-btn rq-btn--ghost rq-btn--block">Close</Dialog.Close>
+            </footer>
+          ) : (
+            <footer className="rq-duels-sheet__actions rq-duels-sheet__foot">
+              <button ref={sendRef} type="button" className="rq-btn rq-btn--primary rq-btn--block" disabled={!ready} onClick={() => void submit()}>
                 {sending ? 'Sending…' : 'Send challenge'}
               </button>
-              <Dialog.Close className="rq-btn rq-btn--ghost rq-duels-sheet__cancel">Cancel</Dialog.Close>
+              <Dialog.Close className="rq-btn rq-btn--ghost" disabled={sending}>Cancel</Dialog.Close>
             </footer>
           )}
         </Dialog.Content>

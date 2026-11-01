@@ -4,6 +4,11 @@ export const warmLanding = async (): Promise<void> => {
   await import('@/pages/Index');
 };
 
+// Profil-popupen (RunnerPopup) är en lazy chunk: proven som väntar på den riktiga dialogen värmer den i en beforeAll.
+export const warmRunnerPopup = async (): Promise<void> => {
+  await import('@/features/runner/components/RunnerPopup');
+};
+
 export const warmOnboarding = async (): Promise<void> => {
   await import('@/features/onboarding/components/OnboardingOrchestrator');
 };

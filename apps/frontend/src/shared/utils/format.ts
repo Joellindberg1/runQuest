@@ -1,6 +1,6 @@
 import { MS_DAY, MS_HOUR, MS_MINUTE } from '@runquest/shared';
 
-// Frontendens enda formatmodul: tal, km, multiplikator, månadsnamn, "tid sedan", nedräkning och förnamn.
+// Frontendens enda formatmodul: tal, km, multiplikator, månadsnamn, "tid sedan", nedräkning och förnamn (löptid och tempo bor i runTimeFormat.ts).
 // Engelskt UI med svenskt tusentalsmellanrum ("1 240"). Modulen använder aldrig Intl eller toLocale*: förrenderade
 // Landing hydreras mot samma text i webbläsaren, och Intl ger olika svar på byggdatorn och hos användaren
 // (lint förbjuder det här och på Landing). Månadsnamnen är egna, Intl:s förkortningar skiljer mellan ICU-versioner ("Sept").
@@ -107,7 +107,8 @@ export function formatAgo(ms: number, style: AgoStyle = 'spelled'): string {
  */
 export type CountdownStyle = 'hms' | 'hm' | 'coarse' | 'pill';
 
-const pad2 = (value: number): string => String(value).padStart(2, '0');
+/** Tvåsiffrig, nollfylld ("05"); delas med runTimeFormat.ts. */
+export const pad2 = (value: number): string => String(value).padStart(2, '0');
 
 export function formatCountdown(ms: number, style: CountdownStyle): string {
   const left = Math.max(0, ms);

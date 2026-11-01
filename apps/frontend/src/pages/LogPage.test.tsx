@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { calculateCompleteRunXP, DEFAULT_ADMIN_SETTINGS, DEFAULT_STREAK_MULTIPLIERS, type GroupRunHistoryItem } from '@runquest/shared';
 import LogPage from './LogPage';
@@ -7,6 +8,8 @@ import { useOpenEvents } from '@/features/events/hooks/useEventsQueries';
 import { KARL, ME as ME_ID, historyItem, historyPage } from '@/features/log/log.fixture';
 import { ME, OTHER, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
+import { findRunnerElement } from '@/shared/utils/findRunnerElement';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 
@@ -407,6 +410,60 @@ describe('Log — Group history', () => {
     expect(primaryButtons(container)).toHaveLength(0);
   });
 
+  it('tid och tempo står i en egen kolumn med etiketterna Time och Pace, och skärmläsaren läser dem en gång per runda', async () => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 3130, distance: 10 }), historyItem({ id: 'b', moving_time: 2670, distance: 8 })] });
+    const { container } = renderLog('/log?view=group', DESKTOP);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [first, second] = [...container.querySelectorAll('.rq-log-run')].map((card) => within(card as HTMLElement));
+    expect(first!.getAllByText('Time 52:10, pace 5:13 per kilometre')).toHaveLength(1);
+    expect(second!.getAllByText('Time 44:30, pace 5:34 per kilometre')).toHaveLength(1);
+    expect(first!.getByText('52:10')).toBeInTheDocument();
+    expect(first!.getByText('5:13 /km')).toBeInTheDocument();
+    expect(first!.getByText('Time', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    expect(first!.getByText('Pace', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    // Den synliga texten ligger utanför skärmläsarens träd; annars lästes tiden två gånger.
+    expect(first!.getByText('52:10').closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('en runda utan tid visar tankstreck i båda fälten med en enda dold mening per kort, och kolumnen finns kvar', async () => {
+    setup({
+      history: [
+        historyItem({ id: 'a', moving_time: 3130, distance: 10 }),
+        historyItem({ id: 'b', moving_time: null, source: 'manual' }),
+        historyItem({ id: 'c', moving_time: 0 }),
+      ],
+    });
+    const { container } = renderLog('/log?view=group', DESKTOP);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const cards = [...container.querySelectorAll('.rq-log-run')].map((card) => within(card as HTMLElement));
+    for (const card of cards.slice(1)) {
+      expect(card.getAllByText('—')).toHaveLength(2);
+      expect(card.getAllByText('no time recorded')).toHaveLength(1);
+      expect(card.queryByText(/NaN|0:00/)).toBeNull();
+    }
+    // Alla rader har fältens etiketter, så kolumnen bär samma innehåll oavsett om rundan har tid.
+    for (const card of cards) {
+      expect(card.getByText('Time', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+      expect(card.getByText('Pace', { selector: '.rq-log-run__stat-label' })).toBeInTheDocument();
+    }
+    expect(cards[0]!.queryByText('no time recorded')).toBeNull();
+  });
+
+  it('samma runda på två sidor ritas en gång', async () => {
+    const runs = manyRuns(15);
+    setup({ history: runs });
+    // Servern har fått en ny runda mellan hämtningarna: sida två börjar om med sista raden på sida ett.
+    handlers.getGroupRunHistoryPage = (_limit: unknown, offset: unknown) => {
+      const start = offset === 0 ? 0 : 9;
+      const slice = runs.slice(start, start + 10);
+      return { success: true, data: historyPage(slice, runs.length, offset as number, 10) };
+    };
+    const { container } = renderLog('/log?view=group');
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    await waitFor(() => expect(container.querySelectorAll('.rq-log-run')).toHaveLength(15));
+  });
+
   it('inga emojis i vädret — ikon eller text', async () => {
     setup({ history: [historyItem({ weather_code: 61, temperature_c: 12 })] });
     renderLog('/log?view=group');
@@ -497,5 +554,124 @@ describe('Log — desktop', () => {
     await screen.findByRole('list', { name: 'Runs in the pack' });
     expect(container.querySelectorAll('.rq-log-run')).toHaveLength(2);
     expect(primaryButtons(container)).toHaveLength(0);
+  });
+});
+
+describe('Log — Group history runner rows are real buttons', () => {
+  const WIDTHS = [
+    { view: 'mobile', width: MOBILE },
+    { view: 'desktop', width: DESKTOP },
+  ];
+
+  it.each(WIDTHS)('on $view the runner button is named after the runner, carries the runner id and is the one focus returns to', async ({ width }) => {
+    setup({ history: [historyItem()] });
+    renderLog('/log?view=group', width);
+
+    const button = await screen.findByRole('button', { name: 'Karl Persson' });
+
+    expect(button).toHaveAttribute('data-runner-id', 'u-karl');
+    expect(findRunnerElement('u-karl')).toBe(button);
+  });
+
+  describe.each(OPEN_KEYS)('with $label', ({ keys }) => {
+    it.each(WIDTHS)('on $view Tab reaches the runner and the key opens the runner card', async ({ width }) => {
+      const user = userEvent.setup();
+      setup({ history: [historyItem()] });
+      renderLog('/log?view=group', width);
+      const button = await screen.findByRole('button', { name: 'Karl Persson' });
+
+      await tabTo(user, button);
+      await user.keyboard(keys);
+
+      await waitFor(() => expect(location()).toBe('/runner/u-karl'));
+    });
+  });
+});
+
+describe('Log — Group history time and pace on mobile and desktop', () => {
+  const cardsOf = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.rq-log-run')];
+  const WIDTHS = [
+    { view: 'mobile', width: MOBILE },
+    { view: 'desktop', width: DESKTOP },
+  ];
+  /** Hur många gånger en skärmläsare möter texten: som tillgängligt namn eller som synlig text som inte är dold för den. */
+  const timesRead = (card: HTMLElement, text: string) => within(card).queryAllByLabelText(text).length + within(card).queryAllByText(text).length;
+
+  it('on mobile a small line above the distance has time and pace without labels, and its aria-label is the spoken text', async () => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 3130, distance: 10 })] });
+    const { container } = renderLog('/log?view=group', MOBILE);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [card] = cardsOf(container);
+    const line = within(card!).getByLabelText('Time 52:10, pace 5:13 per kilometre');
+
+    expect(line).toHaveTextContent('52:10 · 5:13 /km');
+    expect(within(card!).queryByText('Time', { selector: '.rq-log-run__stat-label' })).toBeNull();
+    expect(within(card!).queryByText('Pace', { selector: '.rq-log-run__stat-label' })).toBeNull();
+    // Samma kolumn som distansen och XP, och före distansen i läsordningen.
+    const km = within(card!).getByText('10.0 km');
+    expect(line.parentElement).toBe(km.parentElement);
+    expect(line.compareDocumentPosition(km) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('on mobile a run without a time has no line at all: no dash, no empty element and no hidden text', async () => {
+    setup({
+      history: [
+        historyItem({ id: 'a', moving_time: 3130, distance: 10 }),
+        historyItem({ id: 'b', moving_time: null, source: 'manual' }),
+        historyItem({ id: 'c', moving_time: 0 }),
+      ],
+    });
+    const { container } = renderLog('/log?view=group', MOBILE);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [timed, ...untimed] = cardsOf(container);
+
+    expect(timed!.querySelector('.rq-log-run__totals')!.children).toHaveLength(3);
+    for (const card of untimed) {
+      expect(card.querySelector('.rq-log-run__timeline')).toBeNull();
+      expect(card.querySelector('.rq-log-run__timepace')).toBeNull();
+      expect(within(card).queryByText('—')).toBeNull();
+      expect(within(card).queryByText('no time recorded')).toBeNull();
+      expect(card.querySelector('.rq-log-run__totals')!.children).toHaveLength(2);
+      expect(card.textContent).not.toMatch(/NaN|0:00/);
+    }
+  });
+
+  it.each(WIDTHS)('on $view time and pace are read exactly once per card', async ({ width }) => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 3130, distance: 10 }), historyItem({ id: 'b', moving_time: 2670, distance: 8 })] });
+    const { container } = renderLog('/log?view=group', width);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [first, second] = cardsOf(container);
+
+    expect(timesRead(first!, 'Time 52:10, pace 5:13 per kilometre')).toBe(1);
+    expect(timesRead(second!, 'Time 44:30, pace 5:34 per kilometre')).toBe(1);
+    // Bara en vy av tiden finns per kort (mobilens rad eller desktopkolumnen), och det som syns som text är dolt för skärmläsaren.
+    for (const card of cardsOf(container)) {
+      expect(card.querySelectorAll('.rq-log-run__timeline, .rq-log-run__timepace')).toHaveLength(1);
+      expect(within(card).queryAllByText(/^\d+:\d\d( · )?/).every((el) => el.closest('[aria-hidden="true"], [role="img"]') !== null)).toBe(true);
+    }
+  });
+
+  it.each(WIDTHS)('on $view a run over an hour is read in words, not as a clock time', async ({ width }) => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 4180, distance: 12.1 })] });
+    const { container } = renderLog('/log?view=group', width);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [card] = cardsOf(container);
+
+    expect(timesRead(card!, 'Time 1 hour 9 minutes 40 seconds, pace 5:45 per kilometre')).toBe(1);
+    expect(within(card!).queryByLabelText(/Time 1:09:40/)).toBeNull();
+    expect(within(card!).queryByText(/Time 1:09:40/)).toBeNull();
+    // Det som syns är fortfarande 1:09:40.
+    expect(card!.textContent).toContain('1:09:40');
+  });
+
+  it.each(WIDTHS)('on $view the XP cells stay the last thing in the card, below the main row', async ({ width }) => {
+    setup({ history: [historyItem({ id: 'a', moving_time: 3130, distance: 10 })] });
+    const { container } = renderLog('/log?view=group', width);
+    await screen.findByRole('list', { name: 'Runs in the pack' });
+    const [card] = cardsOf(container);
+    const cells = card!.querySelector('.rq-log-run__cells')!;
+
+    expect(card!.lastElementChild).toBe(cells);
+    expect([...cells.querySelectorAll('li')].map((cell) => cell.textContent)).toEqual(['8streak day', '1.6×multiplier', '15base xp', '16km xp', '+5bonus']);
   });
 });

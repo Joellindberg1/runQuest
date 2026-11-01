@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import type { Run, User } from '@runquest/types';
 import BoardPage from './BoardPage';
@@ -7,6 +8,7 @@ import { PENNANT_PATH, PENNANT_VIEW_BOX } from '@/shared/components/challengeMar
 import { TOUR_LEADERBOARD_V1 } from '@/features/onboarding/featureTourSteps';
 import { ME, RANK_DELTA, WEEK, XP_CONFIG, handlers, resetFakeBackend } from '@/test/fakeBackend';
 import { renderWithApp } from '@/test/renderApp';
+import { OPEN_KEYS, tabTo } from '@/test/runnerRows';
 import type { UserTitleEntry } from '@runquest/shared';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
@@ -434,10 +436,10 @@ describe('Streaks-vyn (?view=streaks)', () => {
 describe('?view= — växling och delad URL', () => {
   const selected = () => screen.getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent;
 
-  it('default är season (All-time); fliklistan har tre flikar', async () => {
+  it('default är season (All-time); fliklistan har fyra flikar (Position kommer sist, med fem medlemmar)', async () => {
     renderBoard('/board');
     expect(await screen.findByTestId('podium-1')).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All-time', 'Week', 'Streaks']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All-time', 'Week', 'Streaks', 'Position']);
     expect(selected()).toBe('All-time');
   });
 
@@ -478,7 +480,7 @@ describe('?view= — växling och delad URL', () => {
   it('desktop har samma flikar (i rubrikraden)', async () => {
     renderBoard('/board?view=week', DESKTOP);
     await screen.findByRole('table', { name: 'This week' });
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByText(/Week \d+ · 5 runners/)).toBeInTheDocument();
   });
 });
@@ -527,15 +529,18 @@ describe('visade badges i Season-raderna', () => {
   const KARL_LABEL = 'Badges: Rare Milestoner, Epic Climber';
   const NICK_LABEL = 'Badges: Common Night Owl, Uncommon Speedster, Heroic Climber';
 
-  it('mobil, podiet: minis på namnraden i ordningen namn, delta, minis — gruppen är ETT img med samlad etikett', async () => {
+  it('mobil, podiet: namnraden har namn och delta, och minis ligger som pyramid bredvid namnblocket — gruppen är ETT img med samlad etikett', async () => {
     serveStandardBadges();
     renderBoard();
 
     const karl = await screen.findByTestId('podium-1');
     const group = await within(karl).findByRole('img', { name: KARL_LABEL });
-    const nameline = group.parentElement as HTMLElement;
+    const pyramid = group.parentElement as HTMLElement;
+    expect(pyramid).toHaveClass('rq-board-podium__pyramid');
+    expect(pyramid.parentElement).toHaveClass('rq-board-podium__head');
+    const nameline = within(karl).getByRole('button', { name: 'Karl Persson' }).parentElement as HTMLElement;
     expect(nameline).toHaveClass('rq-board-podium__nameline');
-    expect([...nameline.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', 'Up 1 place', KARL_LABEL]);
+    expect([...nameline.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual(['Karl Persson', 'Up 1 place']);
     // varje mini är dekorativ: inga egna img-element inuti gruppen
     expect(group.querySelectorAll('.rq-badge[aria-hidden="true"]')).toHaveLength(2);
     expect(within(group).queryAllByRole('img')).toHaveLength(0);
@@ -897,5 +902,39 @@ describe('modellens procent kopplas till stapelns CSS-variabel', () => {
     const table = await screen.findByRole('table', { name: 'Streaks' });
     const karl = within(table).getAllByRole('row').find((row) => within(row).queryByRole('button', { name: 'Karl Persson' }))!;
     expect(cssVar(karl.querySelector('.rq-fill'), '--w')).toBe('50%');
+  });
+});
+
+describe('Board — runner rows are real buttons', () => {
+  const ROWS = [
+    { view: 'Season podium on mobile', entry: '/board', width: MOBILE, name: 'Karl Persson', id: 'u-karl' },
+    { view: 'Season rest list on mobile', entry: '/board', width: MOBILE, name: 'Nicklas von Elling', id: 'u-nick' },
+    { view: 'Season podium on desktop', entry: '/board', width: DESKTOP, name: 'Karl Persson', id: 'u-karl' },
+    { view: 'Season rest table on desktop', entry: '/board', width: DESKTOP, name: 'Nicklas von Elling', id: 'u-nick' },
+    { view: 'Week on mobile', entry: '/board?view=week', width: MOBILE, name: 'Karl Persson', id: 'u-karl' },
+    { view: 'Week on desktop', entry: '/board?view=week', width: DESKTOP, name: 'Karl Persson', id: 'u-karl' },
+    { view: 'Streaks on mobile', entry: '/board?view=streaks', width: MOBILE, name: 'Adam Einstein', id: 'u-adam' },
+    { view: 'Streaks on desktop', entry: '/board?view=streaks', width: DESKTOP, name: 'Adam Einstein', id: 'u-adam' },
+  ];
+
+  it.each(ROWS)('$view: the runner button is named after the runner and carries the runner id', async ({ entry, width, name, id }) => {
+    renderBoard(entry, width);
+
+    const button = await screen.findByRole('button', { name });
+
+    expect(button).toHaveAttribute('data-runner-id', id);
+  });
+
+  describe.each(OPEN_KEYS)('with $label', ({ keys }) => {
+    it.each(ROWS)('$view: Tab reaches the runner and the key opens the runner card', async ({ entry, width, name, id }) => {
+      const user = userEvent.setup();
+      renderBoard(entry, width);
+      const button = await screen.findByRole('button', { name });
+
+      await tabTo(user, button);
+      await user.keyboard(keys);
+
+      await waitFor(() => expect(location()).toBe(`/runner/${id}`));
+    });
   });
 });

@@ -14,8 +14,11 @@ import { FeatureTour } from '@/features/onboarding/components/FeatureTour';
 import { TOUR_PROFILE_V2 } from '@/features/onboarding/featureTourSteps';
 import { useTitleBoard } from '@/features/titles/hooks/useTitlesQueries';
 import { useUsersWithRuns } from '@/shared/hooks/useUsersWithRuns';
+import { showPositionTab } from '@/features/leaderboard/positionTab';
+import { useViewParam } from '@/shared/hooks/useViewParam';
 import { useRunnerTitles } from '@/features/runner/hooks/useRunnerQueries';
 import { buildHero, buildStatCells } from '../profileModel';
+import { DEFAULT_STAT_VIEW, statViewsFor } from '../statsModel';
 import '../profile.css';
 import { JourneyCard } from './JourneyCard';
 import { ProfileHero } from './ProfileHero';
@@ -39,6 +42,12 @@ export function ProfileScreen() {
   const me = usersQuery.data?.find((candidate) => candidate.id === user?.id);
   const titlesQuery = useRunnerTitles(user?.id ?? '');
   const boardQuery = useTitleBoard();
+  // Position-fliken finns bara i en grupp på minst två, och det vet vi redan ur users-with-runs (ingen hämtning av positionssvaret för att kunna dölja fliken, ADR 007 addendum 2026-10-26).
+  // Dold flik = `?view=position` är ett okänt värde och faller tillbaka på standardfliken som vilket annat ogiltigt värde som helst.
+  const memberCount = usersQuery.data?.length ?? 0;
+  const showPosition = showPositionTab(memberCount);
+  // Statflikarna ligger över `?view=` (ADR 006 beslut 3): adressen bor här, panelen är kontrollerad.
+  const [statView, setStatView] = useViewParam(statViewsFor(memberCount), DEFAULT_STAT_VIEW);
 
   // Badges är ett tillägg: egna queries, och ett badgefel stannar i sammanfattningen (resten av profilen berörs inte). Gruppens holders ger held-by;
   // felar den utelämnas raden (data är då undefined) utan platshållare.
@@ -81,7 +90,7 @@ export function ProfileScreen() {
         <div className="rq-profile__main">
           <ProfileHero user={me} hero={hero} cells={cells} isDesktop={isDesktop} showcase={isDesktop ? badges.showcase : undefined} />
           <JourneyCard totalKm={me.total_km} isDesktop={isDesktop} />
-          <StatsPanel user={me} now={now} isDesktop={isDesktop} />
+          <StatsPanel user={me} now={now} isDesktop={isDesktop} view={statView} onChange={setStatView} label="Your stats" dataTour="profile-stats" showPosition={showPosition} />
           {isDesktop && summary}
         </div>
         <div className="rq-profile__side">

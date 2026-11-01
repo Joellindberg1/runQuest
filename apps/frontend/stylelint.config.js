@@ -191,6 +191,14 @@ export default {
         bannedSelectors: ["/rq-badge-panel/"],
       }),
     },
+    {
+      // Popupens regler (flyttade ur runner.css): samma undantag som där (den enhetslösa radhöjden på skälet bredvid Challenge) och samma förbud mot den gamla BADGES-panelens väljare.
+      files: ["src/features/runner/runnerPopup.css"],
+      rules: designRules({
+        rawLineHeight: true,
+        bannedSelectors: ["/rq-badge-panel/"],
+      }),
+    },
     { files: ["src/shared/components/error-state.css"], rules: designRules({ locals: ["rq-edge", "rq-edge-line"] }) },
     {
       // Bakgrundsbanan (ägarundantag 2026-10-13): bara rutnätet (rqTrackDrift) och de tre löparna (rqTrackLap1–3, bara transform) loopar, och båda stängs av helt med
@@ -234,7 +242,7 @@ export default {
         },
       }),
     },
-    { files: ["src/features/challenges/duels.css"], rules: designRules({ locals: ["rq-duels-tier", "rq-duels-tier-fg", "rq-duels-tier-rgb", "rq-duels-tier-stroke", "rq-edge", "rq-edge-line"], zIndex: ["66"] }) },
+    { files: ["src/features/challenges/duels.css"], rules: designRules({ locals: ["rq-duels-tier", "rq-duels-tier-fg", "rq-duels-tier-rgb", "rq-duels-tier-send", "rq-duels-tier-stroke", "rq-edge", "rq-edge-line"], zIndex: ["66"] }) },
     {
       // Ingen rörelse alls (varken animation eller @keyframes), ingen tonad text i --rq-text-5 (dekornivå, WCAG) och radien är alltid en token.
       files: ["src/features/changelog/changelog.css", "src/features/onboarding/whatsNew.css"],

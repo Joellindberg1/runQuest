@@ -9,14 +9,17 @@
 .rq-duels [data-tier="minor"], .rq-duels-sheet [data-tier="minor"] {
   --rq-duels-tier: var(--rq-tier-minor); --rq-duels-tier-rgb: var(--rq-tier-minor-rgb);
   --rq-duels-tier-fg: var(--rq-tier-minor-fg); --rq-duels-tier-stroke: var(--rq-tier-minor-stroke);
+  --rq-duels-tier-send: var(--rq-tier-minor-send);
 }
 .rq-duels [data-tier="major"], .rq-duels-sheet [data-tier="major"] {
   --rq-duels-tier: var(--rq-tier-major); --rq-duels-tier-rgb: var(--rq-tier-major-rgb);
   --rq-duels-tier-fg: var(--rq-tier-major-fg); --rq-duels-tier-stroke: var(--rq-tier-major-stroke);
+  --rq-duels-tier-send: var(--rq-tier-major-send);
 }
 .rq-duels [data-tier="legendary"], .rq-duels-sheet [data-tier="legendary"] {
   --rq-duels-tier: var(--rq-tier-legendary); --rq-duels-tier-rgb: var(--rq-tier-legendary-rgb);
   --rq-duels-tier-fg: var(--rq-tier-legendary-fg); --rq-duels-tier-stroke: var(--rq-tier-legendary-stroke);
+  --rq-duels-tier-send: var(--rq-tier-legendary-send);
 }
 
 .rq-duels-ribbon { width: var(--rq-board-ribbon-w); height: var(--rq-board-ribbon-h); flex-shrink: 0; overflow: visible; }
@@ -189,22 +192,37 @@
 /* ── Sidokolumn: tokens, boost, rekord ────────────────────────────────────── */
 .rq-duels-tokens { display: flex; flex-direction: column; gap: var(--rq-sp-10); }
 .rq-duels-tokens > h2 { margin: 0; font-weight: 400; }
-.rq-duels-tokens__intro { margin: 0; font-size: var(--rq-fs-meta); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
+/* Nivåchipsen (TierChip) ligger i en .rq-segmented-rad som får radbryta; chipet själv bryter aldrig ("MINOR ×3" på en rad), så raden växer på höjden
+   i stället för att gå utanför panelen. Träffyta och inåtriktad fokusring kommer från view-controls.css. Valt chip tar nivåns accent (samma tint
+   och kant som tokenkortet), tomt chip är dämpat (aria-disabled, aldrig valt). */
+.rq-duels-chips { min-width: 0; }
+.rq-duels-chips > .rq-duels-chip { padding: var(--rq-sp-6) var(--rq-sp-12); font-weight: 600; white-space: nowrap; color: var(--rq-text-4); }
+.rq-duels-chips > .rq-duels-chip[aria-pressed="true"] {
+  background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border-color: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge)); color: var(--rq-duels-tier-fg);
+}
+.rq-duels-chips > .rq-duels-chip[aria-disabled="true"] { border-color: var(--rq-line-3); color: var(--rq-duels-chip-empty-fg); cursor: not-allowed; }
+/* Statusregionen finns alltid (annonseras bara om den fanns före texten) men tar ingen plats och inget flex-gap när den är tom. */
+.rq-duels-tokens__status:empty { height: 0; margin-top: calc(var(--rq-sp-10) * -1); }
 .rq-duels-tokens__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-8); }
 .rq-duels-token {
-  display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-8) var(--rq-sp-10);
+  display: flex; align-items: center; gap: var(--rq-sp-6); padding: var(--rq-sp-8);
   background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge));
 }
 .rq-duels-token__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.rq-duels-token__tier { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-duels-tier-fg); }
-.rq-duels-token__stake { font-size: var(--rq-fs-label); color: var(--rq-text-4); }
-.rq-duels-token__send {
-  padding: var(--rq-sp-4) var(--rq-sp-10); cursor: pointer; background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tint-selected));
-  border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-edge-selected)); color: var(--rq-duels-tier-fg);
+.rq-duels-token__what { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-duels-tier-fg); }
+.rq-duels-token__stake { font-size: var(--rq-duels-token-stake-fs); color: var(--rq-text-4); }
+/* Vinst och förlust är hela fraser: om raden ändå inte ryms bryter den mellan dem, aldrig mitt i en. */
+.rq-duels-token__stake > span { white-space: nowrap; }
+/* SEND på ett tokenkort: sekundär knapp i nivåns accent (kant och text), aldrig fylld. Receptet (kantens alfa, textfärgen per nivå och tema) ligger i temafilen, sektion 1.6.
+   Träffytan är --rq-control-hit i båda riktningarna (44 px på mobil, 0 på desktop där muspekaren inte behöver den). Hover gör kanten heltäckande i nivåns färg. */
+.rq-duels-send {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex-shrink: 0;
+  min-width: var(--rq-control-hit); min-height: var(--rq-control-hit); padding: var(--rq-sp-4) var(--rq-sp-6); cursor: pointer; background: none;
+  border: var(--rq-hair) solid rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-send-edge)); color: var(--rq-duels-tier-send);
   font-family: var(--rq-font-ui); font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-btn-sm); text-transform: uppercase;
 }
-.rq-duels-token__send:hover:not(:disabled) { border-color: var(--rq-duels-tier); }
-.rq-duels-token__send:disabled { background: var(--rq-fill-1); border-color: var(--rq-line-2); color: var(--rq-text-5); cursor: not-allowed; }
+.rq-duels-send:hover:not(:disabled) { border-color: var(--rq-duels-tier); }
+.rq-duels-send:disabled { background: var(--rq-fill-1); border-color: var(--rq-line-2); color: var(--rq-text-5); cursor: not-allowed; }
 .rq-duels-tokens__why { margin: 0; font-size: var(--rq-fs-label); line-height: var(--rq-lh-body); color: var(--rq-text-4); }
 
 .rq-duels-boosts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--rq-sp-12); }
@@ -233,6 +251,14 @@
   background: var(--rq-popover); box-shadow: var(--rq-shadow-modal);
   border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-top-width: var(--rq-duels-sheet-edge-w);
 }
+/* Arket tar fokus självt medan ett skick pågår (programmatiskt, aldrig något man styr): ingen ring runt hela arket. */
+.rq-duels-sheet:focus-visible { outline: none; }
+/* ✕ är en tumknapp: träffytan är den större av ikonknappens mått och --rq-control-hit (44 px på mobil), centrerad kring tecknet. */
+.rq-duels-sheet .rq-sheet__close {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  min-width: max(var(--rq-icon-btn), var(--rq-control-hit)); min-height: max(var(--rq-icon-btn), var(--rq-control-hit));
+}
+.rq-duels-sheet .rq-sheet__close:disabled { color: var(--rq-text-5); cursor: not-allowed; }
 .rq-duels-sheet__head { display: flex; align-items: center; gap: var(--rq-sp-10); padding: var(--rq-sp-12) var(--rq-sp-16); border-bottom: var(--rq-hair) solid var(--rq-line-3); color: var(--rq-duel); }
 .rq-duels-sheet__id { flex: 1; }
 .rq-duels-sheet__title { margin: 0; font-family: var(--rq-font-display); font-weight: 400; font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); color: var(--rq-text-1); }
@@ -243,50 +269,76 @@
 .rq-duels-sheet__blocked { border-left: var(--rq-edge-w) solid var(--rq-duel-base); color: var(--rq-text-2); }
 .rq-duels-sheet__error { border-left: var(--rq-edge-w) solid var(--rq-down); color: var(--rq-down); }
 .rq-duels-sheet__error:empty { padding: 0; border: 0; height: 0; margin-top: calc(var(--rq-sp-14) * -1); }
-.rq-duels-sheet__actions { display: flex; flex-direction: var(--rq-duels-sheet-actions-dir); gap: var(--rq-sp-10); }
+/* Knapprad: Send och Cancel på en rad på mobil och desktop (skiss S3). Raden ligger utanför det scrollande mellanstycket, så stegrubrikerna kan aldrig hamna under den; på mobil sitter
+   den ovanför hemindikatorn via --rq-tabbar-pb (max av luften och env(safe-area-inset-bottom)). */
+.rq-duels-sheet__actions { display: flex; gap: var(--rq-sp-10); }
 .rq-duels-sheet__actions .rq-btn--block { flex: 1; }
-.rq-btn.rq-duels-sheet__cancel { display: var(--rq-duels-sheet-cancel-display); }
+/* Cancel (och Close när arket bara visar en orsak) är den globala .rq-btn--ghost, vars --rq-text-3 ger 4,22:1 i ljust tema. I arket tar texten --rq-text-2; den globala klassen rörs inte. */
+.rq-duels-sheet .rq-btn--ghost { color: var(--rq-text-2); }
 .rq-duels-step { margin: 0 0 var(--rq-sp-8); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 
-.rq-duels-token-options { display: grid; grid-template-columns: var(--rq-duels-token-cols); gap: var(--rq-sp-8); }
 .rq-duels-option {
   display: flex; align-items: center; gap: var(--rq-sp-10); width: 100%; box-sizing: border-box; padding: var(--rq-sp-10) var(--rq-sp-12); cursor: pointer; text-align: left;
   background: var(--rq-cell); border: var(--rq-hair) solid var(--rq-line-3); color: inherit; font-family: var(--rq-font-ui);
 }
-.rq-duels-option:hover:not(:disabled) { background: var(--rq-row-hover); }
-.rq-duels-option:disabled { cursor: not-allowed; }
+.rq-duels-option:hover:not([aria-disabled="true"], [aria-checked="true"]) { background: var(--rq-row-hover); }
+.rq-duels-option[aria-disabled="true"] { cursor: not-allowed; }
 .rq-duels-option__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--rq-sp-2); }
 .rq-duels-option__note { font-size: var(--rq-fs-label); color: var(--rq-text-4); }
+/* Varför raden inte går att välja ("In a duel"): i duellens ton, i klartext och inte dämpad, så orsaken syns också på en avstängd rad. */
+.rq-duels-option__reason { color: var(--rq-duel); }
 .rq-duels-option__h2h { flex-shrink: 0; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
-.rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up); }
-.rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down); }
+.rq-duels-option__h2h[data-tone="up"] { color: var(--rq-up-text); }
+.rq-duels-option__h2h[data-tone="down"] { color: var(--rq-down-text); }
 
-.rq-duels-option--token[aria-pressed="true"] { background: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-tint)); border-color: rgb(var(--rq-duels-tier-rgb) / var(--rq-tier-edge)); }
-.rq-duels-option__tier { font-weight: 600; font-size: var(--rq-fs-body); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-duels-tier-fg); }
-.rq-duels-option__what { font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
-.rq-duels-option__stake { display: flex; flex-wrap: wrap; gap: var(--rq-sp-4) var(--rq-sp-12); font-size: var(--rq-fs-label); color: var(--rq-text-3); }
-.rq-duels-option__stake [data-tone="up"] { color: var(--rq-up); }
-.rq-duels-option__stake [data-tone="down"] { color: var(--rq-down); }
+/* Steg 1: nivåchipsen är samma TierChip som i Your tokens (.rq-duels-chips ovan). Statusregionen tar ingen plats förrän den har en text. */
+.rq-duels-sheet__status:not(:empty) { margin-top: var(--rq-sp-8); }
 
-.rq-duels-opponents { border: var(--rq-hair) solid var(--rq-line-2); }
-/* Långa namn (RUN-441): en rad är ett rutnätsobjekt, och rutnätets automatiska kolumn sträcks till radens min-content, alltså till det längsta ordet. Ett förnamn på 35-45 tecken utan
-   brytpunkt drog därför raden (och sheetens kropp) bredare än sheeten, och raden med skälet hamnade utanför ytan. En kolumn med fast bredd (minmax(0, 1fr)) håller raden inom sheeten;
-   namnet bryts sedan som i Board-raderna (`anywhere`, RUN-388), och texten till höger (skälet eller head-to-head-tipset med förnamnet) får högst 60 % av raden och bryts i sin tur. */
+/* Steg 2: tokenkorten är TokenCard (tonad bakgrund och kant ur nivån) i en radiogrupp. Ett valt kort har nivåns tint och kant; ett vilande är neutralt, så valet syns
+   också utan färg (bocken och "Selected"). Kortet får samma inre luft som motståndarraderna och "The bet" (--rq-sp-10/12), och är minst --rq-control-hit högt
+   (44 px på mobil). Fokusringen ritas inåt som på flikarna (sheetens kropp scrollar och klipper en yttre ring). "Selected" ligger absolut uppe till höger så att
+   insatsraden behåller hela kortets bredd (på 320 px ryms den annars inte bredvid), och därför ändras inte kortets höjd när valet byter. */
+.rq-duels-choice { display: flex; flex-direction: column; gap: var(--rq-sp-8); }
+.rq-duels-choice__card { position: relative; cursor: pointer; }
+.rq-duels-choice__card:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-duels-choice__card .rq-duels-token { box-sizing: border-box; min-height: var(--rq-control-hit); padding: var(--rq-sp-10) var(--rq-sp-12); gap: var(--rq-sp-10); }
+.rq-duels-choice__card[aria-checked="false"] .rq-duels-token { background: var(--rq-cell); border-color: var(--rq-line-3); }
+.rq-duels-choice__card[aria-checked="false"]:hover .rq-duels-token { background: var(--rq-row-hover); }
+.rq-duels-choice__selected {
+  position: absolute; top: var(--rq-sp-10); right: var(--rq-sp-12); display: flex; align-items: center; gap: var(--rq-sp-4);
+  font-weight: 700; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-tab); text-transform: uppercase; color: var(--rq-duels-tier-fg);
+}
+
+/* Steg 3: motståndarna är en radiogrupp (OpponentChoice). Raden är minst --rq-control-hit hög (44 px på mobil); fokusringen ritas inåt som på tokenkorten, eftersom
+   sheetens kropp scrollar och klipper en yttre ring. Den valda raden har guldtint och guldkant (som förut) och dessutom aria-checked. */
+/* Raderna ligger på sheetens egen yta (som tokenkorten i steg 2), och hårlinjerna mellan dem är rader med kantlinje i stället för hårlinjegridens bakgrund: en halvgenomskinlig
+   radbakgrund över gridens gråa linjefärg blir annars mörkare än sheeten och drar texten under 4,5:1 i ljust tema. */
+.rq-hairgrid.rq-duels-opponents { gap: 0; background: var(--rq-popover); border: var(--rq-hair) solid var(--rq-line-2); }
+/* Långa namn: en rad är ett rutnätsobjekt, och rutnätets automatiska kolumn sträcks till radens min-content, alltså till det längsta ordet. Ett förnamn på 35-45 tecken utan
+   brytpunkt drog därför raden (och sheetens kropp) bredare än sheeten. En kolumn med fast bredd (minmax(0, 1fr)) håller raden inom sheeten; namnet bryts sedan som i Board-raderna
+   (`anywhere`), och texten till höger (head-to-head-tipset med förnamnet) får högst 60 % av raden och bryts i sin tur. Skälet ("Waiting on a reply", "In a duel") ligger i textkolumnen
+   (`min-width: 0`) under namnet och har brytpunkter. */
 .rq-duels-opponents { grid-template-columns: minmax(0, 1fr); }
 .rq-duels-option--opponent .rq-name { overflow-wrap: anywhere; }
 .rq-duels-option--opponent .rq-duels-option__h2h { max-width: 60%; overflow-wrap: anywhere; }
-.rq-duels-option--opponent { border: 0; border-left: var(--rq-edge-w) solid transparent; }
-.rq-duels-option--opponent[aria-pressed="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); }
-.rq-duels-option--opponent:disabled .rq-name { color: var(--rq-text-4); }
+.rq-duels-option--opponent { min-height: var(--rq-control-hit); border: 0; border-left: var(--rq-edge-w) solid transparent; }
+.rq-duels-option--opponent + .rq-duels-option--opponent { border-top: var(--rq-hair) solid var(--rq-line-2); }
+.rq-duels-option--opponent:focus-visible { outline-offset: var(--rq-focus-inset); }
+.rq-duels-option--opponent[aria-checked="true"] { background: rgb(var(--rq-gold-rgb) / var(--rq-tint-selected)); border-left-color: var(--rq-gold); }
+.rq-duels-option--opponent[aria-disabled="true"] .rq-name { color: var(--rq-text-4); }
+/* På den valda radens guldtint räcker --rq-text-4 inte till 4,5:1 i ljust tema (4,49:1; --rq-text-3 är där ännu svagare, 3,8:1): den dämpade texten tar --rq-text-2. */
+.rq-duels-option--opponent[aria-checked="true"] .rq-duels-option__note,
+.rq-duels-option--opponent[aria-checked="true"] .rq-duels-option__h2h:not([data-tone="up"], [data-tone="down"]) { color: var(--rq-text-2); }
 .rq-duels-avatar { width: var(--rq-duels-avatar); height: var(--rq-duels-avatar); flex-shrink: 0; overflow: hidden; font-size: var(--rq-fs-label); }
 .rq-duels-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .rq-duels-bet { padding: var(--rq-sp-10) var(--rq-sp-12); background: rgb(var(--rq-gold-rgb) / var(--rq-tint-status)); border: var(--rq-hair) solid rgb(var(--rq-gold-rgb) / var(--rq-edge-soft)); border-left: var(--rq-edge-w) solid var(--rq-gold); }
 .rq-duels-bet__label { margin: 0 0 var(--rq-sp-4); font-weight: 400; font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-gold-text); }
 .rq-duels-bet__summary { margin: 0; overflow-wrap: anywhere; font-family: var(--rq-font-display); font-size: var(--rq-fs-heading); line-height: var(--rq-lh-tight); text-transform: uppercase; color: var(--rq-text-1); }
-.rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--rq-sp-10); }
+.rq-duels-bet__stakes { margin: var(--rq-sp-10) 0 0; padding-top: var(--rq-sp-10); border-top: var(--rq-hair) solid var(--rq-line-2); display: grid; grid-template-columns: var(--rq-duels-bet-cols); gap: var(--rq-sp-10); }
 .rq-duels-bet__stakes > div { min-width: 0; text-align: start; }
+.rq-duels-bet__stakes > .rq-duels-bet__starts { grid-column: var(--rq-duels-bet-starts-span); }
 .rq-duels-bet__stakes dt { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-duels-bet__stakes dd { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-stat); line-height: var(--rq-lh-tight); color: var(--rq-text-2); }
-.rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up); }
-.rq-duels-bet__stakes [data-tone="down"] dt, .rq-duels-bet__stakes [data-tone="down"] dd { color: var(--rq-down); }
+.rq-duels-bet__stakes [data-tone="up"] dt, .rq-duels-bet__stakes [data-tone="up"] dd { color: var(--rq-up-text); }
+.rq-duels-bet__stakes [data-tone="down"] dt, .rq-duels-bet__stakes [data-tone="down"] dd { color: var(--rq-down-text); }

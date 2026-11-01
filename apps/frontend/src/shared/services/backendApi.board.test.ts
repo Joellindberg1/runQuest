@@ -22,6 +22,7 @@ afterEach(() => {
 describe.each([
   ['getWeekLeaderboard', '/leaderboard/week', () => backendApi.getWeekLeaderboard()],
   ['getRankDelta', '/leaderboard/rank-delta', () => backendApi.getRankDelta()],
+  ['getPositionHistory', '/leaderboard/positions?weeks=26', () => backendApi.getPositionHistory(26)],
   ['getXpConfig', '/config/xp', () => backendApi.getXpConfig()],
 ] as const)('%s', (_name, path, call) => {
   it('GET mot rätt endpoint med Bearer-token och packar upp data', async () => {

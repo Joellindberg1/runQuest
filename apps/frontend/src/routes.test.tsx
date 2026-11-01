@@ -1,21 +1,22 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppRoutes } from './routes';
 import { ME, OTHER, RANK_DELTA, handlers, resetFakeBackend } from '@/test/fakeBackend';
+import { resetHistoryIdx } from '@/test/resetHistoryIdx';
 import { renderWithApp } from '@/test/renderApp';
-import { warmLanding } from '@/test/warmLazy';
+import { warmLanding, warmRunnerPopup } from '@/test/warmLazy';
 
 vi.mock('@/shared/services/backendApi', async () => (await import('@/test/fakeBackend')).backendApiModule);
 // Turerna startar driver.js efter en timer; de har egna tester och stör inte routingen.
-// RunnerCard kastar på begäran, för att prova felgränsen runt desktop-overlayn.
-const crash = vi.hoisted(() => ({ runnerCard: false }));
-vi.mock('@/features/runner/components/RunnerCard', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/features/runner/components/RunnerCard')>();
+// RunnerPopup (desktop-overlayn) kastar på begäran, för att prova felgränsen runt den.
+const crash = vi.hoisted(() => ({ runnerPopup: false }));
+vi.mock('@/features/runner/components/RunnerPopup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/runner/components/RunnerPopup')>();
   return {
     ...actual,
-    RunnerCard: (props: Parameters<typeof actual.RunnerCard>[0]) => {
-      if (crash.runnerCard) throw new Error('runner card exploded');
-      return actual.RunnerCard(props);
+    RunnerPopup: (props: Parameters<typeof actual.RunnerPopup>[0]) => {
+      if (crash.runnerPopup) throw new Error('runner popup exploded');
+      return actual.RunnerPopup(props);
     },
   };
 });
@@ -43,6 +44,7 @@ beforeEach(() => {
 });
 
 beforeAll(warmLanding);
+beforeAll(warmRunnerPopup);
 
 describe('varje route renderar utan krasch inne i skalet', () => {
   it.each([
@@ -92,7 +94,7 @@ describe('varje route renderar utan krasch inne i skalet', () => {
 
   it('/board visar The Standings med gruppens löpare (Season-vyn är default)', async () => {
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
-    expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('button', { name: OTHER.name })).length).toBeGreaterThan(0);
   });
 });
 
@@ -293,10 +295,10 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
     },
   ];
 
-  it('mobil: helskärmssida med bottenbar och Back-knapp, ingen overlay', async () => {
+  it('mobil: helskärmssida med bottenbar och tillbakalänk, ingen overlay', async () => {
     const { container } = renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: MOBILE });
 
-    expect(await screen.findByRole('button', { name: /Back/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Standings' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(container.querySelector('.rq-tabbar')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: OTHER.name })).toBeInTheDocument();
@@ -305,7 +307,8 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
   it('desktop med background: overlay ovanpå kvarstående bakgrundssida', async () => {
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
 
-    const dialog = await screen.findByRole('dialog');
+    // Medan popupens chunk hämtas visar sidan en upptagen dialog med samma roll (namnet är då "Runner card"): provet väntar på den riktiga, med löparens namn.
+    const dialog = await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
     expect(await within(dialog).findByRole('heading', { level: 1, name: OTHER.name })).toBeInTheDocument();
     // Bakgrundssidan (Leaderboard) renderas fortfarande under overlayn.
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
@@ -321,7 +324,7 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
 
   it('Esc stänger overlayn; utan historik faller vi tillbaka på /board', async () => {
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', { name: `Runner card: ${OTHER.name}` });
 
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -332,7 +335,7 @@ describe('Runner card som route (ADR 006 beslut 6)', () => {
     handlers.getUsersWithRuns = () => ({ success: true, data: [ME, OTHER] });
     renderWithApp(<AppRoutes />, { entry: '/board', width: MOBILE });
 
-    fireEvent.click((await screen.findAllByText(OTHER.name))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: OTHER.name }))[0]);
     await waitFor(() => expect(location()).toBe(`/runner/${OTHER.id}`));
   });
 });
@@ -345,7 +348,7 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
 
   it('ett fel i overlayn ger felkortet, bakgrundssidan och skalet står kvar, och Close tar en ur felläget', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    crash.runnerCard = true;
+    crash.runnerPopup = true;
     renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP });
 
     const alert = await screen.findByRole('alert');
@@ -354,11 +357,51 @@ describe('felgräns runt Runner-overlayn (desktop)', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     expect((await screen.findAllByText(OTHER.name)).length).toBeGreaterThan(0);
 
-    crash.runnerCard = false;
+    crash.runnerPopup = false;
     fireEvent.click(within(alert).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     await waitFor(() => expect(location()).toBe('/board'));
     await waitFor(() => expect(document.querySelectorAll('[data-shell="desktop"]')).toHaveLength(1));
     spy.mockRestore();
+  });
+  describe('the error card is a dialog that gives the focus back', () => {
+    const karlRow = () => document.querySelector<HTMLElement>(`main [data-runner-id="${OTHER.id}"]`);
+    afterEach(() => { resetHistoryIdx(); });
+
+    async function openBrokenPopup() {
+      crash.runnerPopup = true;
+      renderWithApp(<AppRoutes />, { entry: openedFromBoard, width: DESKTOP, history: true });
+      const dialog = await screen.findByRole('dialog', { name: 'Something broke' });
+      await waitFor(() => expect(karlRow()).not.toBeNull());
+      crash.runnerPopup = false;
+      return dialog;
+    }
+
+    it('has dialog semantics and a name, and holds the focus', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+      spy.mockRestore();
+    });
+
+    it.each([
+      ['Escape', (dialog: HTMLElement) => fireEvent.keyDown(dialog, { key: 'Escape' })],
+      ['the Close button', (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))],
+    ])('%s closes it and puts the focus on the runner row, not on the page body', async (_how, close) => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dialog = await openBrokenPopup();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+
+      close(dialog);
+
+      await waitFor(() => expect(location()).toBe('/board'));
+      await waitFor(() => expect(screen.queryByRole('dialog', { hidden: true })).toBeNull());
+      await waitFor(() => expect(karlRow()).toHaveFocus());
+      expect(document.body).not.toHaveFocus();
+      spy.mockRestore();
+    });
   });
 });

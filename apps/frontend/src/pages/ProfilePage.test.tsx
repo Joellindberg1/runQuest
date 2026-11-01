@@ -199,7 +199,7 @@ describe('Profile — Frodo-zoom', () => {
     renderProfile();
     await screen.findByRole('heading', { name: 'Joel Lindberg' });
     expect(screen.getByRole('button', { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByText(/^28\.9% · 943 \/ 3 266 km$/)).toBeInTheDocument();
+    expect(screen.getByText(/^28\.9% · 942 \/ 3 266 km$/)).toBeInTheDocument();
     expect(screen.getByText(/Balin's Tomb — 95 km$/)).toBeInTheDocument();
   });
 
@@ -309,6 +309,13 @@ describe('Profile — statflikar (?view=)', () => {
     } finally {
       restore();
     }
+  });
+
+  it('profilens karta bär inget data-intro: attributet hör bara till en värd som delar en introflagga (popupen)', async () => {
+    renderProfile('/profile?view=consistency', DESKTOP);
+    await screen.findByRole('region', { name: /Run heatmap/ });
+    expect(document.querySelector('.rq-profile-heat')).not.toBeNull();
+    expect(document.querySelector('[data-intro]')).toBeNull();
   });
 
   it('en cell med runda bär datum och km som titel; intensiteten följer dagens km', async () => {
@@ -677,6 +684,14 @@ describe('Profile — Strava-rundor och spärrad radering', () => {
     setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, source: 'strava' } : r)) });
     const sheet = await openEdit('2026-10-03', 'Run details');
     expect(within(sheet).getByRole('button', { name: /Delete run/ })).toBeDisabled();
+  });
+
+  it('moving_time följer med från users-with-runs till rundan (mapApiUser tappar den inte)', async () => {
+    setup({ runs: RUNS.map((r) => (r.id === 'r3' ? { ...r, moving_time: 3130 } : r)) });
+    renderProfile();
+    await screen.findByRole('list', { name: 'Your runs' });
+    expect(screen.getByText('Time 52:10, pace 5:13 per kilometre')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Time of the runs shown' })).toHaveTextContent('52:10');
   });
 
   it('radens knapp: Strava-runda heter "View" (synlig text + aria-label), manuell behåller "Edit" exakt som förut', async () => {

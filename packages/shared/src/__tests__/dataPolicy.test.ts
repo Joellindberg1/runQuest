@@ -20,7 +20,7 @@ import {
 } from '../index.js';
 
 // Texten är fastnålad: ändras den utan ny version fäller snapshotvakten. Höj DATA_POLICY_VERSION och uppdatera nålen här.
-const PINNED_POLICY = { version: '2026-10-22', sha256: 'a123d57df7be6674e23d99095ed0d07b38571c6e60a1f3c44722dfc8df6e176c' };
+const PINNED_POLICY = { version: '2026-10-27', sha256: '5123f42cd9ae29a867881078c585841558968b5f66f8dcfaabdf5e9f1a683cdc' };
 
 const CONTACT = 'joellindberg23@gmail.com';
 
@@ -189,6 +189,20 @@ describe('dataPolicy', () => {
     expectSentence(text, /notification settings/i, /read/i, /per user|your own|you/i);
     expectSentence(text, /read/i, /Pack News/i);
     expectSentence(text, /(other users|no one else|nobody else|only you)/i, /(cannot|can't|can not|not) see|only you|private/i);
+  });
+
+  it('says the moving time and pace of each run are visible to the members of the pack, in the data and strava sections', () => {
+    const data = getDataPolicySection('data');
+    // Tiden kommer bara från Strava-importen (manuella rundor saknar den): texten ska säga det och inte lova "alla rundor".
+    expectParagraph(data, /^Runs:/, /imported from Strava, the moving time and the pace/i, /members of your pack/i);
+    expectParagraph(data, /^Who sees what:/, /members of your pack/i, /imported from Strava they can also see its moving time and pace/i);
+    expectParagraph(getDataPolicySection('strava'), /^Who sees your runs:/, /members of your pack/i, /moving time/i, /pace/i, /not public/i);
+  });
+
+  it('keeps the list of what is stored from each run unchanged', () => {
+    expect(textOf(getDataPolicySection('strava'))).toContain(
+      'From each run RunQuest stores: date, distance, Strava activity ID, start time (local clock), moving time, elevation gain, sport type, average heart rate, maximum heart rate, relative effort, start coordinates, pace variation and whether it was on a treadmill.',
+    );
   });
 
   it('processors section says server logs can contain the Strava athlete ID and activity ID of webhook events but never a title, coordinates or a token', () => {

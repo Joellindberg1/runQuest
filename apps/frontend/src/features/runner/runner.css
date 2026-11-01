@@ -1,14 +1,17 @@
 /* Runner card (inkrement 3): hjältekort · Frodo's journey · statflikar · titlar · head-to-head.
    ENDAST tokens (regel 1). Måtten (--rq-runner-*) definieras i temafilen, sektion 1.21 (index.css +
    docs/design/temafil-forslag.css) — inga egna :root-definitioner här.
-   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen. */
+   Overrides av delade .rq-*-primitiver görs med sammansatta selektorer — specificiteten avgör, inte laddningsordningen.
+   Här bor reglerna som Runner cards sida (RunnerCard, eager) behöver, även de som popupen delar. Regler som bara popupens komponenter använder bor i runnerPopup.css, som den lazy RunnerPopup-chunken laddar. */
 
-/* ── Ram: sida (mobil/direktladdning) eller overlay (desktop-modalen) ─────── */
+/* ── Ram: sida (mobil/direktladdning) ─────────────────────────────────────── */
 .rq-runner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .rq-runner__bar { display: flex; align-items: center; gap: var(--rq-sp-12); margin-bottom: var(--rq-sp-12); }
-.rq-runner__bar .rq-back { margin-bottom: 0; }
+/* Tillbakalänken är en länk med minst 44 px träffyta på mobil (--rq-control-hit; desktop 0) och text som klarar 4,5:1 i båda teman: --rq-text-3 ger 4,04:1 mot den ljusa basen, --rq-text-4 är
+   AA-kalibrerad i båda. Scopat hit: .rq-back delas med badges-sidan. */
+.rq-runner__bar .rq-back { margin-bottom: 0; min-height: var(--rq-control-hit); min-width: var(--rq-control-hit); color: var(--rq-text-4); }
+.rq-runner__bar .rq-back:hover { color: var(--rq-text-2); }
 .rq-runner__spacer { flex: 1; }
-.rq-runner__eyebrow { font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-label); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-runner__body { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
 .rq-runner__split { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__side { display: flex; flex-direction: column; gap: var(--rq-gap-stack); }
@@ -16,8 +19,7 @@
    Head to head sträcks till radens höjd (designen: Web Prototype 1653); panelen utan head to head (ingen inloggad) tar första kolumnen ensam. */
 .rq-runner__lower { display: grid; grid-template-columns: var(--rq-runner-split-cols); gap: var(--rq-gap-stack); align-items: start; }
 .rq-runner__lower > .rq-runner-h2h { align-self: stretch; }
-.rq-runner[data-variant="overlay"] .rq-runner__bar { margin: 0; padding: var(--rq-sp-14) var(--rq-runner-close-gutter) var(--rq-sp-14) var(--rq-sp-20); border-bottom: var(--rq-hair) solid var(--rq-line-3); }
-.rq-runner[data-variant="overlay"] .rq-runner__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--rq-sp-18) var(--rq-sp-20); }
+.rq-runner__split > .rq-runner-h2h { align-self: stretch; }
 
 /* ── Delat: kortrubrik, anteckning, laddning ──────────────────────────────── */
 .rq-runner-head { display: flex; align-items: center; gap: var(--rq-sp-8); margin-bottom: var(--rq-sp-10); }
@@ -75,6 +77,10 @@
 .rq-runner-journey__sum { display: flex; justify-content: space-between; gap: var(--rq-sp-12); margin: var(--rq-sp-10) 0 0; font-size: var(--rq-fs-meta); color: var(--rq-text-3); }
 .rq-runner-journey__cp { color: var(--rq-text-2); }
 .rq-runner-journey__sum[data-done="true"] { color: var(--rq-gold-text); }
+/* Ljust: text-3 (.60) ger 4,2:1 mot vitt kort, text-4 (.65) ger 4,7:1; samma lösning som i Overview. Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-runner-journey .rq-runner-journey__sum:not([data-done="true"]),
+[data-theme="light"] .rq-runner-journey .rq-runner-wp__label[data-tier="1"],
+[data-theme="light"] .rq-runner-journey .rq-btn--ghost:not(:hover) { color: var(--rq-text-4); }
 
 /* Desktop: vägen med waypoint-etiketter (alla läge i procent via --x, mått ur tokens) */
 .rq-runner-road { position: relative; height: var(--rq-runner-journey-h); }
@@ -101,6 +107,8 @@
 .rq-runner-rows { margin: 0; }
 .rq-runner-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
 .rq-runner-row dt { color: var(--rq-text-3); }
+/* Ljust tema: --rq-text-3 (.60) ger 3,95:1 mot radens tint på kortet, --rq-text-4 (.65) ger 4,56:1 (samma ersättning som profilens rader i profile.css). Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-runner-row dt { color: var(--rq-text-4); }
 .rq-runner-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
 
 /* ── Titlar ───────────────────────────────────────────────────────────────── */

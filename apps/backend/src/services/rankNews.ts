@@ -4,7 +4,7 @@
 // event-XP-skrivningarna i eventService). Den kastar aldrig, rör aldrig totalerna (ADR 005/008) och skriver bara via activityLog.
 //
 // Dygnsskiftets ställning härleds ur samma liggare som GET /leaderboard/rank-delta: buildXpLedger + buildRankDelta med
-// asOf = idag i Stockholm (previous_xp = total_xp minus XP krediterad med datum ≥ idag). Ingen ny lagring, ingen ögonblickstabell.
+// asOf = idag i gruppens tidszon (previous_xp = total_xp minus XP krediterad med datum ≥ idag). Ingen ny lagring, ingen ögonblickstabell.
 //
 // KÄND BEGRÄNSNING: liggaren är datumbaserad. En runda daterad IGÅR men synkad efter midnatt räknas som krediterad före
 // dygnsskiftet, så W "låg redan före M" och ingen rad skrivs. Det ger en utebliven notis, aldrig en falsk.
@@ -108,7 +108,7 @@ export async function recordRankPassesForXp(
       settled_at: e.events.settled_at,
       ends_at: e.events.ends_at,
     }));
-    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries);
+    const ledger = buildXpLedger(runsResult.data ?? [], eventEntries, timeZone);
     const { users: standings, diverged } = buildRankDelta(members, ledger, today);
 
     // Divergerar liggaren från total_xp går dygnsskiftets ställning inte att lita på (previous_xp är klampad till 0).

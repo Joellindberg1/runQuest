@@ -79,3 +79,42 @@ export interface RankDeltaResponse {
 }
 
 export type RankDeltaApiResponse = ApiSuccess<RankDeltaResponse>;
+
+// GET /api/leaderboard/positions (ADR 007 B11): placering i total-XP-ordningen vid slutet av varje vecka, härledd bakåt ur total_xp.
+// Konstanter och fältnamn ändras bara additivt (webb och kommande PWA läser dem). Dagar är i gruppens tidszon.
+export const POSITION_WEEKS_DEFAULT = 8;
+export const POSITION_WEEKS_MAX = 26;
+
+export interface PositionWeek {
+  /** Måndag, YYYY-MM-DD i gruppens tidszon. */
+  start: string;
+  /** Söndag. */
+  end: string;
+  /** 1–53, isoWeekNumber(start). */
+  iso_week: number;
+  /** ISO-veckans år, isoWeekYear(start); skiljer sig från start-året runt årsskiftet. */
+  iso_year: number;
+  /** Sant för sista elementet, falskt för alla andra. */
+  is_current_week: boolean;
+}
+
+export interface PositionRunner {
+  user_id: string;
+  name: string;
+  profile_picture: string | null;
+  /** Dagen kontot skapades i gruppens tidszon (users.created_at); null = okänt. */
+  member_since: string | null;
+  /** Parallell med `weeks`: positions[i] hör till weeks[i]. 1-baserad; null = ingen placering (före inträdet). Sista elementet är live-placeringen = Standings. */
+  positions: Array<number | null>;
+}
+
+export interface PositionHistoryResponse {
+  /** Gruppens "idag" (YYYY-MM-DD). */
+  as_of: string;
+  /** Äldst först; sista = pågående vecka. */
+  weeks: PositionWeek[];
+  /** Sorterad på live-placeringen stigande = Standings ordning. */
+  runners: PositionRunner[];
+}
+
+export type PositionHistoryApiResponse = ApiSuccess<PositionHistoryResponse>;

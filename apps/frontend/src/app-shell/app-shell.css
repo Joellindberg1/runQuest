@@ -200,7 +200,7 @@
 
 .rq-modal {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 66;
-  width: min(var(--rq-overlay-w), 95vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  width: min(var(--rq-modal-w), 95vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
   background: var(--rq-modal); border: var(--rq-hair) solid var(--rq-line-4); box-shadow: var(--rq-shadow-modal);
 }
 .rq-modal__close {

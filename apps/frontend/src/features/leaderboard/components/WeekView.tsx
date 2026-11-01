@@ -52,7 +52,7 @@ function WeekRowsMobile({ rows, onOpen }: RowsProps) {
           <span role="cell" className="rq-board-ranknum" data-rank={rankAttr(row.rank)}>{row.rank}</span>
           <div role="cell">
             <div className="rq-board-nameline">
-              <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+              <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
               <DeltaMark delta={row.form} />
             </div>
             <DayBars bars={row.bars} />
@@ -79,7 +79,7 @@ function WeekRowsDesktop({ rows, onOpen }: RowsProps) {
         <div key={row.id} role="row" className="rq-row rq-board-row rq-board-row--week" data-clickable="true" onClick={() => onOpen(row.id)}>
           <span role="cell" className="rq-board-ranknum" data-rank={rankAttr(row.rank)}>{row.rank}</span>
           <div role="cell">
-            <RunnerName name={row.name} onOpen={() => onOpen(row.id)} />
+            <RunnerName userId={row.id} name={row.name} onOpen={() => onOpen(row.id)} />
             <div className="rq-board-lastrun">{row.km} km · {row.runsText}</div>
           </div>
           <div role="cell"><DayBars bars={row.bars} /></div>

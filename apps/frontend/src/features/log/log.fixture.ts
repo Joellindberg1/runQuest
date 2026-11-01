@@ -28,6 +28,7 @@ export function historyItem(over: Partial<GroupRunHistoryItem> = {}): GroupRunHi
     user_profile_picture: undefined,
     start_time: '2026-10-03T06:10:00Z',
     created_at: '2026-10-03T07:00:00Z',
+    moving_time: null,
     ...over,
   };
 }

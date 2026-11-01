@@ -345,9 +345,9 @@ export default tseslint.config(
     },
   },
 
-  // Formatmodulen är hydreringssäker (Landing förrenderas och importerar den): inga Intl- eller toLocale*-anrop.
+  // Formatmodulen är hydreringssäker (Landing förrenderas och importerar den): inga Intl- eller toLocale*-anrop. Samma regel för runTimeFormat.ts (tid och tempo).
   {
-    files: ["src/shared/utils/format.ts"],
+    files: ["src/shared/utils/format.ts", "src/shared/utils/runTimeFormat.ts"],
     rules: { "no-restricted-syntax": ["error", NO_INTL_FORMATTING] },
   },
 
@@ -442,10 +442,10 @@ export default tseslint.config(
     ],
     {
       style: "noLiteral", extra: NO_NAMEROW,
-      ignores: ["src/features/leaderboard/boardFormat.ts", "src/features/leaderboard/components/BoardParts.tsx", "src/features/leaderboard/hooks/useLeaderboardData.ts"],
+      ignores: ["src/features/leaderboard/boardFormat.ts", "src/features/leaderboard/components/BoardParts.tsx", "src/features/leaderboard/components/PackPositionChart.tsx", "src/features/leaderboard/hooks/useLeaderboardData.ts"],
     },
   ),
-  designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"]),
+  designGroup(["src/features/profile/**/*.{ts,tsx}", "src/features/runs/**/*.{ts,tsx}", "src/pages/ProfilePage.tsx"], { ignores: ["src/features/profile/components/PositionChart.tsx"] }),
   designGroup(["src/features/runner/**/*.{ts,tsx}", "src/pages/RunnerPage.tsx"]),
   designGroup(["src/features/titles/**/*.{ts,tsx}", "src/pages/TitlesPage.tsx"]),
   designGroup(["src/features/legal/**/*.{ts,tsx}", "src/pages/LegalPage.tsx"]),
@@ -481,6 +481,22 @@ export default tseslint.config(
     extra: [
       ...NO_NUMBER_FORMAT,
       ...syntaxRule("Arenabanan är dekor och måste vara dold för skärmläsare (aria-hidden=\"true\").", "Program:not(:has(JSXAttribute[name.name='aria-hidden']))"),
+    ],
+  }),
+  // Positionsgrafen på profilen är en handritad SVG (ingen diagramlib): en <svg> är tillåten, men den måste vara dold för skärmläsare (grafen får sin
+  // text av role="img" + aria-label och tabellen bakom "Show as table").
+  designGroup(["src/features/profile/components/PositionChart.tsx"], {
+    omit: ["svg"],
+    extra: syntaxRule("Positionsgrafens <svg> är dekor och måste vara dold för skärmläsare (aria-hidden=\"true\").", "JSXOpeningElement[name.name='svg']:not(:has(JSXAttribute[name.name='aria-hidden']))"),
+  }),
+  // Leaderboardens positionsgraf är också en handritad SVG (ingen diagramlib): en <svg> är tillåten, men den måste vara dold för skärmläsare (grafen får sin
+  // text av role="img" + aria-label och tabellen bakom "Show as table"). Filen följer annars Boards regler (inga inline-literal, inga färger, inget px).
+  designGroup(["src/features/leaderboard/components/PackPositionChart.tsx"], {
+    style: "noLiteral",
+    omit: ["svg"],
+    extra: [
+      ...NO_NAMEROW,
+      ...syntaxRule("Positionsgrafens <svg> är dekor och måste vara dold för skärmläsare (aria-hidden=\"true\").", "JSXOpeningElement[name.name='svg']:not(:has(JSXAttribute[name.name='aria-hidden']))"),
     ],
   }),
   // Kända luckor som vakterna aldrig täckte och som finns kvar (ingen kodändring i det här steget). Varje fil har bara det enda undantaget.

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 const readFromDisk = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '');
 const badgesCss = stripComments(readFromDisk('./badges.css'));
-const runnerCss = stripComments(readFromDisk('../runner/runner.css'));
+const runnerCss = stripComments(readFromDisk('../runner/runner.css') + readFromDisk('../runner/runnerPopup.css'));
 const shellCss = stripComments(readFromDisk('../../app-shell/app-shell.css'));
 const detailTsx = readFromDisk('./components/BadgeEmblemDetail.tsx');
 const indexCss = readFromDisk('../../index.css');

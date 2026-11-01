@@ -100,17 +100,36 @@
 
 /* ── Statflikar och rader ─────────────────────────────────────────────────── */
 .rq-card.rq-profile-statcard { padding: 0; }
-/* Fyra lika breda flikar (flex: 1, som förut). Rymms de inte (under ca 340 px, med ikoner och versaler; en flik krymper aldrig under sin text) scrollar flikraden i sidled i sitt eget kort, som
+/* Fyra, med Position fem, lika breda flikar (flex: 1, som förut). Rymms de inte (under ca 340 px med fyra, ca 440 px med fem, med ikoner och versaler; en flik krymper aldrig under sin text) scrollar flikraden i sidled i sitt eget kort, som
    chip-raderna och pillerna, i stället för att sticka ut ur kortet och göra hela sidan bredare (flik 4 på 320 px låg 32 px utanför fönstret). overflow-x: auto gör också overflow-y till auto och
    klipper en yttre fokusring, så ringen ritas inåt (--rq-focus-inset, som chip-raderna). */
-.rq-profile-tabs { display: flex; overflow-x: auto; scrollbar-width: thin; border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+/* scroll-padding-inline är kantfadens zon: samma token som toningen nedan, och useTabRowFade läser måttet härifrån för att hålla den valda fliken utanför zonen. */
+.rq-profile-tabs { display: flex; overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: var(--rq-sp-24); border-bottom: var(--rq-hair) solid var(--rq-line-2); }
+/* Kantfade: raden tonas ut mot den kant som har fler flikar bortom sig (data-fade-* sätts av useTabRowFade, ur radens scrollläge). Masken använder bara alfa; textfärgen är bara en
+   ogenomskinlig färg. Utan data-attributen (alla flikar ryms) finns ingen mask. */
+.rq-profile-tabs-wrap[data-fade-start="true"] > .rq-profile-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-profile-tabs-wrap[data-fade-end="true"] > .rq-profile-tabs {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+  mask-image: linear-gradient(to left, transparent 0, var(--rq-text-1) var(--rq-sp-24));
+}
+.rq-profile-tabs-wrap[data-fade-start="true"][data-fade-end="true"] > .rq-profile-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, var(--rq-text-1) var(--rq-sp-24), var(--rq-text-1) calc(100% - var(--rq-sp-24)), transparent 100%);
+}
 .rq-profile-tabs > .rq-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--rq-sp-6); margin-bottom: 0; padding: var(--rq-sp-10) var(--rq-sp-4); font-weight: 600; white-space: nowrap; letter-spacing: var(--rq-ls-chip); background: none; }
 .rq-profile-tabs > .rq-tab[aria-selected="true"] { background: rgb(var(--rq-gold-rgb) / .05); }
 .rq-profile-tabs > .rq-tab:focus-visible { outline-offset: var(--rq-focus-inset); }
+/* Den valda fliken har guld under sig; en guldring ovanpå flyter ihop med den (flikarna är alltid valda när de har tangentbordsfokus). Ringen byter till textfärgen, som valda chips (view-controls.css). */
+.rq-profile-tabs > .rq-tab[aria-selected="true"]:focus-visible { outline-color: var(--rq-text-1); }
 .rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
 .rq-profile-rows { margin: 0; }
 .rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
 .rq-profile-row dt { color: var(--rq-text-3); }
+/* Ljust tema: --rq-text-3 (.60) ger 3,95:1 mot radens tint på kortet, --rq-text-4 (.65) ger 4,56:1 (som Overview i popupen, runner.css). Mörkt tema är oförändrat. */
+[data-theme="light"] .rq-profile-row dt { color: var(--rq-text-4); }
 .rq-profile-row dd { margin: 0; font-weight: 600; color: var(--rq-text-2); text-align: right; }
 
 /* ── Consistency-heatmapen ────────────────────────────────────────────────── */
@@ -126,8 +145,9 @@
 .rq-profile-heat__month-label { font-size: var(--rq-fs-label); line-height: var(--rq-lh-tight); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
 .rq-profile-heat__month[data-current="true"] .rq-profile-heat__month-label { color: var(--rq-gold-text); }
 .rq-profile-heat__weeks { display: flex; gap: var(--rq-profile-heat-gap); margin-top: var(--rq-sp-4); }
-.rq-profile-heat__week {
-  display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom;
+.rq-profile-heat__week { display: flex; flex-direction: column; gap: var(--rq-profile-heat-gap); transform-origin: bottom; }
+/* Rutorna växer in vid monteringen, utom när en värd som delar en introflagga redan har spelat den (`data-intro="false"`, bara popupen). Profilen har inget attribut. */
+.rq-profile-heat:not([data-intro="false"]) .rq-profile-heat__week {
   animation: rqGrowY var(--rq-dur-grow) var(--rq-ease-bar) both; animation-delay: calc(var(--i) * var(--rq-profile-heat-stagger));
 }
 .rq-profile-heat__cell, .rq-profile-heat__swatch { box-sizing: border-box; flex: 0 0 auto; width: var(--rq-profile-heat-cell); height: var(--rq-profile-heat-cell); background: var(--rq-heat-0); border: var(--rq-hair) solid var(--rq-line-2); }
@@ -171,6 +191,15 @@
 .rq-profile-run__earned { text-align: right; }
 .rq-profile-run__xp { margin: 0; font-family: var(--rq-font-display); font-size: var(--rq-fs-title); line-height: var(--rq-lh-tight); color: var(--rq-gold-text); }
 .rq-profile-run__mult { margin: 0; font-size: var(--rq-fs-eyebrow); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+/* Tid och tempo: en rad under datum/XP, över hela radens bredd, bakom en streckad avdelare. Summan längst ner har samma form med tätare färg. */
+.rq-profile-run__time, .rq-profile-history__sum { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--rq-sp-14); row-gap: var(--rq-sp-2); }
+.rq-profile-run__time { grid-column: 1 / -1; margin-top: calc(var(--rq-sp-2) * -1); padding-top: var(--rq-sp-6); border-top: var(--rq-hair) dashed var(--rq-line-2); }
+.rq-profile-history__sum { padding: var(--rq-sp-10) var(--rq-pad-card); background: var(--rq-row-soft); border-top: var(--rq-hair) dashed var(--rq-line-2); }
+.rq-profile-run__pair { display: inline-flex; align-items: baseline; gap: var(--rq-sp-6); }
+.rq-profile-run__tlabel { font-size: var(--rq-fs-label); letter-spacing: var(--rq-ls-chip); text-transform: uppercase; color: var(--rq-text-4); }
+.rq-profile-run__tvalue { font-family: var(--rq-font-mono); font-size: var(--rq-fs-meta); color: var(--rq-text-2); }
+.rq-profile-history__sum .rq-profile-run__tvalue { color: var(--rq-text-2); }
+.rq-profile-history__basis { margin-left: auto; font-size: var(--rq-fs-meta); color: var(--rq-text-4); }
 
 /* ── Redigera / radera: bottensheet (mobil) / dialog (desktop) via --rq-profile-sheet-* ─────────────────── */
 .rq-profile-sheet {

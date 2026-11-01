@@ -1,7 +1,10 @@
 import { BadgeMinis } from '@/features/badges/components/BadgeMinis';
 import { type SeasonRow } from '../seasonModel';
 import { ChallengeRibbons, DeltaMark, RunnerAvatar, RunnerName, TitleLine } from './BoardParts';
+import { PodiumName } from './PodiumName';
 import { cssVars } from '../cssVars';
+import '../podiumCard.css';
+import { placeLabel } from '../podiumName';
 
 const RANK_STAGGER_SECONDS = 0.1;
 
@@ -53,9 +56,13 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
       {...(tourAnchor ? { 'data-tour': 'leaderboard-card' } : {})}
       onClick={open}
     >
-      <span className="rq-ghost-rank" aria-hidden="true">{row.rank}</span>
-      <div className="rq-board-podium__body">
-        <div className="rq-board-podium__head">
+      {wide ? (
+        <span className="rq-ghost-rank" aria-hidden="true">{row.rank}</span>
+      ) : (
+        <span className="rq-board-podium__rank" role="img" aria-label={placeLabel(row.rank)}>#{row.rank}</span>
+      )}
+      <div className={wide ? 'rq-board-podium__body' : 'rq-board-podium__body rq-board-podium__body--phone'}>
+        <div className={wide ? 'rq-board-podium__head' : 'rq-board-podium__head rq-board-podium__head--phone'} data-minis={(!wide && hasMinis) || undefined}>
           <RunnerAvatar initials={row.initials} pictureUrl={row.pictureUrl} />
           <div className="rq-board-podium__id">
             {wide ? (
@@ -66,19 +73,23 @@ export function PodiumCard({ row, wide, onOpen, tourAnchor }: PodiumCardProps) {
                 </div>
                 {/* Namnraden rymmer en mini på alla kort. Bryter badgegruppen till en egen rad (RUN-373) växer kortet ändå när badge-queryn landar; se docs/open-assumptions.md. */}
                 <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
-                  <RunnerName name={row.name} onOpen={open} />
+                  <RunnerName userId={row.id} name={row.name} onOpen={open} />
                   <BadgeMinis showcase={row.showcase} />
                 </div>
               </>
             ) : (
-              <div className="rq-board-podium__nameline rq-board-podium__nameline--room" data-minis={hasMinis || undefined}>
-                <RunnerName name={row.name} onOpen={open} />
+              <div className="rq-board-podium__nameline rq-board-podium__nameline--room rq-board-podium__nameline--stack">
+                <PodiumName userId={row.id} name={row.name} onOpen={open} />
                 <DeltaMark delta={row.delta} />
-                <BadgeMinis showcase={row.showcase} />
               </div>
             )}
             <TitleLine row={row} />
           </div>
+          {!wide && hasMinis && (
+            <span className="rq-board-podium__pyramid" data-count={row.showcase.length}>
+              <BadgeMinis showcase={row.showcase} />
+            </span>
+          )}
         </div>
 
         <div className="rq-board-xprow rq-label">

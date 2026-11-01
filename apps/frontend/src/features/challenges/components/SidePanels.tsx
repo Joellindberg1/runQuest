@@ -1,50 +1,73 @@
+import { useState } from 'react';
 import type { ChallengeTier } from '@runquest/shared';
 import type { BoostView, RecordCell, TierGroup } from '../duelsModel';
-import type { SendBlocker } from '../sendModel';
-import { TierRibbon } from './TierRibbon';
+import type { SendBlocker, SendPreselection } from '../sendModel';
+import { tierLabel } from '../duelsFormat';
+import { TierChip } from './TierChip';
+import { TokenCard } from './TokenCard';
 
 interface TokensPanelProps {
   groups: TierGroup[];
   blocker: SendBlocker | null;
-  /** Desktop: förklaringsraden under rubriken. */
-  showIntro: boolean;
-  onSend: (tier: ChallengeTier) => void;
+  onSend: (preselection: SendPreselection) => void;
 }
 
 /**
- * "Your tokens": osända tokens per nivå (vimpel med antal, insats, Send). Send på en nivå öppnar send-sheeten med nivån
- * förvald. Går det inte att skicka just nu är knapparna låsta och orsaken står under listan.
+ * "Your tokens": alltid tre nivåchips (antal per nivå) och under dem ett kort per token på den valda nivån (mått, längd och tokenets egen
+ * insats, Send). Start: första nivån som har tokens. En tom nivå är dämpad och går att fokusera; aktiveras den står orsaken i statusregionen
+ * och valet ändras inte. Send på ett kort öppnar send-flödet med nivån och kortet förvalda. Går det inte att skicka just nu är knapparna
+ * låsta och orsaken står under listan.
  */
-export function TokensPanel({ groups, blocker, showIntro, onSend }: TokensPanelProps) {
+export function TokensPanel({ groups, blocker, onSend }: TokensPanelProps) {
+  const [picked, setPicked] = useState<ChallengeTier | null>(null);
+  const [explained, setExplained] = useState<TierGroup | null>(null);
+
+  // Valet gäller bara så länge nivån har tokens kvar (efter en skickad utmaning kan den ha tömts).
+  const shown = groups.find((group) => group.tier === picked && group.selectable) ?? groups.find((group) => group.selectable) ?? null;
+
+  const press = (group: TierGroup) => {
+    if (group.selectable) {
+      setPicked(group.tier);
+      setExplained(null);
+    } else {
+      setExplained(group);
+    }
+  };
+
   return (
     <section className="rq-card rq-duels-tokens" data-tour="duels-tokens" aria-labelledby="duels-tokens-heading">
       <h2 id="duels-tokens-heading" className="rq-title">Your tokens</h2>
-      {showIntro && <p className="rq-duels-tokens__intro">One token, one challenge. A token fixes the metric and the length; you pick who gets it.</p>}
-      {groups.length === 0 ? (
+      <div role="group" aria-label="Token tier" className="rq-segmented rq-duels-chips">
+        {groups.map((group) => (
+          <TierChip key={group.tier} tier={group.tier} label={group.label} count={group.count} selected={group.tier === shown?.tier} onPress={() => press(group)} />
+        ))}
+      </div>
+      {/* Live-regionen måste finnas innan texten kommer för att annonseras: behållaren är permanent, bara texten monteras. */}
+      <div role="status" className="rq-duels-tokens__status">
+        {explained && <p className="rq-duels-note">No {explained.label} tokens right now</p>}
+      </div>
+      {shown === null ? (
         <p className="rq-duels-note">No tokens to send. You earn them by levelling up.</p>
       ) : (
-        <ul className="rq-duels-tokens__list">
-          {groups.map((group) => (
-            <li key={group.tier} className="rq-duels-token" data-tier={group.tier}>
-              <TierRibbon tier={group.tier} count={group.count} />
-              <div className="rq-duels-token__text">
-                <span className="rq-duels-token__tier">{group.label}</span>
-                <span className="rq-duels-token__stake">{group.stake.summary}</span>
-              </div>
-              <button
-                type="button"
-                className="rq-duels-token__send"
-                disabled={blocker !== null}
-                aria-label={`Send a ${group.label.toLowerCase()} challenge`}
-                onClick={() => onSend(group.tier)}
-              >
-                Send
-              </button>
+        <ul className="rq-duels-tokens__list" aria-label={`${shown.label} tokens`}>
+          {shown.cards.map((card) => (
+            <li key={card.tokenKey}>
+              <TokenCard card={card}>
+                <button
+                  type="button"
+                  className="rq-duels-send"
+                  disabled={blocker !== null}
+                  aria-label={`Send a ${tierLabel(card.tier).toLowerCase()} challenge: ${card.metricLabel}, ${card.durationLabel}`}
+                  onClick={() => onSend({ tier: card.tier, tokenKey: card.tokenKey })}
+                >
+                  Send
+                </button>
+              </TokenCard>
             </li>
           ))}
         </ul>
       )}
-      {blocker && groups.length > 0 && <p className="rq-duels-tokens__why">{blocker.message}</p>}
+      {blocker && shown !== null && <p className="rq-duels-tokens__why">{blocker.message}</p>}
     </section>
   );
 }

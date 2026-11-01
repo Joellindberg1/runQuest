@@ -282,8 +282,8 @@ describe('titlar', () => {
       null,
     );
     expect(rows.held).toEqual([
-      { id: 't-rooster', name: 'The Rooster', value: '56 runs' },
-      { id: 't-long', name: 'The Longest Run', value: '32.8 km' },
+      { id: 't-rooster', name: 'The Rooster', value: '56 runs', category: 'time' },
+      { id: 't-long', name: 'The Longest Run', value: '32.8 km', category: 'distance' },
     ]);
     expect(rows.runnersUp).toEqual([]);
   });
@@ -301,8 +301,8 @@ describe('titlar', () => {
     );
     expect(rows.held).toEqual([]);
     expect(rows.runnersUp).toEqual([
-      { id: 't-long', name: 'The Longest Run', position: 2, holder: 'Karl', gap: '4.5 km', value: '28.3 km' },
-      { id: 't-rooster', name: 'The Rooster', position: 3, holder: 'Karl', gap: '5 runs', value: '51 runs' },
+      { id: 't-long', name: 'The Longest Run', position: 2, holder: 'Karl', gap: '4.5 km', value: '28.3 km', category: 'distance' },
+      { id: 't-rooster', name: 'The Rooster', position: 3, holder: 'Karl', gap: '5 runs', value: '51 runs', category: 'time' },
     ]);
   });
 
@@ -326,6 +326,25 @@ describe('titlar', () => {
       null,
     );
     expect(rows.runnersUp[0].gap).toBe('0.0 km');
+  });
+
+  it('varje rad bär kategorin ur måttnyckeln (TITLE_CATEGORIES), och en titel utan känt mått hamnar i other', () => {
+    const rows = buildTitleRows(
+      [
+        ut({ title_id: 't-fast', title_name: 'The Kipchoge', value: 38 }),
+        ut({ title_id: 't-nokey', title_name: 'The Ten', value: 3 }),
+        ut({ title_id: 't-gone', title_name: 'The Gone', value: 3 }),
+        ut({ title_id: 't-double', title_name: 'The Double Trouble', value: 9, position: 2, is_current_holder: false }),
+      ],
+      board,
+      null,
+    );
+    expect(rows.held.map((row) => [row.name, row.category])).toEqual([
+      ['The Kipchoge', 'pace'],
+      ['The Ten', 'other'],
+      ['The Gone', 'other'],
+    ]);
+    expect(rows.runnersUp.map((row) => [row.name, row.category])).toEqual([['The Double Trouble', 'distance']]);
   });
 
   it('King/Queen följer löparens kön', () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@runquest/types';
-import { buildSent } from './duelsModel';
-import { buildOpponents, h2hHint, resolveOpponentParam, sendBlocker } from './sendModel';
-import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat } from './duels.fixture';
+import { LEGENDARY_AUTO_START_DAYS } from '@runquest/shared';
+import { buildSent, buildTokenGroups } from './duelsModel';
+import { betSummary, buildOpponents, h2hHint, resolveOpponentParam, sendBlocker, startingChoice, startRuleSentence, startRuleText } from './sendModel';
+import { ADAM, DAN, KARL, ME, NAMES, NICK, challenge, stat, token } from './duels.fixture';
 
 const sent = buildSent(challenge({ id: 's1', challenger_id: ME, opponent_id: KARL }), NAMES);
 
@@ -43,6 +44,52 @@ describe('h2hHint', () => {
   it('inget svar än → ingen text (ingen gissning)', () => {
     expect(h2hHint(undefined, 'Karl')).toBeNull();
   });
+
+  it('names the opponent, or says "to them" when there is no name, and never uses him or her', () => {
+    expect(h2hHint(record(0, 0, 2), 'Karl')?.text).toBe('0–2 to Karl');
+    expect(h2hHint(record(0, 0, 2), '')?.text).toBe('0–2 to them');
+    for (const counts of [record(2, 0, 0), record(0, 0, 1), record(0, 1, 0), record(1, 0, 1), record(0, 0, 0)]) {
+      expect(h2hHint(counts, 'Karl')?.text).not.toMatch(/\b(him|her|his|hers)\b/i);
+    }
+  });
+});
+
+describe('startRuleText', () => {
+  it('minor and major start at the midnight after the accept; legendary also starts on its own after the unanswered days of the scheduler', () => {
+    expect(startRuleText('minor')).toBe('Midnight after it is accepted');
+    expect(startRuleText('major')).toBe('Midnight after it is accepted');
+    expect(startRuleText('legendary')).toBe(`Midnight after it is accepted, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered`);
+  });
+
+  it('never claims that it starts when it is accepted', () => {
+    for (const tier of ['minor', 'major', 'legendary'] as const) expect(startRuleText(tier)).not.toMatch(/when accepted/i);
+  });
+});
+
+describe('startRuleSentence', () => {
+  it('is the same rule as startRuleText in a sentence for the confirmation: the same midnight, and the unanswered days for legendary only', () => {
+    expect(startRuleSentence('minor')).toBe('It starts at midnight after they accept.');
+    expect(startRuleSentence('major')).toBe('It starts at midnight after they accept.');
+    expect(startRuleSentence('legendary')).toBe(`It starts at midnight after they accept, or after ${LEGENDARY_AUTO_START_DAYS} d unanswered.`);
+  });
+
+  it('names the unanswered days exactly when startRuleText does', () => {
+    for (const tier of ['minor', 'major', 'legendary'] as const) {
+      expect(startRuleSentence(tier).includes('unanswered')).toBe(startRuleText(tier).includes('unanswered'));
+    }
+  });
+});
+
+describe('betSummary', () => {
+  const [group] = buildTokenGroups([token({ id: 'a', tier: 'minor', metric: 'km', duration_days: 7 })]);
+  const card = group.cards[0];
+
+  it('says what is still missing, and names the bet once both are chosen', () => {
+    expect(betSummary(null, null)).toBe('Pick a challenge and an opponent');
+    expect(betSummary(null, 'Karl')).toBe('Pick a challenge');
+    expect(betSummary(card, null)).toBe('Pick an opponent');
+    expect(betSummary(card, 'Karl')).toBe('Most km vs Karl · 7 days');
+  });
 });
 
 describe('buildOpponents', () => {
@@ -62,6 +109,14 @@ describe('buildOpponents', () => {
     const options = buildOpponents({ members, users, meId: ME, headToHead: {} });
     expect(options.map((option) => option.userId)).toEqual([KARL, DAN, NICK, ADAM]);
     expect(options.map((option) => option.disabledReason)).toEqual([null, null, 'Waiting on a reply', 'In a duel']);
+  });
+
+  it('you cannot challenge yourself: I am never in the list, however the group is ordered', () => {
+    for (const order of [members, [...members].reverse()]) {
+      const options = buildOpponents({ members: order, users, meId: ME, headToHead: {} });
+      expect(options.map((option) => option.userId)).not.toContain(ME);
+      expect(options).toHaveLength(members.length - 1);
+    }
   });
 
   it('notisen: nivå · placering · XP per dag', () => {
@@ -103,5 +158,36 @@ describe('resolveOpponentParam', () => {
     expect(resolveOpponentParam('u-someone-else', options)).toBeNull();
     expect(resolveOpponentParam(ADAM, options)).toBeNull();
     expect(resolveOpponentParam(null, options)).toBeNull();
+  });
+});
+
+describe('startingChoice', () => {
+  const groups = buildTokenGroups([
+    token({ id: 'a', tier: 'minor', metric: 'km' }),
+    token({ id: 'b', tier: 'minor', metric: 'km' }),
+    token({ id: 'm', tier: 'major', metric: 'runs' }),
+  ]);
+
+  it('Send on a token card preselects its tier and that card', () => {
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: 'b' })).toEqual({ tier: 'minor', tokenKey: 'b' });
+  });
+
+  it('a tier chip preselects the tier only, unless the tier has a lone card', () => {
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: null })).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(groups, { tier: 'major', tokenKey: null })).toEqual({ tier: 'major', tokenKey: 'm' });
+  });
+
+  it('no preselection starts at the first tier that has tokens, never at a chosen card', () => {
+    expect(startingChoice(groups, null)).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(buildTokenGroups([token({ id: 'm', tier: 'major' })]), null)).toEqual({ tier: 'major', tokenKey: 'm' });
+  });
+
+  it('a preselection that is no longer valid falls back instead of selecting a card that is gone', () => {
+    expect(startingChoice(groups, { tier: 'legendary', tokenKey: null })).toEqual({ tier: 'minor', tokenKey: null });
+    expect(startingChoice(groups, { tier: 'minor', tokenKey: 'gone' })).toEqual({ tier: 'minor', tokenKey: null });
+  });
+
+  it('without any tokens there is nothing to start at', () => {
+    expect(startingChoice(buildTokenGroups([]), null)).toBeNull();
   });
 });
