@@ -2,6 +2,8 @@
 
 ## Snabbfix 2026-11-02: Position med "Last 8 weeks" och "All time" (utan versionsnummer)
 
+**Live 2026-11-02** via PR #71, main `6efc904d` (rollbackreferens `b7a266b8`). Alla required checks och Lighthouse gröna före squash; CI på main grön och båda prod-deployerna SUCCESS 11:47 UTC. Röken efter deploy grön: `/health` med ny uptime, 401 utan token på `/api/leaderboard/positions` (också `?weeks=26`, `99` och `105`), `group-history` och `users-with-runs`, direktladdade sidor 200, skarp CSP och säkerhetshuvuden, bundlen bär växeln ("Position range", "All time") och `PositionView`-chunken serveras, `.map` 404. Sentry utan nya ärenden och backenden 0 % 5xx efter deployen. Storykritiker GODKÄND, Lead 17/17 sviter, deploy-critic GO. Ägaren tittar på växeln inloggad.
+
 Snabbfix mellan versionerna från `integration/hotfix-2026-11-02` (ägarens önskemål 2026-11-02, samma process som buggreleaserna i `docs/release.md`). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.3.
 
 ### Position
@@ -11,8 +13,8 @@ Snabbfix mellan versionerna från `integration/hotfix-2026-11-02` (ägarens öns
 - `GET /api/leaderboard/positions` tar `weeks` 1–104 (var 1–26; ADR 007 addendum). Veckor före gruppens första medlem beskärs som förut, frågorna är fortfarande en per tabell och gruppavgränsade.
 
 ### Prod-steg
-1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna. Läs sedan deploystatusen i Railway (SKIPPED betyder röd CI på main).
-2. Efter deploy: rök enligt `docs/release.md` steg 4, plus `/api/leaderboard/positions?weeks=104` och `?weeks=105` 401 utan token och nya `PositionView`-chunken serverad. Ägaren tittar på växeln inloggad.
+1. **KÖRT 2026-11-02.** Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna. Läs sedan deploystatusen i Railway (SKIPPED betyder röd CI på main).
+2. **KÖRT 2026-11-02** (oinloggad del). Efter deploy: rök enligt `docs/release.md` steg 4, plus `/api/leaderboard/positions?weeks=104` och `?weeks=105` 401 utan token och nya `PositionView`-chunken serverad. Ägaren tittar på växeln inloggad.
 
 ### Rollback
 Ingen migration och ingen miljövariabel. Kontraktet vidgas bara (`weeks` upp till 104), så en äldre frontend mot den nya backenden fungerar; en ny frontend mot gammal backend får 400 på "All time" (felkort med Retry, "Last 8 weeks" fungerar). Den säkra vägen är en revert-PR på `main`; rollbackreferensen är main före release-PR:en (`b7a266b8`).
