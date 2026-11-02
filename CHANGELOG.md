@@ -1,5 +1,22 @@
 # Changelog
 
+## Snabbfix 2026-11-02: Position med "Last 8 weeks" och "All time" (utan versionsnummer)
+
+Snabbfix mellan versionerna från `integration/hotfix-2026-11-02` (ägarens önskemål 2026-11-02, samma process som buggreleaserna i `docs/release.md`). Ingen versionshöjning och ingen post i `changelog.json`; appen visar fortfarande v0.8.3.
+
+### Position
+- Position-fliken på Board och på profilen har en växel ovanför grafen: "Last 8 weeks" (vald från början, som förut) och "All time", alla veckor sedan gruppens första medlem fram till den pågående veckan. När det finns säsonger blir "All time" säsongen. Växeln är ett tabbstopp med pilar, Home och End (`SegmentedControl` med valet `roving`; Overview-växeln och titelfiltret är oförändrade). Valet nollställs när fliken öppnas igen och skrivs inte i adressen (RUN-456).
+- Byte av vy behåller den gamla grafen markerad som upptagen tills svaret kommer, och varje vy cachas för sig (frågenyckeln har antalet veckor). Profilens Best, Lowest och Now räknas på vald vy.
+- Veckoetiketterna glesas ut efter bredd så att de aldrig överlappar (första och pågående vecka alltid med). Det rättar också standardvyn på Board vid 320 px, där åtta etiketter låg över varandra; där visas nu fyra. Markörerna ritas över etiketterna, linjen går genom alla veckor. Board-tabellen i All time har alla veckor i sin egen scroll med fast namnkolumn.
+- `GET /api/leaderboard/positions` tar `weeks` 1–104 (var 1–26; ADR 007 addendum). Veckor före gruppens första medlem beskärs som förut, frågorna är fortfarande en per tabell och gruppavgränsade.
+
+### Prod-steg
+1. Release-PR mot `main` (squash, inga admin-undantag) när alla required checks och Lighthouse är gröna. Läs sedan deploystatusen i Railway (SKIPPED betyder röd CI på main).
+2. Efter deploy: rök enligt `docs/release.md` steg 4, plus `/api/leaderboard/positions?weeks=104` och `?weeks=105` 401 utan token och nya `PositionView`-chunken serverad. Ägaren tittar på växeln inloggad.
+
+### Rollback
+Ingen migration och ingen miljövariabel. Kontraktet vidgas bara (`weeks` upp till 104), så en äldre frontend mot den nya backenden fungerar; en ny frontend mot gammal backend får 400 på "All time" (felkort med Retry, "Last 8 weeks" fungerar). Den säkra vägen är en revert-PR på `main`; rollbackreferensen är main före release-PR:en (`b7a266b8`).
+
 ## v0.8.3 — Tid och tempo, Position och profilkortet som popup (2026-11-01)
 
 **Live 2026-11-01** via release-PR #68 (main `d80dd8ca`) och testrättningen #69 (main `9b9bd9fe`, tagg `v0.8.3`). PR #68:s checks och Lighthouse var gröna ("budgeten hålls" i båda lägena), men CI på main för `d80dd8ca` fick ett ohanterat fel efter `SendSheet.test.tsx` (sökningen efter löparens rad efter Back, `focusRowAfterBack`, hade en timer som gick efter att filens jsdom stängts; alla 5 046 prov gröna), så Railway hoppade över deployen och prod stod kvar på `b421d87f`. #69 avbryter sökningen efter varje prov i `src/test/setup.ts` (bara testupplägget); efter grön CI deployade Railway båda tjänsterna 09:38 UTC. Röken efter deploy grön: `/health` med ny uptime, 401 utan token på `/api/leaderboard/positions` (också `?weeks=26`), `group-history` och `users-with-runs`, direktladdade `/`, `/legal`, `/board`, `/duels`, `/profile`, `/runner/x` och `/log` 200, skarp CSP och säkerhetshuvuden, `RunnerPopup-*.js` och `RunnerPopup-*.css` 200 med rätt typ, bundlen bär 0.8.3, `.map` 404, `/legal` visar "Version 2026-10-27" och texten om tid och tempo. Bevakningen 30 minuter: Sentry utan nya ärenden, backenden 0 % 5xx, båda tjänsterna SUCCESS. `announce:release --apply --version=0.8.3` 10:17 UTC: 1 `release_published`-rad (Wolfpack). Release Council: GODKÄNT MED VILLKOR (5/5); uppföljningar RUN-454 (send-arket lazy) och RUN-455 (positionsrutten mäts före grupp 2). Ingen inloggad baslinje för positionsrutten ännu (ingen inloggad trafik under bevakningen); den tas i RUN-455.

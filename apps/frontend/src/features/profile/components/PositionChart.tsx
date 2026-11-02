@@ -74,7 +74,7 @@ function PositionTable({ model, id, open }: { model: PositionGraphModel; id: str
   );
 }
 
-function ReadyChart({ model }: { model: PositionGraphModel }) {
+function ReadyChart({ model, busy }: { model: PositionGraphModel; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const tableId = useId();
   const columns = model.columns.length;
@@ -85,7 +85,7 @@ function ReadyChart({ model }: { model: PositionGraphModel }) {
   const { best, lowest, now } = model.stats;
 
   return (
-    <div className="rq-profile-position">
+    <div className="rq-profile-position" aria-busy={busy}>
       <div className="rq-profile-position__head">
         <span className="rq-profile-position__now">{placementText(now.position)}</span>
         {/* Dold för skärmläsare: tankstrecket läses olika, och bildens aria-label bär redan perioden ("weeks 27 to 34"). */}
@@ -110,7 +110,7 @@ function ReadyChart({ model }: { model: PositionGraphModel }) {
               )}
               <line className="rq-profile-position__dashed" x1={dashedFrom.x} y1={dashedFrom.y} x2={dashedTo.x} y2={dashedTo.y} />
             </svg>
-            {model.dots.map((dot) => (
+            {model.dots.filter((dot) => dot.marked).map((dot) => (
               <span
                 key={dot.column}
                 className="rq-profile-position__dot"
@@ -127,11 +127,14 @@ function ReadyChart({ model }: { model: PositionGraphModel }) {
         </div>
         <div className="rq-profile-position__weeks" aria-hidden="true">
           <div className="rq-profile-position__field">
-            {model.columns.map((column, index) => (
-              <span key={column.visual + index} className="rq-profile-position__week" data-current={String(column.current)} style={cssVars({ '--x': String(fraction(index, columns)) })}>
-                {column.visual}
-              </span>
-            ))}
+            {model.columns.map(
+              (column, index) =>
+                column.labelled && (
+                  <span key={column.visual + index} className="rq-profile-position__week" data-current={String(column.current)} style={cssVars({ '--x': String(fraction(index, columns)) })}>
+                    {column.visual}
+                  </span>
+                ),
+            )}
           </div>
         </div>
       </div>
@@ -163,10 +166,10 @@ function ReadyChart({ model }: { model: PositionGraphModel }) {
 
 /**
  * Profilens positionsgraf ur vymodellen. `hidden` ritar ingenting (fliken döljs av värden), `new-runner` och `no-finished-week` ger modellens text
- * i stället för graf, `ready` ritar grafen.
+ * i stället för graf, `ready` ritar grafen. `busy`: svaret är det förra antalet veckor och det nya hämtas, så grafen står kvar bleknad och markerad upptagen.
  */
-export function PositionChart({ model }: { model: PositionProfileModel }) {
+export function PositionChart({ model, busy = false }: { model: PositionProfileModel; busy?: boolean }) {
   if (model.mode === 'hidden') return null;
   if (model.mode !== 'ready') return <p className="rq-profile-note" data-mode={model.mode}>{model.message}</p>;
-  return <ReadyChart model={model} />;
+  return <ReadyChart model={model} busy={busy} />;
 }

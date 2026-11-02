@@ -323,6 +323,35 @@ describe('PositionChart', () => {
     });
   });
 
+  describe('many weeks (All time)', () => {
+    const forty = Array.from({ length: 44 }, (_, i) => (i % 3) + 1);
+
+    it('labels 44 weeks seven times, the first and the week in progress among them, and draws a numbered dot only above a label', () => {
+      const { container } = render(<PositionChart model={readyOf(forty, 6, weeksOf(44, 1))} />);
+
+      const labels = Array.from(container.querySelectorAll('.rq-profile-position__week')).map((node) => node.textContent);
+      expect(labels).toEqual(['W1', 'W9', 'W16', 'W23', 'W30', 'W37', 'W44']);
+      expect(dots(container).map((dot) => dot.style.getPropertyValue('--x'))).toEqual([0, 8, 15, 22, 29, 36, 43].map((week) => String(Number((week / 43).toFixed(4)))));
+      expect(container.querySelector('.rq-profile-position__dot[data-hollow="true"]')).not.toBeNull();
+    });
+
+    it('keeps the line through every finished week and every week in the table', async () => {
+      const user = userEvent.setup();
+      const { container } = render(<PositionChart model={readyOf(forty, 6, weeksOf(44, 1))} />);
+
+      expect(container.querySelector('polyline')!.getAttribute('points')!.split(' ')).toHaveLength(43);
+      await user.click(screen.getByRole('button', { name: 'Show as table' }));
+      expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(45);
+    });
+
+    it('draws all eight dots and all eight labels for the last eight weeks', () => {
+      const { container } = render(<PositionChart model={readyOf(EIGHT)} />);
+
+      expect(dots(container)).toHaveLength(8);
+      expect(container.querySelectorAll('.rq-profile-position__week')).toHaveLength(8);
+    });
+  });
+
   describe('lazy loading', () => {
     it('loads through a dynamic import, as the Position tab does', async () => {
       const LazyChart = lazy(() => import('./PositionChart').then((module) => ({ default: module.PositionChart })));

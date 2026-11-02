@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
+import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, ringOf } from '../support/positionRange';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
 import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
@@ -69,7 +70,20 @@ function positionsOf(mine: Array<number | null>, weeks = ISO_WEEKS.slice(-mine.l
     runners: [{ user_id: ME_ID, name: 'Stub Runner', profile_picture: null, member_since: null, positions: mine }, ...others],
   };
 }
+/** ISO-veckan `back` veckor före vecka 1 2027. 2026 har 53 veckor, så en period över en vecka korsar årsskiftet. */
+const WEEKS_IN_2026 = 53;
+const isoWeekBack = (back: number) => {
+  const week = 1 - back;
+  return week >= 1 ? { iso_week: week, iso_year: 2027 } : { iso_week: week + WEEKS_IN_2026, iso_year: 2026 };
+};
+const longWeeks = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ start: '2026-11-16', end: '2026-11-22', ...isoWeekBack(count - 1 - index), is_current_week: index === count - 1 }));
+
 const READY = positionsOf([1, 1, 2, 1, 1, 1, 1, 2]);
+// All time: 44 veckor. Bäst #1 de fem första veckorna, sämst #4 var nionde vecka, annars #3, och de senaste åtta veckorna är samma som READY. Best, Lowest och Now ska följa vyn.
+const LAST_EIGHT = [1, 1, 2, 1, 1, 1, 1, 2];
+const ALL_TIME_MINE = Array.from({ length: ALL_TIME_STUB_WEEKS }, (_, i) => (i >= ALL_TIME_STUB_WEEKS - 8 ? LAST_EIGHT[i - (ALL_TIME_STUB_WEEKS - 8)]! : i < 5 ? 1 : i % 9 === 0 ? 4 : 3));
+const ALL_TIME = positionsOf(ALL_TIME_MINE, longWeeks(ALL_TIME_STUB_WEEKS));
 const NEW_RUNNER = positionsOf([null, null, null, null, null, null, null, 3]);
 const NO_FINISHED_WEEK = positionsOf([1], [ISO_WEEKS[7]!]);
 
@@ -84,25 +98,32 @@ async function answerWith(page: Page, path: string, body: unknown): Promise<void
 interface OpenOptions {
   members: number;
   positions?: unknown;
+  /** Svaret för All time (`weeks=104`). Utan det ger varje antal veckor `positions`. */
+  allTime?: unknown;
+  /** Hur länge svaret för All time hålls tillbaka. */
+  allTimeDelayMs?: number;
   view?: string;
   width: number;
   height?: number;
 }
 
-/** Öppnar profilen med en grupp av vald storlek. Returnerar räknaren över positionsbegäran. */
-async function openProfile(page: Page, { members, positions = READY, view, width, height = 740 }: OpenOptions): Promise<{ positionRequests: () => number }> {
+/** Öppnar profilen med en grupp av vald storlek. Returnerar räknarna över positionsbegäran och antalet veckor varje begäran gällde. */
+async function openProfile(
+  page: Page,
+  { members, positions = READY, allTime, allTimeDelayMs, view, width, height = 740 }: OpenOptions,
+): Promise<{ positionRequests: () => number; weeksAsked: () => number[] }> {
   let requests = 0;
   page.on('request', (request) => {
     if (request.url().includes('/leaderboard/positions')) requests += 1;
   });
   await answerWith(page, '/auth/users-with-runs', { success: true, data: groupOf(members) });
-  await answerWith(page, '/leaderboard/positions', { success: true, data: positions });
+  const answers = await answerPositions(page, { recent: positions, allTime, allTimeDelayMs });
   await page.setViewportSize({ width, height });
   await page.goto(view ? `/profile?view=${view}` : '/profile');
   await dismissOverlays(page);
   await expect(page.getByRole('tablist', { name: 'Your stats' })).toBeVisible();
   await waitForStylesApplied(page);
-  return { positionRequests: () => requests };
+  return { positionRequests: () => requests, weeksAsked: answers.weeksAsked };
 }
 
 const rowAndTab = (tablist: Locator, tab: Locator) =>
@@ -339,5 +360,173 @@ test.describe('the five-tab row of the profile', () => {
         }),
       )
       .toMatchObject({ clearOfStart: true, clearOfEnd: true });
+  });
+});
+
+const rangeSwitchOf = (page: Page) => page.getByRole('group', { name: 'Position range' });
+const rangeButtonOf = (page: Page, name: string) => rangeSwitchOf(page).getByRole('button', { name });
+/** Bilden i båda vyerna: "week 47, 2026 to week 1, 2027" för åtta veckor över årsskiftet, "week 11, 2026 to week 1, 2027" för All time (44 veckor). */
+const positionChartOf = (page: Page) => page.getByRole('img', { name: /^Position in the group, / });
+const RECENT_CHART = /^Position in the group, week 47, 2026 to week 1, 2027/;
+const ALL_TIME_CHART = /^Position in the group, week 11, 2026 to week 1, 2027/;
+const statsOf = (page: Page) => page.locator('.rq-profile-position__stats');
+const THEMES = ['dark', 'light'] as const;
+
+test.describe('the Position range switch on the profile', () => {
+  test.skip(!apiIsStubbed(), 'The group and the positions are put over a stubbed API; run with E2E_STUB_API=1 against a local build.');
+
+  const open = (page: Page, width: number, extra: Partial<OpenOptions> = {}) =>
+    openProfile(page, { members: 6, view: 'position', width, positions: READY, allTime: ALL_TIME, ...extra });
+
+  for (const theme of THEMES) {
+    for (const width of RANGE_WIDTHS) {
+      test(`switches to All time and back with readable week labels, dots and a still page, in the ${theme} theme at ${width} px`, async ({ page }) => {
+        await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
+        const group = await open(page, width, { height: width < 1024 ? 740 : 900 });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        const labels = page.locator('.rq-profile-position__week');
+        const plot = page.locator('.rq-profile-position__chart');
+        const dots = page.locator('.rq-profile-position__dot');
+
+        // Standard: de senaste åtta veckorna, en etikett och en dotta per vecka. Best, Lowest och Now är för de veckorna.
+        await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+        await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
+        await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'false');
+        await expect(statsOf(page)).toContainText('Best #1 · 6 of 7 weeks');
+        await expect(statsOf(page)).toContainText('Lowest #2');
+        // En etikett och en dotta per vecka där åtta ryms, annars färre: aldrig närmare än 4 px, på alla sex bredder.
+        await expect(labels.first()).toHaveText('W47');
+        await expect(labels.last()).toHaveText('W1');
+        const eight = await expectWeekLabelsClear(labels, plot, `${theme} / ${width} px / last 8 weeks`);
+        await expect(dots).toHaveCount(eight.count);
+        await pageDoesNotScrollSideways(page);
+
+        // All time: 44 veckor, glesare etiketter och dottar bara över etiketterna, och Best, Lowest och Now gäller hela perioden.
+        await rangeButtonOf(page, 'All time').click();
+        await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+        await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'true');
+        await expect(statsOf(page)).toContainText('Best #1 · 11 of 43 weeks');
+        await expect(statsOf(page)).toContainText('Lowest #4');
+        await expect(statsOf(page)).toContainText('Now #2');
+        expect(await labels.count()).toBeGreaterThanOrEqual(2);
+        expect(await labels.count()).toBeLessThanOrEqual(7);
+        await expect(labels.first()).toHaveText('W11');
+        await expect(labels.last()).toHaveText('W1');
+        await expect(labels.last()).toHaveAttribute('data-current', 'true');
+        const all = await expectWeekLabelsClear(labels, plot, `${theme} / ${width} px / all time`);
+        test.info().annotations.push({ type: 'measure', description: `${theme} / ${width} px: label gap, last 8 weeks ${eight.minGap.toFixed(1)} px (${eight.count} labels), all time ${all.minGap.toFixed(1)} px (${all.count} labels)` });
+        await expect(dots).toHaveCount(all.count);
+        // Dottarna är 24 px och ligger över etiketterna: ingen nuddar nästa.
+        const dotBoxes = await boxesOf(dots);
+        dotBoxes.slice(1).forEach((box, index) => expect(box.left - dotBoxes[index]!.right, `dot ${index + 1} and ${index + 2}`).toBeGreaterThanOrEqual(0));
+        await expect(page.locator('.rq-profile-position__dot[data-hollow="true"]')).toHaveCount(1);
+        await pageDoesNotScrollSideways(page);
+
+        // Tabellen har alla veckor och ligger kvar i kortet.
+        await page.getByRole('button', { name: 'Show as table' }).click();
+        await expect(page.locator('.rq-profile-position__table tbody tr')).toHaveCount(ALL_TIME_STUB_WEEKS);
+        await pageDoesNotScrollSideways(page);
+        const tableBox = (await boxesOf(page.locator('.rq-profile-position__table')))[0]!;
+        const cardBox = (await boxesOf(page.locator('.rq-profile-statcard')))[0]!;
+        expect(tableBox.left).toBeGreaterThanOrEqual(cardBox.left - TOLERANCE_PX);
+        expect(tableBox.right).toBeLessThanOrEqual(cardBox.right + TOLERANCE_PX);
+        await page.getByRole('button', { name: 'Show as table' }).click();
+
+        // Tillbaka: åtta veckor igen, och begäran gällde åtta veckor och sedan taket.
+        await rangeButtonOf(page, 'Last 8 weeks').click();
+        await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+        await expect(statsOf(page)).toContainText('Best #1 · 6 of 7 weeks');
+        await expect(labels).toHaveCount(eight.count);
+        expect(group.weeksAsked()).toEqual([8, 104]);
+        await pageDoesNotScrollSideways(page);
+      });
+    }
+  }
+
+  for (const width of [375, 1280]) {
+    test(`the switch is one tab stop with arrows, a ring drawn inward and a 44 px target on a phone, at ${width} px`, async ({ page }) => {
+      await open(page, width);
+      await expect(positionChartOf(page)).toBeVisible();
+      const recent = rangeButtonOf(page, 'Last 8 weeks');
+      const allTime = rangeButtonOf(page, 'All time');
+
+      await expect(recent).toHaveAttribute('tabindex', '0');
+      await expect(allTime).toHaveAttribute('tabindex', '-1');
+      await page.getByRole('tab', { name: 'Position' }).focus();
+      await page.keyboard.press('Tab');
+      await expect(recent).toBeFocused();
+      const ring = await ringOf(recent);
+      expect(ring.drawn, 'the switch shows a focus ring').toBe(true);
+      expect(ring.width).toBeGreaterThanOrEqual(MIN_RING_WIDTH_PX);
+      expect(ring.offset, 'the ring is drawn inward').toBeLessThan(0);
+      if (width < 1024) {
+        for (const box of await boxesOf(rangeSwitchOf(page).getByRole('button'))) expect(box.bottom - box.top).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+      }
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Show as table' })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(recent).toBeFocused();
+
+      await page.keyboard.press('ArrowRight');
+      await expect(allTime).toBeFocused();
+      await expect(allTime).toHaveAttribute('aria-pressed', 'true');
+      await expect(allTime).toHaveAttribute('tabindex', '0');
+      await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+      await page.keyboard.press('ArrowRight');
+      await expect(recent).toBeFocused();
+      await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+      await page.keyboard.press('End');
+      await expect(allTime).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(recent).toBeFocused();
+      await pageDoesNotScrollSideways(page);
+    });
+  }
+
+  test('keeps the old chart marked as busy while All time loads, never an empty box, and caches each view', async ({ page }) => {
+    const group = await open(page, 375, { allTimeDelayMs: 1_200 });
+    await expect(positionChartOf(page)).toBeVisible();
+
+    await rangeButtonOf(page, 'All time').click();
+    await expect(page.locator('.rq-profile-position')).toHaveAttribute('aria-busy', 'true');
+    await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+    await expect(page.getByText('Loading position')).toHaveCount(0);
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    await expect(page.locator('.rq-profile-position')).toHaveAttribute('aria-busy', 'false');
+
+    await rangeButtonOf(page, 'Last 8 weeks').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+    await rangeButtonOf(page, 'All time').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    expect(group.weeksAsked()).toEqual([8, 104]);
+  });
+
+  test('starts again on Last 8 weeks when the tab is opened again, and writes nothing to the address', async ({ page }) => {
+    await open(page, 375);
+    await rangeButtonOf(page, 'All time').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    expect(new URL(page.url()).search, 'the choice is not in the address').toBe('?view=position');
+
+    await page.getByRole('tab', { name: 'Streak' }).click();
+    await expect(page.getByRole('tab', { name: 'Streak' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Position' }).click();
+    await expect(positionChartOf(page)).toBeVisible();
+
+    await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
+    await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
+    expect(new URL(page.url()).search).toBe('?view=position');
+  });
+
+  test('offers no switch for a new runner or a group with no finished week', async ({ page }) => {
+    await openProfile(page, { members: 6, view: 'position', width: 375, positions: NEW_RUNNER });
+    await expect(page.getByText('First week in the group. Position appears after your first week')).toBeVisible();
+    await expect(rangeSwitchOf(page)).toHaveCount(0);
+
+    await page.unroute(`${targets.apiUrl}/**/leaderboard/positions*`);
+    await answerWith(page, '/leaderboard/positions', { success: true, data: NO_FINISHED_WEEK });
+    await page.reload();
+    await dismissOverlays(page);
+    await expect(page.getByText('No finished week yet. Position shows where you stood at the end of each week.')).toBeVisible();
+    await expect(rangeSwitchOf(page)).toHaveCount(0);
   });
 });

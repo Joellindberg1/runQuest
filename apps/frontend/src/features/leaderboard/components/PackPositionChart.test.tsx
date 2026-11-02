@@ -278,5 +278,27 @@ describe('PackPositionChart', () => {
       expect(labels.length).toBeLessThanOrEqual(8);
       expect(labels.at(-1)).toBe('W34');
     });
+
+    it('labels 44 weeks seven times, the first and the week in progress among them, and draws markers only above the labels while the line runs through every week', () => {
+      const data = responseOf(weeksOf(44, 1), [runnerOf('u-ada', 'Ada Lund', Array.from({ length: 44 }, () => 1)), runnerOf(ME_ID, 'Joel Lindberg', Array.from({ length: 44 }, () => 2))]);
+      const { container } = renderChart(data);
+
+      const labels = Array.from(container.querySelectorAll('.rq-board-position__week')).map((node) => node.textContent);
+      expect(labels).toEqual(['W1', 'W9', 'W16', 'W23', 'W30', 'W37', 'W44']);
+      const ada = lineOf(container, 'u-ada');
+      // Veckorna 0, 8, 15, 22, 29, 36 är märkta; vecka 42 bär bilden och 43 är den ihåliga punkten.
+      expect(dotsOf(ada).map((dot) => varOf(dot, '--x'))).toEqual([0, 8, 15, 22, 29, 36].map((week) => String(Number((week / 43).toFixed(4)))));
+      expect(ada.querySelector('.rq-board-position__endpoint')).not.toBeNull();
+      expect(ada.querySelector('.rq-board-position__hollow')).not.toBeNull();
+      expect(ada.querySelector('polyline')!.getAttribute('points')!.split(' ')).toHaveLength(43);
+    });
+
+    it('labels 104 weeks with seven labels and draws six dots per line besides the picture and the hollow point', () => {
+      const data = responseOf(weeksOf(104, 1), [runnerOf('u-ada', 'Ada Lund', Array.from({ length: 104 }, () => 1)), runnerOf(ME_ID, 'Joel Lindberg', Array.from({ length: 104 }, () => 2))]);
+      const { container } = renderChart(data);
+
+      expect(container.querySelectorAll('.rq-board-position__week')).toHaveLength(7);
+      expect(dotsOf(lineOf(container, 'u-ada'))).toHaveLength(6);
+    });
   });
 });

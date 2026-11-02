@@ -36,7 +36,7 @@ afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); 
 
 const G1 = 'group-1';
 const G2 = 'group-2';
-const WEEKS_ERROR = 'weeks must be an integer between 1 and 26';
+const WEEKS_ERROR = 'weeks must be an integer between 1 and 104';
 
 function user(id: string, name: string, group_id: string, total_xp: number | null, extra: Row = {}): Row {
   return { id, name, group_id, total_xp, created_at: '2026-01-01T08:00:00Z', profile_picture: null, email: `${id}@example.test`, ...extra };
@@ -141,7 +141,8 @@ describe('GET /api/leaderboard/positions', () => {
   describe('weeks', () => {
     it.each([
       ['0', 'weeks=0'],
-      ['27', 'weeks=27'],
+      ['105', 'weeks=105'],
+      ['a much too large number', 'weeks=1000'],
       ['abc', 'weeks=abc'],
       ['2.5', 'weeks=2.5'],
       ['a repeated parameter', 'weeks=3&weeks=4'],
@@ -178,17 +179,37 @@ describe('GET /api/leaderboard/positions', () => {
       expect(db.queries.find((q) => q.table === 'runs')!.filters).toContainEqual({ op: 'gte', column: 'date', value: '2026-08-17' });
     });
 
-    it('accepts the largest value, 26 weeks, and 1', async () => {
+    it('accepts 27 weeks, which was over the old cap, and the largest value, 104 weeks, and 1', async () => {
       useDb(scenario());
-      const max = await get('/api/leaderboard/positions?weeks=26');
+      const old = await get('/api/leaderboard/positions?weeks=27');
+      expect(old.status).toBe(200);
+      expect(old.body.data.weeks).toHaveLength(27);
+      expect(old.body.data.weeks[0].start).toBe('2026-03-30');
+
+      useDb(scenario());
+      const max = await get('/api/leaderboard/positions?weeks=104');
       expect(max.status).toBe(200);
-      expect(max.body.data.weeks).toHaveLength(26);
-      expect(max.body.data.weeks[0].start).toBe('2026-04-06');
 
       useDb(scenario());
       const min = await get('/api/leaderboard/positions?weeks=1');
       expect(min.status).toBe(200);
       expect(min.body.data.weeks).toHaveLength(1);
+    });
+
+    it('104 weeks gives every week from the first member up to the current one, not 104 empty ones', async () => {
+      const db = useDb(scenario());
+      const res = await get('/api/leaderboard/positions?weeks=104');
+
+      // Alla tre medlemmar skapades 2026-01-01 (torsdag, vecka 1 börjar måndagen 2025-12-29): 40 veckor till den pågående 2026-09-28.
+      const weeks = res.body.data.weeks;
+      expect(weeks).toHaveLength(40);
+      expect(weeks[0].start).toBe('2025-12-29');
+      expect(weeks[39]).toMatchObject({ start: '2026-09-28', is_current_week: true });
+      expect(res.body.data.runners.every((r: any) => r.positions.length === 40)).toBe(true);
+      // Fönstret börjar vid slutgränsen för den äldsta avslutade veckan i det begärda antalet (104 veckor bakåt), ett läsfönster, inte en fråga per vecka.
+      expect(db.queries.filter((q) => q.table === 'runs')).toHaveLength(1);
+      expect(db.queries.filter((q) => q.table === 'users')).toHaveLength(1);
+      expect(db.queries.filter((q) => q.table === 'event_entries')).toHaveLength(1);
     });
 
     it('weeks=1 gives only the current week and skips the run and event reads', async () => {
