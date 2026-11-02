@@ -32,9 +32,12 @@ describe('many weeks (All time)', () => {
     expect(model.lines[0].points.filter((point) => point.marked).map((point) => point.weekIndex)).toEqual([0, 28, 42, 43]);
   });
 
-  it('the label budget never touches the default period of eight weeks', () => {
-    const model = buildPositionChart(pack(8), { ...OPTIONS, maxWeekLabels: 2 });
-    expect(model.weeks.every((week) => week.labelled)).toBe(true);
+  it('eight weeks are all labelled with room for eight, and thinned when the chart is narrow', () => {
+    const labelled = (maxWeekLabels: number) => buildPositionChart(pack(8), { ...OPTIONS, maxWeekLabels }).weeks.flatMap((week, index) => (week.labelled ? [index] : []));
+
+    expect(labelled(8)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(labelled(6)).toEqual([0, 3, 5, 7]);
+    expect(labelled(2)).toEqual([0, 7]);
   });
 
   it('a group younger than the window labels exactly the weeks it has', () => {

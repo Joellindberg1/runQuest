@@ -47,9 +47,22 @@ describe('weekTickIndexes', () => {
     }
   });
 
-  it('the default period of eight weeks (and anything shorter) keeps a label per week, whatever the room', () => {
-    expect(weekTickIndexes(8, 3)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    expect(weekTickIndexes(3, 2)).toEqual([0, 1, 2]);
+  it('eight weeks (and anything shorter) keep a label per week while they fit, and thin out on a narrow chart like a longer period', () => {
+    expect(weekTickIndexes(8, 8)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(weekTickIndexes(8, 6)).toEqual([0, 3, 5, 7]);
+    expect(weekTickIndexes(8, 3)).toEqual([0, 7]);
+    expect(weekTickIndexes(3, 8)).toEqual([0, 1, 2]);
+    expect(weekTickIndexes(3, 2)).toEqual([0, 2]);
+    for (const maxLabels of [2, 3, 4, 5, 6, 7, 8]) {
+      for (const weekCount of [2, 3, 5, 8]) {
+        const ticks = weekTickIndexes(weekCount, maxLabels);
+        const stride = weekTickStride(weekCount, maxLabels);
+        expect(ticks.length, `${weekCount} weeks, room for ${maxLabels}`).toBeLessThanOrEqual(Math.max(maxLabels, 2));
+        expect(ticks[0]).toBe(0);
+        expect(ticks.at(-1)).toBe(weekCount - 1);
+        ticks.slice(1).forEach((index, i) => expect(index - ticks[i]).toBeGreaterThanOrEqual(stride));
+      }
+    }
   });
 });
 

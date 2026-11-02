@@ -43,12 +43,22 @@ describe('PositionView with many weeks', () => {
     expect(labelsOf(narrow.container)).toEqual(['W1', 'W17', 'W26', 'W35', 'W44']);
   });
 
-  it('does not thin the default eight weeks, whatever the width', () => {
+  it('keeps a label per week for eight weeks where they fit, and thins them on a narrow chart so they do not overlap', () => {
     setViewportWidth(390);
-    measureWeeksFieldAs(60);
-    const { container } = render(<PositionView data={EIGHT} meId={ME_ID} />);
+    measureWeeksFieldAs(175);
+    const fits = render(<PositionView data={EIGHT} meId={ME_ID} />);
+    expect(labelsOf(fits.container)).toEqual(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']);
+    fits.unmount();
 
-    expect(labelsOf(container)).toEqual(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']);
+    // 120 px (320 px bred skärm med ett långt förnamn) rymmer sex etiketter på 24 px: steget blir två veckor.
+    measureWeeksFieldAs(120);
+    const narrow = render(<PositionView data={EIGHT} meId={ME_ID} />);
+    expect(labelsOf(narrow.container)).toEqual(['W1', 'W4', 'W6', 'W8']);
+    narrow.unmount();
+
+    measureWeeksFieldAs(60);
+    const tiny = render(<PositionView data={EIGHT} meId={ME_ID} />);
+    expect(labelsOf(tiny.container)).toEqual(['W1', 'W8']);
   });
 
   it('keeps all the labels it can before the chart has a width (as in the first paint)', () => {

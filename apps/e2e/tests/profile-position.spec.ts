@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { dismissOverlays } from '../support/overlays';
-import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, measureWeekLabels, ringOf } from '../support/positionRange';
+import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, ringOf } from '../support/positionRange';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
 import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
@@ -392,11 +392,13 @@ test.describe('the Position range switch on the profile', () => {
         await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
         await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
         await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'false');
-        await expect(labels).toHaveCount(8);
-        await expect(dots).toHaveCount(8);
         await expect(statsOf(page)).toContainText('Best #1 · 6 of 7 weeks');
         await expect(statsOf(page)).toContainText('Lowest #2');
-        const eight = await measureWeekLabels(labels);
+        // En etikett och en dotta per vecka där åtta ryms, annars färre: aldrig närmare än 4 px, på alla sex bredder.
+        await expect(labels.first()).toHaveText('W47');
+        await expect(labels.last()).toHaveText('W1');
+        const eight = await expectWeekLabelsClear(labels, plot, `${theme} / ${width} px / last 8 weeks`);
+        await expect(dots).toHaveCount(eight.count);
         await pageDoesNotScrollSideways(page);
 
         // All time: 44 veckor, glesare etiketter och dottar bara över etiketterna, och Best, Lowest och Now gäller hela perioden.
@@ -434,7 +436,7 @@ test.describe('the Position range switch on the profile', () => {
         await rangeButtonOf(page, 'Last 8 weeks').click();
         await expect(positionChartOf(page)).toHaveAccessibleName(RECENT_CHART);
         await expect(statsOf(page)).toContainText('Best #1 · 6 of 7 weeks');
-        await expect(labels).toHaveCount(8);
+        await expect(labels).toHaveCount(eight.count);
         expect(group.weeksAsked()).toEqual([8, 104]);
         await pageDoesNotScrollSideways(page);
       });

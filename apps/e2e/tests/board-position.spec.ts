@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { contrastOf } from '../support/contrast';
 import { dismissOverlays } from '../support/overlays';
-import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, measureWeekLabels, ringOf } from '../support/positionRange';
+import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, ringOf } from '../support/positionRange';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
 import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
@@ -588,9 +588,12 @@ test.describe('the Position range switch on the board', () => {
         await expect(positionChartOf(page)).toBeVisible();
         await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
         await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'false');
-        await expect(labels).toHaveCount(8);
-        // Standardvyn är oförändrad (en etikett per vecka); på de smalaste bredderna ligger de åtta etiketterna tätt, vilket mäts här och inte krävs.
-        const eight = await measureWeekLabels(labels);
+        // En etikett per vecka där åtta ryms, annars färre: aldrig närmare än 4 px, på alla sex bredder.
+        expect(await labels.count()).toBeGreaterThanOrEqual(2);
+        expect(await labels.count()).toBeLessThanOrEqual(8);
+        await expect(labels.first()).toHaveText('W28');
+        await expect(labels.last()).toHaveText('W35');
+        const eight = await expectWeekLabelsClear(labels, chart, `${theme} / ${width} px / last 8 weeks`);
         await pageDoesNotScrollSideways(page);
 
         // All time: 44 veckor, glesare etiketter (första och pågående alltid med), färre markörer, och sidan står still.
@@ -626,7 +629,7 @@ test.describe('the Position range switch on the board', () => {
         await pageDoesNotScrollSideways(page);
         await page.getByRole('button', { name: 'Show as table' }).click();
         await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
-        await expect(labels).toHaveCount(8);
+        await expect(labels).toHaveCount(eight.count);
         expect(group.weeksAsked()).toEqual([8, 104]);
         await pageDoesNotScrollSideways(page);
       });
