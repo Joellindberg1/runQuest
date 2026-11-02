@@ -2,6 +2,7 @@ import type { PositionHistoryResponse, PositionRunner } from '@runquest/shared';
 import { getInitials } from '@/shared/utils/formatters';
 import { firstName } from '@/shared/utils/format';
 import { positionWeekLabels } from './positionWeekLabels';
+import { weekTickIndexes } from './positionWeekTicks';
 import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, YOU_MARKER, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from './positionTexts';
 
 // Vymodellen för leaderboardens positionsgraf (Position-fliken). Ren: ingen React, ingen klocka och ingen färg per löpare (komponenten väljer
@@ -11,7 +12,8 @@ import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, Y
 // packages/shared/src/rankPasses.ts, som servern placerar med i buildPositionHistory). Modellen sorterar därför ALDRIG själv; linjer,
 // "Current order" och tabell behåller svarets ordning, och ingen delar rad.
 //
-// ANTALET VECKOR: `weeks.length` kan vara 1–26 (servern beskär förledande veckor utan närvarande). Inget här antar åtta.
+// ANTALET VECKOR: `weeks.length` kan vara 1–104 ("All time" begär taket; servern beskär förledande veckor utan närvarande). Inget här antar åtta. En period på mer än åtta veckor får färre
+// veckoetiketter (`labelled`, se positionWeekTicks) och markörer bara vid de märkta veckorna (`marked`): linjen går genom alla veckor, men tre löpare med hundra prickar vardera läses inte.
 
 /** Marginal över första och under sista raden, så slutpunktens bild och guldlinjens tjocklek får plats. */
 const CHART_PADDING = 16;
@@ -41,6 +43,8 @@ export interface ChartWeek {
   /** Andel av bredden (0 äldsta veckan, 1 pågående): samma x som punkterna för veckan, för veckoetiketterna. */
   x: number;
   isCurrent: boolean;
+  /** Veckan får sin etikett under grafen. Alla veckor upp till åtta, annars var n:e (första och pågående alltid). */
+  labelled: boolean;
 }
 
 /** En rad i rutnätet. */
@@ -69,6 +73,8 @@ interface ChartPointBase {
   x: number;
   /** Rad i px från toppen av grafytan. */
   y: number;
+  /** Punkten ritas som markör. Slutpunkten och den pågående veckan alltid, avslutade veckor bara där veckan har en etikett (alla upp till åtta veckor). Linjen går genom alla punkter oavsett. */
+  marked: boolean;
 }
 
 export type ChartPoint =
@@ -183,6 +189,8 @@ export interface PositionChartOptions {
   mobile: boolean;
   /** Förvald löpare; okänt id ignoreras. */
   selectedId?: string | null;
+  /** Högst så här många veckoetiketter på en period över åtta veckor (`weekLabelBudget` ur ytans uppmätta bredd). Utelämnad = åtta. */
+  maxWeekLabels?: number;
 }
 
 const countOf = (runners: number | ReadonlyArray<unknown>) => (typeof runners === 'number' ? runners : runners.length);
@@ -219,7 +227,7 @@ function rowY(position: number, geometry: ChartGeometry): number {
   return geometry.padding + (position - 1) * geometry.rowHeight;
 }
 
-function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartGeometry): ChartPoint[] {
+function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartGeometry, labelled: ReadonlySet<number>): ChartPoint[] {
   const lastIndex = weekCount - 1;
   const initials = getInitials(runner.name);
   const points: ChartPoint[] = [];
@@ -231,9 +239,9 @@ function chartPoints(runner: PositionRunner, weekCount: number, geometry: ChartG
       x: weekX(weekIndex, weekCount),
       y: rowY(position, geometry),
     };
-    if (weekIndex === lastIndex) points.push({ ...base, kind: 'hollow' });
-    else if (weekIndex === lastIndex - 1) points.push({ ...base, kind: 'endpoint', pictureUrl: runner.profile_picture, initials });
-    else points.push({ ...base, kind: 'dot' });
+    if (weekIndex === lastIndex) points.push({ ...base, marked: true, kind: 'hollow' });
+    else if (weekIndex === lastIndex - 1) points.push({ ...base, marked: true, kind: 'endpoint', pictureUrl: runner.profile_picture, initials });
+    else points.push({ ...base, marked: labelled.has(weekIndex), kind: 'dot' });
   });
   return points;
 }
@@ -245,7 +253,8 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
   const finishedCount = Math.max(0, weekCount - 1);
   const { labels, range } = positionWeekLabels(data.weeks);
   const speech = spokenRange(data.weeks);
-  const weeks: ChartWeek[] = labels.map((label, i) => ({ ...label, x: weekX(i, weekCount), isCurrent: i === weekCount - 1 }));
+  const labelledWeeks = new Set(weekTickIndexes(weekCount, options.maxWeekLabels));
+  const weeks: ChartWeek[] = labels.map((label, i) => ({ ...label, x: weekX(i, weekCount), isCurrent: i === weekCount - 1, labelled: labelledWeeks.has(i) }));
 
   const mode: PositionChartMode = runners.length < 2 || weekCount === 0 ? 'hidden' : finishedCount === 0 ? 'no-finished-week' : 'chart';
   const geometry: ChartGeometry = {
@@ -259,7 +268,7 @@ export function buildPositionChart(data: PositionHistoryResponse, options: Posit
   const drawn = mode === 'chart';
   const lines: ChartLine[] = drawn
     ? runners.map((runner) => {
-        const points = chartPoints(runner, weekCount, geometry);
+        const points = chartPoints(runner, weekCount, geometry, labelledWeeks);
         const live = runner.positions[weekCount - 1] ?? null;
         return {
           id: runner.user_id,

@@ -1,10 +1,11 @@
 import type { PositionHistoryResponse } from '@runquest/shared';
 import { positionWeekLabels } from '@/features/leaderboard/positionWeekLabels';
+import { weekTickIndexes } from '@/features/leaderboard/positionWeekTicks';
 import { CURRENT_WEEK_PHRASE, NOT_IN_GROUP_FOOTNOTE, NO_FINISHED_WEEK_MESSAGE, currentWeekSentence, placementText, spokenPlacementText, spokenRange } from '@/features/leaderboard/positionTexts';
 
 // Vymodellen för profilens positionsgraf (ADR 007 addendum 2026-10-26, punkt 1): axel, Best/Lowest/Now, lägen och texter.
 // Ren: ingen React, ingen klocka (tiden kommer från svaret), inga färger. Komponenten ritar bara det här. Antalet veckor styrs av
-// svaret (1–26), veckoetiketterna och perioden kommer ur positionWeekLabels, texterna för den pågående veckan och tankstrecket ur
+// svaret (1–104: de senaste åtta veckorna eller "All time"), veckoetiketterna och perioden kommer ur positionWeekLabels, texterna för den pågående veckan och tankstrecket ur
 // positionTexts (delade med leaderboardens modell) och modellen räknar ingen egen kalender.
 
 export const NEW_RUNNER_MESSAGE = 'First week in the group. Position appears after your first week';
@@ -22,6 +23,8 @@ export interface PositionColumn {
   spoken: string;
   /** Sant för sista kolumnen = den pågående veckan. */
   current: boolean;
+  /** Kolumnen får sin etikett. Alla upp till åtta veckor, annars var n:e (första och pågående alltid), så etiketterna inte hamnar över varandra. */
+  labelled: boolean;
 }
 
 /** Axelns spann i placeringar (inga siffror ritas på axeln; siffran bärs av dotten). */
@@ -42,6 +45,8 @@ export interface PositionDot extends PositionPoint {
   ring: boolean;
   /** Ihålig: den pågående veckan (live). */
   hollow: boolean;
+  /** Dotten ritas (med sin siffra). Alla upp till åtta veckor, annars bara på de märkta veckorna och den pågående; dottar på 24 px ryms inte tätare. Linjen går genom alla veckor oavsett. */
+  marked: boolean;
 }
 
 export interface PositionLine {
@@ -170,13 +175,14 @@ export function buildPositionProfileModel(history: PositionHistoryResponse, user
 
   const axis = axisFor([...finishedPositions, live], runners.length);
   const { labels, range } = positionWeekLabels(weeks);
-  const columns: PositionColumn[] = labels.map((label, column) => ({ ...label, current: column === liveColumn }));
+  const labelledColumns = new Set(weekTickIndexes(weeks.length));
+  const columns: PositionColumn[] = labels.map((label, column) => ({ ...label, current: column === liveColumn, labelled: labelledColumns.has(column) }));
 
   const dots: PositionDot[] = [];
   positions.forEach((position, column) => {
     if (position === null) return;
     const isLive = column === liveColumn;
-    dots.push({ column, position, row: position - axis.first, filled: !isLive && position === 1, ring: true, hollow: isLive });
+    dots.push({ column, position, row: position - axis.first, filled: !isLive && position === 1, ring: true, hollow: isLive, marked: labelledColumns.has(column) });
   });
 
   const lastFinished = finished[finished.length - 1];

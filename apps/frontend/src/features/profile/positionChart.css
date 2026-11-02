@@ -3,6 +3,8 @@
    landningens eller profilens huvudbunt. Ingen rörelse: linjen ritas en gång och inget animeras (inte heller under prefers-reduced-motion). */
 
 .rq-profile-position { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
+/* Det andra antalet veckor hämtas (växeln Last 8 weeks / All time): den gamla grafen står kvar, bleknad (som Events History vid sidbyte), tills det nya svaret kommer. */
+.rq-profile-position[aria-busy="true"] { opacity: .6; }
 
 /* Huvud: den levande placeringen och perioden */
 .rq-profile-position__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-4) var(--rq-sp-12); }

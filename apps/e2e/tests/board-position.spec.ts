@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../support/test';
 import { contrastOf } from '../support/contrast';
 import { dismissOverlays } from '../support/overlays';
+import { ALL_TIME_STUB_WEEKS, RANGE_WIDTHS, answerPositions, boxesOf, expectWeekLabelsClear, ringOf } from '../support/positionRange';
 import { waitForStylesApplied } from '../support/stylesApplied';
 import { apiIsStubbed } from '../support/stubApi';
 import { changeViewInTheAddress, expectSelectedTabClearOfFade, waitForFontsAndLayout } from '../support/tabFade';
@@ -64,14 +65,19 @@ interface HistoryOptions {
   newRunner?: boolean;
 }
 
+/** ISO-veckan `back` veckor före vecka 35 2026. 2025 har 52 veckor, så en period över 35 veckor korsar årsskiftet (vecka 1 2026 följer på vecka 52 2025). */
+const WEEKS_IN_2025 = 52;
+const isoWeekBack = (back: number) => {
+  const week = 35 - back;
+  return week >= 1 ? { iso_week: week, iso_year: 2026 } : { iso_week: week + WEEKS_IN_2025, iso_year: 2025 };
+};
+
 // Veckorna räknas bakåt från vecka 35 2026. Placeringarna roterar vecka för vecka och sista veckan är identiteten (löpare k står på plats k + 1), som Standings.
 function history({ runners, weeks, newRunner = false }: HistoryOptions) {
-  const first = 35 - weeks + 1;
   const weekList = Array.from({ length: weeks }, (_, index) => ({
     start: '2026-08-24',
     end: '2026-08-30',
-    iso_week: first + index,
-    iso_year: 2026,
+    ...isoWeekBack(weeks - 1 - index),
     is_current_week: index === weeks - 1,
   }));
   const positions = (runner: number) =>
@@ -99,6 +105,10 @@ async function answerWith(page: Page, path: string, body: unknown): Promise<void
 interface OpenOptions {
   members: number;
   positions?: unknown;
+  /** Svaret för All time (`weeks=104`). Utan det ger varje antal veckor `positions`. */
+  allTime?: unknown;
+  /** Hur länge svaret för All time hålls tillbaka. */
+  allTimeDelayMs?: number;
   view?: string;
   width: number;
   height?: number;
@@ -107,10 +117,12 @@ interface OpenOptions {
 interface Counters {
   positionRequests: () => number;
   chunkRequests: () => number;
+  /** Antalet veckor varje positionsbegäran gällde, i ordning. */
+  weeksAsked: () => number[];
 }
 
 /** Öppnar Board med en grupp av vald storlek. Returnerar räknarna över positionsbegäran och begäran av vyns chunk (`PositionView-*.js`). */
-async function openBoard(page: Page, { members, positions = history({ runners: members, weeks: 8 }), view, width, height = 740 }: OpenOptions): Promise<Counters> {
+async function openBoard(page: Page, { members, positions = history({ runners: members, weeks: 8 }), allTime, allTimeDelayMs, view, width, height = 740 }: OpenOptions): Promise<Counters> {
   let requests = 0;
   let chunks = 0;
   page.on('request', (request) => {
@@ -118,13 +130,13 @@ async function openBoard(page: Page, { members, positions = history({ runners: m
     if (/\/assets\/PositionView-[^/]*\.js/.test(request.url())) chunks += 1;
   });
   await answerWith(page, '/auth/users-with-runs', { success: true, data: groupOf(members) });
-  await answerWith(page, '/leaderboard/positions', { success: true, data: positions });
+  const answers = await answerPositions(page, { recent: positions, allTime, allTimeDelayMs });
   await page.setViewportSize({ width, height });
   await page.goto(view ? `/board?view=${view}` : '/board');
   await dismissOverlays(page);
   await expect(page.getByRole('tablist', { name: 'Standings view' })).toBeVisible();
   await waitForStylesApplied(page);
-  return { positionRequests: () => requests, chunkRequests: () => chunks };
+  return { positionRequests: () => requests, chunkRequests: () => chunks, weeksAsked: answers.weeksAsked };
 }
 
 const rowAndTab = (tablist: Locator, tab: Locator) =>
@@ -548,5 +560,194 @@ test.describe('the Position tab on the board', () => {
 
     await expect(page.getByRole('tab')).toHaveText(TABS);
     await expect(page.locator('[data-tour="leaderboard-card"]')).toHaveCount(1);
+  });
+});
+
+const rangeSwitchOf = (page: Page) => page.getByRole('group', { name: 'Position range' });
+const rangeButtonOf = (page: Page, name: string) => rangeSwitchOf(page).getByRole('button', { name });
+/** Bilden under båda vyerna: "weeks 28 to 35" för åtta veckor, "week 44, 2025 to week 35, 2026" när perioden korsar årsskiftet. */
+const positionChartOf = (page: Page) => page.getByRole('img', { name: /^Position over time, / });
+const ALL_TIME_CHART = /^Position over time, week 44, 2025 to week 35, 2026/;
+
+test.describe('the Position range switch on the board', () => {
+  test.skip(!apiIsStubbed(), 'The group and the positions are put over a stubbed API; run with E2E_STUB_API=1 against a local build.');
+
+  const open = (page: Page, width: number, extra: Partial<OpenOptions> = {}) =>
+    openBoard(page, { members: 6, view: 'position', width, positions: history({ runners: 6, weeks: 8 }), allTime: history({ runners: 6, weeks: ALL_TIME_STUB_WEEKS }), ...extra });
+
+  for (const theme of THEMES) {
+    for (const width of RANGE_WIDTHS) {
+      test(`switches to All time and back with readable week labels and a still page, in the ${theme} theme at ${width} px`, async ({ page }) => {
+        await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
+        const group = await open(page, width, { height: width < 1024 ? 740 : 900 });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        const labels = page.locator('.rq-board-position__week');
+        const chart = page.locator('.rq-board-position__chart');
+
+        // Standard: de senaste åtta veckorna, en etikett per vecka.
+        await expect(positionChartOf(page)).toBeVisible();
+        await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
+        await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'false');
+        // En etikett per vecka där åtta ryms, annars färre: aldrig närmare än 4 px, på alla sex bredder.
+        expect(await labels.count()).toBeGreaterThanOrEqual(2);
+        expect(await labels.count()).toBeLessThanOrEqual(8);
+        await expect(labels.first()).toHaveText('W28');
+        await expect(labels.last()).toHaveText('W35');
+        const eight = await expectWeekLabelsClear(labels, chart, `${theme} / ${width} px / last 8 weeks`);
+        await pageDoesNotScrollSideways(page);
+
+        // All time: 44 veckor, glesare etiketter (första och pågående alltid med), färre markörer, och sidan står still.
+        await rangeButtonOf(page, 'All time').click();
+        await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+        await expect(rangeButtonOf(page, 'All time')).toHaveAttribute('aria-pressed', 'true');
+        // Hur många etiketter som ryms beror på ytans bredd: sju på en bred graf, färre på en smal. Första och pågående vecka är alltid med.
+        expect(await labels.count()).toBeGreaterThanOrEqual(2);
+        expect(await labels.count()).toBeLessThanOrEqual(7);
+        await expect(labels.first()).toHaveText('W44');
+        await expect(labels.last()).toHaveText('W35');
+        await expect(labels.last()).toHaveAttribute('data-current', 'true');
+        const all = await expectWeekLabelsClear(labels, chart, `${theme} / ${width} px / all time`);
+        test.info().annotations.push({ type: 'measure', description: `${theme} / ${width} px: label gap, last 8 weeks ${eight.minGap.toFixed(1)} px (${eight.count} labels), all time ${all.minGap.toFixed(1)} px (${all.count} labels)` });
+        const dotsPerLine = await page.locator('.rq-board-position__line').evaluateAll((lines) => lines.map((line) => line.querySelectorAll('.rq-board-position__dot').length));
+        for (const count of dotsPerLine) expect(count, 'markers only above the labels').toBeLessThanOrEqual(6);
+        await expect(page.locator('.rq-board-position__line').first().locator('polyline')).toHaveCount(1);
+        await pageDoesNotScrollSideways(page);
+
+        // Tabellen har alla veckor och ligger kvar i kortet; sidan scrollar inte i sidled.
+        await page.getByRole('button', { name: 'Show as table' }).click();
+        const slot = page.locator('.rq-board-position__table-slot');
+        await expect(slot.locator('thead th')).toHaveCount(ALL_TIME_STUB_WEEKS + 1);
+        await pageDoesNotScrollSideways(page);
+        const slotBox = (await boxesOf(slot))[0]!;
+        const cardBox = (await boxesOf(page.locator('.rq-board-position__card')))[0]!;
+        expect(slotBox.left).toBeGreaterThanOrEqual(cardBox.left - TOLERANCE_PX);
+        expect(slotBox.right).toBeLessThanOrEqual(cardBox.right + TOLERANCE_PX);
+
+        // Tillbaka med tabellen öppen: den följer vyn (åtta veckor igen). Sedan stängs tabellen och grafen står där.
+        await rangeButtonOf(page, 'Last 8 weeks').click();
+        await expect(slot.locator('thead th')).toHaveCount(9);
+        await pageDoesNotScrollSideways(page);
+        await page.getByRole('button', { name: 'Show as table' }).click();
+        await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
+        await expect(labels).toHaveCount(eight.count);
+        expect(group.weeksAsked()).toEqual([8, 104]);
+        await pageDoesNotScrollSideways(page);
+      });
+    }
+  }
+
+  for (const width of [375, 1280]) {
+    test(`the switch is one tab stop with arrows, a ring drawn inward and a 44 px target on a phone, at ${width} px`, async ({ page }) => {
+      await open(page, width);
+      await expect(positionChartOf(page)).toBeVisible();
+      const recent = rangeButtonOf(page, 'Last 8 weeks');
+      const allTime = rangeButtonOf(page, 'All time');
+
+      // Ett tabbstopp: Tab från flikraden går till den valda knappen, nästa Tab förbi växeln.
+      await expect(recent).toHaveAttribute('tabindex', '0');
+      await expect(allTime).toHaveAttribute('tabindex', '-1');
+      await page.getByRole('tab', { name: 'Position' }).focus();
+      await page.keyboard.press('Tab');
+      await expect(recent).toBeFocused();
+      const ring = await ringOf(recent);
+      expect(ring.drawn, 'the switch shows a focus ring').toBe(true);
+      expect(ring.width).toBeGreaterThanOrEqual(MIN_RING_WIDTH_PX);
+      expect(ring.offset, 'the ring is drawn inward').toBeLessThan(0);
+      if (width < 1024) {
+        const heights = (await boxesOf(rangeSwitchOf(page).getByRole('button'))).map((box) => box.bottom - box.top);
+        for (const height of heights) expect(height).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+      }
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Show as table' })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(recent).toBeFocused();
+
+      // Pilarna väljer och flyttar fokus; de loopar och byter vy.
+      await page.keyboard.press('ArrowRight');
+      await expect(allTime).toBeFocused();
+      await expect(allTime).toHaveAttribute('aria-pressed', 'true');
+      await expect(allTime).toHaveAttribute('tabindex', '0');
+      await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+      await page.keyboard.press('ArrowRight');
+      await expect(recent).toBeFocused();
+      await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
+      await page.keyboard.press('End');
+      await expect(allTime).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(recent).toBeFocused();
+      await pageDoesNotScrollSideways(page);
+    });
+  }
+
+  test('keeps the old chart marked as busy while All time loads, never an empty box, and caches each view', async ({ page }) => {
+    const group = await open(page, 375, { allTimeDelayMs: 1_200 });
+    await expect(positionChartOf(page)).toBeVisible();
+
+    await rangeButtonOf(page, 'All time').click();
+    // Medan svaret hålls tillbaka: den gamla grafen står kvar, markerad upptagen, och ingen laddare ersätter den.
+    await expect(page.locator('.rq-board-position')).toHaveAttribute('aria-busy', 'true');
+    await expect(positionChartOf(page)).toBeVisible();
+    await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
+    await expect(page.getByText('Loading position')).toHaveCount(0);
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    await expect(page.locator('.rq-board-position')).toHaveAttribute('aria-busy', 'false');
+
+    // Varje vy har sin cachepost: tillbaka och fram igen ber inte om något nytt inom minuten.
+    await rangeButtonOf(page, 'Last 8 weeks').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
+    await rangeButtonOf(page, 'All time').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    expect(group.weeksAsked()).toEqual([8, 104]);
+  });
+
+  for (const theme of THEMES) {
+    test(`keeps the runner column of the All time table in view when the table scrolls sideways, in the ${theme} theme at 320 px`, async ({ page }) => {
+      await page.addInitScript((value) => window.localStorage.setItem('theme', value), theme);
+      await open(page, 320);
+      await rangeButtonOf(page, 'All time').click();
+      await page.getByRole('button', { name: 'Show as table' }).click();
+      const slot = page.locator('.rq-board-position__table-slot');
+      await expect(slot.locator('thead th')).toHaveCount(ALL_TIME_STUB_WEEKS + 1);
+      expect(await slot.evaluate((element) => element.scrollWidth > element.clientWidth + 1), '44 weeks scroll inside the card').toBe(true);
+      await expect(slot).toHaveAttribute('tabindex', '0');
+
+      await slot.evaluate((element) => {
+        element.scrollLeft = element.scrollWidth;
+      });
+      await expect.poll(() => slot.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+      const slotBox = (await boxesOf(slot))[0]!;
+      const names = await boxesOf(slot.locator('tbody th[scope="row"]'));
+      const heading = (await boxesOf(slot.locator('thead th').first()))[0]!;
+      expect(heading.left, 'the Runner heading stays at the left edge').toBeGreaterThanOrEqual(slotBox.left - TOLERANCE_PX);
+      expect(heading.left).toBeLessThanOrEqual(slotBox.left + TOLERANCE_PX);
+      for (const box of names) {
+        expect(box.left, 'a runner name stays at the left edge').toBeGreaterThanOrEqual(slotBox.left - TOLERANCE_PX);
+        expect(box.left).toBeLessThanOrEqual(slotBox.left + TOLERANCE_PX);
+      }
+      await pageDoesNotScrollSideways(page);
+    });
+  }
+
+  test('starts again on Last 8 weeks when the tab is opened again, and writes nothing to the address', async ({ page }) => {
+    await open(page, 375);
+    await rangeButtonOf(page, 'All time').click();
+    await expect(positionChartOf(page)).toHaveAccessibleName(ALL_TIME_CHART);
+    expect(new URL(page.url()).search, 'the choice is not in the address').toBe('?view=position');
+
+    await page.getByRole('tab', { name: 'Streaks' }).click();
+    await expect(page.getByRole('tab', { name: 'Streaks' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Position' }).click();
+    await expect(positionChartOf(page)).toBeVisible();
+
+    await expect(rangeButtonOf(page, 'Last 8 weeks')).toHaveAttribute('aria-pressed', 'true');
+    await expect(positionChartOf(page)).toHaveAccessibleName(/^Position over time, weeks 28 to 35/);
+    expect(new URL(page.url()).search).toBe('?view=position');
+  });
+
+  test('offers no switch to a group with no finished week', async ({ page }) => {
+    await openBoard(page, { members: 6, view: 'position', width: 375, positions: history({ runners: 6, weeks: 1 }) });
+
+    await expect(page.getByText('No finished week yet. Position shows where you stood at the end of each week.')).toBeVisible();
+    await expect(rangeSwitchOf(page)).toHaveCount(0);
   });
 });

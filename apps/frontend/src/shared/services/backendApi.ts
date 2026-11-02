@@ -351,7 +351,7 @@ class BackendApiService {
     return this.request<RankDeltaResponse>('GET', '/leaderboard/rank-delta', undefined, { failure: 'Failed to fetch rank changes' });
   }
 
-  /** GET /leaderboard/positions?weeks=N — placering i total-XP-ordningen vid slutet av varje vecka (ADR 007 B11). `weeks` är 1–26 inklusive den pågående. */
+  /** GET /leaderboard/positions?weeks=N — placering i total-XP-ordningen vid slutet av varje vecka (ADR 007 B11). `weeks` är 1–104 inklusive den pågående (8 = de senaste åtta veckorna, 104 = "All time"; servern beskär veckor före första medlemmen, så svaret kan ha färre). */
   async getPositionHistory(weeks: number): Promise<ApiResult<PositionHistoryResponse>> {
     return this.request<PositionHistoryResponse>('GET', `/leaderboard/positions?weeks=${weeks}`, undefined, { failure: 'Failed to fetch position history' });
   }

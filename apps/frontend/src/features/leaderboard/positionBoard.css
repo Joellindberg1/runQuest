@@ -109,7 +109,7 @@
 }
 
 /* ── Tabellen ─────────────────────────────────────────────────────────────── */
-/* En period på upp till 26 veckor har 26 kolumner: tabellen scrollar i sin egen yta (fokusbar region med inåtriktad ring) i stället för att göra sidan bredare. */
+/* En period på upp till 104 veckor (All time) har lika många kolumner: tabellen scrollar i sin egen yta (fokusbar region med inåtriktad ring) i stället för att göra sidan bredare. */
 /* position: relative gör ytan till innehållsblock för de skärmläsarbara (sr-only, absolut placerade) cellerna, annars sticker de ut ur ytan och vidgar sidan. */
 .rq-board-position__table-slot { position: relative; min-width: 0; overflow-x: auto; }
 .rq-board-position__table-slot:focus-visible { outline: var(--rq-focus-ring); outline-offset: var(--rq-focus-inset); }
@@ -123,6 +123,11 @@
   text-align: left; min-width: 9ch; overflow-wrap: normal; padding-right: var(--rq-sp-6);
 }
 .rq-board-position__table tbody th[scope="row"] { font-family: var(--rq-font-ui); font-weight: 600; font-size: var(--rq-fs-meta); letter-spacing: var(--rq-ls-name); text-transform: uppercase; line-height: var(--rq-lh-tight); }
+/* Namnkolumnen står kvar när tabellen scrollas i sidled (All time har upp till 104 kolumner): utan den vet läsaren inte vems rad hen läser. Kortets bakgrund är halvgenomskinlig i mörkt tema, så
+   kolumnen får samma kortfärg lagd över skalets, annars skiner de scrollade cellerna igenom. */
+.rq-board-position__table thead th:first-child, .rq-board-position__table tbody th[scope="row"] {
+  position: sticky; left: 0; background: linear-gradient(var(--rq-card-bg), var(--rq-card-bg)), var(--rq-bg-shell);
+}
 .rq-board-position__table tbody th[data-me="true"] { color: var(--rq-gold-text); }
 .rq-board-position__table td[data-current="true"] { font-style: italic; }
 .rq-board-position__table td[data-empty="true"] { color: var(--rq-board-position-label); }
@@ -133,6 +138,8 @@
    Mobil: ETT kort med grafen överst och legenden under den, åtskilda av en hårlinje. Desktop (≥ 1024 px, skalets brytpunkt): två kort sida vid sida,
    legenden i sidokolumnen (--rq-board-side-w, samma som Week och Streaks). Samma element i båda lägena; bara CSS flyttar det. */
 .rq-board-position { display: flex; flex-direction: column; gap: var(--rq-sp-16); min-width: 0; }
+/* Det andra antalet veckor hämtas (växeln Last 8 weeks / All time): den gamla grafen står kvar, bleknad (som Events History vid sidbyte), tills det nya svaret kommer. */
+.rq-board-position[aria-busy="true"] { opacity: .6; }
 .rq-board-position-order { display: flex; flex-direction: column; min-width: 0; padding-top: var(--rq-sp-14); border-top: var(--rq-hair) solid var(--rq-line-2); }
 @media (min-width: 1024px) {
   .rq-card.rq-board-position {

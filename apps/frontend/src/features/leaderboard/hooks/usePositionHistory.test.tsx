@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { PositionHistoryResponse } from '@runquest/shared';
+import { POSITION_WEEKS_ALL_TIME, POSITION_WEEKS_DEFAULT, type PositionHistoryResponse } from '@runquest/shared';
 import { invalidateAfterRunChange } from '@/features/runs/runEffects';
 
 const auth = vi.hoisted(() => ({ user: { id: 'u-me' } as { id: string } | null }));
@@ -81,6 +81,65 @@ describe('usePositionHistory', () => {
     expect(eight.result.current.data?.as_of).toBe('weeks-8');
     expect(twelve.result.current.data?.as_of).toBe('weeks-12');
     expect(POSITION_QUERY_KEY(12)).toEqual(['leaderboard', 'positions', 12]);
+  });
+
+  it('keeps one cache entry per number of weeks, with All time on the cap', async () => {
+    api.getPositionHistory.mockImplementation((weeks: number) => Promise.resolve(ok({ ...history(), as_of: `weeks-${weeks}` })));
+    const { result, rerender } = renderHook(({ weeks }) => usePositionHistory(weeks), { wrapper, initialProps: { weeks: POSITION_WEEKS_DEFAULT } });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-8'));
+
+    rerender({ weeks: POSITION_WEEKS_ALL_TIME });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-104'));
+
+    expect(POSITION_QUERY_KEY(POSITION_WEEKS_ALL_TIME)).toEqual(['leaderboard', 'positions', 104]);
+    expect(queryClient.getQueryData(POSITION_QUERY_KEY(8))).toMatchObject({ as_of: 'weeks-8' });
+    expect(queryClient.getQueryData(POSITION_QUERY_KEY(104))).toMatchObject({ as_of: 'weeks-104' });
+  });
+
+  it('keeps showing the old weeks, marked as a placeholder, while the new number of weeks loads, and never an empty result', async () => {
+    let finish: (value: ReturnType<typeof ok>) => void = () => undefined;
+    api.getPositionHistory.mockImplementation((weeks: number) =>
+      weeks === 8 ? Promise.resolve(ok({ ...history(), as_of: 'weeks-8' })) : new Promise((resolve) => { finish = resolve; }),
+    );
+    const { result, rerender } = renderHook(({ weeks }) => usePositionHistory(weeks), { wrapper, initialProps: { weeks: 8 } });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-8'));
+
+    rerender({ weeks: 104 });
+
+    expect(result.current.data?.as_of).toBe('weeks-8');
+    expect(result.current.isPlaceholderData).toBe(true);
+    expect(result.current.isFetching).toBe(true);
+
+    await act(async () => { finish(ok({ ...history(), as_of: 'weeks-104' })); });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-104'));
+    expect(result.current.isPlaceholderData).toBe(false);
+  });
+
+  it('switching back to a number of weeks that is cached and fresh shows it at once, without a new request', async () => {
+    api.getPositionHistory.mockImplementation((weeks: number) => Promise.resolve(ok({ ...history(), as_of: `weeks-${weeks}` })));
+    const { result, rerender } = renderHook(({ weeks }) => usePositionHistory(weeks), { wrapper, initialProps: { weeks: 8 } });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-8'));
+    rerender({ weeks: 104 });
+    await waitFor(() => expect(result.current.data?.as_of).toBe('weeks-104'));
+
+    rerender({ weeks: 8 });
+
+    expect(result.current.data?.as_of).toBe('weeks-8');
+    expect(result.current.isPlaceholderData).toBe(false);
+    expect(api.getPositionHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed switch is an error with no data, so the screen shows the error and not the old weeks under the new choice', async () => {
+    api.getPositionHistory.mockImplementation((weeks: number) =>
+      weeks === 8 ? Promise.resolve(ok()) : Promise.resolve({ success: false, error: 'Boom' }),
+    );
+    const { result, rerender } = renderHook(({ weeks }) => usePositionHistory(weeks), { wrapper, initialProps: { weeks: 8 } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    rerender({ weeks: 104 });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
   });
 
   it('fetches nothing until it is enabled, and nothing while signed out', async () => {
