@@ -1,6 +1,5 @@
 import { cssVars } from '../cssVars';
 import { CURRENT_WEEK_PHRASE } from '../positionTexts';
-import { weekTickIndexes } from '../positionWeekTicks';
 import type { ChartLine, ChartPoint, PositionChartModel } from '../positionChartModel';
 import { PositionAvatar } from './PositionAvatar';
 
@@ -36,7 +35,7 @@ function PackLine({ line, height }: { line: ChartLine; height: number }) {
           <line className="rq-board-position__dash" x1={svgX(lastFinished.x)} y1={lastFinished.y} x2={svgX(hollow.x)} y2={hollow.y} />
         )}
       </svg>
-      {line.points.map((point) => point.kind === 'dot' && <span key={point.weekIndex} className="rq-board-position__dot" style={pointVars(point)} />)}
+      {line.points.map((point) => point.kind === 'dot' && point.marked && <span key={point.weekIndex} className="rq-board-position__dot" style={pointVars(point)} />)}
       {hollow && <span className="rq-board-position__hollow" style={pointVars(hollow)} />}
       {line.endpoint && (
         <span className="rq-board-position__endpoint" style={pointVars(line.endpoint)}>
@@ -48,7 +47,13 @@ function PackLine({ line, height }: { line: ChartLine; height: number }) {
 }
 
 /** Grafen och legenden under den. `hidden` och `no-finished-week` ritar ingenting här: kortet förklarar dem. */
-export function PackPositionChart({ model }: { model: PositionChartModel }) {
+interface PackPositionChartProps {
+  model: PositionChartModel;
+  /** Får veckoetiketternas yta (`.rq-board-position__weeks-field`) när den monteras, så att den som äger modellen kan mäta den. */
+  weeksFieldRef?: (element: HTMLDivElement | null) => void;
+}
+
+export function PackPositionChart({ model, weeksFieldRef }: PackPositionChartProps) {
   if (model.mode !== 'chart') return null;
   const { geometry, gridRows, lines, weeks } = model;
   const byId = new Map(lines.map((line) => [line.id, line]));
@@ -99,12 +104,15 @@ export function PackPositionChart({ model }: { model: PositionChartModel }) {
         </div>
 
         <div className="rq-board-position__weeks" aria-hidden="true">
-          <div className="rq-board-position__weeks-field">
-            {weekTickIndexes(weeks.length).map((index) => (
-              <span key={index} className="rq-board-position__week" data-current={String(weeks[index].isCurrent)} style={cssVars({ '--x': fractionOf(weeks[index].x) })}>
-                {weeks[index].visual}
-              </span>
-            ))}
+          <div ref={weeksFieldRef} className="rq-board-position__weeks-field">
+            {weeks.map(
+              (week, index) =>
+                week.labelled && (
+                  <span key={index} className="rq-board-position__week" data-current={String(week.isCurrent)} style={cssVars({ '--x': fractionOf(week.x) })}>
+                    {week.visual}
+                  </span>
+                ),
+            )}
           </div>
         </div>
       </div>

@@ -125,6 +125,8 @@
 /* Den valda fliken har guld under sig; en guldring ovanpå flyter ihop med den (flikarna är alltid valda när de har tangentbordsfokus). Ringen byter till textfärgen, som valda chips (view-controls.css). */
 .rq-profile-tabs > .rq-tab[aria-selected="true"]:focus-visible { outline-color: var(--rq-text-1); }
 .rq-profile-panel { padding: var(--rq-sp-10) var(--rq-pad-card); }
+/* Position-fliken: växeln Last 8 weeks / All time över grafen (grafens egen stil ligger i den lazy-laddade positionChart.css, växeln står utanför den). */
+.rq-profile-range-panel { display: flex; flex-direction: column; gap: var(--rq-sp-12); min-width: 0; }
 .rq-profile-rows { margin: 0; }
 .rq-profile-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rq-sp-12); font-size: var(--rq-fs-body); }
 .rq-profile-row dt { color: var(--rq-text-3); }

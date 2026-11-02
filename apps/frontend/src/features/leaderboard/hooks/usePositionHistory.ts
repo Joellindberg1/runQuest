@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { POSITION_WEEKS_DEFAULT } from '@runquest/shared';
 import { backendApi } from '@/shared/services/backendApi';
 import { useAuth } from '@/providers/authContext';
@@ -14,6 +14,9 @@ export const POSITION_QUERY_KEY = (weeks: number) => ['leaderboard', 'positions'
  * Placeringshistoriken (GET /api/leaderboard/positions). Leaderboard och profilen delar hook och cache; profilen plockar sin rad med `runners.find`.
  * Hämtar bara när `enabled` är sant (Position-fliken är öppen). Svaret kan ha färre veckor än `weeks` (förledande veckor utan närvarande
  * beskärs, en ny grupp ger en vecka): läs alltid `data.weeks.length`, anta aldrig `weeks`.
+ *
+ * Varje antal veckor är en egen cachepost (de senaste åtta veckorna och "All time"). Vid byte står det gamla svaret kvar (`isPlaceholderData`, `isFetching`) tills det nya kommer, så vyn
+ * aldrig blir en tom ruta. Ett misslyckat byte ger fel utan data: placeholder visas bara medan frågan väntar, så det gamla svaret står aldrig kvar under det nya valet.
  */
 export function usePositionHistory(weeks: number = POSITION_WEEKS_DEFAULT, enabled = true) {
   const { user } = useAuth();
@@ -26,6 +29,7 @@ export function usePositionHistory(weeks: number = POSITION_WEEKS_DEFAULT, enabl
     },
     enabled: enabled && !!user,
     staleTime: STALE_MS,
+    placeholderData: keepPreviousData,
     retry: RETRIES,
   });
 }

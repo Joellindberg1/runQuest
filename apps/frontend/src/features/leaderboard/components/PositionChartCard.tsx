@@ -11,7 +11,13 @@ import { PositionHistoryTable } from './PositionHistoryTable';
 //
 // Komponenten laddas lazy av fliken (React.lazy, dynamisk import) och ligger därför aldrig i landningens eller ingångens bunt. Stilfilen följer med.
 
-export function PositionChartCard({ model }: { model: PositionChartModel }) {
+interface PositionChartCardProps {
+  model: PositionChartModel;
+  /** Får veckoetiketternas yta när den monteras (och null när den tas bort): PositionView mäter den för att avgöra hur många etiketter en lång period får. */
+  weeksFieldRef?: (element: HTMLDivElement | null) => void;
+}
+
+export function PositionChartCard({ model, weeksFieldRef }: PositionChartCardProps) {
   const [tableOpen, setTableOpen] = useState(false);
   const tableId = useId();
   const headingId = useId();
@@ -51,7 +57,7 @@ export function PositionChartCard({ model }: { model: PositionChartModel }) {
             </span>
           </p>
           <div hidden={tableOpen}>
-            <PackPositionChart model={model} />
+            <PackPositionChart model={model} weeksFieldRef={weeksFieldRef} />
           </div>
           {/* Tabbstopp bara när tabellen faktiskt scrollar (en lång period på en smal skärm): en yta som ryms är inget att tabba till. */}
           <div id={tableId} ref={slotRef} className="rq-board-position__table-slot" role="region" aria-labelledby={captionId} tabIndex={tableScrolls ? 0 : undefined} hidden={!tableOpen}>

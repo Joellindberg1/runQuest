@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PositionHistoryResponse, PositionRunner, PositionWeek } from '@runquest/shared';
 import { buildPositionProfileModel, type PositionProfileModel } from './positionModel';
 
-// Veckor ur svaret, aldrig en egen kalender: modellen får exakt de veckor API:t skickar (1–26), måndag första veckan 2026-07-06 = vecka 28.
+// Veckor ur svaret, aldrig en egen kalender: modellen får exakt de veckor API:t skickar (1–104), måndag första veckan 2026-07-06 = vecka 28.
 const weeksOf = (count: number, firstIsoWeek = 28, isoYear = 2026): PositionWeek[] =>
   Array.from({ length: count }, (_, i) => ({
     start: `2026-07-${String(6 + i * 7).padStart(2, '0')}`,
