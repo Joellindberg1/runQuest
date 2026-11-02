@@ -686,3 +686,8 @@ Avvikelser från Leads förslag, avsiktliga och billiga att vända: (a) `label` 
 
 ### Vad som inte byggs
 Ingen tabell, migration eller schemalagt jobb för positionshistorik. Ingen cache. Inga ändringar i `/week`, `/rank-delta` eller Boards ordning (utöver den delade hjälpfunktionen och tidszonsargumentet). Inget `label`, `initials` eller färgfält i API:t. Inget diagrambibliotek. Ingen graf för andra mått än total XP. Inget tempo som serverfält, ingen lagrad härledd data. Ingen tid för manuella rundor och inget fält i loggformuläret. Ingen backfill av `moving_time`. Ingen paginering av positionssvaret. Inga nyheter eller notiser om placeringar.
+
+## Addendum 2026-11-02 (RUN-456, snabbfix): taket 104 och växeln Last 8 weeks / All time
+
+Position-fliken (Board och profil) har två vyer: de senaste åtta veckorna (standard, oförändrad) och "All time" (hela säsongen; utan säsonger än = sedan gruppen började). `POSITION_WEEKS_MAX` höjs från 26 till 104 (`POSITION_WEEKS_ALL_TIME = POSITION_WEEKS_MAX`), och 400-texten följer konstanten (`weeks must be an integer between 1 and 104`). Taket gäller bara hur långt bakåt `weeks` får gå: servern beskär redan förledande veckor före första medlemmen (`buildPositionHistory`), så en grupp yngre än två år får färre veckor, och ändringen är additiv (inget fält, ingen migration, fortfarande en fråga per tabell). Klienten begär 8 eller 104; valet är tillstånd i fliken, inget i adressen. Antagande 1 ovan gäller nu "tak 104": ett läsfönster som växer med gruppens ålder, sidläst som förut. Fel om en grupp med mycket långa rundhistoriker gör svaret långsamt, se revisit-triggern om cache per (grupp, vecka).
+

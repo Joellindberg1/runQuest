@@ -83,7 +83,10 @@ export type RankDeltaApiResponse = ApiSuccess<RankDeltaResponse>;
 // GET /api/leaderboard/positions (ADR 007 B11): placering i total-XP-ordningen vid slutet av varje vecka, härledd bakåt ur total_xp.
 // Konstanter och fältnamn ändras bara additivt (webb och kommande PWA läser dem). Dagar är i gruppens tidszon.
 export const POSITION_WEEKS_DEFAULT = 8;
-export const POSITION_WEEKS_MAX = 26;
+/** Taket på `weeks` (två år). Servern beskär förledande veckor före första medlemmen, så en grupp yngre än taket får färre veckor. */
+export const POSITION_WEEKS_MAX = 104;
+/** "All time" i Position-vyn: begär taket. Hela säsongen = allt sedan gruppen började, tills säsonger finns. */
+export const POSITION_WEEKS_ALL_TIME = POSITION_WEEKS_MAX;
 
 export interface PositionWeek {
   /** Måndag, YYYY-MM-DD i gruppens tidszon. */
